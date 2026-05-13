@@ -307,11 +307,15 @@ def main():
 
     # Upload to Google Drive
     print(f"\n[4/6] Uploading to Google Drive...")
-    gd_result = upload_gdrive(str(zip_path), zip_name)
-    if gd_result:
-        print(f"  SUCCESS: {gd_result['url']}")
-    else:
-        print("  SKIPPED (not configured)")
+    gd_result = None
+    try:
+        gd_result = upload_gdrive(str(zip_path), zip_name)
+        if gd_result:
+            print(f"  SUCCESS: {gd_result['url']}")
+        else:
+            print("  SKIPPED (not configured)")
+    except Exception as e:
+        print(f"  FAILED: {e}")
 
     # Upload to Supabase Storage
     print(f"\n[5/6] Uploading to Supabase Storage...")
