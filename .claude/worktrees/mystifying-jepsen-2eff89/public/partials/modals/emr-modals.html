@@ -1,0 +1,236 @@
+<!-- EMR Modal -->
+<div class="modal fade" id="emrModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-info text-white d-flex align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <div class="emr-photo-wrapper" style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center;">
+            <img id="emr_p_photo" src="" style="display:none; width: 100%; height: 100%; object-fit: cover;">
+            <i class="fas fa-user text-white-50" id="emr_p_photo_placeholder"></i>
+          </div>
+          <div>
+            <h5 class="modal-title fw-bold mb-0"><i class="fas fa-user-md me-2"></i>ຫ້ອງກວດແພດ (EMR)</h5>
+            <div class="small mt-1 opacity-75"><span id="emrPatientId" class="me-2"></span><span id="emrPatientName" class="fw-bold"></span></div>
+          </div>
+        </div>
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3">
+        <div class="alert border rounded d-flex align-items-center gap-3 mb-3 py-2 px-3 bg-light border-secondary" id="emrAllergyBox">
+          <i class="fas fa-exclamation-triangle fa-lg text-secondary" id="emrAllergyIcon"></i>
+          <div><span class="fw-bold text-secondary small">ປະຫວັດການແພ້:</span><span id="emrAllergy" class="fw-bold text-secondary ms-1">ບໍ່ມີ</span></div>
+        </div>
+        <div class="card bg-light border-0 mb-3">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex flex-wrap gap-4 align-items-center">
+              <div><i class="fas fa-comment-medical text-primary me-1"></i><b>CC:</b> <span id="emrCC" class="text-dark">-</span></div>
+              <div><i class="fas fa-heartbeat text-danger me-1"></i><b>BP:</b> <span id="emrBp" class="fw-bold">-</span></div>
+              <div><i class="fas fa-thermometer-half text-warning me-1"></i><b>Temp:</b> <span id="emrTemp" class="fw-bold">-</span></div>
+              <div><i class="fas fa-weight text-success me-1"></i><b>Wt:</b> <span id="emrWeight">-</span></div>
+              <div><i class="fas fa-ruler-vertical text-info me-1"></i><b>Ht:</b> <span id="emrHeight" class="fw-bold">-</span></div>
+              <div><i class="fas fa-calculator text-secondary me-1"></i><b>BMI:</b> <span id="emrBmi" class="fw-bold">-</span></div>
+            </div>
+          </div>
+        </div>
+        <form id="emrForm" onsubmit="window.submitEMRForm(event)">
+          <input type="hidden" id="emrRowIdx">
+          <div class="emr-workflow-shell">
+            <ul class="nav nav-tabs emr-workflow-tabs" id="emrWorkflowTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="emr-overview-tab" data-bs-toggle="tab" data-bs-target="#emr-overview-pane" type="button" role="tab" aria-controls="emr-overview-pane" aria-selected="true">
+                  <i class="fas fa-notes-medical me-2"></i>ຂໍ້ມູນການກວດ
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="emr-lab-tab" data-bs-toggle="tab" data-bs-target="#emr-lab-pane" type="button" role="tab" aria-controls="emr-lab-pane" aria-selected="false">
+                  <i class="fas fa-flask me-2"></i>Lab
+                  <span class="emr-tab-count" id="emrLabTabCount">0</span>
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="emr-rx-tab" data-bs-toggle="tab" data-bs-target="#emr-rx-pane" type="button" role="tab" aria-controls="emr-rx-pane" aria-selected="false">
+                  <i class="fas fa-pills me-2"></i>Rx
+                  <span class="emr-tab-count" id="emrRxTabCount">0</span>
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content emr-workflow-content" id="emrWorkflowTabContent">
+              <div class="tab-pane fade show active emr-workflow-tab-pane" id="emr-overview-pane" role="tabpanel" aria-labelledby="emr-overview-tab">
+                <div class="row g-3">
+                  <div class="col-md-6"><label class="form-label fw-bold">ສະຖານທີ່ (Site)</label><select class="form-select" id="emrSite" onchange="window.handleSiteChange()"></select></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ປະເພດ (Type)</label><select class="form-select" id="emrDeptType"><option value="OPD">OPD</option><option value="IPD">IPD</option></select></div>
+                  <div class="col-12">
+                    <label class="form-label fw-bold">ບໍລິການທີ່ໃຊ້ (Services) <span class="text-muted small fw-normal">— ເລືອກໄດ້ຫຼາຍລາຍການ</span></label>
+                    <select class="form-select" id="emrService" multiple style="width:100%;"></select>
+                  </div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ແພດສະເພາະທາງ (Specialist)</label><input type="text" class="form-control bg-light" id="emrSpecialist" readonly placeholder="ຕື່ມອັດຕະໂນມັດຈາກ Services"></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ໝວດລາຍຮັບ (Revenue Group)</label><input type="text" class="form-control bg-light" id="emrRevenue" readonly placeholder="ຕື່ມອັດຕະໂນມັດຈາກ Services"></div>
+                  <div class="col-12"><label class="form-label fw-bold">ຜົນກວດຮ່າງກາຍ (Physical Exam)</label><textarea class="form-control" id="emrPE" rows="2" placeholder="ຜົນກວດ..."></textarea></div>
+                  <div class="col-12"><label class="form-label fw-bold text-danger">ການວິນິດໄສ (Diagnosis / Dx)</label><textarea class="form-control border-danger" id="emrDiagnosis" rows="2" placeholder="Dx (ຈຳເປັນຕ້ອງໃສ່ເມື່ອຕ້ອງການປິດຈົບການກວດ)..."></textarea></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ຄຳແນະນຳ (Advice)</label><textarea class="form-control" id="emrAdvice" rows="2" placeholder="ຄຳແນະນຳ / ຄຳເຕືອນ..."></textarea></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ນັດໝາຍຕໍ່ໄປ (Follow-up)</label><input type="date" class="form-control" id="emrFollowup"></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">ແພດຜູ້ກວດ (Doctor)</label><select class="form-select dyn-Doctor" id="emrDoctor"><option value="">-- ເລືອກແພດ --</option></select></div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold text-danger required">ສະຖານະປິດຈົບ (Discharge Status)</label>
+                    <select class="form-select border-danger" id="emrDischargeStatus" required>
+                      <option value="">-- ກະລຸນາເລືອກ --</option>
+                      <option value="ລໍຖ້າຜົນແລັບ (Waiting Lab)">⏳ ລໍຖ້າຜົນແລັບ (ພັກການກວດໄວ້ກ່ອນ)</option>
+                      <option value="ຮັບຢາກັບບ້ານ">💊 ຮັບຢາກັບບ້ານ (ໄປຮັບຢາ)</option>
+                      <option value="ນອນຕິດຕາມ (Admit / IPD)">🏥 ນອນຕິດຕາມ (Admit / IPD)</option>
+                      <option value="ສົ່ງຕໍ່ (Transfer)">🚑 ສົ່ງຕໍ່ (Transfer)</option>
+                      <option value="ກວດສຳເລັດ / ກັບບ້ານ">🏠 ກວດສຳເລັດ / ກັບບ້ານ (ບໍ່ມີຢາ)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tab-pane fade emr-workflow-tab-pane" id="emr-lab-pane" role="tabpanel" aria-labelledby="emr-lab-tab">
+                <section class="emr-order-panel lab">
+                  <div class="emr-order-panel-header">
+                    <div class="emr-order-panel-title">
+                      <div class="emr-order-panel-icon"><i class="fas fa-flask"></i></div>
+                      <div>
+                        <h6>ລາຍການ Lab</h6>
+                        <p>ຈັດການລາຍການກວດ ແລະ ກວດສອບ order ກ່ອນສົ່ງຕໍ່</p>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary bg-white emr-order-add-btn" onclick="window.openEMRLabModal()"><i class="fas fa-plus me-1"></i>ເພີ່ມ Lab</button>
+                  </div>
+                  <div class="emr-order-panel-body">
+                    <div id="emrLabTableBody" class="emr-order-list"></div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="tab-pane fade emr-workflow-tab-pane" id="emr-rx-pane" role="tabpanel" aria-labelledby="emr-rx-tab">
+                <section class="emr-order-panel rx">
+                  <div class="emr-order-panel-header">
+                    <div class="emr-order-panel-title">
+                      <div class="emr-order-panel-icon"><i class="fas fa-pills"></i></div>
+                      <div>
+                        <h6>ລາຍການຢາ (Rx)</h6>
+                        <p>ສະແດງລາຍການຢາ, ຂະໜາດ, ແລະ ວິທີໃຊ້ໃຫ້ອ່ານງ່າຍ</p>
+                      </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-success bg-white emr-order-add-btn" onclick="window.openEMRDrugModal()"><i class="fas fa-plus me-1"></i>ເພີ່ມຢາ</button>
+                  </div>
+                  <div class="emr-order-panel-body">
+                    <div id="emrDrugTableBody" class="emr-order-list"></div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-info text-white w-100 fw-bold mt-3 py-2 shadow-sm"><i class="fas fa-save me-2"></i>ບັນທຶກຜົນການກວດ</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EMR Lab Modal -->
+<div class="modal fade" id="emrLabModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold"><i class="fas fa-flask me-2"></i>ເລືອກລາຍການ Lab</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-3 p-lg-4">
+        <div class="emr-lis-shell">
+          <div class="emr-lis-layout">
+            <section class="emr-lis-panel">
+              <div class="emr-lis-panel-header">
+                <div class="emr-lis-panel-title">
+                  <i class="fas fa-vials"></i>
+                  <div>
+                    <strong>Order Lab</strong>
+                    <span>ເລືອກລາຍການກວດຈາກ LIS ໂດຍບໍ່ສະແດງລາຄາ</span>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-light border emr-lis-refresh" onclick="window.renderEMRLabPicker()" title="Refresh list">
+                  <i class="fas fa-rotate-right"></i>
+                </button>
+              </div>
+              <div class="emr-lis-search-row">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-light"><i class="fas fa-search text-muted"></i></span>
+                  <input type="text" class="form-control" id="emrLabSearchInput" placeholder="ຄົ້ນຫາລາຍການ..." oninput="window.filterEMRLabPicker(this.value)">
+                </div>
+              </div>
+              <div id="labCheckboxContainer" class="emr-lis-test-container">
+                <p class="text-muted text-center small py-3"><i class="fas fa-spinner fa-spin me-1"></i>ກຳລັງໂຫຼດລາຍການ Lab...</p>
+              </div>
+            </section>
+
+            <aside class="emr-lis-panel emr-lis-summary-panel">
+              <div class="emr-lis-panel-header">
+                <div class="emr-lis-panel-title">
+                  <i class="fas fa-receipt"></i>
+                  <div>
+                    <strong>Selected Order</strong>
+                    <span>ສະຫຼຸບລາຍການກວດທີ່ເລືອກໄວ້</span>
+                  </div>
+                </div>
+                <span class="emr-lis-summary-count" id="emrLabPickerSelectedCount">0</span>
+              </div>
+              <div class="emr-lis-summary-body" id="emrLabSelectedSummary">
+                <div class="emr-order-empty">
+                  <i class="fas fa-clipboard-list"></i>
+                  <strong>ຍັງບໍ່ມີລາຍການກວດ</strong>
+                  <span>ເລືອກລາຍການຈາກຝັ່ງຊ້າຍເພື່ອເພີ່ມເຂົ້າ order</span>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ຍົກເລີກ</button>
+        <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="window.addLabToEMRList()"><i class="fas fa-check me-1"></i>ຢືນຍັນເລືອກ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EMR Drug Modal -->
+<div class="modal fade" id="emrDrugModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title fw-bold"><i class="fas fa-pills me-2"></i>ເພີ່ມລາຍການຢາ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="mb-3"><label class="form-label fw-bold required">ຊື່ຢາ</label><select class="form-select" id="emrAddDrugSelect" style="width:100%;"><option value="">-- ເລືອກຢາ --</option></select></div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-3"><label class="form-label fw-bold">ຈຳນວນ (Qty)</label><input type="number" class="form-control" id="emrAddDrugQty" min="1" value="1"></div>
+          <div class="col-md-3"><label class="form-label fw-bold">ໜ່ວຍ (Unit)</label><select class="form-select dyn-DrugUnit" id="emrAddDrugUnit"><option value="">-- ໜ່ວຍ --</option></select></div>
+          <div class="col-md-3"><label class="form-label fw-bold text-success">ໃຊ້ຄັ້ງລະ</label><input type="text" class="form-control border-success" id="emrAddDrugDose" placeholder="1"></div>
+          <div class="col-md-3"><label class="form-label fw-bold">ວິທີໃຊ້ (Usage)</label><select class="form-select dyn-DrugUsage" id="emrAddDrugUsage"><option value="">-- ວິທີໃຊ້ --</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ຍົກເລີກ</button>
+        <button type="button" class="btn btn-success btn-sm fw-bold" onclick="window.addDrugToEMRList()"><i class="fas fa-plus me-1"></i>ເພີ່ມຢາ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report Detail Modal -->
+<div class="modal fade" id="reportDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg report-detail-modal-shell">
+      <div class="modal-header report-detail-modal-header py-3">
+        <h5 class="modal-title fw-bold"><i class="fas fa-file-alt me-2"></i>ລາຍລະອຽດການຮັບບໍລິການ</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0" id="reportDetailContent"></div>
+      <div class="modal-footer bg-white border-0 py-3">
+        <button type="button" class="btn btn-outline-secondary fw-bold px-4 shadow-sm" data-bs-dismiss="modal">ປິດໜ້າຕ່າງ</button>
+      </div>
+    </div>
+  </div>
+</div>

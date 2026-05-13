@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\asus\\\\Desktop\\\\Project\\\\HIS-sys-main\\\\src\\\\main.js\" 2>&1 | head -3)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__select_browser",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "Bash(ls \"/c/Users/asus/Downloads/OMC Registration.xlsx\" 2>&1)",
+      "Bash(cd /tmp)",
+      "Bash(python -c ' *)",
+      "Bash(git -C \"C:/Users/asus/Desktop/Project/HIS-sys-main\" status)",
+      "Bash(git -C \"C:/Users/asus/Desktop/Project/HIS-sys-main\" add src/main.js)",
+      "Bash(git -C C:/Users/asus/Desktop/Project/HIS-sys-main commit -m ' *)",
+      "mcp__Claude_in_Chrome__tabs_create_mcp"
+    ]
+  }
+}

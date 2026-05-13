@@ -199,17 +199,39 @@ def cleanup_supabase_storage():
     return deleted
 
 
+def _get_gdrive_credentials(scope="https://www.googleapis.com/auth/drive"):
+    """Build Google Drive credentials from either service account or OAuth desktop JSON."""
+    if not GDRIVE_CREDS:
+        return None
+
+    data = json.loads(GDRIVE_CREDS)
+    cred_type = data.get("type", "")
+
+    if cred_type == "service_account":
+        # Service account — used for automated access
+        from google.oauth2.service_account import Credentials
+        return Credentials.from_service_account_info(data, scopes=[scope])
+    else:
+        # OAuth installed/desktop credentials — has client_id, client_secret, refresh_token
+        from google.oauth2.credentials import Credentials
+        return Credentials(
+            token=data.get("access_token", ""),
+            refresh_token=data.get("refresh_token"),
+            token_uri=data.get("token_uri", "https://oauth2.googleapis.com/token"),
+            client_id=data.get("client_id"),
+            client_secret=data.get("client_secret"),
+            scopes=[scope],
+        )
+
+
 def upload_gdrive(zip_path, filename):
-    """Upload to Google Drive via service account."""
+    """Upload to Google Drive — supports service account or OAuth credentials."""
     if not GDRIVE_CREDS or not GDRIVE_FOLDER:
         print("  Google Drive credentials not configured, skipping.")
         return None
 
-    creds = Credentials.from_service_account_info(
-        json.loads(GDRIVE_CREDS),
-        scopes=["https://www.googleapis.com/auth/drive.file"],
-    )
-    drive = build("drive", "v3", credentials=creds)
+    drive = build("drive", "v3", credentials=_get_gdrive_credentials(
+        "https://www.googleapis.com/auth/drive.file"))
 
     meta = {"name": filename, "mimeType": "application/zip"}
     if GDRIVE_FOLDER:
@@ -227,11 +249,8 @@ def cleanup_gdrive():
     if not GDRIVE_CREDS or not GDRIVE_FOLDER:
         return 0
 
-    creds = Credentials.from_service_account_info(
-        json.loads(GDRIVE_CREDS),
-        scopes=["https://www.googleapis.com/auth/drive"],
-    )
-    drive = build("drive", "v3", credentials=creds)
+    drive = build("drive", "v3", credentials=_get_gdrive_credentials(
+        "https://www.googleapis.com/auth/drive"))
 
     cutoff = datetime.now() - __import__('datetime').timedelta(days=RETENTION_DAYS)
     query = f"'{GDRIVE_FOLDER}' in parents and mimeType='application/zip' and trashed=false"
@@ -321,22 +340,14 @@ def main():
     print(f"\n[5/6] Uploading to Supabase Storage...")
     sb_url_out = None
     if SUPABASE_BUCKET:
-        object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name}"
+        ts_suffix = now.strftime("%Y%m%d_%H%M%S")
+        zip_name_ts = f"backup-{today}_{ts_suffix}.zip"
+        object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name_ts}"
         try:
             resp = upload_supabase_storage(str(zip_path), object_path)
             if resp.status_code in (200, 201):
                 sb_url_out = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}"
                 print(f"  SUCCESS: {sb_url_out}")
-            elif resp.status_code == 409:
-                # Duplicate — upload with timestamp suffix
-                ts = now.strftime("%H%M%S")
-                object_path2 = f"backups/{now.strftime('%Y/%m')}/backup-{today}_{ts}.zip"
-                resp = upload_supabase_storage(str(zip_path), object_path2)
-                if resp.status_code in (200, 201):
-                    sb_url_out = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path2}"
-                    print(f"  SUCCESS (retry with timestamp): {sb_url_out}")
-                else:
-                    print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
             else:
                 print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
         except Exception as e:

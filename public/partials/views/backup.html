@@ -1,0 +1,184 @@
+<!-- ===== BACKUP & RESTORE VIEW ===== -->
+<div id="view-backup" style="display:none;">
+  <div class="mb-4">
+    <h3 class="fw-bold m-0 text-dark"><i class="fas fa-database text-success me-2"></i>ສຳຮອງຂໍ້ມູນ</h3>
+    <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ສຳຮອງ ແລະ ຄືນຄ່າຂໍ້ມູນລະບົບ HIS ໄປ Google Drive + Supabase Storage</p>
+  </div>
+
+  <!-- Production Info Banner -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="alert alert-info d-flex align-items-center py-2 ps-3">
+        <i class="fas fa-info-circle me-2"></i>
+        <span class="small mb-0">Backup ຮັນຜ່ານ GitHub Actions — ອັດຕະໂນມັດທຸກມື້ 12:00 AM UTC. ກົດ <strong>Backup Now</strong> ເພື່ອ run manual.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup Guide Card — shown only when not configured -->
+  <div id="backupSetupGuide" class="row mb-4" style="display:none;">
+    <div class="col-12">
+      <div class="card card-outline card-warning">
+        <div class="card-header bg-warning text-dark">
+          <h5 class="mb-0"><i class="fas fa-magic me-2"></i>ຕັ້ງຄ່າ Backup ງ່າຍໆ 3 ຂັ້ນຕອນ</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4 text-center mb-3">
+              <div class="display-4 text-warning mb-2">1</div>
+              <h6>ຕິດຕັ້ງ GitHub CLI</h6>
+              <p class="small text-muted">brew install gh / choco install gh / apt install gh</p>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+              <div class="display-4 text-warning mb-2">2</div>
+              <h6>Login GitHub</h6>
+              <p class="small text-muted">gh auth login</p>
+            </div>
+            <div class="col-md-4 text-center mb-3">
+              <div class="display-4 text-warning mb-2">3</div>
+              <h6>ຣັນ Setup Wizard</h6>
+              <p class="small text-muted">./scripts/setup-backup-secrets.sh</p>
+            </div>
+          </div>
+          <div class="text-center mt-3">
+            <a href="docs/BACKUP_QUICK_SETUP.md" target="_blank" class="btn btn-warning btn-sm">
+              <i class="fas fa-book me-1"></i> ເບິ່ງຄູ່ມືເຕັມ
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card card-outline card-success">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="fas fa-cloud-upload-alt me-2"></i>ສຳຮອງຂ້ໍມູນ</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 align-items-stretch">
+            <!-- Backup Now -->
+            <div class="col-md-3">
+              <button id="btnBackupNow" class="btn btn-lg btn-success w-100 py-3 shadow" onclick="window.runManualBackup()">
+                <i class="fas fa-play-circle fa-2x mb-2 d-block"></i>
+                <strong>Backup Now</strong>
+                <div class="small mt-1">Run GitHub Actions workflow</div>
+              </button>
+            </div>
+            <!-- Open GitHub Actions -->
+            <div class="col-md-3">
+              <a id="btnOpenGHActions" href="#" target="_blank" class="btn btn-lg btn-outline-dark w-100 py-3 shadow">
+                <i class="fab fa-github fa-2x mb-2 d-block"></i>
+                <strong>Open GitHub Actions</strong>
+                <div class="small mt-1">ເບິ່ງ workflow runs</div>
+              </a>
+            </div>
+            <!-- Open Google Drive -->
+            <div class="col-md-3">
+              <a id="btnOpenDrive" href="#" target="_blank" class="btn btn-lg btn-outline-primary w-100 py-3 shadow">
+                <i class="fab fa-google-drive fa-2x mb-2 d-block" style="color:#4285F4;"></i>
+                <strong>Open Google Drive</strong>
+                <div class="small mt-1">ເບິ່ງ backup ທີ່ upload ໄວ້</div>
+              </a>
+            </div>
+            <!-- Open Supabase Storage -->
+            <div class="col-md-3">
+              <a id="btnOpenSupabase" href="#" target="_blank" class="btn btn-lg btn-outline-info w-100 py-3 shadow">
+                <i class="fas fa-database fa-2x mb-2 d-block text-info"></i>
+                <strong>Supabase Storage</strong>
+                <div class="small mt-1">ເບິ່ງ bucket backups</div>
+              </a>
+            </div>
+          </div>
+          <!-- Restore Guide row -->
+          <div class="row g-3 mt-2">
+            <div class="col-md-3">
+              <button class="btn btn-outline-secondary w-100 py-2" onclick="window.showRestoreGuide()">
+                <i class="fas fa-book me-1"></i> Restore Guide
+              </button>
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-outline-secondary w-100 py-2" onclick="window.showBackupLogs()">
+                <i class="fas fa-file-alt me-1"></i> View Logs
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State (hidden by default) -->
+  <div id="backupLoading" class="row mb-4" style="display:none;">
+    <div class="col-12">
+      <div class="alert alert-info">
+        <div class="d-flex align-items-center">
+          <div class="spinner-border spinner-border-sm text-info me-3"></div>
+          <div>
+            <strong><i class="fas fa-sync-alt fa-spin me-2"></i>ກຳລັງສຳຮອງຂ້ໍມູນ...</strong>
+            <div id="backupLoadingStep" class="small text-muted mt-1">ກະກຽມຂ້ໍມູນ</div>
+          </div>
+          <button class="btn btn-sm btn-outline-danger ms-auto" onclick="window.cancelBackup()">
+            <i class="fas fa-times"></i> ຍົກເລີກ
+          </button>
+        </div>
+        <div class="progress mt-2" style="height:8px;">
+          <div id="backupProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Latest Backup Status — dual destination -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card card-outline card-info">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>ສະຖານະ backup ລ່າສຸດ</h5>
+        </div>
+        <div class="card-body p-0">
+          <div id="latestBackupInfo">
+            <div class="text-center py-4 text-muted">
+              <i class="fas fa-database fa-3x mb-2 d-block"></i>
+              <p class="mb-0">ຍັງບໍ່ມີການ backup. ກົດ <strong>Backup Now</strong> ເພື່ອເລີ່ມສຳຮອງ.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup History Table -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card card-outline card-secondary">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="fas fa-history me-2"></i>ປະຫວັດ Backup</h5>
+        </div>
+        <div class="card-body p-0">
+          <table id="backupHistoryTable" class="table table-hover mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th style="width:160px;">ວັນທີ/ເວລາ</th>
+                <th>FILE NAME</th>
+                <th style="width:100px;">SIZE</th>
+                <th style="width:140px;">STATUS</th>
+                <th>ERROR</th>
+                <th style="width:180px;">ACTION</th>
+              </tr>
+            </thead>
+            <tbody id="backupHistoryBody">
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  <i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

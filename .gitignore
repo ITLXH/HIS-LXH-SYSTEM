@@ -23,3 +23,16 @@ LIS-One-main/
 *.njsproj
 *.sln
 *.sw?
+
+# Backup files (keep source, not artifacts)
+backup/google-token.json
+backup/tmp/
+backup/restore_tmp/
+backup/*.log
+backup/backup-*.zip
+
+# Credentials — NEVER commit
+config/google-drive-credentials.json
+.env
+.env.local
+.env.production
