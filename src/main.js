@@ -8172,6 +8172,20 @@ window.runManualBackup = async function () {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
+
+    // Handle 404 gracefully in local dev (Vite doesn't serve Cloudflare Functions)
+    if (resp.status === 404) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Backup API ບໍ່ພ້ອມ',
+        html: 'Backup API ຈະໃຊ້ໄດ້ຫຼັງ deploy ໄປ Cloudflare Pages.<br>' +
+              'ສຳລັບ local testing ໃຫ້ຮັນ:<br>' +
+              '<code class="small">npm run build && npm run pages:dev</code>',
+        confirmButtonText: 'ເຂົ້າໃຈແລ້ວ'
+      });
+      return;
+    }
+
     const data = await resp.json();
 
     if (!data.success) {
@@ -8209,7 +8223,7 @@ window.pollBackupStatus = async function () {
       const resp = await fetch('/api/backup/status');
       const data = await resp.json();
 
-      if (data.status === 'success' || data.status === 'success' === data.conclusion) {
+      if (data.status === 'in_progress' || data.status === 'queued' || data.status === 'completed' || data.conclusion === 'success' || data.conclusion === 'failure') {
         const actualStatus = data.conclusion || data.status;
         if (actualStatus === 'success') {
           window.addBackupHistoryEntry({
@@ -8278,6 +8292,8 @@ window.pollBackupStatus = async function () {
 window.loadLatestBackupStatus = async function () {
   try {
     const resp = await fetch('/api/backup/status');
+    // In local dev, API returns 404 — just skip
+    if (resp.status === 404) return;
     const data = await resp.json();
 
     const actualStatus = data.conclusion || data.status;
@@ -8348,6 +8364,11 @@ window.addBackupHistoryEntry = function (entry) {
 window.renderBackupHistory = async function () {
   try {
     const resp = await fetch('/api/backup/status');
+    // In local dev, API returns 404 — skip API part, show localStorage history
+    if (resp.status === 404) {
+      window._renderBackupHistoryTable(window.getBackupHistory());
+      return;
+    }
     const data = await resp.json();
 
     if (data.run_id) {
@@ -8372,11 +8393,16 @@ window.renderBackupHistory = async function () {
     console.warn('Failed to fetch status for history:', err);
   }
 
-  const history = window.getBackupHistory();
+  // Fetch complete — render whatever history we have
+  window._renderBackupHistoryTable(window.getBackupHistory());
+};
 
-  if (history.length === 0) {
-    $('#backupHistoryBody').html(
-      '<tr><td colspan="6" class="text-center py-4 text-muted">' +
+// ============================================================
+// Reusable backup history table renderer — called with or without API data
+// ============================================================
+window._renderBackupHistoryTable = function (history) {
+  if (!history || history.length === 0) {
+    $('#backupHistoryBody').html('<tr><td colspan="6" class="text-center py-4 text-muted">' +
       '<i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup</td></tr>'
     );
     return;
