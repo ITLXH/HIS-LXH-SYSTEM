@@ -8130,90 +8130,304 @@ window.openIPDDetail = async function (admissionId) {
 };
 
 // ========================================================================
-// BACKUP & RESTORE UI FUNCTIONS — Supabase Storage via GitHub Actions
+// BACKUP & RESTORE UI FUNCTIONS — Private admin UX with CF Functions proxy
+// Token stays on Cloudflare server-side — never exposed to browser
 // ========================================================================
 
-const GH_ACTIONS_URL = 'https://github.com/it977/HIS-sys/actions/workflows/supabase-backup.yml';
-
-// Init backup view — called when nav-backup is clicked
+// ============================================================
+// Init backup view — load status & history on page show
+// ============================================================
 window.initBackupView = function () {
   if (!currentUser || currentUser.role !== 'admin') {
     Swal.fire('ເຂົ້າບໍ່ໄດ້', 'ທ່ານບໍ່ມີສິດເຂົ້າໃຊ້. ສຳຮອງຂໍ້ມູນສຳລັບ admin ເທົ່ານັ້ນ.', 'error');
     window.loadView('dashboard');
     return;
   }
-  // Set Supabase Storage bucket link if URL is available
-  var supBaseUrl = (typeof window.SUPABASE_URL !== 'undefined') ? window.SUPABASE_URL.replace(/\/$/, '') : '';
-  var supBucket = (typeof window.SUPABASE_STORAGE_BUCKET !== 'undefined') ? window.SUPABASE_STORAGE_BUCKET : '';
-  if (supBaseUrl && supBucket) {
-    $('#btnOpenSupabase').attr('href', supBaseUrl + '/project/_/storage/buckets/' + supBucket);
-  }
+  window.loadLatestBackupStatus();
+  window.renderBackupHistory();
 };
 
 // ============================================================
-// Run manual backup — triggers GH Actions workflow_dispatch
+// Run manual backup — calls /api/backup/run (Cloudflare Function)
+// No redirect, no new tab — polling-based UX
 // ============================================================
 window.runManualBackup = async function () {
   if (!currentUser || currentUser.role !== 'admin') return;
 
   const btn = document.getElementById('btnBackupNow');
   btn.disabled = true;
-  $('#backupLoading').show();
-  $('#backupLoadingStep').html('<i class="fas fa-spinner fa-spin me-1"></i> ກຳລັງເປີດ GitHub Actions ເພື່ອ trigger workflow...');
+
+  Swal.fire({
+    title: 'ກຳລັງ backup ຂໍ້ມູນ...',
+    html: '<i class="fas fa-spinner fa-spin fa-2x mb-3"></i><br>' +
+          'ກຳລັງເລີ່ມ backup ຜ່ານ GitHub Actions<br>' +
+          '<span class="text-muted small">ກະລຸນາລໍຖ້າ...</span>',
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading()
+  });
 
   try {
-    // Open GitHub Actions page for manual trigger
-    window.open(GH_ACTIONS_URL, '_blank');
-    $('#backupLoadingStep').html('<i class="fas fa-check-circle me-1"></i> ເປີດ GitHub Actions ແລ້ວ — ກົດ <strong>Run workflow</strong> ເພື່ອເລີ່ມ backup');
-    $('#backupLoading').hide();
-    btn.disabled = false;
+    const resp = await fetch('/api/backup/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await resp.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Unknown error');
+    }
+
+    // Triggered — poll for status
+    await window.pollBackupStatus();
+
   } catch (err) {
-    console.warn('Error opening GitHub Actions:', err);
+    console.error('Backup trigger failed:', err);
     Swal.fire({
       icon: 'error',
-      title: 'ເກີດຂໍ້ຜິດພາດ',
-      text: 'ບໍ່ສາມາດເປີດ GitHub Actions ໄດ້.'
-    });
-    $('#backupLoading').hide();
-    btn.disabled = false;
-  }
-};
-
-// ============================================================
-// Load latest backup status — simple placeholder
-// ============================================================
-window.loadLatestGHRunStatus = async function () {
-  // Status is shown in GitHub Actions — provide a link
-  $('#latestBackupInfo').html(`
-    <div class="p-3 text-center">
-      <i class="fab fa-github fa-3x mb-2 d-block text-dark"></i>
-      <p class="mb-2">ສະຖານະ backup ລ່າສຸດເບິ່ງໄດ້ໃນ GitHub Actions</p>
-      <a href="${GH_ACTIONS_URL}" target="_blank" class="btn btn-sm btn-outline-dark">
-        <i class="fab fa-github me-1"></i> ເບິ່ງ workflow runs
-      </a>
-    </div>
-  `);
-  // Clear history table with simple message
-  $('#backupHistoryBody').html(
-    '<tr><td colspan="5" class="text-center py-4 text-muted">' +
-    '<i class="fas fa-inbox me-2"></i>ເບິ່ງປະຫວັດໃນ GitHub Actions</td></tr>'
-  );
-};
-
-// ============================================================
-// Show backup logs — opens GitHub Actions page
-// ============================================================
-window.showBackupLogs = function () {
-  if (GH_ACTIONS_URL) {
-    window.open(GH_ACTIONS_URL, '_blank');
-  } else {
-    Swal.fire({
-      icon: 'info',
-      title: 'Backup Logs',
-      html: '<p>Production logs ຢູ່ໃນ GitHub Actions.</p>',
+      title: 'Backup ລົ້ມເຫຼວ',
+      html: 'ບໍ່ສາມາດເລີ່ມ backup ໄດ້<br><code class="small">' + err.message + '</code>',
       confirmButtonText: 'ຕົກລົງ'
     });
+  } finally {
+    btn.disabled = false;
+    window.loadLatestBackupStatus();
+    window.renderBackupHistory();
   }
+};
+
+// ============================================================
+// Poll backup status via /api/backup/status every 10s
+// ============================================================
+window.pollBackupStatus = async function () {
+  const maxWait = 180000;
+  const pollInterval = 10000;
+  let waited = 0;
+
+  while (waited < maxWait) {
+    try {
+      const resp = await fetch('/api/backup/status');
+      const data = await resp.json();
+
+      if (data.status === 'success' || data.status === 'success' === data.conclusion) {
+        const actualStatus = data.conclusion || data.status;
+        if (actualStatus === 'success') {
+          window.addBackupHistoryEntry({
+            run_id: data.run_id,
+            date: data.updated_at,
+            filename: 'backup-' + (data.updated_at || '').substring(0, 10) + '-manual.zip',
+            status: 'success',
+          });
+          Swal.fire({
+            icon: 'success',
+            title: 'Backup ສຳເລັດ',
+            html: 'ຂໍ້ມູນຖືກ backup ໄປ Supabase Storage ສຳເລັດ<br>' +
+                  '<small class="text-muted">' +
+                  (data.run_number ? 'Run #' + data.run_number + ' &middot; ' : '') +
+                  (data.duration ? data.duration + ' ວິນາທີ' : '') + '</small>',
+            confirmButtonText: 'ຕົກລົງ'
+          });
+          return;
+        } else if (actualStatus === 'failure' || data.status === 'failure') {
+          window.addBackupHistoryEntry({
+            run_id: data.run_id,
+            date: data.updated_at,
+            filename: 'backup-' + (data.updated_at || '').substring(0, 10) + '-manual.zip',
+            status: 'failure',
+            error: data.error || 'Workflow failed',
+          });
+          Swal.fire({
+            icon: 'error',
+            title: 'Backup ບໍ່ສຳເລັດ',
+            html: 'Workflow ລົ້ມເຫຼວ ກະລຸນາກວດ logs<br>' +
+                  '<code class="small">' + (data.error || 'Unknown error') + '</code>',
+            confirmButtonText: 'ຕົກລົງ'
+          });
+          return;
+        }
+      }
+
+      // Still running — update loading dialog
+      Swal.fire({
+        title: 'ກຳລັງ backup ຂໍ້ມູນ...',
+        html: '<i class="fas fa-spinner fa-spin fa-2x mb-3"></i><br>' +
+              'Workflow ກຳລັງຮັນ... (' + Math.round(waited / 1000) + ' ວິນາທີ)<br>' +
+              '<span class="text-muted small">ກະລຸນາລໍຖ້າ...</span>',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      console.warn('Poll error:', e);
+    }
+
+    await new Promise(r => setTimeout(r, pollInterval));
+    waited += pollInterval;
+  }
+
+  Swal.fire({
+    icon: 'warning',
+    title: 'ໃຊ້ເວລາດົນ',
+    html: 'Backup ຍັງຄົງຮັນ<br>ກະລຸນາກວດ GitHub Actions ຕາມຫຼັງ',
+    confirmButtonText: 'ຕົກລົງ'
+  });
+};
+
+// ============================================================
+// Load latest backup status from /api/backup/status
+// ============================================================
+window.loadLatestBackupStatus = async function () {
+  try {
+    const resp = await fetch('/api/backup/status');
+    const data = await resp.json();
+
+    const actualStatus = data.conclusion || data.status;
+
+    if (!actualStatus || actualStatus === 'none' || actualStatus === 'error') {
+      $('#latestBackupInfo').html(
+        '<div class="text-center py-4 text-muted">' +
+        '<i class="fas fa-database fa-3x mb-2 d-block"></i>' +
+        '<p class="mb-0">ຍັງບໍ່ມີການ backup. ກົດ <strong>Backup Now</strong> ເພື່ອເລີ່ມ.</p></div>'
+      );
+      return;
+    }
+
+    const statusIcon = actualStatus === 'success'
+      ? '<i class="fas fa-check-circle text-success fa-2x me-3"></i>'
+      : actualStatus === 'failure'
+        ? '<i class="fas fa-times-circle text-danger fa-2x me-3"></i>'
+        : '<i class="fas fa-spinner fa-spin text-warning fa-2x me-3"></i>';
+    const badgeColor = actualStatus === 'success' ? 'bg-success' :
+                       actualStatus === 'failure' ? 'bg-danger' : 'bg-warning';
+
+    const timeStr = data.updated_at ? new Date(data.updated_at).toLocaleString('lo-LA') : '-';
+
+    $('#latestBackupInfo').html(
+      '<div class="p-3">' +
+        '<div class="d-flex align-items-center">' +
+          statusIcon +
+          '<div>' +
+            '<h5 class="mb-0">Backup ລ່າສຸດ: <span class="badge ' + badgeColor + '">' + actualStatus + '</span></h5>' +
+            '<small class="text-muted">' + timeStr +
+            (data.run_number ? ' — Run #' + data.run_number : '') +
+            (data.duration ? ' &middot; ' + data.duration + 's' : '') +
+            '</small>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  } catch (err) {
+    console.warn('Failed to load backup status:', err);
+  }
+};
+
+// ============================================================
+// Backup history — stored in localStorage for client-side cache
+// ============================================================
+const BACKUP_HISTORY_KEY = 'his_backup_history';
+
+window.getBackupHistory = function () {
+  try { return JSON.parse(localStorage.getItem(BACKUP_HISTORY_KEY) || '[]'); }
+  catch { return []; }
+};
+
+window.addBackupHistoryEntry = function (entry) {
+  const history = window.getBackupHistory();
+  history.unshift({
+    id: entry.run_id || Date.now().toString(),
+    date: entry.date || new Date().toISOString(),
+    filename: entry.filename || '',
+    size: entry.size || '-',
+    status: entry.status || 'running',
+    destination: entry.destination || 'Supabase Storage',
+    error: entry.error || null
+  });
+  if (history.length > 50) history.length = 50;
+  localStorage.setItem(BACKUP_HISTORY_KEY, JSON.stringify(history));
+};
+
+window.renderBackupHistory = async function () {
+  try {
+    const resp = await fetch('/api/backup/status');
+    const data = await resp.json();
+
+    if (data.run_id) {
+      const history = window.getBackupHistory();
+      const existing = history.find(function (e) { return e.id === data.run_id; });
+      if (existing) {
+        existing.status = data.conclusion || data.status;
+        existing.error = data.error || null;
+        existing.date = data.updated_at || existing.date;
+      } else {
+        const dateStr = data.updated_at || data.created_at || new Date().toISOString();
+        window.addBackupHistoryEntry({
+          run_id: data.run_id,
+          date: dateStr,
+          filename: 'backup-' + dateStr.substring(0, 10) + (data.trigger === 'workflow_dispatch' ? '-manual' : '') + '.zip',
+          status: data.conclusion || data.status,
+          error: data.error
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch status for history:', err);
+  }
+
+  const history = window.getBackupHistory();
+
+  if (history.length === 0) {
+    $('#backupHistoryBody').html(
+      '<tr><td colspan="6" class="text-center py-4 text-muted">' +
+      '<i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup</td></tr>'
+    );
+    return;
+  }
+
+  var html = '';
+  history.forEach(function (entry) {
+    var statusBadge = entry.status === 'success'
+      ? '<span class="badge bg-success">Success</span>'
+      : entry.status === 'failure' ? '<span class="badge bg-danger">Failed</span>'
+        : '<span class="badge bg-warning">Running</span>';
+
+    var dateStr = entry.date
+      ? new Date(entry.date).toLocaleString('lo-LA', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit'
+        }) : '-';
+
+    var errorCell = entry.error
+      ? '<span class="text-danger text-truncate d-inline-block" style="max-width:180px;">' + entry.error + '</span>' : '-';
+
+    html += '<tr>' +
+      '<td class="text-nowrap">' + dateStr + '</td>' +
+      '<td><code class="small">' + entry.filename + '</code></td>' +
+      '<td>' + entry.size + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td><small>' + entry.destination + '</small></td>' +
+      '<td>' + errorCell + '</td>' +
+      '</tr>';
+  });
+
+  $('#backupHistoryBody').html(html);
+};
+
+// ============================================================
+// Show backup logs
+// ============================================================
+window.showBackupLogs = function () {
+  Swal.fire({
+    icon: 'info',
+    title: 'Backup Logs',
+    html: '<p class="text-start">Production logs ຢູ່ໃນ GitHub Actions.<br>' +
+          'ເປີດໜ້າ workflow runs ເພື່ອເບິ່ງ log ແຕ່ລະ run.</p>',
+    showCancelButton: true,
+    confirmButtonText: '<i class="fab fa-github me-1"></i> ເປີດ GitHub Actions',
+    cancelButtonText: 'ປິດ',
+  }).then(function (result) {
+    if (result.isConfirmed) {
+      window.open('https://github.com/it977/HIS-sys/actions/workflows/supabase-backup.yml', '_blank');
+    }
+  });
 };
 
 // ============================================================
@@ -8223,27 +8437,17 @@ window.showRestoreGuide = function () {
   Swal.fire({
     icon: 'info',
     title: '<i class="fas fa-book me-2"></i>ວິທີ Restore ຈາກ Backup',
-    html: `
-      <div class="text-start" style="font-size:14px;max-height:500px;overflow-y:auto;">
-        <p><strong>ຂັ້ນຕອນ Restore:</strong></p>
-        <ol>
-          <li>ດາວໂຫຼດ backup ZIP ຈາກ Supabase Storage bucket</li>
-          <li>Extract ໄດ້ <code>csv/</code> ໂຟເດີ</li>
-          <li><strong>Restore CSV:</strong> ດາວໂຫຼດແຕ່ລະ CSV ແລ້ວ import ເຂົ້າ Supabase</li>
-        </ol>
-        <p class="text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i><strong>ເຕືອນ:</strong> ກວດສອບ backup ກ່ອນ restore ສະເໝີ.</p>
-        <p class="small text-muted mt-2">ເບິ່ງຄູ່ມືເຕັມ: <code>docs/BACKUP_PRODUCTION.md</code></p>
-      </div>
-    `,
+    html: '<div class="text-start" style="font-size:14px;max-height:500px;overflow-y:auto;">' +
+      '<p><strong>ຂັ້ນຕອນ Restore:</strong></p>' +
+      '<ol>' +
+        '<li>ດາວໂຫຼດ backup ZIP ຈາກ Supabase Storage bucket</li>' +
+        '<li>Extract ໄດ້ <code>csv/</code> ໂຟເດີ</li>' +
+        '<li><strong>Restore CSV:</strong> ດາວໂຫຼດແຕ່ລະ CSV ແລ້ວ import ເຂົ້າ Supabase</li>' +
+      '</ol>' +
+      '<p class="text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i><strong>ເຕືອນ:</strong> ກວດສອບ backup ກ່ອນ restore ສະເໝີ.</p>' +
+      '<p class="small text-muted mt-2">ເບິ່ງຄູ່ມືເຕັມ: <code>docs/BACKUP_PRODUCTION.md</code></p>' +
+      '</div>',
     width: 600,
     confirmButtonText: 'ຕົກລົງ'
   });
-};
-
-// ============================================================
-// Cancel backup (visual only)
-// ============================================================
-window.cancelBackup = function () {
-  $('#backupLoading').hide();
-  Swal.fire('ຍົກເລີກ', 'ການສຳຮອງຖືກຍົກເລີກ', 'info');
 };

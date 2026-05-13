@@ -1,18 +1,8 @@
-// ============================================
-// HIS System - Backup Configuration Template
-// ============================================
-// Set these in your HTML before main.js loads:
+// HIS System - Backup Configuration (DEPRECATED)
+// =====================================================
+// The backup system now uses Cloudflare Functions as a
+// server-side proxy. Tokens are set as Cloudflare env vars,
+// never exposed in the browser.
 //
-// <script>
-//   window.BACKUP_GH_OWNER = 'your-org';
-//   window.BACKUP_GH_REPO = 'HIS-sys-main';
-//   // Optional: PAT with 'repo' scope for API trigger
-//   window.BACKUP_GH_TOKEN = 'ghp_xxxxxxxxxxxx';
-//   window.GOOGLE_DRIVE_FOLDER_ID = 'YOUR_FOLDER_ID';
-// </script>
-//
-// OR set GitHub Secrets for server-side workflow:
-// - SUPABASE_DB_URL
-// - GOOGLE_DRIVE_CREDENTIALS_JSON
-// - GOOGLE_DRIVE_FOLDER_ID
-// See: docs/BACKUP_PRODUCTION.md
+// See: docs/BACKUP_CLOUDFLARE_SETUP.md
+// =====================================================

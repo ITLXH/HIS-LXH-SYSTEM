@@ -1,24 +1,14 @@
-// HIS System - GitHub Actions Backup Configuration
+// HIS System - Backup Configuration (DEPRECATED)
 // =====================================================
-// Set these as window.* variables in your HTML before
-// main.js loads, or configure them in a build step.
+// This file is DEPRECATED. The new backup system uses
+// Cloudflare Functions for server-side API proxy.
+//
+// Required env vars are now set in Cloudflare Pages
+// dashboard (not in browser):
+//   BACKUP_GH_OWNER
+//   BACKUP_GH_REPO
+//   BACKUP_GH_TOKEN
+//   BACKUP_WORKFLOW_FILE
+//
+// See: docs/BACKUP_CLOUDFLARE_SETUP.md
 // =====================================================
-//
-// Example (add to an inline <script> in index.html):
-//
-// <script>
-//   window.BACKUP_GH_OWNER = 'your-org-name';
-//   window.BACKUP_GH_REPO  = 'HIS-sys-main';
-//
-//   // Optional - enables API trigger + polling:
-//   window.BACKUP_GH_TOKEN = 'ghp_xxxx';       // PAT with 'repo' scope
-//   window.GOOGLE_DRIVE_FOLDER_ID = '1abc...';  // Drive folder ID
-// </script>
-//
-// GitHub Secrets (required for the workflow itself):
-//   SUPABASE_HOST
-//   SUPABASE_PASSWORD
-//   GOOGLE_DRIVE_CREDENTIALS_JSON
-//   GOOGLE_DRIVE_FOLDER_ID
-//
-// See: docs/BACKUP_PRODUCTION.md

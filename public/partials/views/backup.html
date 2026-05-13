@@ -2,7 +2,7 @@
 <div id="view-backup" style="display:none;">
   <div class="mb-4">
     <h3 class="fw-bold m-0 text-dark"><i class="fas fa-database text-success me-2"></i>ສຳຮອງຂໍ້ມູນ</h3>
-    <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ສຳຮອງ ແລະ ຄືນຄ່າຂໍ້ມູນລະບົບ HIS ໄປ Supabase Storage</p>
+    <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ສຳຮອງ ແລະ ຄືນຄ່າຂໍ້ມູນລະບົບ HIS ຜ່ານ GitHub Actions → Supabase Storage</p>
   </div>
 
   <!-- Production Info Banner -->
@@ -10,7 +10,7 @@
     <div class="col-12">
       <div class="alert alert-info d-flex align-items-center py-2 ps-3">
         <i class="fas fa-info-circle me-2"></i>
-        <span class="small mb-0">Backup ຮັນຜ່ານ GitHub Actions — ອັດຕະໂນມັດທຸກມື້ 12:00 AM UTC. ກົດ <strong>Backup Now</strong> ເພື່ອ run manual.</span>
+        <span class="small mb-0">Backup ຮັນຜ່ານ GitHub Actions — ອັດຕະໂນມັດທຸກມື້ 12:00 AM UTC. ກົດ <strong>Backup Now</strong> ເພື່ອ run manual ໂດຍບໍ່ອອກຈາກໜ້ານີ້.</span>
       </div>
     </div>
   </div>
@@ -23,34 +23,18 @@
           <h5 class="mb-0"><i class="fas fa-cloud-upload-alt me-2"></i>ສຳຮອງຂໍ້ມູນ</h5>
         </div>
         <div class="card-body">
-          <div class="row g-3 align-items-stretch">
+          <div class="row g-3 align-items-stretch justify-content-center">
             <!-- Backup Now -->
             <div class="col-md-4">
               <button id="btnBackupNow" class="btn btn-lg btn-success w-100 py-3 shadow" onclick="window.runManualBackup()">
                 <i class="fas fa-play-circle fa-2x mb-2 d-block"></i>
                 <strong>Backup Now</strong>
-                <div class="small mt-1">ເບິ່ງ GitHub Actions → ກົດ Run workflow</div>
+                <div class="small mt-1">Trigger backup ຢູ່ຂ້າງຫຼັງ</div>
               </button>
-            </div>
-            <!-- Open GitHub Actions -->
-            <div class="col-md-4">
-              <a id="btnOpenGHActions" href="https://github.com/it977/HIS-sys/actions/workflows/supabase-backup.yml" target="_blank" class="btn btn-lg btn-outline-dark w-100 py-3 shadow">
-                <i class="fab fa-github fa-2x mb-2 d-block"></i>
-                <strong>GitHub Actions</strong>
-                <div class="small mt-1">ເບິ່ງ workflow runs</div>
-              </a>
-            </div>
-            <!-- Open Supabase Storage -->
-            <div class="col-md-4">
-              <a id="btnOpenSupabase" href="#" target="_blank" class="btn btn-lg btn-outline-info w-100 py-3 shadow">
-                <i class="fas fa-database fa-2x mb-2 d-block text-info"></i>
-                <strong>Supabase Storage</strong>
-                <div class="small mt-1">ເບິ່ງ bucket backups</div>
-              </a>
             </div>
           </div>
           <!-- Restore Guide row -->
-          <div class="row g-3 mt-2">
+          <div class="row g-3 mt-2 justify-content-center">
             <div class="col-md-3">
               <button class="btn btn-outline-secondary w-100 py-2" onclick="window.showRestoreGuide()">
                 <i class="fas fa-book me-1"></i> Restore Guide
@@ -62,24 +46,6 @@
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Loading State (hidden by default) -->
-  <div id="backupLoading" class="row mb-4" style="display:none;">
-    <div class="col-12">
-      <div class="alert alert-info">
-        <div class="d-flex align-items-center">
-          <div class="spinner-border spinner-border-sm text-info me-3"></div>
-          <div>
-            <strong><i class="fas fa-sync-alt fa-spin me-2"></i>ກຳລັງສຳຮອງຂໍ້ມູນ...</strong>
-            <div id="backupLoadingStep" class="small text-muted mt-1">ກະກຽມຂໍ້ມູນ</div>
-          </div>
-          <button class="btn btn-sm btn-outline-danger ms-auto" onclick="window.cancelBackup()">
-            <i class="fas fa-times"></i> ຍົກເລີກ
-          </button>
         </div>
       </div>
     </div>
@@ -116,15 +82,16 @@
             <thead class="bg-light">
               <tr>
                 <th style="width:160px;">ວັນທີ/ເວລາ</th>
-                <th>FILE NAME</th>
+                <th style="width:220px;">FILE NAME</th>
                 <th style="width:100px;">SIZE</th>
                 <th style="width:140px;">STATUS</th>
-                <th style="width:180px;">ACTION</th>
+                <th style="width:180px;">DESTINATION</th>
+                <th class="text-truncate" style="max-width:200px;">ERROR</th>
               </tr>
             </thead>
             <tbody id="backupHistoryBody">
               <tr>
-                <td colspan="5" class="text-center py-4 text-muted">
+                <td colspan="6" class="text-center py-4 text-muted">
                   <i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup
                 </td>
               </tr>
