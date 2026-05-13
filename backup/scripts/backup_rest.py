@@ -211,8 +211,8 @@ def _get_gdrive_credentials(scope="https://www.googleapis.com/auth/drive"):
         # Service account — used for automated access
         from google.oauth2.service_account import Credentials
         return Credentials.from_service_account_info(data, scopes=[scope])
-    else:
-        # OAuth installed/desktop credentials — has client_id, client_secret, refresh_token
+    elif "client_id" in data and "refresh_token" in data:
+        # OAuth installed/desktop credentials with refresh token
         from google.oauth2.credentials import Credentials
         return Credentials(
             token=data.get("access_token", ""),
@@ -221,6 +221,14 @@ def _get_gdrive_credentials(scope="https://www.googleapis.com/auth/drive"):
             client_id=data.get("client_id"),
             client_secret=data.get("client_secret"),
             scopes=[scope],
+        )
+    else:
+        raise ValueError(
+            "Google Drive credentials are incomplete. Expected either:\n"
+            "1. Service account JSON (type='service_account'), OR\n"
+            "2. OAuth desktop JSON with client_id + refresh_token.\n"
+            f"Current keys: {list(data.keys())}. "
+            "Missing: refresh_token. For automated access, use a service account."
         )
 
 
