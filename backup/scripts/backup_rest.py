@@ -25,37 +25,67 @@ HEADERS = {
     "Prefer": "count=exact",
 }
 
-def discover_tables():
-    """Use introspection endpoint or REST fallback to find public tables."""
-    # Try introspection endpoint
-    try:
-        resp = requests.get(f"{SUPABASE_URL}/rest/v1/?apikey={SERVICE_KEY}",
-                          headers={"Accept": "application/json"}, timeout=30)
-        if resp.status_code == 200:
-            defs = resp.json()
-            tables = sorted(set(d.get("table", d.get("name", "")) for d in defs if d.get("table") or d.get("name")))
-            if tables:
-                return tables
-    except Exception as e:
-        print(f"  Introspection failed: {e}")
+# Fallback table names — HIS_One_ prefix as used in this project
+KNOWN_TABLES = [
+    "HIS_One_Users", "HIS_One_Settings", "HIS_One_Patients",
+    "HIS_One_Appointments", "HIS_One_Locations", "HIS_One_Organizations",
+    "HIS_One_OrgUsers", "HIS_One_MasterData",
+    "HIS_One_activity_logs", "HIS_One_PatientVaccines",
+    "HIS_One_TriageLogs", "HIS_One_OPDRecords", "HIS_One_IPDRecords",
+    "HIS_One_LabOrders", "HIS_One_LabResults",
+    "HIS_One_Inventory", "HIS_One_Reagents", "HIS_One_Drugs",
+    "HIS_One_Sessions", "HIS_One_Notifications",
+]
 
-    # Fallback: hardcoded common HIS tables
-    fallback = [
-        "users", "settings", "test_master", "test_parameters",
-        "test_reagent_mapping", "stock_master", "inventory_lots",
-        "stock_transactions", "test_orders", "test_results",
-        "maintenance_log", "audit_log", "patients", "appointments",
-    ]
-    # Only include tables that actually exist
+
+def discover_tables():
+    """Use OpenAPI spec or HEAD probes to find real public tables."""
+    # Try OpenAPI spec
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/?apikey={SERVICE_KEY}",
+            headers={"Accept": "application/json"},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                tables = []
+                for item in data:
+                    if isinstance(item, dict):
+                        name = item.get("name") or item.get("table") or item.get("entity")
+                        if name:
+                            tables.append(name)
+                    elif isinstance(item, str):
+                        # Sometimes response is just strings
+                        tables.append(item)
+                tables = sorted(set(tables))
+                if tables:
+                    print(f"  OpenAPI discovery found {len(tables)} tables")
+                    return tables
+            elif isinstance(data, dict):
+                # Some versions return nested structure
+                defs = data.get("definitions", data.get("components", {}).get("schemas", {}))
+                if isinstance(defs, dict):
+                    tables = sorted(defs.keys())
+                    if tables:
+                        print(f"  OpenAPI definitions found {len(tables)} tables")
+                        return tables
+    except Exception as e:
+        print(f"  OpenAPI discovery skipped: {e}")
+
+    # Fallback: probe known table names
+    print("  Probing known table names...")
     existing = []
-    for t in fallback:
+    for t in KNOWN_TABLES:
         try:
             r = requests.head(f"{SUPABASE_URL}/rest/v1/{t}", headers=HEADERS, timeout=10)
             if r.status_code in (200, 206):
                 existing.append(t)
-        except:
+                print(f"    Found: {t} (HTTP {r.status_code})")
+        except Exception:
             pass
-    return existing if existing else fallback
+    return existing
 
 
 def export_table(table):
@@ -81,10 +111,10 @@ def export_table(table):
             if offset >= 100000:
                 break
         else:
-            print(f"  HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}")
+            print(f"    HTTP {resp.status_code} at offset {offset}: {resp.text[:200]}")
             break
 
-    # Deduplicate
+    # Deduplicate by id
     seen = set()
     unique = []
     for row in all_rows:
@@ -128,6 +158,7 @@ def upload_supabase_storage(zip_path, object_path):
         )
     return resp
 
+
 def cleanup_supabase_storage():
     """Delete old backups from Supabase Storage."""
     prefix = "backups/"
@@ -154,7 +185,7 @@ def cleanup_supabase_storage():
             continue
         try:
             created = datetime.fromisoformat(obj["created"].replace("Z", "+00:00"))
-        except:
+        except Exception:
             continue
         if created < cutoff:
             del_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{name}"
@@ -207,7 +238,7 @@ def cleanup_gdrive():
     for f in files:
         try:
             created = datetime.fromisoformat(f["createdTime"].replace("Z", "+00:00"))
-        except:
+        except Exception:
             continue
         if created < cutoff:
             print(f"  Deleting: {f['name']} ({f['createdTime']})")
@@ -245,18 +276,25 @@ def main():
             count = save_csv(table, rows, csv_path)
             csv_files.append(str(csv_path))
             total_rows += count
-            print(f"  {table}: {count} rows")
+            print(f"    {table}: {count} rows")
         except Exception as e:
-            print(f"  {table}: FAILED — {e}")
+            print(f"    {table}: FAILED — {e}")
             failed.append(table)
 
     print(f"\n  Total: {total_rows} rows across {len(csv_files)} tables ({len(failed)} failed)")
 
     # Zip everything
     print(f"\n[3/6] Creating zip archive: {zip_name}")
-    with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
-        for fp in csv_files:
-            zf.write(fp, Path(fp).relative_to(OUTPUT))
+    csv_paths = [Path(fp) for fp in csv_files]
+    if csv_paths:
+        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
+            for fp in csv_paths:
+                zf.write(fp, "csv/" + fp.name)
+    else:
+        # Create minimal zip with manifest and schema discovery
+        print("  No CSV data — creating manifest-only zip")
+        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
+            pass  # empty zip
 
     size = zip_path.stat().st_size
     sha = sha256(str(zip_path))
@@ -273,21 +311,43 @@ def main():
 
     # Upload to Supabase Storage
     print(f"\n[5/6] Uploading to Supabase Storage...")
+    sb_url_out = None
     if SUPABASE_BUCKET:
         object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name}"
-        resp = upload_supabase_storage(str(zip_path), object_path)
-        if resp.status_code in (200, 201):
-            print(f"  SUCCESS: {SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}")
-        else:
-            print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
+        try:
+            resp = upload_supabase_storage(str(zip_path), object_path)
+            if resp.status_code in (200, 201):
+                sb_url_out = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}"
+                print(f"  SUCCESS: {sb_url_out}")
+            elif resp.status_code == 409:
+                # Duplicate — upload with timestamp suffix
+                ts = now.strftime("%H%M%S")
+                object_path2 = f"backups/{now.strftime('%Y/%m')}/backup-{today}_{ts}.zip"
+                resp = upload_supabase_storage(str(zip_path), object_path2)
+                if resp.status_code in (200, 201):
+                    sb_url_out = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path2}"
+                    print(f"  SUCCESS (retry with timestamp): {sb_url_out}")
+                else:
+                    print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
+            else:
+                print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
+        except Exception as e:
+            print(f"  FAILED: {e}")
     else:
         print("  SKIPPED (SUPABASE_STORAGE_BUCKET not set)")
 
     # Cleanup old backups
     print(f"\n[6/6] Cleaning up old backups (>{RETENTION_DAYS} days)...")
-    gd_deleted = cleanup_gdrive()
-    sb_deleted = cleanup_supabase_storage()
-    print(f"  Google Drive: {gd_deleted} deleted | Supabase: {sb_deleted} deleted")
+    try:
+        gd_deleted = cleanup_gdrive()
+        print(f"  Google Drive: {gd_deleted} deleted")
+    except Exception as e:
+        print(f"  Google Drive cleanup error: {e}")
+    try:
+        sb_deleted = cleanup_supabase_storage()
+        print(f"  Supabase: {sb_deleted} deleted")
+    except Exception as e:
+        print(f"  Supabase cleanup error: {e}")
 
     # Manifest
     manifest = {
@@ -314,9 +374,12 @@ def main():
         with open(outputs_path, "a") as f:
             f.write(f"zip_size={size}\n")
             f.write(f"total_rows={total_rows}\n")
+            f.write(f"backup_tables={len(csv_files)}\n")
             if gd_result:
                 f.write(f"drive_url={gd_result['url']}\n")
                 f.write(f"drive_id={gd_result['id']}\n")
+            if sb_url_out:
+                f.write(f"supabase_url={sb_url_out}\n")
 
     return len(failed) == 0
 
