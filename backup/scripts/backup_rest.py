@@ -110,8 +110,11 @@ def export_table(table):
             offset += limit
             if offset >= 100000:
                 break
+        elif resp.status_code == 416:
+            # All rows fetched — offset exceeded available data
+            break
         else:
-            print(f"    HTTP {resp.status_code} at offset {offset}: {resp.text[:200]}")
+            print(f"    HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}")
             break
 
     # Deduplicate by id
@@ -274,7 +277,8 @@ def main():
             rows = export_table(table)
             csv_path = OUTPUT / "csv" / f"{table}.csv"
             count = save_csv(table, rows, csv_path)
-            csv_files.append(str(csv_path))
+            if count > 0:
+                csv_files.append(str(csv_path))
             total_rows += count
             print(f"    {table}: {count} rows")
         except Exception as e:
