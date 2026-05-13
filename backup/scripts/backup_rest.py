@@ -6,14 +6,9 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-GDRIVE_CREDS = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
-GDRIVE_FOLDER = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "")
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 OUTPUT = Path(os.environ.get("OUTPUT_DIR", "output"))
@@ -57,14 +52,12 @@ def discover_tables():
                         if name:
                             tables.append(name)
                     elif isinstance(item, str):
-                        # Sometimes response is just strings
                         tables.append(item)
                 tables = sorted(set(tables))
                 if tables:
                     print(f"  OpenAPI discovery found {len(tables)} tables")
                     return tables
             elif isinstance(data, dict):
-                # Some versions return nested structure
                 defs = data.get("definitions", data.get("components", {}).get("schemas", {}))
                 if isinstance(defs, dict):
                     tables = sorted(defs.keys())
@@ -111,7 +104,6 @@ def export_table(table):
             if offset >= 100000:
                 break
         elif resp.status_code == 416:
-            # All rows fetched — offset exceeded available data
             break
         else:
             print(f"    HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}")
@@ -199,84 +191,6 @@ def cleanup_supabase_storage():
     return deleted
 
 
-def _get_gdrive_credentials(scope="https://www.googleapis.com/auth/drive"):
-    """Build Google Drive credentials from either service account or OAuth desktop JSON."""
-    if not GDRIVE_CREDS:
-        return None
-
-    data = json.loads(GDRIVE_CREDS)
-    cred_type = data.get("type", "")
-
-    if cred_type == "service_account":
-        # Service account — used for automated access
-        from google.oauth2.service_account import Credentials
-        return Credentials.from_service_account_info(data, scopes=[scope])
-    elif "client_id" in data and "refresh_token" in data:
-        # OAuth installed/desktop credentials with refresh token
-        from google.oauth2.credentials import Credentials
-        return Credentials(
-            token=data.get("access_token", ""),
-            refresh_token=data.get("refresh_token"),
-            token_uri=data.get("token_uri", "https://oauth2.googleapis.com/token"),
-            client_id=data.get("client_id"),
-            client_secret=data.get("client_secret"),
-            scopes=[scope],
-        )
-    else:
-        raise ValueError(
-            "Google Drive credentials are incomplete. Expected either:\n"
-            "1. Service account JSON (type='service_account'), OR\n"
-            "2. OAuth desktop JSON with client_id + refresh_token.\n"
-            f"Current keys: {list(data.keys())}. "
-            "Missing: refresh_token. For automated access, use a service account."
-        )
-
-
-def upload_gdrive(zip_path, filename):
-    """Upload to Google Drive — supports service account or OAuth credentials."""
-    if not GDRIVE_CREDS or not GDRIVE_FOLDER:
-        print("  Google Drive credentials not configured, skipping.")
-        return None
-
-    drive = build("drive", "v3", credentials=_get_gdrive_credentials(
-        "https://www.googleapis.com/auth/drive.file"))
-
-    meta = {"name": filename, "mimeType": "application/zip"}
-    if GDRIVE_FOLDER:
-        meta["parents"] = [GDRIVE_FOLDER]
-
-    media = MediaFileUpload(str(zip_path), mimetype="application/zip", resumable=True)
-    result = drive.files().create(body=meta, media_body=media, fields="id, webViewLink").execute()
-    fid = result.get("id")
-    url = result.get("webViewLink", f"https://drive.google.com/file/d/{fid}/view")
-    return {"id": fid, "url": url}
-
-
-def cleanup_gdrive():
-    """Delete old backups from Google Drive."""
-    if not GDRIVE_CREDS or not GDRIVE_FOLDER:
-        return 0
-
-    drive = build("drive", "v3", credentials=_get_gdrive_credentials(
-        "https://www.googleapis.com/auth/drive"))
-
-    cutoff = datetime.now() - __import__('datetime').timedelta(days=RETENTION_DAYS)
-    query = f"'{GDRIVE_FOLDER}' in parents and mimeType='application/zip' and trashed=false"
-    results = drive.files().list(q=query, fields="files(id, name, createdTime)").execute()
-    files = results.get("files", [])
-    deleted = 0
-    for f in files:
-        try:
-            created = datetime.fromisoformat(f["createdTime"].replace("Z", "+00:00"))
-        except Exception:
-            continue
-        if created < cutoff:
-            print(f"  Deleting: {f['name']} ({f['createdTime']})")
-            drive.files().delete(fileId=f["id"]).execute()
-            deleted += 1
-    return deleted
-
-
 def main():
     print("=" * 60)
     print("HIS Database Backup — REST API mode")
@@ -288,12 +202,12 @@ def main():
     zip_path = OUTPUT / zip_name
 
     # Discover tables
-    print("\n[1/6] Discovering tables...")
+    print("\n[1/4] Discovering tables...")
     tables = discover_tables()
     print(f"  Found {len(tables)} tables: {', '.join(tables)}")
 
     # Export each table
-    print("\n[2/6] Exporting tables via REST API...")
+    print("\n[2/4] Exporting tables via REST API...")
     (OUTPUT / "csv").mkdir(parents=True, exist_ok=True)
     csv_files = []
     total_rows = 0
@@ -315,37 +229,24 @@ def main():
     print(f"\n  Total: {total_rows} rows across {len(csv_files)} tables ({len(failed)} failed)")
 
     # Zip everything
-    print(f"\n[3/6] Creating zip archive: {zip_name}")
+    print(f"\n[3/4] Creating zip archive: {zip_name}")
     csv_paths = [Path(fp) for fp in csv_files]
     if csv_paths:
         with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
             for fp in csv_paths:
                 zf.write(fp, "csv/" + fp.name)
     else:
-        # Create minimal zip with manifest and schema discovery
         print("  No CSV data — creating manifest-only zip")
         with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
-            pass  # empty zip
+            pass
 
     size = zip_path.stat().st_size
     sha = sha256(str(zip_path))
     print(f"  Size: {size:,} bytes ({size / 1024 / 1024:.1f} MB)")
     print(f"  SHA-256: {sha}")
 
-    # Upload to Google Drive
-    print(f"\n[4/6] Uploading to Google Drive...")
-    gd_result = None
-    try:
-        gd_result = upload_gdrive(str(zip_path), zip_name)
-        if gd_result:
-            print(f"  SUCCESS: {gd_result['url']}")
-        else:
-            print("  SKIPPED (not configured)")
-    except Exception as e:
-        print(f"  FAILED: {e}")
-
     # Upload to Supabase Storage
-    print(f"\n[5/6] Uploading to Supabase Storage...")
+    print(f"\n[4/4] Uploading to Supabase Storage...")
     sb_url_out = None
     if SUPABASE_BUCKET:
         ts_suffix = now.strftime("%Y%m%d_%H%M%S")
@@ -364,12 +265,7 @@ def main():
         print("  SKIPPED (SUPABASE_STORAGE_BUCKET not set)")
 
     # Cleanup old backups
-    print(f"\n[6/6] Cleaning up old backups (>{RETENTION_DAYS} days)...")
-    try:
-        gd_deleted = cleanup_gdrive()
-        print(f"  Google Drive: {gd_deleted} deleted")
-    except Exception as e:
-        print(f"  Google Drive cleanup error: {e}")
+    print(f"\nCleaning up old backups (>{RETENTION_DAYS} days)...")
     try:
         sb_deleted = cleanup_supabase_storage()
         print(f"  Supabase: {sb_deleted} deleted")
@@ -402,9 +298,6 @@ def main():
             f.write(f"zip_size={size}\n")
             f.write(f"total_rows={total_rows}\n")
             f.write(f"backup_tables={len(csv_files)}\n")
-            if gd_result:
-                f.write(f"drive_url={gd_result['url']}\n")
-                f.write(f"drive_id={gd_result['id']}\n")
             if sb_url_out:
                 f.write(f"supabase_url={sb_url_out}\n")
 

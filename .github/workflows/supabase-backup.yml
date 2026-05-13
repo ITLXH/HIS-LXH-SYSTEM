@@ -27,7 +27,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python deps
-        run: pip install requests google-api-python-client google-auth-httplib2
+        run: pip install requests
 
       - name: Run Backup
         run: |
@@ -37,8 +37,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
-          GOOGLE_DRIVE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           OUTPUT_DIR: output
 
       - name: Set outputs
@@ -78,8 +76,7 @@ jobs:
           echo "| Tables | ${{ steps.outputs.outputs.backup_tables || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Size | ${{ steps.outputs.outputs.backup_size || '-' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Google Drive | ${{ env.GD_STATUS || 'checked' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Supabase Storage | ${{ env.SB_STATUS || 'checked' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Backup Destination | Supabase Storage |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "*No backup files committed to this repository.*" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
