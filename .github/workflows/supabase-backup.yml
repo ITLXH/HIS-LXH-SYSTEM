@@ -1,0 +1,178 @@
+name: Supabase DB Backup
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Manual backup reason'
+        required: false
+        default: 'manual'
+
+env:
+  RETENTION_DAYS: 30
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL Client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client zip
+          pg_dump --version
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps
+        run: pip install google-api-python-client google-auth-httplib2
+
+      - name: PG Dump
+        run: |
+          SUPABASE_REF=$(echo "${{ secrets.SUPABASE_URL }}" | sed 's|https://||' | sed 's|\.supabase\.co||')
+          echo "Using Supabase project ref: ${SUPABASE_REF}"
+          echo "Direct connection host: db.${SUPABASE_REF}.supabase.co"
+          # Try both port 5432 and 6543 (Supabase pooler)
+          pg_dump -h "db.${SUPABASE_REF}.supabase.co" \
+                  -p 5432 \
+                  -U postgres \
+                  -d postgres \
+                  --clean --if-exists \
+                  --no-owner --no-acl \
+                  -f output/sql/full-backup-$(date +%F).sql || \
+          pg_dump -h "${{ secrets.SUPABASE_HOST }}" \
+                  -p 6543 \
+                  -U postgres \
+                  -d postgres \
+                  --clean --if-exists \
+                  --no-owner --no-acl \
+                  -f output/sql/full-backup-$(date +%F).sql
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+
+      - name: Export CSVs
+        run: |
+          set -e
+          SUPABASE_REF=$(echo "${{ secrets.SUPABASE_URL }}" | sed 's|https://||' | sed 's|\.supabase\.co||')
+          TABLES=$(psql -qta -h "db.${SUPABASE_REF}.supabase.co" -p 5432 \
+            -U postgres -d postgres \
+            -c "SELECT string_agg(quote_ident(tablename), ',')
+                FROM pg_tables
+                WHERE schemaname = 'public' AND tablename NOT LIKE 'pg_%' AND tablename NOT LIKE 'sql_%'")
+
+          echo "Tables to export: $TABLES"
+
+          IFS=',' read -ra TS <<< "$TABLES"
+          for t in "${TS[@]}"; do
+            echo "  -> $t"
+            psql -qt -h "db.${SUPABASE_REF}.supabase.co" -p 5432 -U postgres -d postgres \
+              -c "\copy (select * from public.${t}) to 'output/csv/${t}.csv' csv header" \
+              || echo "  -> WARNING: failed to export $t"
+          done
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+
+      - name: Build changelog
+        run: |
+          echo "HIS Database Backup - $(date -u '+%Y-%m-%d %H:%M UTC')" > output/CHANGELOG.txt
+          echo "Trigger: ${{ github.event_name }}" >> output/CHANGELOG.txt
+          echo "Run: ${{ github.run_id }}" >> output/CHANGELOG.txt
+          if [[ -n "${{ github.event.inputs.reason }}" ]]; then
+            echo "Reason: ${{ github.event.inputs.reason }}" >> output/CHANGELOG.txt
+          fi
+          cat output/CHANGELOG.txt
+
+      - name: Zip backup
+        run: |
+          D=$(date +%F)
+          zip -r "backup-${D}.zip" output/
+          echo "ZIP_NAME=backup-${D}.zip" >> $GITHUB_ENV
+          echo "ZIP_SIZE=$(du -h backup-${D}.zip | cut -f1)" >> $GITHUB_ENV
+
+      - name: Upload to Google Drive
+        id: gdrive
+        if: secrets.GOOGLE_DRIVE_CREDENTIALS_JSON != '' && secrets.GOOGLE_DRIVE_FOLDER_ID != ''
+        continue-on-error: true
+        run: |
+          echo '${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}' > /tmp/gcred.json
+          python3 backup/scripts/gdrive_upload.py "${{ env.ZIP_NAME }}" "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}"
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}
+
+      - name: Upload to Supabase Storage
+        id: supabase_upload
+        if: secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_STORAGE_BUCKET != ''
+        continue-on-error: true
+        run: |
+          BUCKET="${{ secrets.SUPABASE_STORAGE_BUCKET }}"
+          YEAR=$(date +%Y)
+          MONTH=$(date +%m)
+          OBJECT_PATH="backups/${YEAR}/${MONTH}/${ZIP_NAME}"
+          SUPABASE_API="${{ secrets.SUPABASE_URL }}"
+
+          echo "Uploading to Supabase Storage bucket: ${BUCKET}"
+          echo "Object path: ${OBJECT_PATH}"
+
+          HTTP_CODE=$(curl -s -o /tmp/sb_response.txt -w '%{http_code}' \
+            -X POST "${SUPABASE_API}/storage/v1/object/${BUCKET}/${OBJECT_PATH}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/zip" \
+            --data-binary "@${ZIP_NAME}")
+
+          echo "HTTP_CODE=${HTTP_CODE}" >> $GITHUB_OUTPUT
+          RESPONSE=$(cat /tmp/sb_response.txt)
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+            echo "  Upload SUCCESS (${BUCKET}/${OBJECT_PATH})"
+            echo "SUPABASE_URL=${SUPABASE_API}/storage/v1/object/public/${BUCKET}/${OBJECT_PATH}" >> $GITHUB_OUTPUT
+          else
+            echo "  Upload FAILED (HTTP ${HTTP_CODE})"
+            echo "  Response: ${RESPONSE}"
+            exit 1
+          fi
+
+      - name: Cleanup Google Drive
+        if: secrets.GOOGLE_DRIVE_CREDENTIALS_JSON != '' && secrets.GOOGLE_DRIVE_FOLDER_ID != ''
+        continue-on-error: true
+        run: python backup/scripts/gdrive_cleanup.py "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}"
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}
+          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
+
+      - name: Cleanup Supabase Storage
+        if: secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_STORAGE_BUCKET != ''
+        continue-on-error: true
+        run: python backup/scripts/supabase_cleanup.py
+        env:
+          SUPABASE_HOST: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          RETENTION_DAYS: ${{ env.RETION_DAYS }}
+
+      - name: Backup summary
+        if: always()
+        run: |
+          echo "## HIS Database Backup Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trigger | ${{ github.event_name }} ${{ github.event.inputs.reason || '' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ZIP Size | ${{ env.ZIP_SIZE || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Google Drive | ${{ steps.gdrive.outcome || 'skipped' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Drive URL | ${{ steps.gdrive.outputs.drive_url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase Storage | ${{ steps.supabase_upload.outcome || 'skipped' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase URL | ${{ steps.supabase_upload.outputs.supabase_url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "*No backup files committed to this repository.*" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Backup failed! Check the workflow logs for details."
