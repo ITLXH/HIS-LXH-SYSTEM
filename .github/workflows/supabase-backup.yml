@@ -33,23 +33,21 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python deps
-        run: pip install google-api-python-client google-auth-httplib2
+        run: pip install google-api-python-client google-auth-httplib2 requests
+
+      - name: Set Supabase connection host
+        id: supabase_host
+        run: |
+          SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+          REF=$(echo "$SUPABASE_URL" | sed 's|https://||' | sed 's|\.supabase\.co||')
+          echo "ref=${REF}" >> $GITHUB_OUTPUT
+          echo "host=db.${REF}.supabase.co" >> $GITHUB_OUTPUT
 
       - name: PG Dump
         run: |
-          SUPABASE_REF=$(echo "${{ secrets.SUPABASE_URL }}" | sed 's|https://||' | sed 's|\.supabase\.co||')
-          echo "Using Supabase project ref: ${SUPABASE_REF}"
-          echo "Direct connection host: db.${SUPABASE_REF}.supabase.co"
-          # Try both port 5432 and 6543 (Supabase pooler)
-          pg_dump -h "db.${SUPABASE_REF}.supabase.co" \
+          mkdir -p output/sql output/csv
+          pg_dump -h "${{ steps.supabase_host.outputs.host }}" \
                   -p 5432 \
-                  -U postgres \
-                  -d postgres \
-                  --clean --if-exists \
-                  --no-owner --no-acl \
-                  -f output/sql/full-backup-$(date +%F).sql || \
-          pg_dump -h "${{ secrets.SUPABASE_HOST }}" \
-                  -p 6543 \
                   -U postgres \
                   -d postgres \
                   --clean --if-exists \
@@ -61,8 +59,7 @@ jobs:
       - name: Export CSVs
         run: |
           set -e
-          SUPABASE_REF=$(echo "${{ secrets.SUPABASE_URL }}" | sed 's|https://||' | sed 's|\.supabase\.co||')
-          TABLES=$(psql -qta -h "db.${SUPABASE_REF}.supabase.co" -p 5432 \
+          TABLES=$(psql -qta -h "${{ steps.supabase_host.outputs.host }}" -p 5432 \
             -U postgres -d postgres \
             -c "SELECT string_agg(quote_ident(tablename), ',')
                 FROM pg_tables
@@ -73,7 +70,7 @@ jobs:
           IFS=',' read -ra TS <<< "$TABLES"
           for t in "${TS[@]}"; do
             echo "  -> $t"
-            psql -qt -h "db.${SUPABASE_REF}.supabase.co" -p 5432 -U postgres -d postgres \
+            psql -qt -h "${{ steps.supabase_host.outputs.host }}" -p 5432 -U postgres -d postgres \
               -c "\copy (select * from public.${t}) to 'output/csv/${t}.csv' csv header" \
               || echo "  -> WARNING: failed to export $t"
           done
@@ -99,17 +96,14 @@ jobs:
 
       - name: Upload to Google Drive
         id: gdrive
-        if: secrets.GOOGLE_DRIVE_CREDENTIALS_JSON != '' && secrets.GOOGLE_DRIVE_FOLDER_ID != ''
         continue-on-error: true
         run: |
-          echo '${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}' > /tmp/gcred.json
-          python3 backup/scripts/gdrive_upload.py "${{ env.ZIP_NAME }}" "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}"
+          python backup/scripts/gdrive_upload.py "${{ env.ZIP_NAME }}" "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}"
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_JSON }}
 
       - name: Upload to Supabase Storage
         id: supabase_upload
-        if: secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_STORAGE_BUCKET != ''
         continue-on-error: true
         run: |
           BUCKET="${{ secrets.SUPABASE_STORAGE_BUCKET }}"
@@ -140,7 +134,6 @@ jobs:
           fi
 
       - name: Cleanup Google Drive
-        if: secrets.GOOGLE_DRIVE_CREDENTIALS_JSON != '' && secrets.GOOGLE_DRIVE_FOLDER_ID != ''
         continue-on-error: true
         run: python backup/scripts/gdrive_cleanup.py "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}"
         env:
@@ -148,31 +141,50 @@ jobs:
           RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
 
       - name: Cleanup Supabase Storage
-        if: secrets.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' && secrets.SUPABASE_STORAGE_BUCKET != ''
         continue-on-error: true
         run: python backup/scripts/supabase_cleanup.py
         env:
           SUPABASE_HOST: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
-          RETENTION_DAYS: ${{ env.RETION_DAYS }}
+          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
 
       - name: Backup summary
         if: always()
         run: |
+          GD_STATUS="skipped"
+          GD_URL="-"
+          SB_STATUS="skipped"
+          SB_URL="-"
+
+          if [ "${{ steps.gdrive.outcome }}" = "success" ]; then
+            GD_STATUS="SUCCESS"
+            GD_URL="${{ steps.gdrive.outputs.drive_url }}"
+          elif [ "${{ steps.gdrive.outcome }}" = "failure" ]; then
+            GD_STATUS="FAILED"
+          fi
+
+          if [ "${{ steps.supabase_upload.outcome }}" = "success" ]; then
+            SB_STATUS="SUCCESS"
+            SB_URL="${{ steps.supabase_upload.outputs.supabase_url }}"
+          elif [ "${{ steps.supabase_upload.outcome }}" = "failure" ]; then
+            SB_STATUS="FAILED"
+          fi
+
           echo "## HIS Database Backup Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Trigger | ${{ github.event_name }} ${{ github.event.inputs.reason || '' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| ZIP Size | ${{ env.ZIP_SIZE || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Google Drive | ${{ steps.gdrive.outcome || 'skipped' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Drive URL | ${{ steps.gdrive.outputs.drive_url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Supabase Storage | ${{ steps.supabase_upload.outcome || 'skipped' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Supabase URL | ${{ steps.supabase_upload.outputs.supabase_url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Google Drive | ${GD_STATUS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Drive URL | [link](${GD_URL}) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase Storage | ${SB_STATUS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase URL | [link](${SB_URL}) |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "*No backup files committed to this repository.*" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify on failure
         if: failure()
-        run: echo "::error::Backup failed! Check the workflow logs for details."
+        run: |
+          echo "::error::Backup failed! Check the workflow logs for details."
