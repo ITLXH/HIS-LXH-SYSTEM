@@ -8,6 +8,71 @@ const supabaseClient = supabase.createClient(
 );
 console.log("Supabase Client:", supabaseClient);
 
+const DB_TABLE_PREFIX = "HIS_One_";
+const dbTable = (name) => `${DB_TABLE_PREFIX}${name}`;
+
+function sha256Fallback(text) {
+  const rightRotate = (value, amount) => (value >>> amount) | (value << (32 - amount));
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  const words = [];
+  const ascii = unescape(encodeURIComponent(text));
+  const hash = [];
+  const k = [];
+  let primeCounter = 0;
+  let candidate = 2;
+  const isPrime = (n) => {
+    for (let factor = 2; factor * factor <= n; factor++) {
+      if (n % factor === 0) return false;
+    }
+    return true;
+  };
+
+  while (primeCounter < 64) {
+    if (isPrime(candidate)) {
+      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+      primeCounter++;
+    }
+    candidate++;
+  }
+
+  for (let i = 0; i < ascii.length; i++) words[i >> 2] |= ascii.charCodeAt(i) << ((3 - i) % 4) * 8;
+  words[ascii.length >> 2] |= 0x80 << ((3 - ascii.length) % 4) * 8;
+  words[((ascii.length + 8) >> 6 << 4) + 15] = ascii.length * 8;
+
+  for (let j = 0; j < words.length; j += 16) {
+    const w = words.slice(j, j + 16);
+    const oldHash = hash.slice(0);
+    for (let i = 0; i < 64; i++) {
+      const w15 = w[i - 15];
+      const w2 = w[i - 2];
+      const a = hash[0];
+      const e = hash[4];
+      const temp1 = hash[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) + ((e & hash[5]) ^ ((~e) & hash[6])) + k[i] + (w[i] = i < 16 ? w[i] : (w[i - 16] + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) | 0);
+      const temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash.unshift((temp1 + temp2) | 0);
+      hash[4] = (hash[4] + temp1) | 0;
+      hash.pop();
+    }
+    for (let i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+  }
+
+  return hash.map(value => {
+    let hex = '';
+    for (let i = 3; i >= 0; i--) hex += ((value >> (i * 8)) & 255).toString(16).padStart(2, '0');
+    return hex;
+  }).join('');
+}
+
+window.hashPassword = async function (password) {
+  const text = String(password || '');
+  if (!window.crypto?.subtle || typeof TextEncoder === 'undefined') return sha256Fallback(text);
+  const bytes = new TextEncoder().encode(text);
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 let currentUser = null;
 let masterDataStore = {};
 let queueDataStore = [];
@@ -222,7 +287,7 @@ window.ensureLabCategoriesExist = async function (categoryValues) {
   const missing = uniqueCategories.filter(value => !existing.has(window.normalizeLabCategoryLabel(value)));
   if (!missing.length) return { error: null };
 
-  const { error } = await supabaseClient.from('MasterData').insert(missing.map(value => ({ Category: 'LabCategory', Value: value })));
+  const { error } = await supabaseClient.from(dbTable('MasterData')).insert(missing.map(value => ({ Category: 'LabCategory', Value: value })));
   return { error };
 };
 
@@ -236,7 +301,7 @@ window.saveLabCategoryMapping = async function (labId, category) {
 
   if (!normalizedCategory) {
     if (!existing) return { error: null };
-    const { error } = await supabaseClient.from('MasterData').delete().eq('ID', existing.id);
+    const { error } = await supabaseClient.from(dbTable('MasterData')).delete().eq('ID', existing.id);
     return { error };
   }
 
@@ -246,11 +311,11 @@ window.saveLabCategoryMapping = async function (labId, category) {
   const payload = JSON.stringify({ labId: normalizedLabId, category: normalizedCategory });
   if (existing) {
     if (existing.category === normalizedCategory) return { error: null };
-    const { error } = await supabaseClient.from('MasterData').update({ Value: payload }).eq('ID', existing.id);
+    const { error } = await supabaseClient.from(dbTable('MasterData')).update({ Value: payload }).eq('ID', existing.id);
     return { error };
   }
 
-  const { error } = await supabaseClient.from('MasterData').insert({ Category: 'LabCategoryMapping', Value: payload });
+  const { error } = await supabaseClient.from(dbTable('MasterData')).insert({ Category: 'LabCategoryMapping', Value: payload });
   return { error };
 };
 
@@ -269,7 +334,7 @@ window.deleteLabCategoryMappings = async function (labIds) {
   });
 
   if (!mappingIds.length) return { error: null };
-  const { error } = await supabaseClient.from('MasterData').delete().in('ID', mappingIds);
+  const { error } = await supabaseClient.from(dbTable('MasterData')).delete().in('ID', mappingIds);
   return { error };
 };
 
@@ -746,8 +811,9 @@ $(document).ready(async function () {
 });
 
 window.doLogin = async function () {
-  let email = $('#loginEmail').val();
-  let pass = $('#loginPass').val();
+  let email = String($('#loginEmail').val() || '').trim();
+  let pass = String($('#loginPass').val() || '');
+  let passTrimmed = pass.trim();
 
   if (!email || !pass) {
     Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາປ້ອນອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຄົບ', 'warning');
@@ -759,9 +825,9 @@ window.doLogin = async function () {
   try {
     // 1. Fetch User from Custom Users Table directly (without Supabase Auth)
     const { data, error } = await supabaseClient
-      .from('Users')
+      .from(dbTable('Users'))
       .select('*')
-      .eq('Email', email)
+      .ilike('Email', email)
       .limit(1);  // ໃຊ້ limit(1) ແທນ .single() ເພື່ອຫຼີກລ່ຽງ error
 
     window.toggleLoading(false);
@@ -782,8 +848,14 @@ window.doLogin = async function () {
     // Get first user from array
     const user = data[0];
 
-    // 3. Check password
-    if (user.Password !== pass) {
+    // 3. Check password (using Password_Hash only)
+    const passHash = await window.hashPassword(pass);
+    const passTrimmedHash = passTrimmed === pass ? passHash : await window.hashPassword(passTrimmed);
+    const storedPasswordHash = String(user.Password_Hash || '');
+    const passwordMatches =
+      storedPasswordHash === passHash ||
+      storedPasswordHash === passTrimmedHash;
+    if (!passwordMatches) {
       Swal.fire('ແຈ້ງເຕືອນ', 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ', 'error');
       return;
     }
@@ -898,6 +970,31 @@ window.initApp = async function () {
     }
 
     if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+    if (typeof Chart !== 'undefined' && !window.dashboardNoDataPluginRegistered) {
+      Chart.register({
+        id: 'dashboardNoDataOverlay',
+        afterDraw(chart, args, pluginOptions) {
+          if (!pluginOptions || !pluginOptions.enabled) return;
+          const chartArea = chart.chartArea;
+          if (!chartArea) return;
+
+          const centerX = (chartArea.left + chartArea.right) / 2;
+          const centerY = (chartArea.top + chartArea.bottom) / 2;
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#59726d';
+          ctx.font = '600 13px "Noto Sans Lao", sans-serif';
+          ctx.fillText(pluginOptions.message || 'ບໍ່ພົບຂໍ້ມູນ', centerX, centerY - 8);
+          ctx.fillStyle = '#8ca19d';
+          ctx.font = '11px "Noto Sans Lao", sans-serif';
+          ctx.fillText(pluginOptions.submessage || 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ', centerX, centerY + 12);
+          ctx.restore();
+        }
+      });
+      window.dashboardNoDataPluginRegistered = true;
+    }
 
     window.toggleLoading(true);
 
@@ -906,26 +1003,26 @@ window.initApp = async function () {
 
     // 2. Fetch all other data in parallel
     await Promise.all([
-      supabaseClient.from('MasterData').select('ID,Category,Value').order('Category').then(({ data, error }) => {
+      supabaseClient.from(dbTable('MasterData')).select('ID,Category,Value').order('Category').then(({ data, error }) => {
         if (error) { console.error('MasterData load error:', error); return; }
         const map = {};
         (data || []).forEach(r => { if (!map[r.Category]) map[r.Category] = []; map[r.Category].push({ id: r.ID, value: r.Value }); });
         console.log('MasterData loaded, categories:', Object.keys(map));
         window.loadMasterDataGlobalCallback(map);
       }),
-      supabaseClient.from('Service_Lists').select('*').order('ID').then(({ data }) => {
+      supabaseClient.from(dbTable('Service_Lists')).select('*').order('ID').then(({ data }) => {
         servicesDataStore = (data || []).map(r => ({ id: r.ID, revenue: r.Revenue_Group, specialist: r.Mapped_Specialist, service: r.Services_List }));
         let so = '';
         servicesDataStore.forEach(s => { so += `<option value="${s.service}">${s.service}</option>`; });
         if (typeof jQuery !== 'undefined') $('#emrService').empty().append(so).trigger('change');
       }),
-      supabaseClient.from('Locations').select('*').order('Province').then(({ data }) => {
+      supabaseClient.from(dbTable('Locations')).select('*').order('Province').then(({ data }) => {
         locationsDataStore = (data || []).map(r => ({ id: r.ID, district: r.District, province: r.Province }));
         let o = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກເມືອງ --</option>';
         locationsDataStore.forEach(l => o += `<option value="${l.district}">${l.district}</option>`);
         if (typeof jQuery !== 'undefined') $('#p_district').html(o);
       }),
-      supabaseClient.from('Organizations').select('*').eq('Status', 'Active').then(({ data }) => {
+      supabaseClient.from(dbTable('Organizations')).select('*').eq('Status', 'Active').then(({ data }) => {
         let orgOptions = '<option value="">-- ເລືອກອົງກອນ --</option>';
         let seenOpts = new Set();
         (data || []).forEach(org => {
@@ -1039,7 +1136,7 @@ window.loadView = function (v) {
   if (v === 'activity_log') window.loadActivityLog();
 
   if (v === 'settings') {
-    supabaseClient.from('Settings').select('Key,Value').then(({ data }) => {
+    supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
       let s = { hospitalName: 'HIS HOSPITAL', logoUrl: '', opdHeaderUrl: '', opdFooterUrl: '' };
       (data || []).forEach(r => {
         if (r.Key === 'HospitalName') s.hospitalName = r.Value || s.hospitalName;
@@ -1058,7 +1155,7 @@ window.loadView = function (v) {
   }
 
   if (!systemSettings.hospitalName) {
-    supabaseClient.from('Settings').select('Key,Value').then(({ data }) => {
+    supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
       (data || []).forEach(r => { if (r.Key === 'HospitalName') systemSettings.hospitalName = r.Value; });
       window.setBrandName(systemSettings.hospitalName);
     });
@@ -1147,7 +1244,7 @@ window.checkAlerts = async function () {
   futureDate.setDate(futureDate.getDate() + 14);
   const futureDateStr = futureDate.toISOString().split('T')[0];
   const { data: appts } = await supabaseClient
-    .from('Appointments')
+    .from(dbTable('Appointments'))
     .select('Appt_ID,Patient_Name,Appt_Date,Appt_Time,Type,Status')
     .eq('Status', 'Pending');
   const alerts = [];
@@ -1209,13 +1306,13 @@ window.renderNotifications = function () { window.checkAlerts(); };
 
 window.preloadDropdownDataCallback = function (resolve) {
   let promises = [
-    supabaseClient.from('Patients').select('Patient_ID,First_Name,Last_Name').order('Patient_ID', { ascending: false }).then(({ data }) => {
+    supabaseClient.from(dbTable('Patients')).select('Patient_ID,First_Name,Last_Name').order('Patient_ID', { ascending: false }).then(({ data }) => {
       allPatientsList = (data || []).map(p => ({ id: p.Patient_ID, fullname: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() }));
       let opts = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກຄົນເຈັບ --</option>';
       allPatientsList.forEach(p => { opts += `<option value="${p.id}">${p.id} - ${p.fullname}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_patient').html(opts).trigger('change'); $('#pv_patient').html(opts).trigger('change'); }
     }),
-    supabaseClient.from('Organizations').select('Org_Code,Org_Name').eq('Status', 'Active').then(({ data }) => {
+    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name').eq('Status', 'Active').then(({ data }) => {
       activeOrgsList = [];
       let seenOpts = new Set();
       (data || []).forEach(r => {
@@ -1228,13 +1325,13 @@ window.preloadDropdownDataCallback = function (resolve) {
       activeOrgsList.forEach(o => { opts += `<option value="${o.id}">${o.id} - ${o.name}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_org').html(opts).trigger('change'); }
     }),
-    supabaseClient.from('Drugs_Master').select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data }) => {
       drugsMasterList = (data || []).map(r => ({ id: r.Drug_ID, name: r.Drug_Name, desc: r.Description || '' }));
       let o = '<option value="">-- ເລືອກຢາ --</option>';
       drugsMasterList.forEach(d => { o += `<option value="${d.name}">${d.name}${d.desc ? ' (' + d.desc + ')' : ''}</option>`; });
       if (typeof jQuery !== 'undefined') $('#emrAddDrugSelect').html(o).trigger('change');
     }),
-    supabaseClient.from('Labs_Master').select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Labs_Master')).select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data }) => {
       labsMasterList = window.applyLabCategoriesToList((data || []).map(r => ({ id: r.Lab_ID, name: r.Lab_Name, desc: r.Description || '' })));
       if (document.getElementById('labCheckboxContainer')) window.renderEMRLabPicker();
     })
@@ -1244,8 +1341,21 @@ window.preloadDropdownDataCallback = function (resolve) {
 
 window.preloadDropdownData = function () { window.preloadDropdownDataCallback(function () { }); };
 
+window.currentDashRangeType = 'today';
+window.currentDashShiftType = 'all';
+
+window.getDashShiftBucket = function (dateValue) {
+  const date = new Date(dateValue);
+  const hours = date.getHours();
+  if (Number.isNaN(hours)) return 'night';
+  if (hours >= 8 && hours < 16) return 'morning';
+  if (hours >= 16 && hours < 21) return 'evening';
+  return 'night';
+};
+
 window.setDashRange = function (type) {
-  $('.btn-group .btn').removeClass('active btn-primary').addClass('btn-outline-primary');
+  window.currentDashRangeType = type;
+  $('.dashboard-range-group .btn').removeClass('active btn-primary').addClass('btn-outline-primary');
   $('#btnDash' + type.charAt(0).toUpperCase() + type.slice(1)).addClass('active btn-primary').removeClass('btn-outline-primary');
 
   let start = new Date();
@@ -1263,13 +1373,46 @@ window.setDashRange = function (type) {
   window.fetchDashboardData();
 };
 
-window.fetchDashboardData = async function () {
+window.setDashShift = function (type) {
+  window.currentDashShiftType = type;
+  $('.dashboard-shift-group .btn').removeClass('active btn-primary').addClass('btn-outline-primary');
+  $('#btnDashShift' + type.charAt(0).toUpperCase() + type.slice(1)).addClass('active btn-primary').removeClass('btn-outline-primary');
+  window.fetchDashboardData();
+};
+
+window.fetchDashboardData = async function (rangeType) {
   let sDate = $('#dashStartDate').val();
   let eDate = $('#dashEndDate').val();
   if (!sDate || !eDate) return;
 
+  if (rangeType === 'custom') {
+    window.currentDashRangeType = 'custom';
+    $('.dashboard-range-group .btn').removeClass('active btn-primary').addClass('btn-outline-primary');
+  }
+
+  const dashRangeLabels = {
+    today: 'ມື້ນີ້',
+    week: 'ອາທິດນີ້',
+    month: 'ເດືອນນີ້',
+    year: 'ປີນີ້',
+    custom: 'ກຳນົດເອງ'
+  };
+  const dashShiftLabels = {
+    all: 'ທັງໝົດ',
+    morning: '08:00 - 16:00',
+    evening: '16:00 - 21:00',
+    night: '21:00 - 08:00'
+  };
+  const activeRangeType = window.currentDashRangeType || 'custom';
+  const activeShiftType = window.currentDashShiftType || 'all';
+
+  $('#dashReportStartLabel').text(sDate);
+  $('#dashReportEndLabel').text(eDate);
+  $('#dashRangePresetLabel').text(dashRangeLabels[activeRangeType] || dashRangeLabels.custom);
+  $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
+  $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
   let d = new Date();
-  $('#dashRefreshTime').text(`ອັບເດດລ່າສຸດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+  $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   $('#dash-total, #dash-new, #dash-old, #dash-inscorp').html('<i class="fas fa-spinner fa-spin"></i>');
 
   try {
@@ -1278,7 +1421,7 @@ window.fetchDashboardData = async function () {
     let startRange = 0;
     while (true) {
       const { data: chunk, error } = await supabaseClient
-        .from('Visits')
+        .from(dbTable('Visits'))
         .select('*')
         .gte('Date', sDate + 'T00:00:00Z')
         .lte('Date', eDate + 'T23:59:59Z')
@@ -1303,7 +1446,11 @@ window.fetchDashboardData = async function () {
       return true;
     });
 
-    console.log(`Dashboard Data Loaded: ${data.length} records for range ${sDate} to ${eDate}`);
+    if (activeShiftType !== 'all') {
+      data = data.filter(v => v.Date && window.getDashShiftBucket(v.Date) === activeShiftType);
+    }
+
+    console.log(`Dashboard Data Loaded: ${data.length} records for range ${sDate} to ${eDate} and shift ${activeShiftType}`);
 
     // 2. Fetch unique Patients involved (Paginated)
     const pIds = [...new Set(data.map(v => v.Patient_ID).filter(id => !!id))];
@@ -1311,7 +1458,7 @@ window.fetchDashboardData = async function () {
     if (pIds.length > 0) {
       let pStart = 0;
       while (true) {
-        const { data: pChunk, error: pError } = await supabaseClient.from('Patients')
+        const { data: pChunk, error: pError } = await supabaseClient.from(dbTable('Patients'))
           .select('*')
           .in('Patient_ID', pIds)
           .range(pStart, pStart + 999);
@@ -1349,7 +1496,7 @@ window.fetchDashboardData = async function () {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: allPatientVisits, error: avError } = await supabaseClient
-          .from('Visits')
+          .from(dbTable('Visits'))
           .select('Visit_ID, Patient_ID, Date')
           .in('Patient_ID', chunkIds)
           .order('Date', { ascending: true });
@@ -1395,21 +1542,61 @@ window.fetchDashboardData = async function () {
   }
 };
 
+window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince'];
+
+window.refreshDashboardChartLayout = function () {
+  const resizeCharts = () => {
+    window.dashboardChartIds.forEach((chartId) => {
+      const chart = chartInstances[chartId];
+      const canvas = document.getElementById(chartId);
+      if (!chart || !canvas || !canvas.isConnected) return;
+
+      const parent = canvas.parentElement;
+      if (!parent || parent.clientWidth === 0 || parent.clientHeight === 0) return;
+
+      chart.resize();
+      chart.update('none');
+    });
+  };
+
+  [0, 120, 400].forEach((delay) => {
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(resizeCharts);
+      });
+    }, delay);
+  });
+};
+
 window.createChart = function (ctxId, type, labels, data, colors, isHorizontal = false) {
   if (chartInstances[ctxId]) chartInstances[ctxId].destroy();
   const el = document.getElementById(ctxId);
   if (!el) return;
   const ctx = el.getContext('2d');
-    let options = {
+  const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
+  const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
+  const hasUsableData = safeData.some(value => value > 0);
+  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartMarketing']);
+  const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
+  const legendFontSize = isCompactDashboardChart ? 8 : 10;
+  const tickFontSize = isCompactDashboardChart ? 8 : 10;
+  const yTickFontSize = isCompactDashboardChart ? 9 : 11;
+  const dataLabelSize = isCompactDashboardChart ? 8 : 10;
+  const layoutPadding = isCompactDashboardChart
+    ? { right: isHorizontal ? 30 : 8, top: isHorizontal ? 6 : 16, left: 4, bottom: 4 }
+    : { right: isHorizontal ? 60 : 15, top: isHorizontal ? 10 : 35, left: 10, bottom: 10 };
+
+  let options = {
     responsive: true, maintainAspectRatio: false,
     indexAxis: isHorizontal ? 'y' : 'x',
     plugins: {
       legend: { 
-        display: !['bar'].includes(type) && labels.length > 0,
+        display: !['bar'].includes(type) && safeLabels.length > 0 && hasUsableData,
         position: 'bottom',
-        labels: { boxWidth: 10, padding: 15, font: { size: 10, family: "'Noto Sans Lao', sans-serif" } }
+        labels: { boxWidth: isCompactDashboardChart ? 8 : 10, padding: isCompactDashboardChart ? 8 : 15, font: { size: legendFontSize, family: "'Noto Sans Lao', sans-serif" } }
       },
       tooltip: {
+        enabled: hasUsableData,
         backgroundColor: 'rgba(2, 6, 23, 0.95)',
         padding: 10,
         titleFont: { size: 13, weight: '600' },
@@ -1418,53 +1605,68 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
         displayColors: true
       },
       datalabels: {
-        display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+        display: (ctx) => {
+          if (!hasUsableData) return false;
+          const value = ctx.dataset.data[ctx.dataIndex];
+          if (!(value > 0)) return false;
+          if (isCompactDashboardChart) return safeData.length <= (isHorizontal ? 6 : 5);
+          return true;
+        },
         color: (type === 'bar' || isHorizontal) ? '#334155' : '#ffffff',
-        font: { weight: '700', size: 10 },
+        font: { weight: '700', size: dataLabelSize },
         anchor: (type === 'bar' || isHorizontal) ? 'end' : 'center',
         align: (type === 'bar' || isHorizontal) ? (isHorizontal ? 'end' : 'top') : 'center',
-        offset: 8
+        offset: isCompactDashboardChart ? 4 : 8
+      },
+      dashboardNoDataOverlay: {
+        enabled: !hasUsableData,
+        message: 'ບໍ່ພົບຂໍ້ມູນ',
+        submessage: 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ'
       }
     },
     scales: type === 'bar' ? {
       x: isHorizontal ? { 
           beginAtZero: true, 
-          grid: { color: '#f1f5f9', drawBorder: false }, 
-          ticks: { precision: 0, font: { size: 10 } } 
+          display: hasUsableData,
+          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData }, 
+          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData } 
         } : { 
+          display: hasUsableData,
           grid: { display: false },
-          ticks: { font: { size: 10 } }
+          ticks: { font: { size: tickFontSize }, display: hasUsableData }
         },
       y: isHorizontal ? { 
+          display: hasUsableData,
           grid: { display: false },
-          ticks: { font: { size: 11 }, autoSkip: false },
+          ticks: { font: { size: yTickFontSize }, autoSkip: false, display: hasUsableData },
           position: 'left'
         } : { 
           beginAtZero: true, 
-          grid: { color: '#f1f5f9', drawBorder: false }, 
-          ticks: { precision: 0, font: { size: 10 } } 
+          display: hasUsableData,
+          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData }, 
+          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData } 
         }
     } : {
       x: { display: false },
       y: { display: false }
     },
-    layout: { padding: { right: isHorizontal ? 60 : 15, top: isHorizontal ? 10 : 35, left: 10, bottom: 10 } }
+    layout: { padding: layoutPadding }
   };
   
   const datasetConfig = {
-    data: data,
+    data: safeData,
     backgroundColor: colors.length > 1 ? colors : colors[0],
-    borderRadius: 4,
-    barThickness: data.length === 1 ? 40 : (data.length < 5 ? 30 : 'flex'),
-    maxBarThickness: 45,
-    minBarLength: 5,
-    categoryPercentage: 0.8,
-    barPercentage: 0.9
+    borderRadius: isCompactDashboardChart ? 3 : 4,
+    barThickness: safeData.length === 1 ? (isCompactDashboardChart ? 24 : 40) : (safeData.length < 5 ? (isCompactDashboardChart ? 18 : 30) : 'flex'),
+    maxBarThickness: isCompactDashboardChart ? 28 : 45,
+    minBarLength: isCompactDashboardChart ? 3 : 5,
+    categoryPercentage: isCompactDashboardChart ? 0.72 : 0.8,
+    barPercentage: isCompactDashboardChart ? 0.82 : 0.9
   };
 
   chartInstances[ctxId] = new Chart(ctx, { 
     type: type, 
-    data: { labels: labels, datasets: [datasetConfig] }, 
+    data: { labels: safeLabels, datasets: [datasetConfig] }, 
     options: options 
   });
 };
@@ -1527,7 +1729,16 @@ window.renderDashboardCharts = function (visits) {
   };
 
   // 3. Process data
-  let services = {}, revenue = {}, specialist = {}, gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {}, ageGroup = {}, district = {}, doctors = {};
+  const dashShiftSlotLabels = {
+    morning: '08:00 - 16:00',
+    evening: '16:00 - 21:00',
+    night: '21:00 - 08:00'
+  };
+  let services = {}, revenue = {}, specialist = {}, gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
+    '08:00 - 16:00': 0,
+    '16:00 - 21:00': 0,
+    '21:00 - 08:00': 0
+  }, ageGroup = {}, district = {}, doctors = {};
 
   visits.forEach(v => {
     let p = v.Patients || {};
@@ -1573,8 +1784,8 @@ window.renderDashboardCharts = function (visits) {
     site[siteKey] = (site[siteKey] || 0) + 1;
 
     if (v.Date) {
-      let h = new Date(v.Date).getHours();
-      let slot = h < 12 ? "08:00 - 12:00" : (h < 16 ? "12:00 - 16:00" : "16:00 - 20:00");
+      const shiftKey = window.getDashShiftBucket(v.Date);
+      const slot = dashShiftSlotLabels[shiftKey];
       timeSlot[slot] = (timeSlot[slot] || 0) + 1;
     }
   });
@@ -1595,19 +1806,98 @@ window.renderDashboardCharts = function (visits) {
   window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#47c0c4', '#2c9ea3']);
   window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7ad6c9', '#56c3c2']);
   
-  window.createChart('chartTime', 'bar', Object.keys(timeSlot).sort(), Object.values(timeSlot), palette, false);
+  window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
   window.createChart('chartAge', 'bar', ["0-14", "15-34", "35-59", "60+"], ["0-14", "15-34", "35-59", "60+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
   window.createChart('chartProvince', 'bar', topDist.labels, topDist.data, palette, true);
+  window.refreshDashboardChartLayout();
 };
 
 window.exportDashboardPDF = function () {
-  const element = document.getElementById('dashboardPrintArea');
+  const source = document.getElementById('dashboardPrintArea');
+  const pages = source ? Array.from(source.querySelectorAll('.dashboard-report-page--spread')) : [];
+
+  if (!source || pages.length === 0) {
+    return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບ dashboard ສຳລັບ export', 'error');
+  }
+
+  if (typeof html2pdf === 'undefined') {
+    return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຕົວຊ່ວຍສ້າງ PDF', 'error');
+  }
+
   const opt = {
-    margin: 0.5, filename: 'HIS_Dashboard.pdf', image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+    margin: 0,
+    filename: 'HIS_Dashboard_Landscape_Report.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      windowWidth: source.scrollWidth,
+      windowHeight: source.scrollHeight
+    },
+    pagebreak: { mode: ['css', 'legacy'] },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
   };
+
   Swal.fire({ title: 'ກຳລັງສ້າງ PDF...', didOpen: () => { Swal.showLoading() } });
-  html2pdf().set(opt).from(element).save().then(() => Swal.close());
+
+  const runExport = async () => {
+    try {
+      source.classList.add('dashboard-export-mode');
+
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const seedNode = document.createElement('div');
+      seedNode.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(seedNode);
+
+      const seedWorker = html2pdf().set(opt).from(seedNode).toPdf();
+      await seedWorker;
+      const pdf = await seedWorker.get('pdf');
+      seedNode.remove();
+
+      for (let index = 0; index < pages.length; index += 1) {
+        const canvasWorker = html2pdf().set(opt).from(pages[index]).toCanvas();
+        await canvasWorker;
+        const canvas = await canvasWorker.get('canvas');
+
+        if (!canvas || !canvas.width || !canvas.height) {
+          throw new Error(`Dashboard page ${index + 1} could not be rendered for PDF export`);
+        }
+
+        if (index > 0) {
+          pdf.addPage('a4', 'landscape');
+        }
+        if (typeof pdf.setPage === 'function') {
+          pdf.setPage(index + 1);
+        }
+        pdf.addImage(
+          canvas.toDataURL('image/jpeg', 0.98),
+          'JPEG',
+          0,
+          0,
+          297,
+          210,
+          `dashboard-page-${index + 1}`,
+          'FAST'
+        );
+      }
+
+      pdf.save(opt.filename);
+    } catch (err) {
+      console.error('Dashboard PDF Error:', err);
+      Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດສ້າງ PDF ໄດ້', 'error');
+    } finally {
+      source.classList.remove('dashboard-export-mode');
+      Swal.close();
+    }
+  };
+
+  runExport();
 };
 
 window.setReportRange = function (type) {
@@ -1681,7 +1971,7 @@ window.generateUniqueVisitId = async function () {
     const ss = String(now.getSeconds()).padStart(2, '0');
     const ms = String(now.getMilliseconds()).padStart(3, '0');
     const candidate = `V${yy}${mm}${dd}-${hh}${mi}${ss}${ms}`;
-    const { data, error } = await supabaseClient.from('Visits').select('Visit_ID').eq('Visit_ID', candidate).limit(1);
+    const { data, error } = await supabaseClient.from(dbTable('Visits')).select('Visit_ID').eq('Visit_ID', candidate).limit(1);
     if (error) throw error;
     if (!data || data.length === 0) return candidate;
   }
@@ -1731,7 +2021,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   let patientMap = {};
   let pStart = 0;
   while (true) {
-    const { data: chunk, error: pErr } = await supabaseClient.from('Patients')
+    const { data: chunk, error: pErr } = await supabaseClient.from(dbTable('Patients'))
       .select('*')
       .gte('Registration_Date', sDate)
       .lte('Registration_Date', eDate)
@@ -1749,7 +2039,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   let visitsInRange = [];
   let vStart = 0;
   while (true) {
-    const { data: chunk, error: vErr } = await supabaseClient.from('Visits')
+    const { data: chunk, error: vErr } = await supabaseClient.from(dbTable('Visits'))
       .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
       .gte('Date', sDate + 'T00:00:00Z')
       .lte('Date', eDate + 'T23:59:59Z')
@@ -1774,7 +2064,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   if (extraPIds.length > 0) {
     for (let i = 0; i < extraPIds.length; i += 100) {
       const chunk = extraPIds.slice(i, i + 100);
-      const { data: extra } = await supabaseClient.from('Patients').select('*').in('Patient_ID', chunk);
+      const { data: extra } = await supabaseClient.from(dbTable('Patients')).select('*').in('Patient_ID', chunk);
       (extra || []).forEach(p => { patientMap[p.Patient_ID] = p; });
     }
   }
@@ -1796,7 +2086,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
 
   for (let i = 0; i < allPIds.length; i += 100) {
     const chunk = allPIds.slice(i, i + 100);
-    const { data: allV } = await supabaseClient.from('Visits')
+    const { data: allV } = await supabaseClient.from(dbTable('Visits'))
       .select('Patient_ID')
       .in('Patient_ID', chunk);
     const counts = {};
@@ -2290,7 +2580,7 @@ window.viewReportDetail = function (i) {
 window.generateNextPatientID = async function () {
   try {
     const { data, error } = await supabaseClient
-      .from('Patients')
+      .from(dbTable('Patients'))
       .select('Patient_ID');
 
     if (error) throw error;
@@ -2322,7 +2612,7 @@ window.viewPatientDetail = async function (id) {
   console.log("viewPatientDetail called for ID:", id);
   try {
     Swal.fire({ title: 'ກຳລັງດຶງຂໍ້ມູນ...', didOpen: () => Swal.showLoading() });
-    const { data, error } = await supabaseClient.from('Patients').select('*').eq('Patient_ID', id).single();
+    const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
     Swal.close();
     if (error || !data) {
       console.error("Fetch error:", error);
@@ -2413,7 +2703,7 @@ window.initPatientTable = async function () {
   try {
     // ດຶງຂໍ້ມູນຈາກ Supabase ແທນ google.script.run
     const { data, error } = await supabaseClient
-      .from('Patients')
+      .from(dbTable('Patients'))
       .select('*')
       .order('Patient_ID', { ascending: false }); // ລຽງລຳດັບຄົນເຈັບໃໝ່ລ່າສຸດຂຶ້ນກ່ອນ
 
@@ -2665,7 +2955,7 @@ window.openNewPatientModal = function () {
 
 window.editPatient = async function (id) {
   Swal.fire({ title: 'ກຳລັງດຶງຂໍ້ມູນ...', didOpen: () => Swal.showLoading() });
-  const { data, error } = await supabaseClient.from('Patients').select('*').eq('Patient_ID', id).single();
+  const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   Swal.close();
   if (error || !data) return;
   const d = {
@@ -2742,8 +3032,8 @@ window.submitPatientForm = async function (e) {
     Photo_URL: photoUrl || fd.p_photo_url // ໃຊ້ URL ໃໝ່ ຫຼື URL ເກົ່າ
   };
   let result;
-  if (isEdit) result = await supabaseClient.from('Patients').update(row).eq('Patient_ID', pId);
-  else result = await supabaseClient.from('Patients').insert(row);
+  if (isEdit) result = await supabaseClient.from(dbTable('Patients')).update(row).eq('Patient_ID', pId);
+  else result = await supabaseClient.from(dbTable('Patients')).insert(row);
   Swal.close();
   if (result.error) {
     const isRls = result.error.message && (result.error.message.includes('row-level security') || result.error.message.includes('permission denied') || result.error.code === '42501');
@@ -2770,7 +3060,7 @@ window.submitPatientForm = async function (e) {
 window.delPatient = async function (id) {
   const result = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ລຶບ' });
   if (result.isConfirmed) {
-    await supabaseClient.from('Patients').delete().eq('Patient_ID', id);
+    await supabaseClient.from(dbTable('Patients')).delete().eq('Patient_ID', id);
     window.initPatientTable();
     window.preloadDropdownData();
   }
@@ -2778,7 +3068,7 @@ window.delPatient = async function (id) {
 
 window.printQRCard = async function (id) {
   Swal.fire({ title: 'ກຳລັງສ້າງບັດ QR...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-  const { data, error } = await supabaseClient.from('Patients').select('*').eq('Patient_ID', id).single();
+  const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
   const d = {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
@@ -2832,7 +3122,7 @@ window.sendToTriageFlow = async function (id, n) {
   if (result.isConfirmed) {
     Swal.fire({ title: 'ກຳລັງສົ່ງເຂົ້າຄິວ...', didOpen: () => Swal.showLoading() });
     // Test if Visits table is accessible first
-    const { data: testVisit, error: testErr } = await supabaseClient.from('Visits').select('Visit_ID').limit(1);
+    const { data: testVisit, error: testErr } = await supabaseClient.from(dbTable('Visits')).select('Visit_ID').limit(1);
     if (testErr) {
       const isNoTable = testErr.message && testErr.message.includes('does not exist');
       return Swal.fire('ຜິດພາດ!',
@@ -2841,7 +3131,7 @@ window.sendToTriageFlow = async function (id, n) {
         'error');
     }
     const vId = await window.generateUniqueVisitId();
-    const { error } = await supabaseClient.from('Visits').insert({
+    const { error } = await supabaseClient.from(dbTable('Visits')).insert({
       Visit_ID: vId, Date: new Date().toISOString(),
       Patient_ID: id, Patient_Name: n, Status: 'Triage'
     });
@@ -2915,7 +3205,7 @@ window.executeTriageSave = async function (fd) {
   console.log('Symptoms:', fd.v_symptoms);
 
   // Use both Visit_ID and Patient_ID to ensure we update the correct record
-  let query = supabaseClient.from('Visits').update({
+  let query = supabaseClient.from(dbTable('Visits')).update({
     Status: 'Waiting OPD', BP: fd.v_bp, Temp: fd.v_temp,
     Weight: fd.v_weight, Height: fd.v_height,
     Pulse: fd.v_pulse, SpO2: fd.v_spo2,
@@ -3081,7 +3371,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     let visits = [];
     let startRange = 0;
     while (true) {
-      const { data: chunk, error: vError } = await supabaseClient.from('Visits')
+      const { data: chunk, error: vError } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
         .gte('Date', sDate + 'T00:00:00Z')
         .lte('Date', eDate + 'T23:59:59Z')
@@ -3130,7 +3420,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     if (pIds.length > 0) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
-        const { data: patients, error: pError } = await supabaseClient.from('Patients')
+        const { data: patients, error: pError } = await supabaseClient.from(dbTable('Patients'))
           .select('Patient_ID, Age, Photo_URL, Gender')
           .in('Patient_ID', chunkIds);
         if (!pError && patients) {
@@ -3178,7 +3468,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
         
         // Query ALL visits for these patients (no date filter)
         const { data: allPatientVisits, error: pvError } = await supabaseClient
-          .from('Visits')
+          .from(dbTable('Visits'))
           .select('Visit_ID, Patient_ID, Date')
           .in('Patient_ID', chunkIds)
           .order('Date', { ascending: true });
@@ -3260,7 +3550,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     let visitsInRange = [];
     let startRange = 0;
     while (true) {
-      const { data: chunk, error } = await supabaseClient.from('Visits').select('*')
+      const { data: chunk, error } = await supabaseClient.from(dbTable('Visits')).select('*')
         .gte('Date', sDate + 'T00:00:00Z')
         .lte('Date', eDate + 'T23:59:59Z')
         .order('Date', { ascending: true })
@@ -3281,7 +3571,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       
       // Recover ONLY active patients from TODAY who might be "lost"
       // We filter by today's date to avoid showing old records
-      const { data: visitsActive } = await supabaseClient.from('Visits')
+      const { data: visitsActive } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
         .in('Status', ['Waiting OPD', 'Calling OPD', 'Waiting Lab', 'Calling Lab', 'Triage', 'Waiting Triage'])
         .order('Date', { ascending: false })
@@ -3335,7 +3625,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     if (pIds.length > 0) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
-        const { data: patients } = await supabaseClient.from('Patients')
+        const { data: patients } = await supabaseClient.from(dbTable('Patients'))
           .select('Patient_ID, Age, Photo_URL, Gender')
           .in('Patient_ID', chunkIds);
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
@@ -3368,7 +3658,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: allPatientVisits, error: pvError } = await supabaseClient
-          .from('Visits')
+          .from(dbTable('Visits'))
           .select('Visit_ID, Patient_ID, Date')
           .in('Patient_ID', chunkIds)
           .order('Date', { ascending: true });
@@ -3582,7 +3872,7 @@ window.openTriage = function (i) {
 
   // Clear "Calling" status if opening
   if (r.status === 'Calling Triage') {
-    supabaseClient.from('Visits').update({ Status: 'Triage' }).eq('Visit_ID', r.visitId).eq('Patient_ID', r.patientId);
+    supabaseClient.from(dbTable('Visits')).update({ Status: 'Triage' }).eq('Visit_ID', r.visitId).eq('Patient_ID', r.patientId);
   }
 
   if (document.activeElement) document.activeElement.blur();
@@ -3616,7 +3906,7 @@ window.deleteVisitFlow = async function (visitId, patientId) {
     Swal.fire({ title: 'ກຳລັງລຶບ...', didOpen: () => Swal.showLoading() });
     
     // Use both Visit_ID and Patient_ID to ensure we delete the correct record
-    let query = supabaseClient.from('Visits').delete().eq('Visit_ID', visitId);
+    let query = supabaseClient.from(dbTable('Visits')).delete().eq('Visit_ID', visitId);
     
     // If Patient_ID is provided, add it to the filter for extra safety
     if (patientId) {
@@ -3956,7 +4246,7 @@ window.openEMR = function (i) {
   // Clear "Calling" status if opening
   if (q.status === 'Calling OPD' || q.status === 'Calling Lab') {
     let resetStatus = q.status === 'Calling OPD' ? 'Waiting OPD' : 'Waiting Lab';
-    supabaseClient.from('Visits').update({ Status: resetStatus }).eq('Visit_ID', q.visitId).eq('Patient_ID', q.patientId);
+    supabaseClient.from(dbTable('Visits')).update({ Status: resetStatus }).eq('Visit_ID', q.visitId).eq('Patient_ID', q.patientId);
   }
 
   if (document.activeElement) document.activeElement.blur();
@@ -3983,7 +4273,7 @@ window.submitEMRForm = async function (e) {
   let patientId = $('#emrPatientId').text().trim();
   let mainStatus = window.resolveVisitStatusFromDischarge(ds);
 
-  const { error: updateError } = await supabaseClient.from('Visits').update({
+  const { error: updateError } = await supabaseClient.from(dbTable('Visits')).update({
     Status: mainStatus, Symptoms: $('#emrCC').text(), Diagnosis: dx,
     Prescription_JSON: presJson, Doctor_Name: docName,
     Visit_Type: $('#emrDeptType').val() || 'OPD', Site: $('#emrSite').val() || 'In-site',
@@ -4011,7 +4301,7 @@ window.printOPDCard = async function (s, i) {
 
   try {
     const { data: d, error } = await supabaseClient
-      .from('Patients')
+      .from(dbTable('Patients'))
       .select('*')
       .eq('Patient_ID', v.patientId)
       .single();
@@ -4130,7 +4420,7 @@ window.openPatientVacModal = function () {
 window.delPatient = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from('Patients').delete().eq('Patient_ID', id);
+    const { error } = await supabaseClient.from(dbTable('Patients')).delete().eq('Patient_ID', id);
     if (error) {
       Swal.fire('Error', error.message, 'error');
     } else {
@@ -4146,7 +4436,7 @@ window.loadAppointments = async function () {
   $('#apptTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-warning spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Appointments').select('*').order('Appt_Date', { ascending: true });
+    const { data: r, error } = await supabaseClient.from(dbTable('Appointments')).select('*').order('Appt_Date', { ascending: true });
 
     if (error) {
       console.error('Error:', error);
@@ -4213,9 +4503,9 @@ window.submitApptForm = async function (e) {
 
   let res;
   if (isEdit) {
-    res = await supabaseClient.from('Appointments').update(row).eq('Appt_ID', $('#a_id').val());
+    res = await supabaseClient.from(dbTable('Appointments')).update(row).eq('Appt_ID', $('#a_id').val());
   } else {
-    res = await supabaseClient.from('Appointments').insert(row);
+    res = await supabaseClient.from(dbTable('Appointments')).insert(row);
   }
 
   if (res.error) {
@@ -4231,13 +4521,13 @@ window.submitApptForm = async function (e) {
 window.deleteAppt = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Appointments').delete().eq('Appt_ID', id);
+    await supabaseClient.from(dbTable('Appointments')).delete().eq('Appt_ID', id);
     window.loadAppointments();
   }
 };
 
 window.completeAppt = async function (id) {
-  await supabaseClient.from('Appointments').update({ Status: 'Completed' }).eq('Appt_ID', id);
+  await supabaseClient.from(dbTable('Appointments')).update({ Status: 'Completed' }).eq('Appt_ID', id);
   window.loadAppointments();
   window.checkAlerts();
 };
@@ -4245,7 +4535,7 @@ window.completeAppt = async function (id) {
 window.missedAppt = async function (id) {
   let r = await Swal.fire({ title: 'ຂາດນັດ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ຢືນຍັນ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Appointments').update({ Status: 'Missed' }).eq('Appt_ID', id);
+    await supabaseClient.from(dbTable('Appointments')).update({ Status: 'Missed' }).eq('Appt_ID', id);
     window.loadAppointments();
     window.checkAlerts();
   }
@@ -4254,7 +4544,7 @@ window.missedAppt = async function (id) {
 window.cancelAppt = async function (id) {
   let r = await Swal.fire({ title: 'ຍົກເລີກ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ຍົກເລີກນັດ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Appointments').update({ Status: 'Cancelled' }).eq('Appt_ID', id);
+    await supabaseClient.from(dbTable('Appointments')).update({ Status: 'Cancelled' }).eq('Appt_ID', id);
     window.loadAppointments();
     window.checkAlerts();
   }
@@ -4280,7 +4570,7 @@ window.loadVaccineMaster = async function () {
   $('#vacMasterTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Vaccines_Master').select('*');
+    const { data: r, error } = await supabaseClient.from(dbTable('Vaccines_Master')).select('*');
     if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
 
     vaccinesMasterList = r || [];
@@ -4320,7 +4610,7 @@ window.loadPatientVaccines = async function () {
   $('#patientVacTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Patient_Vaccines').select('*').order('Date_Given', { ascending: false });
+    const { data: r, error } = await supabaseClient.from(dbTable('Patient_Vaccines')).select('*').order('Date_Given', { ascending: false });
     if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
 
     if ($.fn.DataTable.isDataTable('#patientVacTable')) $('#patientVacTable').DataTable().destroy();
@@ -4400,7 +4690,7 @@ window.editVacMaster = function (id, n, d, ds, i) {
 window.delVacMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from('Vaccines_Master').delete().eq('Vac_ID', id);
+    const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).delete().eq('Vac_ID', id);
     if (error) {
       Swal.fire('Error', error.message, 'error');
     } else {
@@ -4423,10 +4713,10 @@ window.submitVacMasterForm = async function (e) {
   };
 
   if (isEdit) {
-    const { error } = await supabaseClient.from('Vaccines_Master').update(row).eq('Vac_ID', $('#v_id').val());
+    const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).update(row).eq('Vac_ID', $('#v_id').val());
     if (error) return Swal.fire('Error', error.message, 'error');
   } else {
-    const { error } = await supabaseClient.from('Vaccines_Master').insert(row);
+    const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).insert(row);
     if (error) return Swal.fire('Error', error.message, 'error');
   }
 
@@ -4494,7 +4784,7 @@ window.submitPatientVacForm = async function (e) {
   let ndate = $('#pv_next_date').val();
   let autoAppt = $('#pv_auto_appt').is(':checked');
 
-  const { error } = await supabaseClient.from('Patient_Vaccines').insert({
+  const { error } = await supabaseClient.from(dbTable('Patient_Vaccines')).insert({
     Patient_ID: pid, Patient_Name: pname, Vaccine_Name: vac,
     Dose_Number: parseInt($('#pv_dose').val()) || 1, Lot_Number: $('#pv_lot').val(),
     Date_Given: $('#pv_date').val(), Next_Appointment_Date: ndate,
@@ -4507,7 +4797,7 @@ window.submitPatientVacForm = async function (e) {
   }
 
   if (autoAppt && ndate) {
-    await supabaseClient.from('Appointments').insert({
+    await supabaseClient.from(dbTable('Appointments')).insert({
       Target_ID: pid, Target_Name: pname, Type: 'Vaccine',
       Appt_Date: ndate, Appt_Time: '09:00',
       Reason: 'ນັດໝາຍວັກຊີນ: ' + vac, Doctor_Name: 'System', Status: 'Waiting'
@@ -4524,7 +4814,7 @@ window.submitPatientVacForm = async function (e) {
 window.delPatientVac = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບປະຫວັດ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Patient_Vaccines').delete().eq('Record_ID', id);
+    await supabaseClient.from(dbTable('Patient_Vaccines')).delete().eq('Record_ID', id);
     window.loadPatientVaccines();
   }
 };
@@ -4534,7 +4824,7 @@ window.loadDrugsMaster = async function () {
   $('#drugTable tbody').html('<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Drugs_Master').select('*');
+    const { data: r, error } = await supabaseClient.from(dbTable('Drugs_Master')).select('*');
 
     // 🚨 ດັກຈັບ Error ຕາມ Antigravity ສັ່ງ
     if (error) {
@@ -4583,7 +4873,7 @@ window.editDrugMaster = function (id, n, d) {
 window.delDrugMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Drugs_Master').delete().eq('Drug_ID', id);
+    await supabaseClient.from(dbTable('Drugs_Master')).delete().eq('Drug_ID', id);
     window.loadDrugsMaster();
   }
 };
@@ -4598,9 +4888,9 @@ window.submitDrugMasterForm = async function (e) {
   };
 
   if (isEdit) {
-    await supabaseClient.from('Drugs_Master').update(row).eq('Drug_ID', $('#dr_id').val());
+    await supabaseClient.from(dbTable('Drugs_Master')).update(row).eq('Drug_ID', $('#dr_id').val());
   } else {
-    await supabaseClient.from('Drugs_Master').insert(row);
+    await supabaseClient.from(dbTable('Drugs_Master')).insert(row);
   }
 
   $('#drugMasterModal').modal('hide');
@@ -4614,7 +4904,7 @@ window.loadLabsMaster = async function () {
   $('#labTable tbody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Labs_Master').select('*');
+    const { data: r, error } = await supabaseClient.from(dbTable('Labs_Master')).select('*');
 
     if (error) {
       console.error('Error:', error);
@@ -4668,7 +4958,7 @@ window.editLabMaster = function (id, n, d, category) {
 window.delLabMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Labs_Master').delete().eq('Lab_ID', id);
+    await supabaseClient.from(dbTable('Labs_Master')).delete().eq('Lab_ID', id);
     await window.deleteLabCategoryMappings(id);
     await window.loadMasterDataGlobal();
     window.loadLabsMaster();
@@ -4689,10 +4979,10 @@ window.submitLabMasterForm = async function (e) {
   try {
     let labId = $('#lb_id').val();
     if (isEdit) {
-      const { error } = await supabaseClient.from('Labs_Master').update(row).eq('Lab_ID', labId);
+      const { error } = await supabaseClient.from(dbTable('Labs_Master')).update(row).eq('Lab_ID', labId);
       if (error) throw error;
     } else {
-      const { data, error } = await supabaseClient.from('Labs_Master').insert(row).select('Lab_ID').single();
+      const { data, error } = await supabaseClient.from(dbTable('Labs_Master')).insert(row).select('Lab_ID').single();
       if (error) throw error;
       labId = data?.Lab_ID;
     }
@@ -4715,7 +5005,7 @@ window.loadUsers = async function () {
   $('#userTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-dark spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: u, error } = await supabaseClient.from('Users').select('*');
+    const { data: u, error } = await supabaseClient.from(dbTable('Users')).select('*');
 
     // 🚨 ດັກຈັບ Error ຕາມ Antigravity
     if (error) {
@@ -4927,7 +5217,7 @@ window.openButtonPermModal = async function (userId, userName) {
   try {
     // Fetch user's button permissions
     const { data, error } = await supabaseClient
-      .from('Users')
+      .from(dbTable('Users'))
       .select('ButtonPermissions')
       .eq('ID', userId)
       .single();
@@ -5120,7 +5410,7 @@ window.saveButtonPermissions = async function () {
   
   try {
     const { error } = await supabaseClient
-      .from('Users')
+      .from(dbTable('Users'))
       .update({ ButtonPermissions: permissions })
       .eq('ID', userId);
     
@@ -5142,7 +5432,7 @@ window.saveButtonPermissions = async function () {
 window.deleteUserRow = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from('Users').delete().eq('ID', id);
+    const { error } = await supabaseClient.from(dbTable('Users')).delete().eq('ID', id);
     if (error) {
       Swal.fire('Error', error.message, 'error');
     } else {
@@ -5167,9 +5457,13 @@ window.submitUserForm = async function (e) {
   let row = {
     Name: $('#u_name').val(), Email: email, Role: role, Permissions: perms, Status: 'active'
   };
+  if (password) {
+    const passwordHash = await window.hashPassword(password);
+    row.Password_Hash = passwordHash;
+  }
 
   if (isEdit) {
-    let { error } = await supabaseClient.from('Users').update(row).eq('ID', $('#u_id').val());
+    let { error } = await supabaseClient.from(dbTable('Users')).update(row).eq('ID', $('#u_id').val());
     if (error) { Swal.fire('Error', error.message, 'error'); return; }
 
     $('#addUserModal').modal('hide');
@@ -5177,7 +5471,7 @@ window.submitUserForm = async function (e) {
     window.loadUsers();
     Swal.fire('ສຳເລັດ', 'ບັນທຶກແລ້ວ', 'success');
   } else {
-    let { error } = await supabaseClient.from('Users').insert(row);
+    let { error } = await supabaseClient.from(dbTable('Users')).insert(row);
     if (error) { Swal.fire('Error', error.message, 'error'); return; }
 
     $('#addUserModal').modal('hide');
@@ -5198,7 +5492,7 @@ window.fetchOrg = async function () {
     $('#p_org_name, #p_discount_show').val('');
     return;
   }
-  const { data, error } = await supabaseClient.from('Organizations').select('*').eq('Org_Code', c).limit(1);
+  const { data, error } = await supabaseClient.from(dbTable('Organizations')).select('*').eq('Org_Code', c).limit(1);
   if (data && data.length > 0) {
     $('#p_org_name').val(data[0].Org_Name);
     $('#p_discount_show').val(data[0].Discount || "ບໍ່ມີສ່ວນຫຼຸດ");
@@ -5264,11 +5558,11 @@ window.seedMasterDefaults = async function () {
 
   try {
     for (const [category, values] of Object.entries(defaults)) {
-      const { data: existing } = await supabaseClient.from('MasterData').select('ID').eq('Category', category).limit(1);
+      const { data: existing } = await supabaseClient.from(dbTable('MasterData')).select('ID').eq('Category', category).limit(1);
       if (!existing || existing.length === 0) {
         console.log(`Seeding ${category} defaults...`);
         const rows = values.map(v => ({ Category: category, Value: v }));
-        await supabaseClient.from('MasterData').insert(rows);
+        await supabaseClient.from(dbTable('MasterData')).insert(rows);
       }
     }
   } catch (err) {
@@ -5302,7 +5596,7 @@ window.resetMasterDefaults = async function () {
 
 window.loadMasterDataGlobal = async function () {
   try {
-    const { data, error } = await supabaseClient.from('MasterData').select('*');
+    const { data, error } = await supabaseClient.from(dbTable('MasterData')).select('*');
     if (error) {
       console.error('Error:', error);
       Swal.fire('Error', error.message, 'error');
@@ -5502,7 +5796,7 @@ window.addMaster = async function () {
   if (!v) return;
   $('#newMasterVal').val('');
 
-  let { error } = await supabaseClient.from('MasterData').insert({ Category: c, Value: v });
+  let { error } = await supabaseClient.from(dbTable('MasterData')).insert({ Category: c, Value: v });
   if (!error) {
     window.loadMasterDataGlobal(); // Reloads and updates UI
   } else {
@@ -5513,7 +5807,7 @@ window.addMaster = async function () {
 window.delMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from('MasterData').delete().eq('ID', id);
+    const { error } = await supabaseClient.from(dbTable('MasterData')).delete().eq('ID', id);
     if (error) {
       Swal.fire('Error', error.message, 'error');
     } else {
@@ -5537,7 +5831,7 @@ window.editMaster = async function (id, oldVal) {
 
   if (newVal && newVal !== oldVal) {
     Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-    const { error } = await supabaseClient.from('MasterData').update({ Value: newVal }).eq('ID', id);
+    const { error } = await supabaseClient.from(dbTable('MasterData')).update({ Value: newVal }).eq('ID', id);
     if (error) {
       Swal.fire('ຜິດພາດ!', error.message, 'error');
     } else {
@@ -5552,7 +5846,7 @@ window.loadOrgs = async function () {
   $('#orgTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: orgs, error } = await supabaseClient.from('Organizations').select('*');
+    const { data: orgs, error } = await supabaseClient.from(dbTable('Organizations')).select('*');
 
     // 🚨 ດັກຈັບ Error ຕາມ Antigravity
     if (error) {
@@ -5589,7 +5883,7 @@ window.loadOrgs = async function () {
 
 window.toggleOrg = async function (id, currentStatus) {
   let newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-  await supabaseClient.from('Organizations').update({ Status: newStatus }).eq('Org_ID', id);
+  await supabaseClient.from(dbTable('Organizations')).update({ Status: newStatus }).eq('Org_ID', id);
   window.loadOrgs();
 };
 
@@ -5604,10 +5898,10 @@ window.submitOrgForm = async function (e) {
   };
 
   if (isEdit) {
-    await supabaseClient.from('Organizations').update(row).eq('Org_ID', $('#o_rowIdx').val());
+    await supabaseClient.from(dbTable('Organizations')).update(row).eq('Org_ID', $('#o_rowIdx').val());
   } else {
     row.Status = 'Active';
-    await supabaseClient.from('Organizations').insert(row);
+    await supabaseClient.from(dbTable('Organizations')).insert(row);
   }
 
   $('#orgModal').modal('hide');
@@ -5651,7 +5945,7 @@ window.submitSettingsForm = async function (e) {
 
   try {
     const { error } = await supabaseClient
-      .from('Settings')
+      .from(dbTable('Settings'))
       .upsert(updates, { onConflict: 'Key' });
 
     // 🚨 ເພີ່ມລະບົບແຈ້ງເຕືອນ Error ຕາມທີ່ Antigravity ແນະນຳ
@@ -5682,7 +5976,7 @@ window.submitSettingsForm = async function (e) {
 // ຟັງຊັນສຳລັບດຶງຄ່າຕັ້ງຄ່າມາສະແດງ
 window.loadSettingsData = async function () {
   try {
-    const { data, error } = await supabaseClient.from('Settings').select('*');
+    const { data, error } = await supabaseClient.from(dbTable('Settings')).select('*');
     if (error) {
       console.error('Error:', error);
       Swal.fire('Error', error.message, 'error');
@@ -5716,7 +6010,7 @@ window.loadLocationsMasterView = async function () {
   $('#locationTable tbody').html('<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Locations').select('*');
+    const { data: r, error } = await supabaseClient.from(dbTable('Locations')).select('*');
 
     if (error) {
       console.error('Error:', error);
@@ -5770,7 +6064,7 @@ window.editLocation = function (id, d, p) {
 window.delLocation = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from('Locations').delete().eq('ID', id);
+    await supabaseClient.from(dbTable('Locations')).delete().eq('ID', id);
     window.loadLocationsMasterView();
   }
 };
@@ -5788,12 +6082,12 @@ window.submitLocationForm = async function (e) {
 
     if (l_id) {
       // ແກ້ໄຂຂໍ້ມູນເກົ່າ
-      const { error } = await supabaseClient.from('Locations').update(payload).eq('ID', l_id);
+      const { error } = await supabaseClient.from(dbTable('Locations')).update(payload).eq('ID', l_id);
       if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
     } else {
       // ເພີ່ມຂໍ້ມູນໃໝ່ (ສ້າງ ID ອັດຕະໂນມັດ)
       payload.ID = 'LOC' + Date.now();
-      const { error } = await supabaseClient.from('Locations').insert([payload]);
+      const { error } = await supabaseClient.from(dbTable('Locations')).insert([payload]);
       if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
     }
 
@@ -5810,7 +6104,7 @@ window.delLocation = function (id) {
   Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' }).then(async r => {
     if (r.isConfirmed) {
       try {
-        const { error } = await supabaseClient.from('Locations').delete().eq('ID', id);
+        const { error } = await supabaseClient.from(dbTable('Locations')).delete().eq('ID', id);
         if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
         window.loadLocationsMasterView();
         Swal.fire('ລຶບແລ້ວ', '', 'success');
@@ -5827,7 +6121,7 @@ window.loadServicesMasterView = async function () {
   $('#serviceTable tbody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: r, error } = await supabaseClient.from('Service_Lists').select('*');
+    const { data: r, error } = await supabaseClient.from(dbTable('Service_Lists')).select('*');
     if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
 
     servicesDataStore = r || [];
@@ -5876,11 +6170,11 @@ window.submitServiceForm = async function (e) {
     let s_id = $('#s_id').val();
 
     if (s_id) {
-      const { error } = await supabaseClient.from('Service_Lists').update(payload).eq('ID', s_id);
+      const { error } = await supabaseClient.from(dbTable('Service_Lists')).update(payload).eq('ID', s_id);
       if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
     } else {
       payload.ID = 'SRV' + Date.now();
-      const { error } = await supabaseClient.from('Service_Lists').insert([payload]);
+      const { error } = await supabaseClient.from(dbTable('Service_Lists')).insert([payload]);
       if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
     }
 
@@ -5897,7 +6191,7 @@ window.delService = function (id) {
   Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' }).then(async r => {
     if (r.isConfirmed) {
       try {
-        const { error } = await supabaseClient.from('Service_Lists').delete().eq('ID', id);
+        const { error } = await supabaseClient.from(dbTable('Service_Lists')).delete().eq('ID', id);
         if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
         window.loadServicesMasterView();
         Swal.fire('ລຶບແລ້ວ', '', 'success');
@@ -6008,7 +6302,7 @@ window.handlePatientExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
-      const { error } = await supabaseClient.from('Patients').insert(insertData);
+      const { error } = await supabaseClient.from(dbTable('Patients')).insert(insertData);
       if (!error) {
         Swal.fire('ສຳເລັດ!', `ນຳເຂົ້າສຳເລັດ ${insertData.length} ລາຍການ`, 'success');
         window.initPatientTable();
@@ -6043,7 +6337,7 @@ window.handleLocationExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
-      const { error } = await supabaseClient.from('Locations').insert(insertData);
+      const { error } = await supabaseClient.from(dbTable('Locations')).insert(insertData);
       if (!error) {
         Swal.fire('ສຳເລັດ!', `ນຳເຂົ້າສຳເລັດ ${insertData.length} ລາຍການ`, 'success');
         window.loadLocationsMasterView();
@@ -6077,7 +6371,7 @@ window.handleExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
-      const { error } = await supabaseClient.from('Service_Lists').insert(insertData);
+      const { error } = await supabaseClient.from(dbTable('Service_Lists')).insert(insertData);
       if (!error) {
         Swal.fire('ສຳເລັດ!', `ນຳເຂົ້າສຳເລັດ ${insertData.length} ລາຍການ`, 'success');
         window.loadServicesMasterView();
@@ -6125,7 +6419,7 @@ window.handleOrgExcelUpload = function (e) {
         insertData.push(obj);
       }
 
-      const { error } = await supabaseClient.from('Organizations').insert(insertData);
+      const { error } = await supabaseClient.from(dbTable('Organizations')).insert(insertData);
       if (error) {
         Swal.fire('Error', error.message, 'error');
       } else {
@@ -6160,7 +6454,7 @@ window.handleDrugExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
-      const { error } = await supabaseClient.from('Drugs_Master').insert(insertData);
+      const { error } = await supabaseClient.from(dbTable('Drugs_Master')).insert(insertData);
       if (!error) {
         Swal.fire('ສຳເລັດ!', `ນຳເຂົ້າ ${insertData.length} ລາຍການ`, 'success');
         window.loadDrugsMaster();
@@ -6198,7 +6492,7 @@ window.handleLabExcelUpload = function (e) {
 
     if (insertData.length > 0) {
       const payload = insertData.map(item => ({ Lab_Name: item.Lab_Name, Description: item.Description }));
-      const { data: insertedRows, error } = await supabaseClient.from('Labs_Master').insert(payload).select('Lab_ID,Lab_Name');
+      const { data: insertedRows, error } = await supabaseClient.from(dbTable('Labs_Master')).insert(payload).select('Lab_ID,Lab_Name');
       if (!error) {
         const ensureResult = await window.ensureLabCategoriesExist(importCategories);
         if (ensureResult.error) {
@@ -6215,7 +6509,7 @@ window.handleLabExcelUpload = function (e) {
         });
 
         if (mappingRows.length > 0) {
-          const { error: mappingError } = await supabaseClient.from('MasterData').insert(mappingRows);
+          const { error: mappingError } = await supabaseClient.from(dbTable('MasterData')).insert(mappingRows);
           if (mappingError) {
             Swal.fire('ຜິດພາດ!', mappingError.message, 'error');
             $('#labExcelInput').val('');
@@ -6257,13 +6551,13 @@ window.bulkDelete = async function (type) {
   });
 
   const config = {
-    'vacMaster': { table: 'Vaccines_Master', col: 'Vac_ID', reload: window.loadVaccineMaster },
-    'drugs': { table: 'Drugs_Master', col: 'Drug_ID', reload: window.loadDrugsMaster },
-    'labs': { table: 'Labs_Master', col: 'Lab_ID', reload: window.loadLabsMaster },
-    'users': { table: 'Users', col: 'ID', reload: window.loadUsers },
-    'orgs': { table: 'Organizations', col: 'Org_ID', reload: window.loadOrgs },
-    'locations': { table: 'Locations', col: 'ID', reload: window.loadLocationsMasterView },
-    'services': { table: 'Service_Lists', col: 'ID', reload: window.loadServicesMasterView }
+    'vacMaster': { table: dbTable('Vaccines_Master'), col: 'Vac_ID', reload: window.loadVaccineMaster },
+    'drugs': { table: dbTable('Drugs_Master'), col: 'Drug_ID', reload: window.loadDrugsMaster },
+    'labs': { table: dbTable('Labs_Master'), col: 'Lab_ID', reload: window.loadLabsMaster },
+    'users': { table: dbTable('Users'), col: 'ID', reload: window.loadUsers },
+    'orgs': { table: dbTable('Organizations'), col: 'Org_ID', reload: window.loadOrgs },
+    'locations': { table: dbTable('Locations'), col: 'ID', reload: window.loadLocationsMasterView },
+    'services': { table: dbTable('Service_Lists'), col: 'ID', reload: window.loadServicesMasterView }
   };
 
   const cfg = config[type];
@@ -6318,7 +6612,7 @@ window.logAction = function (action, details, module) {
     if (window._activityLogWriteDisabled) return;
     const userId = currentUser ? currentUser.id : '-';
     const userName = currentUser ? currentUser.name : 'System';
-    supabaseClient.from('activity_logs').insert({
+    supabaseClient.from(dbTable('activity_logs')).insert({
       timestamp: new Date().toISOString(),
       user_id: userId,
       user_name: userName,
@@ -6356,7 +6650,7 @@ window.loadActivityLog = async function () {
 
   try {
     let query = supabaseClient
-      .from('activity_logs')
+      .from(dbTable('activity_logs'))
       .select('*')
       .gte('timestamp', sDate + 'T00:00:00Z')
       .lte('timestamp', eDate + 'T23:59:59Z')
@@ -6469,7 +6763,7 @@ window.initPublicQueueView = async function () {
   if (publicQueueChannel) supabaseClient.removeChannel(publicQueueChannel);
   
   publicQueueChannel = supabaseClient.channel('public-queue-updates')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'Visits' }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
       console.log('Queue Change Detected:', payload);
       window.refreshPublicQueueDisplay();
       
@@ -6483,7 +6777,7 @@ window.initPublicQueueView = async function () {
 
 window.refreshPublicQueueDisplay = async function () {
   let today = new Date().toISOString().split('T')[0];
-  const { data: visits, error } = await supabaseClient.from('Visits')
+  const { data: visits, error } = await supabaseClient.from(dbTable('Visits'))
     .select('*')
     .gte('Date', today + 'T00:00:00Z')
     .lte('Date', today + 'T23:59:59Z')
@@ -6562,7 +6856,7 @@ window.triggerPublicCall = async function (visitId, cn, dept) {
   
   try {
     // Set to Calling
-    const { error } = await supabaseClient.from('Visits').update({ Status: newStatus }).eq('Visit_ID', visitId).eq('Patient_ID', cn);
+    const { error } = await supabaseClient.from(dbTable('Visits')).update({ Status: newStatus }).eq('Visit_ID', visitId).eq('Patient_ID', cn);
     if (error) throw error;
     
     // Refresh local views immediately
@@ -6655,7 +6949,7 @@ window.showPatientTimeline = async function (patientId) {
   $('#timelineContent').html('<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">ກຳລັງໂຫຼດປະຫວັດ...</p></div>');
 
   try {
-    const { data: p } = await supabaseClient.from('Patients').select('*').eq('Patient_ID', patientId).single();
+    const { data: p } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', patientId).single();
     if (p) {
         $('#timeline_p_name').text(`${p.First_Name} ${p.Last_Name}`);
         $('#timeline_p_id').text(p.Patient_ID);
@@ -6672,7 +6966,7 @@ window.showPatientTimeline = async function (patientId) {
     let visits = [];
     let startRange = 0;
     while (true) {
-      const { data: chunk, error } = await supabaseClient.from('Visits')
+      const { data: chunk, error } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
         .eq('Patient_ID', patientId)
         .order('Date', { ascending: false })
@@ -6772,7 +7066,7 @@ window.loadIPDPatients = async function () {
   
   try {
     let query = supabaseClient
-      .from('Admissions')
+      .from(dbTable('Admissions'))
       .select('*')
       .eq('Status', 'Admitted')
       .order('Admission_Date', { ascending: false });
@@ -6798,15 +7092,15 @@ window.loadIPDPatients = async function () {
       // Fetch ward/room/bed info
       let wardName = '-', roomNum = '-', bedNum = '-';
       if (adm.Ward_ID) {
-        const { data: ward } = await supabaseClient.from('Wards').select('Ward_Name').eq('Ward_ID', adm.Ward_ID).single();
+        const { data: ward } = await supabaseClient.from(dbTable('Wards')).select('Ward_Name').eq('Ward_ID', adm.Ward_ID).single();
         if (ward) wardName = ward.Ward_Name;
       }
       if (adm.Room_ID) {
-        const { data: room } = await supabaseClient.from('Rooms').select('Room_Number').eq('Room_ID', adm.Room_ID).single();
+        const { data: room } = await supabaseClient.from(dbTable('Rooms')).select('Room_Number').eq('Room_ID', adm.Room_ID).single();
         if (room) roomNum = room.Room_Number;
       }
       if (adm.Bed_ID) {
-        const { data: bed } = await supabaseClient.from('Beds').select('Bed_Number').eq('Bed_ID', adm.Bed_ID).single();
+        const { data: bed } = await supabaseClient.from(dbTable('Beds')).select('Bed_Number').eq('Bed_ID', adm.Bed_ID).single();
         if (bed) bedNum = bed.Bed_Number;
       }
       
@@ -6841,9 +7135,9 @@ async function updateIPDStats(totalPatients) {
 
   const today = new Date().toISOString().split('T')[0];
   const [bedsResult, dischargedResult] = await Promise.all([
-    supabaseClient.from('Beds').select('Status'),
+    supabaseClient.from(dbTable('Beds')).select('Status'),
     supabaseClient
-      .from('Admissions')
+      .from(dbTable('Admissions'))
       .select('Admission_ID')
       .eq('Status', 'Discharged')
       .eq('Discharge_Date', today)
@@ -6896,7 +7190,7 @@ window.openIPDAdmission = async function () {
 // Load patient dropdown for admission
 async function loadAdmissionPatientDropdown() {
   const { data: patients } = await supabaseClient
-    .from('Patients')
+    .from(dbTable('Patients'))
     .select('Patient_ID, First_Name, Last_Name, Gender, Age')
     .order('Patient_ID', { ascending: false })
     .limit(100);
@@ -6922,7 +7216,7 @@ async function loadAdmissionPatientDropdown() {
 // Load wards dropdown
 async function loadAdmissionWardsDropdown() {
   const { data: wards } = await supabaseClient
-    .from('Wards')
+    .from(dbTable('Wards'))
     .select('*')
     .eq('Status', 'active');
   
@@ -6959,7 +7253,7 @@ window.onAdmWardChange = async function () {
   
   // Load rooms for this ward
   const { data: rooms } = await supabaseClient
-    .from('Rooms')
+    .from(dbTable('Rooms'))
     .select('*')
     .eq('Ward_ID', wardId)
     .eq('Status', 'active');
@@ -6985,7 +7279,7 @@ window.onAdmRoomChange = async function () {
   
   // Load beds for this room
   const { data: beds } = await supabaseClient
-    .from('Beds')
+    .from(dbTable('Beds'))
     .select('*')
     .eq('Room_ID', roomId)
     .eq('Status', 'Available');
@@ -7031,7 +7325,7 @@ window.submitIPDAdmission = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('Admissions').insert(admissionData);
+  const { error } = await supabaseClient.from(dbTable('Admissions')).insert(admissionData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7039,7 +7333,7 @@ window.submitIPDAdmission = async function (e) {
   }
   
   // Update bed status
-  await supabaseClient.from('Beds').update({ Status: 'Occupied' }).eq('Bed_ID', admissionData.Bed_ID);
+  await supabaseClient.from(dbTable('Beds')).update({ Status: 'Occupied' }).eq('Bed_ID', admissionData.Bed_ID);
   
   Swal.fire('ສຳເລັດ!', 'ຮັບຄົນເຈັບນອນແລ້ວ', 'success');
   $('#ipdAdmissionModal').modal('hide');
@@ -7051,9 +7345,9 @@ window.submitIPDAdmission = async function (e) {
 window.loadIPDWards = async function () {
   window._wardManagerNeedsReopen = false;
   // Load wards, rooms, and beds
-  const { data: wards } = await supabaseClient.from('Wards').select('*').order('Ward_Name');
-  const { data: rooms } = await supabaseClient.from('Rooms').select('*').order('Room_Number');
-  const { data: beds } = await supabaseClient.from('Beds').select('*').order('Bed_Number');
+  const { data: wards } = await supabaseClient.from(dbTable('Wards')).select('*').order('Ward_Name');
+  const { data: rooms } = await supabaseClient.from(dbTable('Rooms')).select('*').order('Room_Number');
+  const { data: beds } = await supabaseClient.from(dbTable('Beds')).select('*').order('Bed_Number');
   
   let html = '<div class="row g-4">';
   
@@ -7177,8 +7471,8 @@ window.submitRoom = async function (e) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   const isEdit = !!$('#roomEditId').val();
   const { error } = isEdit
-    ? await supabaseClient.from('Rooms').update(roomData).eq('Room_ID', roomId)
-    : await supabaseClient.from('Rooms').insert(roomData);
+    ? await supabaseClient.from(dbTable('Rooms')).update(roomData).eq('Room_ID', roomId)
+    : await supabaseClient.from(dbTable('Rooms')).insert(roomData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7215,8 +7509,8 @@ window.submitBed = async function (e) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   const isEdit = !!$('#bedEditId').val();
   const { error } = isEdit
-    ? await supabaseClient.from('Beds').update(bedData).eq('Bed_ID', bedId)
-    : await supabaseClient.from('Beds').insert(bedData);
+    ? await supabaseClient.from(dbTable('Beds')).update(bedData).eq('Bed_ID', bedId)
+    : await supabaseClient.from(dbTable('Beds')).insert(bedData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7228,29 +7522,29 @@ window.submitBed = async function (e) {
 };
 
 window.deleteRoom = async function (roomId) {
-  const { data: beds } = await supabaseClient.from('Beds').select('Bed_ID,Status').eq('Room_ID', roomId);
+  const { data: beds } = await supabaseClient.from(dbTable('Beds')).select('Bed_ID,Status').eq('Room_ID', roomId);
   if ((beds || []).some(b => b.Status === 'Occupied')) {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ສາມາດລົບຫ້ອງໄດ້ ເພາະຍັງມີຕຽງທີ່ຖືກໃຊ້ງານ', 'warning');
   }
   const r = await Swal.fire({ title: 'ລົບຫ້ອງ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລົບ' });
   if (!r.isConfirmed) return;
   Swal.fire({ title: 'ກຳລັງລົບ...', didOpen: () => Swal.showLoading() });
-  await supabaseClient.from('Beds').delete().eq('Room_ID', roomId);
-  const { error } = await supabaseClient.from('Rooms').delete().eq('Room_ID', roomId);
+  await supabaseClient.from(dbTable('Beds')).delete().eq('Room_ID', roomId);
+  const { error } = await supabaseClient.from(dbTable('Rooms')).delete().eq('Room_ID', roomId);
   if (error) return Swal.fire('ຜິດພາດ!', error.message, 'error');
   Swal.fire('ສຳເລັດ!', 'ລົບຫ້ອງແລ້ວ', 'success');
   window.loadIPDWards();
 };
 
 window.deleteBed = async function (bedId) {
-  const { data: bed } = await supabaseClient.from('Beds').select('Status').eq('Bed_ID', bedId).single();
+  const { data: bed } = await supabaseClient.from(dbTable('Beds')).select('Status').eq('Bed_ID', bedId).single();
   if (bed && bed.Status === 'Occupied') {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ສາມາດລົບຕຽງທີ່ກຳລັງຖືກໃຊ້ງານໄດ້', 'warning');
   }
   const r = await Swal.fire({ title: 'ລົບຕຽງ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລົບ' });
   if (!r.isConfirmed) return;
   Swal.fire({ title: 'ກຳລັງລົບ...', didOpen: () => Swal.showLoading() });
-  const { error } = await supabaseClient.from('Beds').delete().eq('Bed_ID', bedId);
+  const { error } = await supabaseClient.from(dbTable('Beds')).delete().eq('Bed_ID', bedId);
   if (error) return Swal.fire('ຜິດພາດ!', error.message, 'error');
   Swal.fire('ສຳເລັດ!', 'ລົບຕຽງແລ້ວ', 'success');
   window.loadIPDWards();
@@ -7274,7 +7568,7 @@ window.openIPDDetail = async function (admissionId) {
   
   // Fetch admission details
   const { data: adm } = await supabaseClient
-    .from('Admissions')
+    .from(dbTable('Admissions'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .single();
@@ -7300,7 +7594,7 @@ window.openIPDDetail = async function (admissionId) {
 function loadIPDProgressNotes(admissionId) {
   $('#progressNotesList').html('<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>');
   
-  supabaseClient.from('Progress_Notes')
+  supabaseClient.from(dbTable('Progress_Notes'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .order('Note_Date', { ascending: false })
@@ -7342,7 +7636,7 @@ function loadIPDProgressNotes(admissionId) {
 function loadIPDMedications(admissionId) {
   $('#medicationsList').html('<div class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div></div>');
   
-  supabaseClient.from('IPD_Medications')
+  supabaseClient.from(dbTable('IPD_Medications'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .eq('Status', 'Active')
@@ -7374,7 +7668,7 @@ function loadIPDMedications(admissionId) {
 function loadIPDVitals(admissionId) {
   $('#vitalsList').html('<div class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div></div>');
   
-  supabaseClient.from('IPD_Vital_Signs')
+  supabaseClient.from(dbTable('IPD_Vital_Signs'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .order('Record_Date', { ascending: false })
@@ -7409,7 +7703,7 @@ function loadIPDVitals(admissionId) {
 function loadIPDNursingNotes(admissionId) {
   $('#nursingNotesList').html('<div class="text-center py-4"><div class="spinner-border text-warning spinner-border-sm"></div></div>');
   
-  supabaseClient.from('Nursing_Notes')
+  supabaseClient.from(dbTable('Nursing_Notes'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .order('Note_Date', { ascending: false })
@@ -7487,7 +7781,7 @@ window.submitIPDProgressNote = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('Progress_Notes').insert(noteData);
+  const { error } = await supabaseClient.from(dbTable('Progress_Notes')).insert(noteData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7543,7 +7837,7 @@ window.submitIPDMedication = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງສັ່ງຢາ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('IPD_Medications').insert(medData);
+  const { error } = await supabaseClient.from(dbTable('IPD_Medications')).insert(medData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7593,7 +7887,7 @@ window.submitIPDVitals = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('IPD_Vital_Signs').insert(vitalData);
+  const { error } = await supabaseClient.from(dbTable('IPD_Vital_Signs')).insert(vitalData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7638,7 +7932,7 @@ window.submitIPDNursingNote = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('Nursing_Notes').insert(noteData);
+  const { error } = await supabaseClient.from(dbTable('Nursing_Notes')).insert(noteData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7697,7 +7991,7 @@ window.submitIPDDischarge = async function (e) {
     
     // Update admission
     const { error: updateError } = await supabaseClient
-      .from('Admissions')
+      .from(dbTable('Admissions'))
       .update(dischargeData)
       .eq('Admission_ID', admissionId);
     
@@ -7708,13 +8002,13 @@ window.submitIPDDischarge = async function (e) {
     
     // Get bed info and update bed status
     const { data: adm } = await supabaseClient
-      .from('Admissions')
+      .from(dbTable('Admissions'))
       .select('Bed_ID')
       .eq('Admission_ID', admissionId)
       .single();
     
     if (adm && adm.Bed_ID) {
-      await supabaseClient.from('Beds').update({ Status: 'Available' }).eq('Bed_ID', adm.Bed_ID);
+      await supabaseClient.from(dbTable('Beds')).update({ Status: 'Available' }).eq('Bed_ID', adm.Bed_ID);
     }
     
     Swal.fire('ສຳເລັດ!', 'Discharge ຄົນເຈັບແລ້ວ', 'success');
@@ -7769,7 +8063,7 @@ window.submitIPDVisit = async function (e) {
   
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   
-  const { error } = await supabaseClient.from('IPD_Visits').insert(visitData);
+  const { error } = await supabaseClient.from(dbTable('IPD_Visits')).insert(visitData);
   
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
@@ -7785,7 +8079,7 @@ window.submitIPDVisit = async function (e) {
 window.loadIPDVisitHistory = function (admissionId) {
   $('#visitHistoryList').html('<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>');
   
-  supabaseClient.from('IPD_Visits')
+  supabaseClient.from(dbTable('IPD_Visits'))
     .select('*')
     .eq('Admission_ID', admissionId)
     .order('Visit_Date', { ascending: false })
