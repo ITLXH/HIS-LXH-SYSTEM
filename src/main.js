@@ -8130,16 +8130,10 @@ window.openIPDDetail = async function (admissionId) {
 };
 
 // ========================================================================
-// ========================================================================
-// BACKUP & RESTORE UI FUNCTIONS — Production (GitHub Actions)
+// BACKUP & RESTORE UI FUNCTIONS — Supabase Storage via GitHub Actions
 // ========================================================================
 
-// Configurable GitHub repo — override in your build env or hardcode
-const GH_OWNER = (typeof window.BACKUP_GH_OWNER !== 'undefined') ? window.BACKUP_GH_OWNER : '';
-const GH_REPO = (typeof window.BACKUP_GH_REPO !== 'undefined') ? window.BACKUP_GH_REPO : '';
-const GH_TOKEN = (typeof window.BACKUP_GH_TOKEN !== 'undefined') ? window.BACKUP_GH_TOKEN : '';
-const GH_ACTIONS_URL = `https://github.com/${GH_OWNER}/${GH_REPO}/actions/workflows/supabase-backup.yml`;
-const GH_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}`;
+const GH_ACTIONS_URL = 'https://github.com/it977/HIS-sys/actions/workflows/supabase-backup.yml';
 
 // Init backup view — called when nav-backup is clicked
 window.initBackupView = function () {
@@ -8148,40 +8142,13 @@ window.initBackupView = function () {
     window.loadView('dashboard');
     return;
   }
-  if (GH_OWNER && GH_REPO) {
-    $('#btnOpenGHActions').attr('href', GH_ACTIONS_URL).show();
-    var driveFolderId = (typeof window.GOOGLE_DRIVE_FOLDER_ID !== 'undefined') ? window.GOOGLE_DRIVE_FOLDER_ID : '';
-    if (driveFolderId) {
-      $('#btnOpenDrive').attr('href', 'https://drive.google.com/drive/folders/' + driveFolderId).show();
-    }
-    var supBaseUrl = (typeof window.SUPABASE_URL !== 'undefined') ? window.SUPABASE_URL.replace(/\/$/, '') : '';
-    var supBucket = (typeof window.SUPABASE_STORAGE_BUCKET !== 'undefined') ? window.SUPABASE_STORAGE_BUCKET : '';
-    if (supBaseUrl && supBucket) {
-      $('#btnOpenSupabase').attr('href', supBaseUrl + '/project/_/storage/buckets/' + supBucket).show();
-    }
-  } else {
-    $('#btnOpenGHActions').attr('href', 'https://github.com').attr('title', 'Set GH_OWNER and GH_REPO').show();
+  // Set Supabase Storage bucket link if URL is available
+  var supBaseUrl = (typeof window.SUPABASE_URL !== 'undefined') ? window.SUPABASE_URL.replace(/\/$/, '') : '';
+  var supBucket = (typeof window.SUPABASE_STORAGE_BUCKET !== 'undefined') ? window.SUPABASE_STORAGE_BUCKET : '';
+  if (supBaseUrl && supBucket) {
+    $('#btnOpenSupabase').attr('href', supBaseUrl + '/project/_/storage/buckets/' + supBucket);
   }
-  // Show setup guide if GH_OWNER not configured
-  if (!GH_OWNER || !GH_REPO) {
-    $('#backupSetupGuide').show();
-  } else {
-    $('#backupSetupGuide').hide();
-  }
-  // Show latest run status from GitHub Actions API
-  window.loadLatestGHRunStatus();
 };
-
-// Show/hide backup button — admin only
-$(document).on('shown.bs.dropdown', '.his-dropdown', function () {
-  var $item = $('#nav-backup');
-  if (!$item.length) return;
-  if (currentUser && currentUser.role === 'admin') {
-    $item.show();
-  } else {
-    $item.hide();
-  }
-});
 
 // ============================================================
 // Run manual backup — triggers GH Actions workflow_dispatch
@@ -8192,334 +8159,45 @@ window.runManualBackup = async function () {
   const btn = document.getElementById('btnBackupNow');
   btn.disabled = true;
   $('#backupLoading').show();
-  $('#backupLoadingStep').html('<i class="fas fa-spinner fa-spin me-1"></i> ກຳລັງ trigger GitHub Actions workflow...');
-  $('#backupProgressBar').css('width', '5%');
-
-  if (!GH_OWNER || !GH_REPO) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'GitHub repo ຍັງບໍ່ຕັ້ງຄ່າ',
-      html: `
-        <div class="text-start">
-          <p>ຕ້ອງຕັ້ງຄ່າ GitHub repository ກ່ອນ:</p>
-          <ol>
-            <li>ເພີ່ມ <code>BACKUP_GH_OWNER</code> ແລະ <code>BACKUP_GH_REPO</code> ໃຫ້ repo name</li>
-            <li>ຖ້າຕ້ອງການ API trigger — ເພີ່ມ <code>BACKUP_GH_TOKEN</code> (PAT ທີ່ມີ <code>repo</code> scope)</li>
-          </ol>
-          <p class="mt-2">ຫຼື <a href="https://github.com" target="_blank">ເປີດ GitHub Actions</a> ເພື່ອ run manual.</p>
-        </div>
-      `,
-      width: 550
-    });
-    btn.disabled = false;
-    $('#backupLoading').hide();
-    return;
-  }
+  $('#backupLoadingStep').html('<i class="fas fa-spinner fa-spin me-1"></i> ກຳລັງເປີດ GitHub Actions ເພື່ອ trigger workflow...');
 
   try {
-    // Try API dispatch first if token is provided
-    if (GH_TOKEN) {
-      $('#backupLoadingStep').html('<i class="fas fa-spinner fa-spin me-1"></i> ສົ່ງຄຳສັ່ງ run workflow...');
-      $('#backupProgressBar').css('width', '20%');
-
-      const resp = await fetch(`${GH_API}/actions/workflows/supabase-backup.yml/dispatches`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `token ${GH_TOKEN}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        },
-        body: JSON.stringify({ ref: 'main' })
-      });
-
-      if (resp.status === 204) {
-        // Dispatched successfully
-        $('#backupLoadingStep').html('<i class="fas fa-check-circle me-1"></i> Workflow dispatched! ກຳລັງ run ໃນ GitHub Actions...');
-        $('#backupProgressBar').css('width', '50%');
-
-        // Poll for completion
-        await window.pollGHWorkflowRun();
-        return;
-      } else {
-        const errText = await resp.text();
-        console.warn('GH dispatch failed, falling back to UI redirect:', resp.status, errText);
-      }
-    }
-
-    // Fallback: open GH Actions page for manual trigger
-    window.openGHActionsPage();
-    return;
-
-  } catch (err) {
-    console.warn('API dispatch error, falling back to UI:', err);
-    window.openGHActionsPage();
-  } finally {
-    btn.disabled = false;
-  }
-};
-
-// ============================================================
-// Open GitHub Actions page directly
-// ============================================================
-window.openGHActionsPage = function () {
-  $('#backupLoading').hide();
-  Swal.fire({
-    icon: 'info',
-    title: 'ເປີດ GitHub Actions',
-    html: `
-      <div class="text-start">
-        <p>Production backup runs ຢູ່ໃນ GitHub Actions.<br>
-        ກົດປຸ່ມລຸ່ມນີ້ເພື່ອເປີດໜ້າ workflow ແລ້ວກົດ <strong>"Run workflow"</strong> ເອງ.</p>
-        <a href="${GH_ACTIONS_URL}" target="_blank" class="btn btn-outline-dark btn-sm mt-2">
-          <i class="fab fa-github me-1"></i> Open GitHub Actions
-        </a>
-      </div>
-    `,
-    confirmButtonText: 'ເຂົ້າໃຈແລ້ວ'
-  });
-
-  // Also open the page in new tab
-  if (GH_ACTIONS_URL) {
+    // Open GitHub Actions page for manual trigger
     window.open(GH_ACTIONS_URL, '_blank');
-  }
-};
-
-// ============================================================
-// Poll GH Actions workflow run status
-// ============================================================
-window.pollGHWorkflowRun = async function () {
-  if (!GH_TOKEN) return;
-
-  const maxWait = 900000; // 15 minutes
-  const pollInterval = 10000; // 10 seconds
-  let waited = 0;
-  let latestRunId = null;
-
-  const steps = [
-    { text: '⏳ Waiting for workflow to start...', pct: 30 },
-    { text: '🔄 Checkout + setup...', pct: 40 },
-    { text: '💾 Running pg_dump...', pct: 55 },
-    { text: '📊 Exporting CSV tables...', pct: 70 },
-    { text: '📦 Creating ZIP archive...', pct: 80 },
-    { text: '☁️ Uploading to Google Drive...', pct: 90 },
-  ];
-
-  while (waited < maxWait) {
-    try {
-      const resp = await fetch(`${GH_API}/actions/workflows/supabase-backup.yml/runs?per_page=1&status=in_progress`, {
-        headers: {
-          'Authorization': `token ${GH_TOKEN}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      });
-      const data = await resp.json();
-      const runs = data.workflow_runs || [];
-
-      if (runs.length > 0) {
-        const run = runs[0];
-        latestRunId = run.id;
-
-        // Update step based on elapsed time
-        const elapsed = waited / 1000;
-        let stepIdx = 0;
-        if (elapsed > 30) stepIdx = 1;
-        if (elapsed > 60) stepIdx = 2;
-        if (elapsed > 120) stepIdx = 3;
-        if (elapsed > 180) stepIdx = 4;
-        if (elapsed > 240) stepIdx = 5;
-
-        const step = steps[stepIdx] || steps[steps.length - 1];
-        $('#backupLoadingStep').html(`<i class="fas fa-spinner fa-spin me-1"></i> ${step.text}`);
-        $('#backupProgressBar').css('width', step.pct + '%');
-      } else if (latestRunId) {
-        // Run was in progress but now finished — check completed runs
-        const runId = await checkCompletedRun();
-        if (runId) {
-          $('#backupLoading').hide();
-          return;
-        }
-      } else if (waited < 30000) {
-        $('#backupLoadingStep').html('<i class="fas fa-spinner fa-spin me-1"></i> Waiting for GitHub to start the workflow...');
-        $('#backupProgressBar').css('width', '20%');
-      }
-    } catch (e) {
-      console.warn('Poll error:', e);
-    }
-
-    await new Promise(r => setTimeout(r, pollInterval));
-    waited += pollInterval;
-  }
-
-  $('#backupLoadingStep').html('<i class="fas fa-exclamation-triangle me-1"></i> ໃຊ້ເວລາດົນ. ກະລຸນາກວດ GitHub Actions.');
-};
-
-async function checkCompletedRun() {
-  if (!GH_TOKEN || !latestRunId) return null;
-  try {
-    const resp = await fetch(`${GH_API}/actions/runs/${latestRunId}`, {
-      headers: {
-        'Authorization': `token ${GH_TOKEN}`,
-        'Accept': 'application/vnd.github+json'
-      }
+    $('#backupLoadingStep').html('<i class="fas fa-check-circle me-1"></i> ເປີດ GitHub Actions ແລ້ວ — ກົດ <strong>Run workflow</strong> ເພື່ອເລີ່ມ backup');
+    $('#backupLoading').hide();
+    btn.disabled = false;
+  } catch (err) {
+    console.warn('Error opening GitHub Actions:', err);
+    Swal.fire({
+      icon: 'error',
+      title: 'ເກີດຂໍ້ຜິດພາດ',
+      text: 'ບໍ່ສາມາດເປີດ GitHub Actions ໄດ້.'
     });
-    const run = await resp.json();
-    return run.conclusion === 'success' ? run.id : null;
-  } catch { return null; }
-}
+    $('#backupLoading').hide();
+    btn.disabled = false;
+  }
+};
 
 // ============================================================
-// Load latest GH Actions run status
+// Load latest backup status — simple placeholder
 // ============================================================
 window.loadLatestGHRunStatus = async function () {
-  if (!GH_OWNER || !GH_REPO) {
-    $('#latestBackupInfo').html(
-      '<div class="text-center py-4 text-muted">' +
-      '<i class="fas fa-database fa-3x mb-2 d-block"></i>' +
-      '<p class="mb-0">ສຳຮອງຂໍ້ມູນຜ່ານ GitHub Actions.</p>' +
-      '<p class="small mt-2">ຕັ້ງຄ່າ <code>BACKUP_GH_OWNER</code> ແລະ <code>BACKUP_GH_REPO</code> ເພື່ອເບິ່ງສະຖານະ.</p></div>'
-    );
-    return;
-  }
-
-  if (!GH_TOKEN) {
-    $('#latestBackupInfo').html(
-      '<div class="text-center py-4 text-muted">' +
-      '<i class="fab fa-github fa-3x mb-2 d-block"></i>' +
-      `<p class="mb-0">Open <a href="${GH_ACTIONS_URL}" target="_blank">GitHub Actions</a> ເພື່ອເບິ່ງສະຖານະ backup ລ່າສຸດ.</p></div>`
-    );
-    return;
-  }
-
-  try {
-    const resp = await fetch(`${GH_API}/actions/workflows/supabase-backup.yml/runs?per_page=5`, {
-      headers: {
-        'Authorization': `token ${GH_TOKEN}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28'
-      }
-    });
-    const data = await resp.json();
-    const runs = data.workflow_runs || [];
-
-    if (runs.length === 0) {
-      $('#latestBackupInfo').html(
-        '<div class="text-center py-4 text-muted">' +
-        '<i class="fas fa-database fa-3x mb-2 d-block"></i>' +
-        '<p class="mb-0">ຍັງບໍ່ມີການ run workflow. ກົດ <strong>Backup Now</strong> ເພື່ອເລີ່ມ.</p></div>'
-      );
-      return;
-    }
-
-    const latest = runs[0];
-    const statusColor = latest.conclusion === 'success' ? 'success' :
-                        latest.conclusion === 'failure' ? 'danger' : 'warning';
-    const statusIcon = latest.conclusion === 'success' ? 'fa-check-circle text-success' :
-                       latest.conclusion === 'failure' ? 'fa-times-circle text-danger' : 'fa-clock text-warning';
-    const statusText = latest.conclusion || latest.status;
-    const updatedAt = new Date(latest.updated_at).toLocaleString('lo-LA');
-    const runHtml = latest.html_url || '#';
-
-    $('#latestBackupInfo').html(`
-      <div class="p-3">
-        <div class="d-flex align-items-center mb-3">
-          <i class="fas ${statusIcon} fa-2x me-3"></i>
-          <div>
-            <h5 class="mb-0">Backup ລ່າສຸດ: <span class="badge bg-${statusColor}">${statusText}</span></h5>
-            <small class="text-muted">${updatedAt} — Run #${latest.run_number}</small>
-          </div>
-        </div>
-        <div class="row g-3 mb-3">
-          <div class="col-md-6">
-            <div class="d-flex align-items-center p-2 border rounded">
-              <i class="fab fa-google-drive fa-lg me-2" style="color:#4285F4;"></i>
-              <span class="fw-bold me-2">Google Drive:</span>
-              <span class="badge bg-success"><i class="fas fa-check"></i> Success</span>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="d-flex align-items-center p-2 border rounded">
-              <i class="fas fa-database fa-lg me-2 text-info"></i>
-              <span class="fw-bold me-2">Supabase Storage:</span>
-              <span class="badge bg-success"><i class="fas fa-check"></i> Success</span>
-            </div>
-          </div>
-        </div>
-        <div>
-          <a href="${runHtml}" target="_blank" class="btn btn-sm btn-outline-dark">
-            <i class="fab fa-github me-1"></i> View run on GitHub
-          </a>
-          <a href="https://drive.google.com" target="_blank" class="btn btn-sm btn-outline-primary ms-2">
-            <i class="fab fa-google-drive me-1"></i> Open Google Drive
-          </a>
-        </div>
-      </div>
-    `);
-
-    // Also update history table
-    window.renderBackupHistoryFromGH(runs);
-  } catch (err) {
-    console.warn('Failed to load GH run status:', err);
-    $('#latestBackupInfo').html(
-      '<div class="text-center py-3 text-muted"><i class="fas fa-wifi me-1"></i>ບໍ່ສາມາດໂຫຼດສະຖານະໄດ້ — ກະລຸນາກວດ token</div>'
-    );
-  }
-};
-
-// ============================================================
-// Render backup history from GitHub Actions runs
-// ============================================================
-window.renderBackupHistoryFromGH = function (runs) {
-  if (!runs || runs.length === 0) {
-    $('#backupHistoryBody').html(
-      '<tr><td colspan="6" class="text-center py-4 text-muted">' +
-      '<i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup</td></tr>'
-    );
-    return;
-  }
-
-  let html = '';
-  runs.forEach(function (run) {
-    const statusBadge = run.conclusion === 'success'
-      ? '<span class="badge bg-success">Success</span>'
-      : run.conclusion === 'failure'
-      ? '<span class="badge bg-danger">Failed</span>'
-      : '<span class="badge bg-warning">Running</span>';
-
-    const dateStr = new Date(run.created_at || run.updated_at).toLocaleString('lo-LA', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    });
-
-    const triggerLabel = run.event === 'workflow_dispatch'
-      ? '<span class="badge bg-info">Manual</span>'
-      : '<span class="badge bg-secondary">Scheduled</span>';
-
-    const actions = [
-      `<a href="${run.html_url}" target="_blank" class="btn btn-sm btn-outline-dark"><i class="fab fa-github"></i> Log</a>`
-    ];
-
-    html += `<tr>
-      <td class="text-nowrap">${dateStr}</td>
-      <td><code class="small">backup-${(run.created_at || '').substring(0, 10)}${run.event === 'workflow_dispatch' ? '-manual' : ''}</code></td>
-      <td>-</td>
-      <td>${statusBadge} ${triggerLabel}</td>
-      <td class="text-truncate small text-muted" style="max-width:200px;">${run.head_branch || '-'}</td>
-      <td class="text-nowrap">${actions.join(' ')}</td>
-    </tr>`;
-  });
-
-  $('#backupHistoryBody').html(html);
-
-  if ($.fn.DataTable.isDataTable('#backupHistoryTable')) {
-    $('#backupHistoryTable').DataTable().destroy();
-  }
-  $('#backupHistoryTable').DataTable({
-    pageLength: 10,
-    order: [],
-    columnDefs: [{ targets: [4], width: '200px' }],
-    language: { search: 'ຄົ້ນຫາ:', emptyTable: 'ບໍ່ມີຂໍ້ມູນ', paginate: { previous: 'ກ່ອນໜ້າ', next: 'ຕໍ່ໄປ' } }
-  });
+  // Status is shown in GitHub Actions — provide a link
+  $('#latestBackupInfo').html(`
+    <div class="p-3 text-center">
+      <i class="fab fa-github fa-3x mb-2 d-block text-dark"></i>
+      <p class="mb-2">ສະຖານະ backup ລ່າສຸດເບິ່ງໄດ້ໃນ GitHub Actions</p>
+      <a href="${GH_ACTIONS_URL}" target="_blank" class="btn btn-sm btn-outline-dark">
+        <i class="fab fa-github me-1"></i> ເບິ່ງ workflow runs
+      </a>
+    </div>
+  `);
+  // Clear history table with simple message
+  $('#backupHistoryBody').html(
+    '<tr><td colspan="5" class="text-center py-4 text-muted">' +
+    '<i class="fas fa-inbox me-2"></i>ເບິ່ງປະຫວັດໃນ GitHub Actions</td></tr>'
+  );
 };
 
 // ============================================================
@@ -8532,8 +8210,8 @@ window.showBackupLogs = function () {
     Swal.fire({
       icon: 'info',
       title: 'Backup Logs',
-      html: '<p>Production logs ຢູ່ໃນ GitHub Actions.<br>ຕັ້ງຄ່າ <code>BACKUP_GH_OWNER</code> ແລະ <code>BACKUP_GH_REPO</code> ເພື່ອເປີດໂດຍກົງ.</p>',
-      confirmButtonText: 'ເຂົ້າໃຈແລ້ວ'
+      html: '<p>Production logs ຢູ່ໃນ GitHub Actions.</p>',
+      confirmButtonText: 'ຕົກລົງ'
     });
   }
 };
@@ -8549,14 +8227,9 @@ window.showRestoreGuide = function () {
       <div class="text-start" style="font-size:14px;max-height:500px;overflow-y:auto;">
         <p><strong>ຂັ້ນຕອນ Restore:</strong></p>
         <ol>
-          <li>ດາວໂຫຼດ backup ZIP ຈາກ Google Drive</li>
-          <li>Extract ໄດ້ <code>sql/backup-YYYY-MM-DD.sql</code> ແລະ <code>csv/</code></li>
-          <li><strong>Restore SQL:</strong>
-            <pre class="bg-dark text-light p-2 rounded small"><code>psql -h host -U user -d dbname -f sql/backup-2025-01-15.sql</code></pre>
-          </li>
-          <li><strong>Restore CSV:</strong>
-            <pre class="bg-dark text-light p-2 rounded small"><code>psql -h host -U user -d dbname -c "\\COPY tablename FROM csv/table.csv WITH CSV HEADER"</code></pre>
-          </li>
+          <li>ດາວໂຫຼດ backup ZIP ຈາກ Supabase Storage bucket</li>
+          <li>Extract ໄດ້ <code>csv/</code> ໂຟເດີ</li>
+          <li><strong>Restore CSV:</strong> ດາວໂຫຼດແຕ່ລະ CSV ແລ້ວ import ເຂົ້າ Supabase</li>
         </ol>
         <p class="text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i><strong>ເຕືອນ:</strong> ກວດສອບ backup ກ່ອນ restore ສະເໝີ.</p>
         <p class="small text-muted mt-2">ເບິ່ງຄູ່ມືເຕັມ: <code>docs/BACKUP_PRODUCTION.md</code></p>
@@ -8572,5 +8245,5 @@ window.showRestoreGuide = function () {
 // ============================================================
 window.cancelBackup = function () {
   $('#backupLoading').hide();
-  Swal.fire('ຍົກເລີກ', 'ການສຳຮອງຖືກຍົກເລີກ (workflow ຍັງຄົງ run ຢູ່ໃນ GitHub).', 'info');
+  Swal.fire('ຍົກເລີກ', 'ການສຳຮອງຖືກຍົກເລີກ', 'info');
 };
