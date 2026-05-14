@@ -8,18 +8,33 @@ export async function onRequestPost(ctx) {
   const { request, env } = ctx;
 
   try {
+    // Use hardcoded defaults — env vars are optional overrides
     const owner = env.BACKUP_GH_OWNER || 'it977';
     const repo = env.BACKUP_GH_REPO || 'HIS-sys';
     const workflowFile = env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml';
 
-    const dispatchUrl = `/repos/${owner}/${repo}/actions/workflows/${workflowFile}/dispatches`;
-
-    await ghRequest(
-      env,
-      'POST',
-      dispatchUrl,
-      { ref: 'main' }
-    );
+    // Try workflow filename first; if that fails, fallback to workflow ID
+    // (avoids issues with filename changes or renamed workflows)
+    try {
+      await ghRequest(
+        env,
+        'POST',
+        `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
+        { ref: 'main' }
+      );
+    } catch (primaryErr) {
+      // If filename lookup fails, try the numeric workflow ID
+      if (primaryErr.message && primaryErr.message.includes('404')) {
+        await ghRequest(
+          env,
+          'POST',
+          `/repos/${owner}/${repo}/actions/workflows/275980961/dispatches`,
+          { ref: 'main' }
+        );
+      } else {
+        throw primaryErr;
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true, message: 'Backup started', owner, repo, workflowFile }),

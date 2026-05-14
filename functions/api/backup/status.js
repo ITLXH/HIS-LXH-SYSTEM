@@ -8,11 +8,15 @@ export async function onRequestGet(ctx) {
   const { env } = ctx;
 
   try {
-    // Fetch latest runs
+    // Use numeric workflow ID as primary key — immune to renaming
+    const owner = env.BACKUP_GH_OWNER || 'it977';
+    const repo = env.BACKUP_GH_REPO || 'HIS-sys';
+    const workflowId = env.BACKUP_WORKFLOW_ID || '275980961';
+
     const runsData = await ghRequest(
       env,
       'GET',
-      `/repos/${env.BACKUP_GH_OWNER || 'it977'}/${env.BACKUP_GH_REPO || 'HIS-sys'}/actions/workflows/${env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml'}/runs?per_page=1`,
+      `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=1`,
       null
     );
 

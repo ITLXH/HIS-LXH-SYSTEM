@@ -8218,10 +8218,11 @@ window.runManualBackup = async function () {
   } catch (err) {
     console.error('Backup trigger failed:', err);
     _closeLoadingAlert();
+    const detail = String(err.message || '');
     Swal.fire({
       icon: 'error',
       title: 'Backup ລົ້ມເຫຼວ',
-      html: 'ບໍ່ສາມາດເລີ່ມ backup ໄດ້<br><code class="small">' + err.message + '</code>',
+      html: 'ບໍ່ສາມາດເລີ່ມ backup ໄດ້<br><code class="small">' + detail + '</code>',
       confirmButtonText: 'ຕົກລົງ'
     });
   } finally {
