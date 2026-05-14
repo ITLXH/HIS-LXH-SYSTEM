@@ -8149,32 +8149,51 @@ window.initBackupView = function () {
 
 // ============================================================
 // Run manual backup — calls /api/backup/run (Cloudflare Function)
-// No redirect, no new tab — polling-based UX
+// Fully in-page: loading spinner -> poll -> success/error alert
+// NEVER redirects or opens GitHub — everything stays on dashboard
 // ============================================================
+let _backupPolling = false; // guard against double-clicks
+
 window.runManualBackup = async function () {
   if (!currentUser || currentUser.role !== 'admin') return;
+  if (_backupPolling) return; // prevent double-click
+  _backupPolling = true;
 
   const btn = document.getElementById('btnBackupNow');
   btn.disabled = true;
 
+  // Step 1: Get current latest run_id so we can detect a NEW run
+  let knownRunId = null;
+  try {
+    const preResp = await fetch('/api/backup/status');
+    if (preResp.status !== 404) {
+      const preData = await preResp.json();
+      knownRunId = preData.run_id || null;
+    }
+  } catch (e) { /* ignore — will poll from scratch */ }
+
+  // Show persistent loading SweetAlert
   Swal.fire({
+    icon: 'info',
     title: 'ກຳລັງ backup ຂໍ້ມູນ...',
     html: '<i class="fas fa-spinner fa-spin fa-2x mb-3"></i><br>' +
-          'ກຳລັງເລີ່ມ backup ຜ່ານ GitHub Actions<br>' +
-          '<span class="text-muted small">ກະລຸນາລໍຖ້າ...</span>',
+          '<span id="backupPollStatus">ກຳລັງເລີ່ມ workflow...</span><br>' +
+          '<span id="backupPollTimer" class="text-muted small"></span>',
     allowOutsideClick: false,
+    allowEscapeKey: false,
     showConfirmButton: false,
-    didOpen: () => Swal.showLoading()
+    didOpen: () => { Swal.showLoading(); }
   });
 
   try {
+    // Step 2: Trigger the backup via API
     const resp = await fetch('/api/backup/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
 
-    // Handle 404 gracefully in local dev (Vite doesn't serve Cloudflare Functions)
     if (resp.status === 404) {
+      _closeLoadingAlert();
       Swal.fire({
         icon: 'warning',
         title: 'Backup API ບໍ່ພ້ອມ',
@@ -8187,16 +8206,18 @@ window.runManualBackup = async function () {
     }
 
     const data = await resp.json();
-
     if (!data.success) {
       throw new Error(data.error || 'Unknown error');
     }
 
-    // Triggered — poll for status
-    await window.pollBackupStatus();
+    document.getElementById('backupPollStatus').textContent = 'Workflow ຖືກ trigger ແລ້ວ — ກຳລັງລໍຖ້າ...';
+
+    // Step 3: Poll /api/backup/status every 10s until new run completes
+    await _pollForNewBackup(knownRunId);
 
   } catch (err) {
     console.error('Backup trigger failed:', err);
+    _closeLoadingAlert();
     Swal.fire({
       icon: 'error',
       title: 'Backup ລົ້ມເຫຼວ',
@@ -8205,86 +8226,110 @@ window.runManualBackup = async function () {
     });
   } finally {
     btn.disabled = false;
+    _backupPolling = false;
     window.loadLatestBackupStatus();
     window.renderBackupHistory();
   }
 };
 
-// ============================================================
-// Poll backup status via /api/backup/status every 10s
-// ============================================================
-window.pollBackupStatus = async function () {
-  const maxWait = 180000;
-  const pollInterval = 10000;
+// Close the persistent loading SweetAlert (if still open)
+function _closeLoadingAlert() {
+  // Only close if it's our loading alert (has no confirm button)
+  if (Swal.isVisible() && !(Swal.getActions() && Swal.getActions().querySelector('.swal2-confirm'))) {
+    Swal.close();
+  }
+}
+
+// Poll /api/backup/status every 10s. Waits for a NEW run to appear
+// (run_id different from knownRunId), then waits for that run to finish.
+// Max wait = 5 minutes.
+async function _pollForNewBackup(knownRunId) {
+  const maxWait = 300000;   // 5 min total
+  const pollInterval = 10000; // 10s between polls
   let waited = 0;
+  let newRunFound = false;
 
   while (waited < maxWait) {
     try {
       const resp = await fetch('/api/backup/status');
-      const data = await resp.json();
+      if (resp.status === 200) {
+        const data = await resp.json();
+        const currentRunId = data.run_id;
 
-      if (data.status === 'in_progress' || data.status === 'queued' || data.status === 'completed' || data.conclusion === 'success' || data.conclusion === 'failure') {
-        const actualStatus = data.conclusion || data.status;
-        if (actualStatus === 'success') {
-          window.addBackupHistoryEntry({
-            run_id: data.run_id,
-            date: data.updated_at,
-            filename: 'backup-' + (data.updated_at || '').substring(0, 10) + '-manual.zip',
-            status: 'success',
-          });
-          Swal.fire({
-            icon: 'success',
-            title: 'Backup ສຳເລັດ',
-            html: 'ຂໍ້ມູນຖືກ backup ໄປ Supabase Storage ສຳເລັດ<br>' +
-                  '<small class="text-muted">' +
-                  (data.run_number ? 'Run #' + data.run_number + ' &middot; ' : '') +
-                  (data.duration ? data.duration + ' ວິນາທີ' : '') + '</small>',
-            confirmButtonText: 'ຕົກລົງ'
-          });
-          return;
-        } else if (actualStatus === 'failure' || data.status === 'failure') {
-          window.addBackupHistoryEntry({
-            run_id: data.run_id,
-            date: data.updated_at,
-            filename: 'backup-' + (data.updated_at || '').substring(0, 10) + '-manual.zip',
-            status: 'failure',
-            error: data.error || 'Workflow failed',
-          });
-          Swal.fire({
-            icon: 'error',
-            title: 'Backup ບໍ່ສຳເລັດ',
-            html: 'Workflow ລົ້ມເຫຼວ ກະລຸນາກວດ logs<br>' +
-                  '<code class="small">' + (data.error || 'Unknown error') + '</code>',
-            confirmButtonText: 'ຕົກລົງ'
-          });
-          return;
+        // Skip if we haven't seen a new run yet
+        if (!newRunFound && (!currentRunId || currentRunId === knownRunId)) {
+          // Still waiting for GitHub to pick up the dispatch
+          const elapsedSec = Math.round(waited / 1000);
+          document.getElementById('backupPollStatus').textContent = 'ກຳລັງເລີ່ມ workflow...';
+          document.getElementById('backupPollTimer').textContent = elapsedSec + ' ວິນາທີ';
+        } else {
+          // A new run exists — check if it is done
+          newRunFound = true;
+          const conclusion = data.conclusion || data.status;
+          const elapsedSec = Math.round(waited / 1000);
+
+          if (conclusion === 'success') {
+            _closeLoadingAlert();
+            window.addBackupHistoryEntry({
+              run_id: currentRunId,
+              date: data.updated_at,
+              filename: 'backup-' + (data.updated_at || new Date().toISOString()).substring(0, 10) + '-manual.zip',
+              status: 'success',
+            });
+            Swal.fire({
+              icon: 'success',
+              title: 'Backup ສຳເລັດ',
+              html: 'ຂໍ້ມູນຖືກ backup ໄປ Supabase Storage ສຳເລັດ<br>' +
+                    '<small class="text-muted">' +
+                    (data.run_number ? 'Run #' + data.run_number + ' &middot; ' : '') +
+                    (data.duration ? data.duration + ' ວິນາທີ' : '') + '</small>',
+              confirmButtonText: 'ຕົກລົງ'
+            });
+            return;
+          }
+
+          if (conclusion === 'failure') {
+            _closeLoadingAlert();
+            window.addBackupHistoryEntry({
+              run_id: currentRunId,
+              date: data.updated_at,
+              filename: 'backup-' + (data.updated_at || new Date().toISOString()).substring(0, 10) + '-manual.zip',
+              status: 'failure',
+              error: data.error || 'Workflow failed',
+            });
+            Swal.fire({
+              icon: 'error',
+              title: 'Backup ບໍ່ສຳເລັດ',
+              html: 'Workflow ລົ້ມເຫຼວ<br>' +
+                    '<code class="small">' + (data.error || 'Unknown error') + '</code>',
+              confirmButtonText: 'ຕົກລົງ'
+            });
+            return;
+          }
+
+          // Still in_progress / queued — update loading alert
+          document.getElementById('backupPollStatus').textContent = 'Workflow ກຳລັງຮັນ... (Run #' + (data.run_number || '?') + ')';
+          document.getElementById('backupPollTimer').textContent = elapsedSec + ' ວິນາທີ';
         }
       }
-
-      // Still running — update loading dialog
-      Swal.fire({
-        title: 'ກຳລັງ backup ຂໍ້ມູນ...',
-        html: '<i class="fas fa-spinner fa-spin fa-2x mb-3"></i><br>' +
-              'Workflow ກຳລັງຮັນ... (' + Math.round(waited / 1000) + ' ວິນາທີ)<br>' +
-              '<span class="text-muted small">ກະລຸນາລໍຖ້າ...</span>',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-      });
     } catch (e) {
-      console.warn('Poll error:', e);
+      console.warn('Poll error (ignored):', e);
     }
 
     await new Promise(r => setTimeout(r, pollInterval));
     waited += pollInterval;
   }
 
+  // Timeout — show warning but stay on page
+  _closeLoadingAlert();
   Swal.fire({
     icon: 'warning',
     title: 'ໃຊ້ເວລາດົນ',
-    html: 'Backup ຍັງຄົງຮັນ<br>ກະລຸນາກວດ GitHub Actions ຕາມຫຼັງ',
+    html: 'Backup ຍັງຄົງຮັນຢູ່.<br>' +
+          'ລະບົບຈະອັບເດດສະຖານະອັດຕະໂນມັດເມື່ອ backup ສຳເລັດ.',
     confirmButtonText: 'ຕົກລົງ'
   });
-};
+}
 
 // ============================================================
 // Load latest backup status from /api/backup/status
@@ -8444,15 +8489,10 @@ window.showBackupLogs = function () {
   Swal.fire({
     icon: 'info',
     title: 'Backup Logs',
-    html: '<p class="text-start">Production logs ຢູ່ໃນ GitHub Actions.<br>' +
-          'ເປີດໜ້າ workflow runs ເພື່ອເບິ່ງ log ແຕ່ລະ run.</p>',
-    showCancelButton: true,
-    confirmButtonText: '<i class="fab fa-github me-1"></i> ເປີດ GitHub Actions',
-    cancelButtonText: 'ປິດ',
-  }).then(function (result) {
-    if (result.isConfirmed) {
-      window.open('https://github.com/it977/HIS-sys/actions/workflows/supabase-backup.yml', '_blank');
-    }
+    html: '<p class="text-start">Backup status ຖືກສະແດງຢູ່ໜ້ານີ້.<br>' +
+          'Workflow ဖຳລັງຮັນ ຫຼື ສຳເລັດ — ກະລຸນາເບິ່ງສະຖານະຢູ່ດ້ານເທິງ.<br>' +
+          'ລະບົບຈະອັບເດດອັດຕະໂນມັດ ທຸກ 10 ວິນາທີ.</p>',
+    confirmButtonText: 'ຕົກລົງ'
   });
 };
 

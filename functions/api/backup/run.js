@@ -1,4 +1,4 @@
-import { ghRequest } from '../_utils/gh-api.js';
+import { ghRequest } from '../../_utils/gh-api.js';
 
 // POST /api/backup/run
 // Triggers GitHub Actions workflow_dispatch — server-side only
