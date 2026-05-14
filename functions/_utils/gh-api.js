@@ -16,6 +16,7 @@ export async function ghRequest(env, method, path, body = null) {
     method,
     headers: {
       'Authorization': `Bearer ${token}`,
+      'User-Agent': 'HIS-sys-backup',
       'Accept': 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
