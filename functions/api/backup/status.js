@@ -12,7 +12,7 @@ export async function onRequestGet(ctx) {
     const runsData = await ghRequest(
       env,
       'GET',
-      `/repos/${env.BACKUP_GH_OWNER}/${env.BACKUP_GH_REPO}/actions/workflows/${env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml'}/runs?per_page=1`,
+      `/repos/${env.BACKUP_GH_OWNER || 'it977'}/${env.BACKUP_GH_REPO || 'HIS-sys'}/actions/workflows/${env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml'}/runs?per_page=1`,
       null
     );
 

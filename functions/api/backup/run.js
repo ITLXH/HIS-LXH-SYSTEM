@@ -11,7 +11,7 @@ export async function onRequestPost(ctx) {
     await ghRequest(
       env,
       'POST',
-      `/repos/${env.BACKUP_GH_OWNER}/${env.BACKUP_GH_REPO}/actions/workflows/${env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml'}/dispatches`,
+      `/repos/${env.BACKUP_GH_OWNER || 'it977'}/${env.BACKUP_GH_REPO || 'HIS-sys'}/actions/workflows/${env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml'}/dispatches`,
       { ref: 'main' }
     );
 
