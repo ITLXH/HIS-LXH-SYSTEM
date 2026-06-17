@@ -1,6 +1,6 @@
-const SUPABASE_URL = "https://erueurkqzmtdefszqons.supabase.co";
+const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVydWV1cmtxem10ZGVmc3pxb25zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTA2OTksImV4cCI6MjA4ODc2NjY5OX0.uShip2ECxvFPfmDLx9-adHGXXTc3cazVdZpSF2tCFUw";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6eXJvd3pnaHJjZnBtaGtyZWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MTI2NzcsImV4cCI6MjA5NzE4ODY3N30.aTIC9Ov8jo-WhdUTZ_bZswmOgauC53R7vjYGcUln8Q0";
 
 const supabaseClient = supabase.createClient(
   SUPABASE_URL,
@@ -553,7 +553,7 @@ window.decorateDataTableUi = function (tableNode) {
 // ==========================================
 async function loadPartials() {
   const views = [
-    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'ipd',
+    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd',
     'appointments', 'vaccines', 'vaccine_master', 'drugs',
     'labs', 'services', 'locations', 'users', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
@@ -984,10 +984,10 @@ window.initApp = async function () {
           ctx.save();
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = '#59726d';
+          ctx.fillStyle = '#475569';
           ctx.font = '600 13px "Noto Sans Lao", sans-serif';
           ctx.fillText(pluginOptions.message || 'ບໍ່ພົບຂໍ້ມູນ', centerX, centerY - 8);
-          ctx.fillStyle = '#8ca19d';
+          ctx.fillStyle = '#94a3b8';
           ctx.font = '11px "Noto Sans Lao", sans-serif';
           ctx.fillText(pluginOptions.submessage || 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ', centerX, centerY + 12);
           ctx.restore();
@@ -1081,7 +1081,7 @@ window.loadView = function (v) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'ipd', 'users', 'services', 'locations', 'appointments', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'users', 'services', 'locations', 'appointments', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -1121,9 +1121,6 @@ window.loadView = function (v) {
       $('#opdEndDate').val(window.getLocalStr(today));
     }
     window.loadQueue();
-  }
-  if (v === 'ipd') {
-    window.loadIPDPatients();
   }
   if (v === 'users') window.loadUsers();
   if (v === 'services') window.loadServicesMasterView();
@@ -1773,11 +1770,9 @@ window.renderDashboardCharts = function (visits) {
     let dist = p.District || p.district || "";
     if (dist) district[dist] = (district[dist] || 0) + 1;
 
-    // Simplified Dept Type: only OPD/IPD
+    // Simplified Dept Type: OPD only
     let dept = (visitType || "").toString().toUpperCase();
-    if (dept.includes('IPD')) dept = 'IPD';
-    else if (dept) dept = 'OPD';
-    if (dept) deptType[dept] = (deptType[dept] || 0) + 1;
+    if (dept) deptType['OPD'] = (deptType['OPD'] || 0) + 1;
 
     // Simplified Site: In-site vs Out-site
     let sValue = (v.Site || "In-site").toString().toLowerCase();
@@ -1791,7 +1786,7 @@ window.renderDashboardCharts = function (visits) {
     }
   });
 
-  const palette = ['#47c0c4', '#56c3c2', '#2c9ea3', '#7ad6c9', '#ffbf00', '#8bcf8c', '#ff7a15', '#94a3b8', '#3fae8c', '#84cc16'];
+  const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
   
   let topSvc = getTopNWithOthers(services, 10, 0.001);
   let topRev = getTopNWithOthers(revenue, 8, 0.005);
@@ -1803,9 +1798,9 @@ window.renderDashboardCharts = function (visits) {
   window.createChart('chartRevenue', 'bar', topRev.labels, topRev.data, palette, true);
   window.createChart('chartSpecialist', 'bar', topSpec.labels, topSpec.data, palette, true);
   window.createChart('chartMarketing', 'bar', topDocs.labels, topDocs.data, palette, true);
-  window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#47c0c4', '#2c9ea3', '#94a3b8']);
-  window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#47c0c4', '#2c9ea3']);
-  window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7ad6c9', '#56c3c2']);
+  window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#1B6BB0', '#DD1F26', '#94a3b8']);
+  window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#1B6BB0', '#DD1F26']);
+  window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7baede', '#3a8dc7']);
   
   window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
   window.createChart('chartAge', 'bar', ["0-14", "15-34", "35-59", "60+"], ["0-14", "15-34", "35-59", "60+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
@@ -1999,11 +1994,11 @@ window.renderPipeline = function (stage) {
   steps.forEach((s, i) => {
     const done = i + 1 < stage;
     const active = i + 1 === stage;
-    const bg = done ? '#2fa67f' : active ? '#47c0c4' : '#e2e8f0';
+    const bg = done ? '#1B6BB0' : active ? '#DD1F26' : '#e2e8f0';
     const tc = done || active ? '#fff' : '#94a3b8';
-    const lc = done ? '#25785e' : active ? '#2c9ea3' : '#94a3b8';
+    const lc = done ? '#115892' : active ? '#115892' : '#94a3b8';
     if (i > 0) {
-      const cc = i < stage - 1 ? '#2fa67f' : '#e2e8f0';
+      const cc = i < stage - 1 ? '#1B6BB0' : '#e2e8f0';
       h += `<div style="flex:1;height:3px;background:${cc};margin-bottom:20px;min-width:6px"></div>`;
     }
     h += `<div style="text-align:center;flex-shrink:0">
@@ -3051,7 +3046,7 @@ window.submitPatientForm = async function (e) {
     title: 'ລົງທະບຽນສຳເລັດ!', text: 'ລະຫັດ: ' + pId, icon: 'success',
     showCancelButton: true, showDenyButton: true,
     confirmButtonText: 'ສົ່ງເຂົ້າ Triage', denyButtonText: 'ພິມບັດ QR', cancelButtonText: 'ປິດ',
-    confirmButtonColor: '#f59e0b', denyButtonColor: '#47c0c4'
+    confirmButtonColor: '#f59e0b', denyButtonColor: '#1B6BB0'
   }).then((rr) => {
     if (rr.isConfirmed) window.sendToTriageFlow(pId, (fd.p_firstname || '') + ' ' + (fd.p_lastname || ''));
     else if (rr.isDenied) window.printQRCard(pId);
@@ -3832,7 +3827,7 @@ window.viewTriage = function (i) {
             </div>`,
     width: '600px',
       confirmButtonText: isDone ? '<i class="fas fa-edit me-1"></i> ແກ້ໄຂ' : '<i class="fas fa-stethoscope me-1"></i> ວັດແທກຕອນນີ້',
-      confirmButtonColor: '#47c0c4',
+      confirmButtonColor: '#1B6BB0',
     showCancelButton: true,
     cancelButtonText: 'ປິດ',
       customClass: { popup: 'shadow-lg triage-view-popup' }
@@ -4081,7 +4076,7 @@ window.handleSiteChange = function () {
   typeSelect.empty();
   let options = [];
   if (site === 'In-site' || site === 'In-Site') {
-    options = (masterDataStore['PatientType_InSite'] && masterDataStore['PatientType_InSite'].length > 0) ? masterDataStore['PatientType_InSite'].map(x => x.value) : ['OPD', 'IPD'];
+    options = (masterDataStore['PatientType_InSite'] && masterDataStore['PatientType_InSite'].length > 0) ? masterDataStore['PatientType_InSite'].map(x => x.value) : ['OPD'];
   } else {
     options = (masterDataStore['PatientType_Onsite'] && masterDataStore['PatientType_Onsite'].length > 0) ? masterDataStore['PatientType_Onsite'].map(x => x.value) : ['Checkup Corporation', 'Individual First Aid', 'Corporation First Aid', 'HomeCare'];
   }
@@ -4133,7 +4128,6 @@ window.resolveVisitStatusFromDischarge = function (dischargeStatus) {
 
   const statusMap = {
     "ລໍຖ້າຜົນແລັບ (Waiting Lab)": "Waiting Lab",
-    "ນອນຕິດຕາມ (Admit / IPD)": "Admit",
     "ສົ່ງຕໍ່ (Transfer)": "Transfer",
     "ກວດສຳເລັດ / ກັບບ້ານ": "Completed",
     "ຮັບຢາກັບບ້ານ": "Pharmacy"
@@ -4143,7 +4137,6 @@ window.resolveVisitStatusFromDischarge = function (dischargeStatus) {
 
   const normalized = value.toLowerCase();
   if (normalized.includes('waiting lab') || value.includes('ລໍຖ້າຜົນແລັບ')) return 'Waiting Lab';
-  if (normalized.includes('admit') || normalized.includes('ipd') || value.includes('ນອນຕິດຕາມ')) return 'Admit';
   if (normalized.includes('transfer') || value.includes('ສົ່ງຕໍ່')) return 'Transfer';
   if (normalized.includes('pharmacy') || normalized.includes('rx') || value.includes('ຮັບຢາ')) return 'Pharmacy';
   return 'Completed';
@@ -4765,7 +4758,7 @@ window.printVacCard = function (id, n, vn, ds, dg, nd) {
   $('#pVacGiven').text(dg);
 
   if (!nd || nd === "-") {
-    $('#pVacNextDate').text("ສຳເລັດ (ຄົບໂດສ)").css('color', '#10b981');
+    $('#pVacNextDate').text("ສຳເລັດ (ຄົບໂດສ)").css('color', '#1B6BB0');
   } else {
     $('#pVacNextDate').text(nd).css('color', '#dc2626');
   }
@@ -5176,15 +5169,6 @@ window.applyButtonPermissions = function () {
   if (!window.can('opd', 'delete')) $('.btn-opd-delete').hide();
   if (!window.can('opd', 'print')) $('.btn-opd-print, .btn-print-opd').hide();
   
-  // IPD buttons
-  if (!window.can('ipd', 'view')) $('.btn-ipd-view, .btn-view-ipd').hide();
-  if (!window.can('ipd', 'admit')) $('.btn-ipd-admit, #btnIPDAdmission').hide();
-  if (!window.can('ipd', 'progress')) $('.btn-ipd-progress').hide();
-  if (!window.can('ipd', 'medication')) $('.btn-ipd-medication').hide();
-  if (!window.can('ipd', 'vitals')) $('.btn-ipd-vitals').hide();
-  if (!window.can('ipd', 'nursing')) $('.btn-ipd-nursing').hide();
-  if (!window.can('ipd', 'discharge')) $('.btn-ipd-discharge').hide();
-  
   // Labs buttons
   if (!window.can('labs', 'view')) $('.btn-labs-view').hide();
   if (!window.can('labs', 'add')) $('.btn-labs-add').hide();
@@ -5268,7 +5252,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: true, delete: true, triage: true, print_qr: true },
       triage: { view: true, edit: true, delete: true, call: true },
       opd: { view: true, edit: true, delete: true, print: true },
-      ipd: { view: true, admit: true, progress: true, medication: true, vitals: true, nursing: true, discharge: true },
       labs: { view: true, add: true, edit: true, delete: true },
       drugs: { view: true, add: true, edit: true, delete: true },
       appointments: { view: true, add: true, edit: true, delete: true }
@@ -5277,7 +5260,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: true, delete: false, triage: true, print_qr: true },
       triage: { view: true, edit: true, delete: false, call: true },
       opd: { view: true, edit: true, delete: false, print: true },
-      ipd: { view: true, admit: true, progress: true, medication: true, vitals: false, nursing: false, discharge: true },
       labs: { view: true, add: true, edit: true, delete: false },
       drugs: { view: true, add: true, edit: true, delete: false },
       appointments: { view: true, add: true, edit: true, delete: false }
@@ -5286,7 +5268,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: true, print_qr: false },
       triage: { view: true, edit: true, delete: false, call: true },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: true, admit: false, progress: false, medication: false, vitals: true, nursing: true, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: true, edit: false, delete: false }
@@ -5295,7 +5276,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: false, admit: false, progress: false, medication: false, vitals: false, nursing: false, discharge: false },
       labs: { view: true, add: true, edit: true, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: false, add: false, edit: false, delete: false }
@@ -5304,7 +5284,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: false, admit: false, progress: false, medication: true, vitals: false, nursing: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: true, add: true, edit: true, delete: false },
       appointments: { view: false, add: false, edit: false, delete: false }
@@ -5313,7 +5292,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: false, delete: false, triage: false, print_qr: true },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: true, admit: false, progress: false, medication: false, vitals: false, nursing: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: true, edit: false, delete: false }
@@ -5322,7 +5300,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: true, admit: false, progress: false, medication: false, vitals: false, nursing: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: false, edit: false, delete: false }
@@ -5331,7 +5308,6 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
-      ipd: { view: true, admit: false, progress: false, medication: false, vitals: false, nursing: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: false, edit: false, delete: false }
@@ -5379,15 +5355,6 @@ window.saveButtonPermissions = async function () {
       edit: $('#perm_opd_edit').is(':checked'),
       delete: $('#perm_opd_delete').is(':checked'),
       print: $('#perm_opd_print').is(':checked')
-    },
-    ipd: {
-      view: $('#perm_ipd_view').is(':checked'),
-      admit: $('#perm_ipd_admit').is(':checked'),
-      progress: $('#perm_ipd_progress').is(':checked'),
-      medication: $('#perm_ipd_medication').is(':checked'),
-      vitals: $('#perm_ipd_vitals').is(':checked'),
-      nursing: $('#perm_ipd_nursing').is(':checked'),
-      discharge: $('#perm_ipd_discharge').is(':checked')
     },
     labs: {
       view: $('#perm_labs_view').is(':checked'),
@@ -5512,7 +5479,7 @@ window._masterDataFallback = {
   Shift: ["ເຊົ້າ (08:00-16:00)","ແລງ (16:00-24:00)","ດຶກ (00:00-08:00)"],
   Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ"],
   InsCompany: ["ບໍ່ມີ","LSMI","PVI","Axa","Prudential","Allianz","BCEL-AXA","ອື່ນໆ"],
-  Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ຫ້ອງໃນ (IPD)","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
+  Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
   LabCategory: window.emrLabCategoryConfig.map(item => item.label),
   DrugUnit: ["ເມັດ (Tab)","ແຄັບຊູນ (Cap)","ມິນລິລິດ (ml)","ກຣາມ (g)","ຫຼອດ (Amp)","ຕຸກ (Bottle)","ຊອງ (Sachet)","Dose","ບ່ວງ (Spoon)"],
   DrugUsage: ["ac (ກ່ອນອາຫານ 30 ນາທີ)","pc (ຫຼັງອາຫານ 15-30 ນາທີ)","am (ຕອນເຊົ້າ)","pm (ຕອນແລງ)","hs (ກ່ອນນອນ)","bid (ວັນລະ 2 ຄັ້ງ)","tid (ວັນລະ 3 ຄັ້ງ)","qid (ວັນລະ 4 ຄັ້ງ)","prn (ກິນເວລາເຈັບ)","od (ວັນລະ 1 ຄັ້ງ)","stat (ກິນທັນທີ)"],
@@ -5554,7 +5521,7 @@ window.seedMasterDefaults = async function () {
     Shift: ["ເຊົ້າ (08:00-16:00)", "ແລງ (16:00-24:00)", "ດຶກ (00:00-08:00)"],
     Channel: ["ໂທລະສັບ", "ສອດ", "Facebook", "Line", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານ ຮພ. ອື່ນ", "ສື່ໂຄສະນາ", "ອື່ນໆ"],
     InsCompany: ["ບໍ່ມີ", "LSMI", "PVI", "Axa", "Prudential", "Allianz", "BCEL-AXA", "ອື່ນໆ"],
-    Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ຫ້ອງໃນ (IPD)", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
+    Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
   };
 
   try {
@@ -6221,7 +6188,7 @@ window.editService = function (id, sv, sp, rv) {
 window.setBrandName = function (name) {
   var el = document.getElementById('topnavBrandName');
   if (el) {
-    el.textContent = name && /one\s+medical/i.test(name) ? 'ONE Meds' : (name || 'ONE Meds');
+    el.textContent = name && /one\s+medical/i.test(name) ? 'Luckxay Hospital' : (name || 'Luckxay Hospital');
   }
 };
 
@@ -7044,1091 +7011,6 @@ window.showPatientTimeline = async function (patientId) {
     $('#timelineContent').html('<div class="text-center py-5 text-danger"><p>ຂໍ້ຜິດພາດໃນການໂຫຼດປະຫວັດ</p></div>');
   }
 };
-
-// ==========================================
-// IPD (INPATIENT DEPARTMENT) FUNCTIONS
-// ==========================================
-
-// Search IPD Table
-window.searchIPDTable = function () {
-  const query = $('#ipdSearchInput').val().toLowerCase();
-  if (!$.fn.DataTable.isDataTable('#ipdTable')) return;
-  
-  const table = $('#ipdTable').DataTable();
-  table.search(query).draw();
-};
-
-// Load IPD Patients
-window.loadIPDPatients = async function () {
-  const sDate = $('#ipdStartDate').val();
-  const eDate = $('#ipdEndDate').val();
-  
-  $('#ipdTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
-  
-  try {
-    let query = supabaseClient
-      .from(dbTable('Admissions'))
-      .select('*')
-      .eq('Status', 'Admitted')
-      .order('Admission_Date', { ascending: false });
-
-    if (sDate) query = query.gte('Admission_Date', sDate);
-    if (eDate) query = query.lte('Admission_Date', eDate);
-
-    const { data: admissions, error } = await query;
-    
-    if (error) throw error;
-    
-    if (!admissions || admissions.length === 0) {
-      const emptyMessage = (sDate || eDate)
-        ? 'ບໍ່ມີຄົນເຈັບນອນໃນຊ່ວງວັນທີທີ່ເລືອກ'
-        : 'ບໍ່ມີຄົນເຈັບນອນປັດຈຸບັນ';
-      $('#ipdTable tbody').html(`<tr><td colspan="9" class="text-center py-4 text-muted">${emptyMessage}</td></tr>`);
-      await updateIPDStats(0);
-      return;
-    }
-    
-    let h = '';
-    for (const adm of admissions) {
-      // Fetch ward/room/bed info
-      let wardName = '-', roomNum = '-', bedNum = '-';
-      if (adm.Ward_ID) {
-        const { data: ward } = await supabaseClient.from(dbTable('Wards')).select('Ward_Name').eq('Ward_ID', adm.Ward_ID).single();
-        if (ward) wardName = ward.Ward_Name;
-      }
-      if (adm.Room_ID) {
-        const { data: room } = await supabaseClient.from(dbTable('Rooms')).select('Room_Number').eq('Room_ID', adm.Room_ID).single();
-        if (room) roomNum = room.Room_Number;
-      }
-      if (adm.Bed_ID) {
-        const { data: bed } = await supabaseClient.from(dbTable('Beds')).select('Bed_Number').eq('Bed_ID', adm.Bed_ID).single();
-        if (bed) bedNum = bed.Bed_Number;
-      }
-      
-      const wardBed = `${wardName} | ${roomNum} | ${bedNum}`;
-      const admDate = adm.Admission_Date ? new Date(adm.Admission_Date).toLocaleDateString('en-GB') : '-';
-      
-      h += `<tr>
-        <td><span class="badge bg-info">${wardBed}</span></td>
-        <td class="text-primary fw-bold">${adm.Patient_ID}</td>
-        <td class="fw-bold">${adm.Patient_Name}</td>
-        <td>-</td>
-        <td>${admDate}</td>
-        <td>${adm.Admitting_Doctor || '-'}</td>
-        <td>${adm.Diagnosis_Admission || '-'}</td>
-        <td><span class="badge bg-success">Admitted</span></td>
-        <td class="text-center">
-          <button class="btn btn-sm btn-info text-white" onclick="window.openIPDDetail('${adm.Admission_ID}')" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-eye"></i></button>
-        </td>
-      </tr>`;
-    }
-    $('#ipdTable tbody').html(h);
-    await updateIPDStats(admissions.length);
-    
-  } catch (err) {
-    console.error('Error loading IPD patients:', err);
-    $('#ipdTable tbody').html('<tr><td colspan="9" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດ: ' + err.message + '</td></tr>');
-  }
-};
-
-async function updateIPDStats(totalPatients) {
-  $('#ipdTotalPatients').text(totalPatients);
-
-  const today = new Date().toISOString().split('T')[0];
-  const [bedsResult, dischargedResult] = await Promise.all([
-    supabaseClient.from(dbTable('Beds')).select('Status'),
-    supabaseClient
-      .from(dbTable('Admissions'))
-      .select('Admission_ID')
-      .eq('Status', 'Discharged')
-      .eq('Discharge_Date', today)
-  ]);
-
-  if (bedsResult.error) throw bedsResult.error;
-  if (dischargedResult.error) throw dischargedResult.error;
-
-  const beds = bedsResult.data || [];
-  const availableBeds = beds.filter(bed => (bed.Status || '').toLowerCase() === 'available').length;
-  const occupiedBeds = beds.filter(bed => (bed.Status || '').toLowerCase() === 'occupied').length;
-
-  $('#ipdAvailableBeds').text(availableBeds);
-  $('#ipdOccupiedBeds').text(occupiedBeds);
-  $('#ipdDischargedToday').text((dischargedResult.data || []).length);
-}
-
-// Open IPD Admission Modal
-window.openIPDAdmission = async function () {
-  $('#ipdAdmissionForm')[0].reset();
-  $('#admPatientId').val('');
-  
-  // Set default dates
-  const today = new Date().toISOString().split('T')[0];
-  const now = new Date().toTimeString().split(' ')[0].substring(0, 5);
-  $('#admDate').val(today);
-  $('#admTime').val(now);
-  
-  // Load patient dropdown
-  await loadAdmissionPatientDropdown();
-  
-  // Load wards dropdown
-  await loadAdmissionWardsDropdown();
-  
-  // Load doctors dropdown
-  if (typeof window.loadMasterDataGlobalCallback === 'function') {
-    const docSelect = document.getElementById('admDoctor');
-    if (docSelect && masterDataStore['Doctor']) {
-      let opts = '<option value="">-- ເລືອກແພດ --</option>';
-      masterDataStore['Doctor'].forEach(d => {
-        opts += `<option value="${d.value}">${d.value}</option>`;
-      });
-      docSelect.innerHTML = opts;
-    }
-  }
-  
-  $('#ipdAdmissionModal').modal('show');
-};
-
-// Load patient dropdown for admission
-async function loadAdmissionPatientDropdown() {
-  const { data: patients } = await supabaseClient
-    .from(dbTable('Patients'))
-    .select('Patient_ID, First_Name, Last_Name, Gender, Age')
-    .order('Patient_ID', { ascending: false })
-    .limit(100);
-  
-  let opts = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກຄົນເຈັບ --</option>';
-  if (patients) {
-    patients.forEach(p => {
-      // Filter out null/invalid patient IDs
-      if (!p.Patient_ID || p.Patient_ID === 'null') return;
-      
-      const firstName = p.First_Name || '';
-      const lastName = p.Last_Name || '';
-      const name = `${firstName} ${lastName}`.trim() || '-';
-      const gender = p.Gender || '-';
-      const age = p.Age || 0;
-      
-      opts += `<option value="${p.Patient_ID}" data-cn="${p.Patient_ID}" data-info="${gender}, ${age} ປີ">${p.Patient_ID} - ${name}</option>`;
-    });
-  }
-  $('#admPatientSelect').html(opts);
-}
-
-// Load wards dropdown
-async function loadAdmissionWardsDropdown() {
-  const { data: wards } = await supabaseClient
-    .from(dbTable('Wards'))
-    .select('*')
-    .eq('Status', 'active');
-  
-  let opts = '<option value="">-- ເລືອກຫ້ອງ --</option>';
-  if (wards) {
-    wards.forEach(w => {
-      opts += `<option value="${w.Ward_ID}" data-type="${w.Ward_Type || ''}">${w.Ward_Name}</option>`;
-    });
-  }
-  $('#admWard').html(opts);
-}
-
-// On patient selection change
-window.onAdmPatientChange = function () {
-  const selected = $('#admPatientSelect option:selected');
-  const patientId = selected.val();
-  const cn = selected.data('cn');
-  const info = selected.data('info');
-  
-  $('#admPatientId').val(patientId);
-  $('#admPatientCN').val(cn || '-');
-  $('#admPatientInfo').val(info || '-');
-};
-
-// On ward change
-window.onAdmWardChange = async function () {
-  const wardId = $('#admWard').val();
-  
-  if (!wardId) {
-    $('#admRoom').html('<option value="">-- ເລືອກຫ້ອງຍ່ອຍ --</option>');
-    $('#admBed').html('<option value="">-- ເລືອກຕຽງ --</option>');
-    return;
-  }
-  
-  // Load rooms for this ward
-  const { data: rooms } = await supabaseClient
-    .from(dbTable('Rooms'))
-    .select('*')
-    .eq('Ward_ID', wardId)
-    .eq('Status', 'active');
-  
-  let opts = '<option value="">-- ເລືອກຫ້ອງຍ່ອຍ --</option>';
-  if (rooms) {
-    rooms.forEach(r => {
-      opts += `<option value="${r.Room_ID}">${r.Room_Number} (${r.Room_Type || 'N/A'})</option>`;
-    });
-  }
-  $('#admRoom').html(opts);
-  $('#admBed').html('<option value="">-- ເລືອກຕຽງ --</option>');
-};
-
-// On room change
-window.onAdmRoomChange = async function () {
-  const roomId = $('#admRoom').val();
-  
-  if (!roomId) {
-    $('#admBed').html('<option value="">-- ເລືອກຕຽງ --</option>');
-    return;
-  }
-  
-  // Load beds for this room
-  const { data: beds } = await supabaseClient
-    .from(dbTable('Beds'))
-    .select('*')
-    .eq('Room_ID', roomId)
-    .eq('Status', 'Available');
-  
-  let opts = '<option value="">-- ເລືອກຕຽງ --</option>';
-  if (beds) {
-    beds.forEach(b => {
-      opts += `<option value="${b.Bed_ID}">${b.Bed_Number}</option>`;
-    });
-  }
-  $('#admBed').html(opts);
-};
-
-// Submit IPD Admission
-window.submitIPDAdmission = async function (e) {
-  if (e) e.preventDefault();
-  
-  const patientId = $('#admPatientId').val();
-  if (!patientId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບ', 'warning');
-    return;
-  }
-  
-  const admissionId = 'ADM' + Date.now();
-  const patientName = $('#admPatientSelect option:selected').text().split(' - ')[1] || 'Unknown';
-  
-  const admissionData = {
-    Admission_ID: admissionId,
-    Patient_ID: patientId,
-    Patient_Name: patientName,
-    Admission_Date: $('#admDate').val(),
-    Admission_Time: $('#admTime').val(),
-    Ward_ID: $('#admWard').val(),
-    Room_ID: $('#admRoom').val(),
-    Bed_ID: $('#admBed').val(),
-    Admitting_Doctor: $('#admDoctor').val(),
-    Diagnosis_Admission: $('#admDiagnosis').val(),
-    Admission_Type: $('#admType').val(),
-    Insurance_Info: $('#admInsurance').val(),
-    Deposit_Amount: parseFloat($('#admDeposit').val()) || 0,
-    Status: 'Admitted'
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('Admissions')).insert(admissionData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  // Update bed status
-  await supabaseClient.from(dbTable('Beds')).update({ Status: 'Occupied' }).eq('Bed_ID', admissionData.Bed_ID);
-  
-  Swal.fire('ສຳເລັດ!', 'ຮັບຄົນເຈັບນອນແລ້ວ', 'success');
-  $('#ipdAdmissionModal').modal('hide');
-  window.loadIPDPatients();
-  window.logAction('Add', `IPD Admission: ${patientName} (${patientId})`, 'IPD');
-};
-
-// Load IPD Wards Management
-window.loadIPDWards = async function () {
-  window._wardManagerNeedsReopen = false;
-  // Load wards, rooms, and beds
-  const { data: wards } = await supabaseClient.from(dbTable('Wards')).select('*').order('Ward_Name');
-  const { data: rooms } = await supabaseClient.from(dbTable('Rooms')).select('*').order('Room_Number');
-  const { data: beds } = await supabaseClient.from(dbTable('Beds')).select('*').order('Bed_Number');
-  
-  let html = '<div class="row g-4">';
-  
-  // Group by Ward
-  if (wards && wards.length > 0) {
-    wards.forEach(ward => {
-      const wardRooms = rooms?.filter(r => r.Ward_ID === ward.Ward_ID) || [];
-      
-      html += `
-        <div class="col-12">
-          <div class="card border-primary">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-              <h5 class="mb-0"><i class="fas fa-building me-2"></i>${ward.Ward_Name} (${ward.Ward_Type || 'N/A'})</h5>
-              <button class="btn btn-sm btn-light text-primary" onclick="window.openRoomModal('${ward.Ward_ID}')"><i class="fas fa-plus me-1"></i>ເພີ່ມຫ້ອງ</button>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-      `;
-      
-      if (wardRooms.length === 0) {
-        html += '<div class="col-12 text-center text-muted">ຍັງບໍ່ມີຫ້ອງໃນໂຊນນີ້</div>';
-      } else {
-        wardRooms.forEach(room => {
-          const roomBeds = beds?.filter(b => b.Room_ID === room.Room_ID) || [];
-          const occupiedBeds = roomBeds.filter(b => b.Status === 'Occupied').length;
-          const availableBeds = roomBeds.filter(b => b.Status === 'Available').length;
-          
-          html += `
-            <div class="col-md-4">
-              <div class="card border-info h-100">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                  <strong><i class="fas fa-door-open me-2"></i>${room.Room_Number}</strong>
-                  <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-info">${room.Room_Type || 'N/A'}</span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="window.openRoomModal('${ward.Ward_ID}', '${room.Room_ID}', '${String(room.Room_Number || '').replace(/'/g, "\\'")}', '${String(room.Room_Type || '').replace(/'/g, "\\'")}', '${room.Capacity || 1}')" title="ແກ້ໄຂຫ້ອງ"><i class="fas fa-edit"></i></button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="window.deleteRoom('${room.Room_ID}')" title="ລົບຫ້ອງ"><i class="fas fa-trash"></i></button>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <div class="d-flex justify-content-between mb-2">
-                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>ວ່າງ: ${availableBeds}</span>
-                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>ມີຄົນ: ${occupiedBeds}</span>
-                  </div>
-                  <div class="d-flex gap-2 flex-wrap">
-          `;
-          
-          roomBeds.forEach(bed => {
-            const bedColor = bed.Status === 'Available' ? 'success' : 'danger';
-            const bedIcon = bed.Status === 'Available' ? 'fa-check' : 'fa-user';
-            
-            html += `
-              <div class="btn-group btn-group-sm" role="group">
-                <button class="btn btn-sm btn-outline-${bedColor}" title="${bed.Bed_Number} - ${bed.Status}">
-                  <i class="fas ${bedIcon} me-1"></i>${bed.Bed_Number}
-                </button>
-                <button class="btn btn-sm btn-outline-primary" onclick="window.openBedModal('${room.Room_ID}', '${bed.Bed_ID}', '${String(bed.Bed_Number || '').replace(/'/g, "\\'")}')" title="ແກ້ໄຂຕຽງ"><i class="fas fa-edit"></i></button>
-                <button class="btn btn-sm btn-outline-danger" onclick="window.deleteBed('${bed.Bed_ID}')" title="ລົບຕຽງ"><i class="fas fa-trash"></i></button>
-              </div>
-            `;
-          });
-          
-          html += `
-                  </div>
-                  <button class="btn btn-sm btn-primary mt-2 w-100" onclick="window.openBedModal('${room.Room_ID}')"><i class="fas fa-plus me-1"></i>ເພີ່ມຕຽງ</button>
-                </div>
-              </div>
-            </div>
-          `;
-        });
-      }
-      
-      html += `
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-  } else {
-    html += '<div class="col-12 text-center text-muted py-5">ຍັງບໍ່ມີຫ້ອງ/ຕຽງ</div>';
-  }
-  
-  html += '</div>';
-  
-  Swal.fire({
-    title: '<i class="fas fa-building me-2"></i>ຈັດການຫ້ອງ/ຕຽງ',
-    html: html,
-    width: '90%',
-    showConfirmButton: false,
-    showCloseButton: true
-  });
-};
-
-// Open Room Modal
-window.openRoomModal = function (wardId, roomId = '', roomNumber = '', roomType = 'General', capacity = 1) {
-  window._wardManagerNeedsReopen = true;
-  Swal.close();
-  $('#roomWardId').val(wardId);
-  $('#roomForm')[0].reset();
-  $('#roomEditId').val(roomId || '');
-  $('#roomNumber').val(roomNumber || '');
-  $('#roomType').val(roomType || 'General');
-  $('#roomCapacity').val(capacity || 1);
-  $('#roomModalTitle').html(`<i class="fas fa-door-open me-2"></i>${roomId ? 'ແກ້ໄຂຫ້ອງ' : 'ເພີ່ມຫ້ອງ'}`);
-  setTimeout(() => $('#roomModal').modal('show'), 150);
-};
-
-// Submit Room
-window.submitRoom = async function (e) {
-  if (e) e.preventDefault();
-  const roomId = $('#roomEditId').val() || ('ROOM' + Date.now());
-  const roomData = {
-    Room_ID: roomId,
-    Ward_ID: $('#roomWardId').val(),
-    Room_Number: $('#roomNumber').val(),
-    Room_Type: $('#roomType').val(),
-    Capacity: parseInt($('#roomCapacity').val()) || 1,
-    Status: 'active'
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  const isEdit = !!$('#roomEditId').val();
-  const { error } = isEdit
-    ? await supabaseClient.from(dbTable('Rooms')).update(roomData).eq('Room_ID', roomId)
-    : await supabaseClient.from(dbTable('Rooms')).insert(roomData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', isEdit ? 'ແກ້ໄຂຫ້ອງແລ້ວ' : 'ເພີ່ມຫ້ອງແລ້ວ', 'success');
-  $('#roomModal').modal('hide');
-};
-
-// Open Bed Modal
-window.openBedModal = function (roomId, bedId = '', bedNumber = '') {
-  window._wardManagerNeedsReopen = true;
-  Swal.close();
-  $('#bedRoomId').val(roomId);
-  $('#bedForm')[0].reset();
-  $('#bedEditId').val(bedId || '');
-  $('#bedNumber').val(bedNumber || '');
-  $('#bedModalTitle').html(`<i class="fas fa-bed me-2"></i>${bedId ? 'ແກ້ໄຂຕຽງ' : 'ເພີ່ມຕຽງ'}`);
-  setTimeout(() => $('#bedModal').modal('show'), 150);
-};
-
-// Submit Bed
-window.submitBed = async function (e) {
-  if (e) e.preventDefault();
-  const bedId = $('#bedEditId').val() || ('BED' + Date.now());
-  const bedData = {
-    Bed_ID: bedId,
-    Room_ID: $('#bedRoomId').val(),
-    Bed_Number: $('#bedNumber').val(),
-    Status: 'Available'
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  const isEdit = !!$('#bedEditId').val();
-  const { error } = isEdit
-    ? await supabaseClient.from(dbTable('Beds')).update(bedData).eq('Bed_ID', bedId)
-    : await supabaseClient.from(dbTable('Beds')).insert(bedData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', isEdit ? 'ແກ້ໄຂຕຽງແລ້ວ' : 'ເພີ່ມຕຽງແລ້ວ', 'success');
-  $('#bedModal').modal('hide');
-};
-
-window.deleteRoom = async function (roomId) {
-  const { data: beds } = await supabaseClient.from(dbTable('Beds')).select('Bed_ID,Status').eq('Room_ID', roomId);
-  if ((beds || []).some(b => b.Status === 'Occupied')) {
-    return Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ສາມາດລົບຫ້ອງໄດ້ ເພາະຍັງມີຕຽງທີ່ຖືກໃຊ້ງານ', 'warning');
-  }
-  const r = await Swal.fire({ title: 'ລົບຫ້ອງ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລົບ' });
-  if (!r.isConfirmed) return;
-  Swal.fire({ title: 'ກຳລັງລົບ...', didOpen: () => Swal.showLoading() });
-  await supabaseClient.from(dbTable('Beds')).delete().eq('Room_ID', roomId);
-  const { error } = await supabaseClient.from(dbTable('Rooms')).delete().eq('Room_ID', roomId);
-  if (error) return Swal.fire('ຜິດພາດ!', error.message, 'error');
-  Swal.fire('ສຳເລັດ!', 'ລົບຫ້ອງແລ້ວ', 'success');
-  window.loadIPDWards();
-};
-
-window.deleteBed = async function (bedId) {
-  const { data: bed } = await supabaseClient.from(dbTable('Beds')).select('Status').eq('Bed_ID', bedId).single();
-  if (bed && bed.Status === 'Occupied') {
-    return Swal.fire('ແຈ້ງເຕືອນ', 'ບໍ່ສາມາດລົບຕຽງທີ່ກຳລັງຖືກໃຊ້ງານໄດ້', 'warning');
-  }
-  const r = await Swal.fire({ title: 'ລົບຕຽງ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລົບ' });
-  if (!r.isConfirmed) return;
-  Swal.fire({ title: 'ກຳລັງລົບ...', didOpen: () => Swal.showLoading() });
-  const { error } = await supabaseClient.from(dbTable('Beds')).delete().eq('Bed_ID', bedId);
-  if (error) return Swal.fire('ຜິດພາດ!', error.message, 'error');
-  Swal.fire('ສຳເລັດ!', 'ລົບຕຽງແລ້ວ', 'success');
-  window.loadIPDWards();
-};
-
-$('#roomModal').on('hidden.bs.modal', function () {
-  if (!window._wardManagerNeedsReopen) return;
-  window._wardManagerNeedsReopen = false;
-  window.loadIPDWards();
-});
-
-$('#bedModal').on('hidden.bs.modal', function () {
-  if (!window._wardManagerNeedsReopen) return;
-  window._wardManagerNeedsReopen = false;
-  window.loadIPDWards();
-});
-
-// Open IPD Detail Modal
-window.openIPDDetail = async function (admissionId) {
-  $('#ipdDetailModal').modal('show');
-  
-  // Fetch admission details
-  const { data: adm } = await supabaseClient
-    .from(dbTable('Admissions'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .single();
-  
-  if (!adm) return;
-  
-  $('#ipdDetailPatientName').text(adm.Patient_Name);
-  $('#detailWardBed').text(`${adm.Ward_ID || '-'} | ${adm.Room_ID || '-'} | ${adm.Bed_ID || '-'}`);
-  $('#detailAdmDate').text(`${adm.Admission_Date || '-'} ${adm.Admission_Time || ''}`);
-  $('#detailDoctor').text(adm.Admitting_Doctor || '-');
-  $('#detailDiagnosis').text(adm.Diagnosis_Admission || '-');
-  $('#detailStatus').text(adm.Status || 'Admitted');
-  $('#detailDeposit').text(adm.Deposit_Amount ? adm.Deposit_Amount.toLocaleString() + ' LAK' : '-');
-  
-  // Load tabs content
-  loadIPDProgressNotes(admissionId);
-  loadIPDMedications(admissionId);
-  loadIPDVitals(admissionId);
-  loadIPDNursingNotes(admissionId);
-};
-
-// Load Progress Notes
-function loadIPDProgressNotes(admissionId) {
-  $('#progressNotesList').html('<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>');
-  
-  supabaseClient.from(dbTable('Progress_Notes'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .order('Note_Date', { ascending: false })
-    .then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        $('#progressNotesList').html('<p class="text-muted text-center">ຍັງບໍ່ມີບັນທຶກ</p>');
-        return;
-      }
-      
-      let html = '<div class="timeline">';
-      data.forEach(note => {
-        const noteDate = note.Note_Date ? new Date(note.Note_Date).toLocaleDateString('en-GB') : '-';
-        html += `
-          <div class="card border-primary mb-3">
-            <div class="card-header bg-light">
-              <div class="d-flex justify-content-between align-items-center">
-                <strong><i class="fas fa-calendar me-2"></i>${noteDate} ${note.Note_Time || ''}</strong>
-                <span class="badge bg-primary">${note.Note_Type || 'Progress Note'}</span>
-              </div>
-              <small class="text-muted"><i class="fas fa-user-md me-1"></i>${note.Doctor_Name || '-'}</small>
-            </div>
-            <div class="card-body">
-              <div class="row g-2">
-                <div class="col-12"><strong class="text-primary">S:</strong> ${note.Subjective || '-'}</div>
-                <div class="col-12"><strong class="text-info">O:</strong> ${note.Objective || '-'}</div>
-                <div class="col-12"><strong class="text-warning">A:</strong> ${note.Assessment || '-'}</div>
-                <div class="col-12"><strong class="text-success">P:</strong> ${note.Plan || '-'}</div>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-      html += '</div>';
-      $('#progressNotesList').html(html);
-    });
-}
-
-// Load Medications
-function loadIPDMedications(admissionId) {
-  $('#medicationsList').html('<div class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div></div>');
-  
-  supabaseClient.from(dbTable('IPD_Medications'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .eq('Status', 'Active')
-    .order('Created_At', { ascending: false })
-    .then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        $('#medicationsList').html('<p class="text-muted text-center">ຍັງບໍ່ມີຢາ</p>');
-        return;
-      }
-      
-      let html = '<table class="table table-hover"><thead><tr><th>ຊື່ຢາ</th><th>ຂະໜາດ</th><th>ຄວາມຖີ່</th><th>ວິທີໃຫ້</th><th>ສະຖານະ</th></tr></thead><tbody>';
-      data.forEach(med => {
-        html += `
-          <tr>
-            <td class="fw-bold text-success">${med.Drug_Name}</td>
-            <td>${med.Dosage || '-'}</td>
-            <td><span class="badge bg-info">${med.Frequency || '-'}</span></td>
-            <td><span class="badge bg-secondary">${med.Route || '-'}</span></td>
-            <td><span class="badge bg-success">${med.Status || 'Active'}</span></td>
-          </tr>
-        `;
-      });
-      html += '</tbody></table>';
-      $('#medicationsList').html(html);
-    });
-}
-
-// Load Vitals
-function loadIPDVitals(admissionId) {
-  $('#vitalsList').html('<div class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div></div>');
-  
-  supabaseClient.from(dbTable('IPD_Vital_Signs'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .order('Record_Date', { ascending: false })
-    .limit(20)
-    .then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        $('#vitalsList').html('<p class="text-muted text-center">ຍັງບໍ່ມີ Vital Signs</p>');
-        return;
-      }
-      
-      let html = '<table class="table table-hover"><thead><tr><th>ວັນທີ/ເວລາ</th><th>BP</th><th>Temp</th><th>Pulse</th><th>Resp</th><th>SpO2</th><th>Pain</th></tr></thead><tbody>';
-      data.forEach(vital => {
-        const recordDate = vital.Record_Date ? new Date(vital.Record_Date).toLocaleDateString('en-GB') : '-';
-        html += `
-          <tr>
-            <td>${recordDate} ${vital.Record_Time || ''}</td>
-            <td><span class="badge bg-primary">${vital.BP || '-'}</span></td>
-            <td>${vital.Temp || '-'} °C</td>
-            <td>${vital.Pulse || '-'} bpm</td>
-            <td>${vital.Resp_Rate || '-'} /min</td>
-            <td><span class="badge bg-info">${vital.SpO2 || '-'} %</span></td>
-            <td><span class="badge ${parseInt(vital.Pain_Score) >= 5 ? 'bg-danger' : 'bg-success'}">${vital.Pain_Score || '0'}</span></td>
-          </tr>
-        `;
-      });
-      html += '</tbody></table>';
-      $('#vitalsList').html(html);
-    });
-}
-
-// Load Nursing Notes
-function loadIPDNursingNotes(admissionId) {
-  $('#nursingNotesList').html('<div class="text-center py-4"><div class="spinner-border text-warning spinner-border-sm"></div></div>');
-  
-  supabaseClient.from(dbTable('Nursing_Notes'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .order('Note_Date', { ascending: false })
-    .then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        $('#nursingNotesList').html('<p class="text-muted text-center">ຍັງບໍ່ມີ Nursing Notes</p>');
-        return;
-      }
-      
-      let html = '';
-      data.forEach(note => {
-        const noteDate = note.Note_Date ? new Date(note.Note_Date).toLocaleDateString('en-GB') : '-';
-        html += `
-          <div class="card border-warning mb-3">
-            <div class="card-header bg-light">
-              <div class="d-flex justify-content-between align-items-center">
-                <strong><i class="fas fa-calendar me-2"></i>${noteDate} ${note.Note_Time || ''}</strong>
-                <span class="badge bg-warning text-dark">${note.Note_Type || 'Nursing Note'}</span>
-              </div>
-              <small class="text-muted"><i class="fas fa-user-nurse me-1"></i>${note.Nurse_Name || '-'}</small>
-            </div>
-            <div class="card-body">
-              <p class="mb-0">${note.Content || '-'}</p>
-            </div>
-          </div>
-        `;
-      });
-      $('#nursingNotesList').html(html);
-    });
-}
-
-// Open Progress Note Modal
-window.openIPDProgressNote = function () {
-  const admissionId = $('#ipdDetailModal').length > 0 ? 
-    ($('#detailWardBed').text() ? window.currentAdmissionId : null) : null;
-  
-  if (!admissionId && !window.currentAdmissionId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບກ່ອນ', 'warning');
-    return;
-  }
-  
-  $('#progressAdmissionId').val(admissionId || window.currentAdmissionId);
-  $('#progressDate').val(new Date().toISOString().split('T')[0]);
-  $('#progressTime').val(new Date().toTimeString().split(' ')[0].substring(0, 5));
-  
-  // Load doctors
-  if (masterDataStore['Doctor']) {
-    let opts = '<option value="">-- ເລືອກແພດ --</option>';
-    masterDataStore['Doctor'].forEach(d => {
-      opts += `<option value="${d.value}">${d.value}</option>`;
-    });
-    $('#progressDoctor').html(opts);
-  }
-  
-  $('#ipdProgressModal').modal('show');
-};
-
-// Submit Progress Note
-window.submitIPDProgressNote = async function (e) {
-  if (e) e.preventDefault();
-  
-  const noteId = 'NOTE' + Date.now();
-  const noteData = {
-    Note_ID: noteId,
-    Admission_ID: $('#progressAdmissionId').val(),
-    Note_Date: $('#progressDate').val(),
-    Note_Time: $('#progressTime').val(),
-    Doctor_Name: $('#progressDoctor').val(),
-    Note_Type: $('#progressType').val(),
-    Subjective: $('#progressSubjective').val(),
-    Objective: $('#progressObjective').val(),
-    Assessment: $('#progressAssessment').val(),
-    Plan: $('#progressPlan').val()
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('Progress_Notes')).insert(noteData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', 'ບັນທຶກ Progress Note ແລ້ວ', 'success');
-  $('#ipdProgressModal').modal('hide');
-  loadIPDProgressNotes(noteData.Admission_ID);
-  window.logAction('Add', 'IPD Progress Note', 'IPD');
-};
-
-// Open Medication Modal
-window.openIPDMedication = function () {
-  const admissionId = window.currentAdmissionId;
-  if (!admissionId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບກ່ອນ', 'warning');
-    return;
-  }
-  
-  $('#medAdmissionId').val(admissionId);
-  $('#medStartDate').val(new Date().toISOString().split('T')[0]);
-  
-  // Load drugs
-  if (drugsMasterList && drugsMasterList.length > 0) {
-    let opts = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກຢາ --</option>';
-    drugsMasterList.forEach(d => {
-      opts += `<option value="${d.name}">${d.name}${d.desc ? ' (' + d.desc + ')' : ''}</option>`;
-    });
-    $('#medDrugSelect').html(opts);
-  }
-  
-  $('#ipdMedicationModal').modal('show');
-};
-
-// Submit Medication
-window.submitIPDMedication = async function (e) {
-  if (e) e.preventDefault();
-  
-  const medId = 'MED' + Date.now();
-  const medData = {
-    Med_ID: medId,
-    Admission_ID: $('#medAdmissionId').val(),
-    Drug_Name: $('#medDrugSelect').val(),
-    Dosage: $('#medDosage').val(),
-    Frequency: $('#medFrequency').val(),
-    Route: $('#medRoute').val(),
-    Start_Date: $('#medStartDate').val(),
-    End_Date: $('#medEndDate').val() || null,
-    Notes: $('#medNotes').val(),
-    Status: 'Active'
-  };
-  
-  Swal.fire({ title: 'ກຳລັງສັ່ງຢາ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('IPD_Medications')).insert(medData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', 'ສັ່ງຢາແລ້ວ', 'success');
-  $('#ipdMedicationModal').modal('hide');
-  loadIPDMedications(medData.Admission_ID);
-  window.logAction('Add', `IPD Medication: ${medData.Drug_Name}`, 'IPD');
-};
-
-// Open Vitals Modal
-window.openIPDVitals = function () {
-  const admissionId = window.currentAdmissionId;
-  if (!admissionId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບກ່ອນ', 'warning');
-    return;
-  }
-  
-  $('#vitalsAdmissionId').val(admissionId);
-  $('#vitalsDate').val(new Date().toISOString().split('T')[0]);
-  $('#vitalsTime').val(new Date().toTimeString().split(' ')[0].substring(0, 5));
-  
-  $('#ipdVitalsModal').modal('show');
-};
-
-// Submit Vitals
-window.submitIPDVitals = async function (e) {
-  if (e) e.preventDefault();
-  
-  const vitalId = 'VITAL' + Date.now();
-  const vitalData = {
-    Vital_ID: vitalId,
-    Admission_ID: $('#vitalsAdmissionId').val(),
-    Record_Date: $('#vitalsDate').val(),
-    Record_Time: $('#vitalsTime').val(),
-    BP: $('#vitalsBP').val(),
-    Temp: parseFloat($('#vitalsTemp').val()) || null,
-    Pulse: parseInt($('#vitalsPulse').val()) || null,
-    Resp_Rate: parseInt($('#vitalsResp').val()) || null,
-    SpO2: parseInt($('#vitalsSpO2').val()) || null,
-    Pain_Score: parseInt($('#vitalsPain').val()) || 0,
-    Consciousness: $('#vitalsConsciousness').val(),
-    Notes: $('#vitalsNotes').val()
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('IPD_Vital_Signs')).insert(vitalData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', 'ບັນທຶກ Vital Signs ແລ້ວ', 'success');
-  $('#ipdVitalsModal').modal('hide');
-  loadIPDVitals(vitalData.Admission_ID);
-  window.logAction('Add', 'IPD Vital Signs', 'IPD');
-};
-
-// Open Nursing Note Modal
-window.openIPDNursingNote = function () {
-  const admissionId = window.currentAdmissionId;
-  if (!admissionId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບກ່ອນ', 'warning');
-    return;
-  }
-  
-  $('#nursingAdmissionId').val(admissionId);
-  $('#nursingDate').val(new Date().toISOString().split('T')[0]);
-  $('#nursingTime').val(new Date().toTimeString().split(' ')[0].substring(0, 5));
-  
-  $('#ipdNursingModal').modal('show');
-};
-
-// Submit Nursing Note
-window.submitIPDNursingNote = async function (e) {
-  if (e) e.preventDefault();
-  
-  const noteId = 'NNOTE' + Date.now();
-  const noteData = {
-    Note_ID: noteId,
-    Admission_ID: $('#nursingAdmissionId').val(),
-    Note_Date: $('#nursingDate').val(),
-    Note_Time: $('#nursingTime').val(),
-    Nurse_Name: $('#nursingName').val(),
-    Note_Type: $('#nursingType').val(),
-    Content: $('#nursingContent').val()
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('Nursing_Notes')).insert(noteData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', 'ບັນທຶກ Nursing Note ແລ້ວ', 'success');
-  $('#ipdNursingModal').modal('hide');
-  loadIPDNursingNotes(noteData.Admission_ID);
-  window.logAction('Add', 'IPD Nursing Note', 'IPD');
-};
-
-// Open Discharge Modal
-window.openIPDDischarge = function () {
-  const admissionId = window.currentAdmissionId;
-  if (!admissionId) {
-    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຄົນເຈັບກ່ອນ', 'warning');
-    return;
-  }
-  
-  $('#dischargeAdmissionId').val(admissionId);
-  $('#dischargeDate').val(new Date().toISOString().split('T')[0]);
-  $('#dischargeTime').val(new Date().toTimeString().split(' ')[0].substring(0, 5));
-  
-  $('#ipdDischargeModal').modal('show');
-};
-
-// Submit Discharge
-window.submitIPDDischarge = async function (e) {
-  if (e) e.preventDefault();
-  
-  Swal.fire({
-    title: 'ຢືນຢັນ Discharge?',
-    text: 'ຄົນເຈັບຈະອອກຈາກໂຮງໝໍ ແລະ ຕຽງຈະຖືກປ່ອຍວ່າງ',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#dc3545',
-    confirmButtonText: 'ຢືນຢັນ',
-    cancelButtonText: 'ຍົກເລີກ'
-  }).then(async (result) => {
-    if (!result.isConfirmed) return;
-    
-    const dischargeData = {
-      Discharge_Date: $('#dischargeDate').val(),
-      Discharge_Time: $('#dischargeTime').val(),
-      Discharge_Status: $('#dischargeStatus').val(),
-      Discharge_Diagnosis: $('#dischargeDiagnosis').val(),
-      Notes: $('#dischargeSummary').val(),
-      Follow_Up_Date: $('#dischargeFollowUp').val() || null,
-      Status: 'Discharged'
-    };
-    
-    Swal.fire({ title: 'ກຳລັງ Discharge...', didOpen: () => Swal.showLoading() });
-    
-    const admissionId = $('#dischargeAdmissionId').val();
-    
-    // Update admission
-    const { error: updateError } = await supabaseClient
-      .from(dbTable('Admissions'))
-      .update(dischargeData)
-      .eq('Admission_ID', admissionId);
-    
-    if (updateError) {
-      Swal.fire('ຜິດພາດ!', updateError.message, 'error');
-      return;
-    }
-    
-    // Get bed info and update bed status
-    const { data: adm } = await supabaseClient
-      .from(dbTable('Admissions'))
-      .select('Bed_ID')
-      .eq('Admission_ID', admissionId)
-      .single();
-    
-    if (adm && adm.Bed_ID) {
-      await supabaseClient.from(dbTable('Beds')).update({ Status: 'Available' }).eq('Bed_ID', adm.Bed_ID);
-    }
-    
-    Swal.fire('ສຳເລັດ!', 'Discharge ຄົນເຈັບແລ້ວ', 'success');
-    $('#ipdDischargeModal').modal('hide');
-    $('#ipdDetailModal').modal('hide');
-    window.loadIPDPatients();
-    window.logAction('Discharge', 'IPD Discharge', 'IPD');
-  });
-};
-
-// ==========================================
-// IPD VISIT HISTORY (Doctor/Nurse Visits)
-// ==========================================
-
-// Open Visit Modal
-window.openIPDVisit = function (admissionId, patientName) {
-  window.currentAdmissionId = admissionId;
-  $('#visitPatientName').text(patientName || '');
-  $('#visitDate').val(new Date().toISOString().split('T')[0]);
-  $('#visitTime').val(new Date().toTimeString().split(' ')[0].substring(0, 5));
-  
-  // Load doctors/nurses for dropdown
-  if (masterDataStore['Doctor']) {
-    let opts = '<option value="">-- ເລືອກຜູ້ຢ້ຽມ --</option>';
-    masterDataStore['Doctor'].forEach(d => {
-      opts += `<option value="${d.value}">👨‍⚕️ ${d.value}</option>`;
-    });
-    $('#visitVisitor').html(opts);
-  }
-  
-  $('#ipdVisitModal').modal('show');
-};
-
-// Submit Visit
-window.submitIPDVisit = async function (e) {
-  if (e) e.preventDefault();
-  
-  const visitId = 'VISIT' + Date.now();
-  const visitorSelect = $('#visitVisitor').val();
-  const visitorType = visitorSelect ? 'Doctor' : 'Nurse';
-  
-  const visitData = {
-    Visit_ID: visitId,
-    Admission_ID: window.currentAdmissionId,
-    Visit_Date: $('#visitDate').val(),
-    Visit_Time: $('#visitTime').val(),
-    Visitor_Type: visitorType,
-    Visitor_Name: visitorSelect || $('#visitNurseName').val(),
-    Visit_Purpose: $('#visitPurpose').val(),
-    Notes: $('#visitNotes').val()
-  };
-  
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  
-  const { error } = await supabaseClient.from(dbTable('IPD_Visits')).insert(visitData);
-  
-  if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
-    return;
-  }
-  
-  Swal.fire('ສຳເລັດ!', 'ບັນທຶກການຢ້ຽມແລ້ວ', 'success');
-  $('#ipdVisitModal').modal('hide');
-  window.logAction('Add', 'IPD Visit', 'IPD');
-};
-
-// Load Visit History
-window.loadIPDVisitHistory = function (admissionId) {
-  $('#visitHistoryList').html('<div class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div></div>');
-  
-  supabaseClient.from(dbTable('IPD_Visits'))
-    .select('*')
-    .eq('Admission_ID', admissionId)
-    .order('Visit_Date', { ascending: false })
-    .order('Visit_Time', { ascending: false })
-    .then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        $('#visitHistoryList').html('<p class="text-muted text-center">ຍັງບໍ່ມີປະຫວັດການຢ້ຽມ</p>');
-        return;
-      }
-      
-      let html = '';
-      data.forEach(visit => {
-        const visitDate = visit.Visit_Date ? new Date(visit.Visit_Date).toLocaleDateString('en-GB') : '-';
-        const icon = visit.Visitor_Type === 'Doctor' ? '👨‍⚕️' : '👩‍⚕️';
-        const badgeColor = visit.Visitor_Type === 'Doctor' ? 'bg-primary' : 'bg-info';
-        
-        html += `
-          <div class="card border-${visit.Visitor_Type === 'Doctor' ? 'primary' : 'info'} mb-2">
-            <div class="card-header bg-light py-2">
-              <div class="d-flex justify-content-between align-items-center">
-                <small><i class="fas fa-calendar me-1"></i>${visitDate} ${visit.Visit_Time || ''}</small>
-                <span class="badge ${badgeColor}">${icon} ${visit.Visitor_Type || '-'}</span>
-              </div>
-            </div>
-            <div class="card-body py-2">
-              <p class="mb-1"><strong>ຜູ້ຢ້ຽມ:</strong> ${visit.Visitor_Name || '-'}</p>
-              <p class="mb-1"><strong>ຈຸດປະສົງ:</strong> ${visit.Visit_Purpose || '-'}</p>
-              <p class="mb-0 text-muted small"><strong>ບັນທຶກ:</strong> ${visit.Notes || '-'}</p>
-            </div>
-          </div>
-        `;
-      });
-      $('#visitHistoryList').html(html);
-    });
-};
-
-// Set current admission ID for detail modal
-window.currentAdmissionId = null;
-
-// Override openIPDDetail to store admission ID
-const originalOpenIPDDetail = window.openIPDDetail;
-window.openIPDDetail = async function (admissionId) {
-  window.currentAdmissionId = admissionId;
-  if (typeof originalOpenIPDDetail === 'function') {
-    await originalOpenIPDDetail(admissionId);
-  }
-};
-
 // ========================================================================
 // BACKUP & RESTORE UI FUNCTIONS — Private admin UX with CF Functions proxy
 // Token stays on Cloudflare server-side — never exposed to browser

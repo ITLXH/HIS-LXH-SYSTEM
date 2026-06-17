@@ -36,3 +36,13 @@ config/google-drive-credentials.json
 .env
 .env.local
 .env.production
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Local DB schema dumps (large, not source)
+backup/schema_public.sql
+
+# Local dev UI screenshots
+dashboard-ui-*.png
