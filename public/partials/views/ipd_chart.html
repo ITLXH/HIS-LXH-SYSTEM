@@ -1,0 +1,32 @@
+<div id="view-ipd_chart" style="display:none;">
+  <div class="ipd-chart-shell ipd-clinical-chart">
+    <div class="ipd-chart-header">
+      <div>
+        <h3 class="fw-bold m-0 text-dark"><i class="fas fa-file-medical text-primary me-2"></i><span data-i18n="ipd.chart">IPD Chart</span></h3>
+        <p class="text-muted mb-0 mt-1" id="ipdChartSubtitle" data-i18n="ipd.chartSubtitle">IPD admission chart</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap justify-content-end">
+        <button class="btn btn-sm btn-primary fw-bold btn-ipd-chart-edit" onclick="window.openIpdDoctorNoteModal()"><i class="fas fa-user-md me-1"></i><span data-i18n="ipd.btnAddDoctorExam">Add Doctor Exam</span></button>
+        <button class="btn btn-sm btn-success fw-bold btn-ipd-chart-edit" onclick="window.openIpdNursingNoteModal()"><i class="fas fa-user-nurse me-1"></i><span data-i18n="ipd.btnAddNursingNote">Add Nursing Note</span></button>
+        <button class="btn btn-sm btn-danger fw-bold btn-ipd-chart-edit" onclick="window.openIpdVitalModal()"><i class="fas fa-heartbeat me-1"></i><span data-i18n="ipd.btnAddVitals">Add Vital Signs</span></button>
+        <button class="btn btn-sm btn-outline-warning fw-bold btn-ipd-chart-edit" onclick="window.openIpdDischargeSummaryModal()"><i class="fas fa-file-medical-alt me-1"></i><span data-i18n="ipd.editSummary">Edit Discharge</span></button>
+        <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="window.printIpdDischargeSummary()"><i class="fas fa-print me-1"></i><span data-i18n="ipd.printDischarge">Print Discharge</span></button>
+        <button class="btn btn-sm btn-outline-primary fw-bold" onclick="window.loadView('ipd_ward_bed')"><i class="fas fa-arrow-left me-1"></i><span data-i18n="ipd.backToWardBoard">Back to Ward Board</span></button>
+      </div>
+    </div>
+
+    <div class="ipd-chart-pane">
+      <div class="ipd-section-head">
+        <div><strong data-i18n="ipd.patientTimeline">Patient Timeline</strong><span data-i18n="ipd.timelineDescription">Doctor SOAP, nursing notes, vitals and OPD-linked labs grouped by date</span></div>
+        <div class="ipd-timeline-filter" id="ipdTimelineFilters">
+          <button class="active" onclick="window.setIpdTimelineFilter('all')" data-i18n="ipd.all">All</button>
+          <button onclick="window.setIpdTimelineFilter('doctor')" data-i18n="ipd.doctorNotes">Doctor</button>
+          <button onclick="window.setIpdTimelineFilter('nursing')" data-i18n="ipd.nursingNotes">Nursing</button>
+          <button onclick="window.setIpdTimelineFilter('vitals')" data-i18n="ipd.vitalSigns">Vitals</button>
+          <button onclick="window.setIpdTimelineFilter('labs')" data-i18n="ipd.labs">Linked OPD</button>
+        </div>
+      </div>
+      <div id="ipdPatientTimeline"></div>
+    </div>
+  </div>
+</div>

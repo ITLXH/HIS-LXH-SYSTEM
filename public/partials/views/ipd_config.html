@@ -1,0 +1,82 @@
+<div id="view-ipd_config" style="display:none;">
+  <div class="ipd-page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-procedures text-primary me-2"></i><span data-i18n="ipd.configTitle">IPD Configuration</span></h3>
+      <p class="text-muted mb-0 mt-1" style="font-size:11.5px;" data-i18n="ipd.configSubtitle">Manage IPD wards, rooms and beds (CRUD)</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-primary shadow-sm fw-bold btn-ipd-config-add" onclick="window.openIpdWardModal()"><i class="fas fa-plus me-1"></i> <span data-i18n="ipd.addWard">Add Ward</span></button>
+      <button class="btn btn-outline-primary shadow-sm fw-bold btn-ipd-config-add" onclick="window.openIpdRoomModal()"><i class="fas fa-door-open me-1"></i> <span data-i18n="ipd.addRoom">Add Room</span></button>
+      <button class="btn ipd-vip-btn shadow-sm fw-bold btn-ipd-config-add" onclick="window.openIpdVipRoomModal()"><i class="fas fa-crown me-1"></i> <span data-i18n="ipd.addVipRoom">Add VIP Room</span></button>
+      <button class="btn btn-outline-primary shadow-sm fw-bold btn-ipd-config-add" onclick="window.openIpdBedModal()"><i class="fas fa-bed me-1"></i> <span data-i18n="ipd.addBed">Add Bed</span></button>
+    </div>
+  </div>
+
+  <ul class="nav nav-tabs ipd-config-tabs mt-2" id="ipdConfigTabs" role="tablist">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#ipdConfigWards" role="tab"><i class="fas fa-hospital me-1"></i><span data-i18n="ipd.wardsTab">Wards</span></a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ipdConfigRooms" role="tab"><i class="fas fa-door-open me-1"></i><span data-i18n="ipd.roomsTab">Rooms</span></a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ipdConfigBeds" role="tab"><i class="fas fa-bed me-1"></i><span data-i18n="ipd.bedsTab">Beds</span></a></li>
+  </ul>
+
+  <div class="tab-content card card-outline card-primary border-top-0">
+    <div class="tab-pane fade show active" id="ipdConfigWards" role="tabpanel">
+      <div class="card-body table-responsive">
+        <table id="ipdWardsTable" class="table table-hover align-middle w-100">
+          <thead class="bg-light">
+            <tr>
+              <th data-i18n="ipd.wardId">Ward ID</th>
+              <th data-i18n="ipd.wardName">Ward Name</th>
+              <th data-i18n="ipd.wardType">Type</th>
+              <th data-i18n="ipd.floor">Floor</th>
+              <th data-i18n="ipd.department">Department</th>
+              <th data-i18n="ipd.status">Status</th>
+              <th class="text-center" data-i18n="common.action">Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="ipdConfigRooms" role="tabpanel">
+      <div class="card-body table-responsive">
+        <table id="ipdRoomsTable" class="table table-hover align-middle w-100">
+          <thead class="bg-light">
+            <tr>
+              <th data-i18n="ipd.roomId">Room ID</th>
+              <th data-i18n="ipd.ward">Ward</th>
+              <th data-i18n="ipd.roomNumber">Room Number</th>
+              <th data-i18n="ipd.roomType">Type</th>
+              <th data-i18n="ipd.floor">Floor</th>
+              <th data-i18n="ipd.status">Status</th>
+              <th class="text-center" data-i18n="common.action">Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="ipdConfigBeds" role="tabpanel">
+      <div class="card-body table-responsive">
+        <table id="ipdBedsTable" class="table table-hover align-middle w-100">
+          <thead class="bg-light">
+            <tr>
+              <th data-i18n="ipd.bedId">Bed ID</th>
+              <th data-i18n="ipd.ward">Ward</th>
+              <th data-i18n="ipd.room">Room</th>
+              <th data-i18n="ipd.bedNo">Bed</th>
+              <th data-i18n="ipd.bedType">Type</th>
+              <th data-i18n="ipd.status">Status</th>
+              <th data-i18n="ipd.patient">Patient</th>
+              <th data-i18n="ipd.doctor">Doctor</th>
+              <th data-i18n="ipd.ipdNo">IPD No</th>
+              <th class="text-center" data-i18n="common.action">Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

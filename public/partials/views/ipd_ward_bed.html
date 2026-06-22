@@ -1,0 +1,18 @@
+<div id="view-ipd_ward_bed" class="ipd-workspace" style="display:none;">
+  <div class="ipd-page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-procedures text-primary me-2"></i><span data-i18n="ipd.title">Ward / Bed Management</span></h3>
+      <div class="ipd-status-pills">
+        <span class="ipd-pill"><i class="fas fa-bed"></i> <span data-i18n="ipd.totalBeds">Total Beds</span>: <strong id="ipdTotalBeds">0</strong></span>
+        <span class="ipd-pill is-occupied"><i class="fas fa-procedures"></i> <span data-i18n="ipd.occupied">Occupied</span>: <strong id="ipdOccupiedBeds">0</strong></span>
+        <span class="ipd-pill is-available"><i class="fas fa-check-circle"></i> <span data-i18n="ipd.available">Available</span>: <strong id="ipdAvailableBeds">0</strong></span>
+        <span class="ipd-pill is-reserved"><i class="fas fa-bookmark"></i> <span data-i18n="ipd.reserved">Reserved</span>: <strong id="ipdReservedBeds">0</strong></span>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-success shadow-sm fw-bold btn-ipd-admit" onclick="window.openIpdQuickAdmitModal()"><i class="fas fa-user-plus me-1"></i> <span data-i18n="nav.admitPatient">Admit Patient</span></button>
+    </div>
+  </div>
+
+  <div id="ipdBedBoard"></div>
+</div>

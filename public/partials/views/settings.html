@@ -1,4 +1,36 @@
 <div id="view-settings" style="display:none;">
+  <div class="card card-outline card-primary mb-3">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="fas fa-cog me-2"></i>ຕັ້ງຄ່າລະບົບ</h5>
+    </div>
+    <form class="card-body bg-light" onsubmit="window.submitSettingsForm(event)">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-bold">ຊື່ໂຮງໝໍ</label>
+          <input type="text" class="form-control" id="setHospitalName">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Logo URL</label>
+          <input type="text" class="form-control" id="setLogoUrl">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">OPD Header URL</label>
+          <input type="text" class="form-control" id="setOpdHeaderUrl">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">OPD Footer URL</label>
+          <input type="text" class="form-control" id="setOpdFooterUrl">
+        </div>
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="setRememberLastModule">
+            <label class="form-check-label fw-bold" for="setRememberLastModule">ຈື່ຈຳໂມດູນຫຼ້າສຸດຫຼັງຈາກ Login</label>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary fw-bold mt-3"><i class="fas fa-save me-1"></i> ບັນທຶກ</button>
+    </form>
+  </div>
   <div class="mb-4">
     <h3 class="fw-bold m-0 text-dark"><i class="fas fa-list-alt text-success me-2"></i>ຈັດການຂໍ້ມູນ Master</h3>
     <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ຈັດການໝວດຂໍ້ມູນພື້ນຖານທີ່ໃຊ້ໃນລະບົບ</p>
@@ -23,6 +55,7 @@
             <optgroup label="🏥 ຫ້ອງກວດ">
               <option value="Department">ຫ້ອງກວດ (Department)</option>
               <option value="Doctor">ລາຍຊື່ແພດ (Doctor)</option>
+              <option value="Nurse">ລາຍຊື່ພະຍາບານ (Nurse)</option>
             </optgroup>
             <optgroup label="👥 ຄົນເຈັບ">
               <option value="Title">ຄຳນຳໜ້າ (Title)</option>

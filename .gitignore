@@ -46,3 +46,8 @@ backup/schema_public.sql
 
 # Local dev UI screenshots
 dashboard-ui-*.png
+
+# Session artifacts — temporary working files
+tmp/
+output/
+.claude/launch.json

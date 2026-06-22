@@ -9,7 +9,7 @@
   <!-- Menu items -->
   <div class="his-nav-items" id="his-nav-items">
     <a href="#" class="his-nav-link active" id="nav-dashboard">
-      <i class="fas fa-chart-pie"></i><span>Dashboard</span>
+      <i class="fas fa-chart-pie"></i><span data-i18n="nav.dashboard">Dashboard</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-report">
       <i class="fas fa-file-invoice"></i><span>ລາຍງານ</span>
@@ -33,8 +33,19 @@
       <i class="fas fa-calendar-check"></i><span>ນັດໝາຍ</span>
     </a>
 
+    <!-- IPD dropdown -->
+    <div class="his-dropdown mnu-ipd_ward_bed mnu-ipd_inpatient_list">
+      <a href="#" class="his-nav-link his-dropdown-toggle">
+        <i class="fas fa-procedures"></i><span data-i18n="nav.ipdManagement">IPD Management</span><i class="fas fa-chevron-down his-chevron"></i>
+      </a>
+      <div class="his-dropdown-menu">
+        <a href="#" class="his-dropdown-item" id="nav-ipd_ward_bed"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.wardBedManagement">Ward / Bed Management</span></a>
+        <a href="#" class="his-dropdown-item" id="nav-ipd_inpatient_list"><i class="fas fa-clipboard-list me-2 text-info"></i><span data-i18n="nav.inpatientList">Inpatient List</span></a>
+      </div>
+    </div>
+
     <!-- Admin dropdown -->
-    <div class="his-dropdown mnu-settings mnu-services mnu-drugs mnu-labs mnu-vaccine_master mnu-locations mnu-orgs mnu-users">
+    <div class="his-dropdown mnu-settings mnu-services mnu-drugs mnu-labs mnu-vaccine_master mnu-locations mnu-orgs mnu-users mnu-ipd_config">
       <a href="#" class="his-nav-link his-dropdown-toggle">
         <i class="fas fa-cogs"></i><span>ຕັ້ງຄ່າ</span><i class="fas fa-chevron-down his-chevron"></i>
       </a>
@@ -43,6 +54,7 @@
         <a href="#" class="his-dropdown-item" id="nav-drugs"><i class="fas fa-pills me-2 text-success"></i>ລາຍການຢາ</a>
         <a href="#" class="his-dropdown-item" id="nav-labs"><i class="fas fa-flask me-2 text-primary"></i>ລາຍການແລັບ</a>
         <a href="#" class="his-dropdown-item" id="nav-vaccine_master"><i class="fas fa-vial me-2"></i>ຕັ້ງຄ່າວັກຊີນ</a>
+        <a href="#" class="his-dropdown-item" id="nav-ipd_config"><i class="fas fa-procedures me-2 text-primary"></i><span data-i18n="ipd.configTitle">ຕັ້ງຄ່າ IPD (ຫວອດ/ຫ້ອງ/ຕຽງ)</span></a>
         <a href="#" class="his-dropdown-item" id="nav-locations"><i class="fas fa-map-marked-alt me-2"></i>ເມືອງ-ແຂວງ</a>
         <a href="#" class="his-dropdown-item" id="nav-orgs"><i class="fas fa-building me-2"></i>ອົງກອນ/ປະກັນໄພ</a>
         <a href="#" class="his-dropdown-item" id="nav-users"><i class="fas fa-user-shield me-2"></i>ຈັດການຜູ້ໃຊ້</a>
@@ -55,6 +67,11 @@
 
   <!-- Right side: user + bell + logout -->
   <div class="his-nav-right">
+    <select class="his-language-select" id="appLanguageSelect" onchange="window.setAppLanguage(this.value)" aria-label="Language">
+      <option value="lo">ລາວ</option>
+      <option value="en">EN</option>
+    </select>
+
     <!-- Bell notification -->
     <div class="his-dropdown">
       <a href="#" class="his-nav-link his-dropdown-toggle his-bell-btn">

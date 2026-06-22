@@ -1,0 +1,25 @@
+<div id="view-ipd_inpatient_list" style="display:none;">
+  <div class="ipd-page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-clipboard-list text-info me-2"></i><span data-i18n="nav.inpatientList">Inpatient List</span></h3>
+      <p class="text-muted mb-0 mt-1" style="font-size:11.5px;" data-i18n="ipd.inpatientSubtitle">Active IPD patients by ward, room, bed and attending doctor</p>
+    </div>
+    <div class="btn-group" role="group" id="ipdInpatientFilterTabs">
+      <button type="button" class="btn btn-sm btn-primary" data-ipd-filter="active"><i class="fas fa-bed me-1"></i><span data-i18n="ipd.filterActive">Active</span></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-ipd-filter="discharged"><i class="fas fa-history me-1"></i><span data-i18n="ipd.filterDischarged">Discharged</span></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-ipd-filter="all"><i class="fas fa-list me-1"></i><span data-i18n="ipd.filterAll">All</span></button>
+    </div>
+  </div>
+  <div class="card card-outline card-primary ipd-table-card">
+    <div class="card-body table-responsive">
+      <table id="ipdStandaloneInpatientTable" class="table table-hover align-middle w-100">
+        <thead class="bg-light">
+          <tr>
+            <th data-i18n="ipd.ipdNo">IPD No</th><th>HN</th><th data-i18n="ipd.patientName">Patient Name</th><th data-i18n="ipd.ageSex">Age/Sex</th><th data-i18n="ipd.ward">Ward</th><th data-i18n="ipd.room">Room</th><th data-i18n="ipd.bedNo">Bed</th><th data-i18n="ipd.doctor">Doctor</th><th data-i18n="ipd.diagnosis">Diagnosis</th><th data-i18n="ipd.admitDateTime">Admit Date/Time</th><th data-i18n="ipd.dischargeDate">Discharge Date</th><th data-i18n="ipd.los">LOS</th><th data-i18n="ipd.status">Status</th><th class="text-center" data-i18n="common.action">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>

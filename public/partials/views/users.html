@@ -211,6 +211,64 @@
             </div>
           </div>
 
+          <!-- IPD Permissions -->
+          <div class="col-md-6">
+            <div class="card border-primary h-100">
+              <div class="card-header" style="background:#0f5f9a;color:#fff;">
+                <h6 class="mb-0"><i class="fas fa-procedures me-2"></i>IPD (ຄົນເຈັບໃນ)</h6>
+              </div>
+              <div class="card-body">
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd.view" id="perm_ipd_view">
+                  <label class="form-check-label" for="perm_ipd_view">👁️ View (ເບິ່ງຫວອດ/ຕຽງ/ລາຍຊື່)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd.admit" id="perm_ipd_admit">
+                  <label class="form-check-label" for="perm_ipd_admit">➕ Admit (ຮັບຄົນເຈັບນອນ)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd.transfer" id="perm_ipd_transfer">
+                  <label class="form-check-label" for="perm_ipd_transfer">🔄 Transfer (ຍ້າຍຕຽງ)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd.discharge" id="perm_ipd_discharge">
+                  <label class="form-check-label" for="perm_ipd_discharge">🚪 Discharge (ໃຫ້ອອກໂຮງໝໍ)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd.chart_edit" id="perm_ipd_chart_edit">
+                  <label class="form-check-label" for="perm_ipd_chart_edit">✏️ Chart Edit (ບັນທຶກໝໍ/ພະຍາບານ/ສັນຍານຊີບ)</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- IPD Config Permissions -->
+          <div class="col-md-6">
+            <div class="card border-warning h-100">
+              <div class="card-header" style="background:#d97706;color:#fffbeb;">
+                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>ຕັ້ງຄ່າ IPD (Ward/Room/Bed)</h6>
+              </div>
+              <div class="card-body">
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd_config.view" id="perm_ipd_config_view">
+                  <label class="form-check-label" for="perm_ipd_config_view">👁️ View (ເຂົ້າໜ້າຕັ້ງຄ່າ IPD)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd_config.add" id="perm_ipd_config_add">
+                  <label class="form-check-label" for="perm_ipd_config_add">➕ Add (ເພີ່ມຫວອດ/ຫ້ອງ/ຕຽງ)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd_config.edit" id="perm_ipd_config_edit">
+                  <label class="form-check-label" for="perm_ipd_config_edit">✏️ Edit (ແກ້ໄຂຫວອດ/ຫ້ອງ/ຕຽງ)</label>
+                </div>
+                <div class="form-check mb-2">
+                  <input class="form-check-input btn-perm-check" type="checkbox" value="ipd_config.delete" id="perm_ipd_config_delete">
+                  <label class="form-check-label" for="perm_ipd_config_delete">🗑️ Delete (ລົບ/ປິດໃຊ້ງານ)</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div class="mt-4 d-flex gap-2">

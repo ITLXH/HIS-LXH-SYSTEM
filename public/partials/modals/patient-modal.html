@@ -31,10 +31,14 @@
               </div>
             </div>
             <div class="col-md-2">
-              <label class="form-label fw-bold text-primary">ລະຫັດຄົນເຈັບ (CN)</label>
+              <label class="form-label fw-bold text-primary">ລະຫັດຄົນເຈັບ (LXH)</label>
               <input type="text" class="form-control bg-light fw-bold text-primary border-primary" id="disp_p_id" readonly placeholder="ກຳລັງໂຫຼດ...">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+              <label class="form-label fw-bold">ລະຫັດເກົ່າ</label>
+              <input type="text" class="form-control" name="p_old_patient_id" id="p_old_patient_id" placeholder="Old ID">
+            </div>
+            <div class="col-md-2">
               <label class="form-label fw-bold required">ວັນທີລົງທະບຽນ</label>
               <input type="date" class="form-control" name="p_date" id="p_date" required>
             </div>
@@ -42,7 +46,7 @@
               <label class="form-label fw-bold required">ເວລາ</label>
               <input type="time" class="form-control" name="p_time" id="p_time" required>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
               <label class="form-label fw-bold">ກະເວນ (Shift)</label>
               <select class="form-select dyn-Shift" name="p_shift"><option value="">-- ເລືອກ --</option></select>
             </div>
@@ -220,6 +224,7 @@
         </div>
         <h3 class="fw-bold mb-1" id="view_p_name">-</h3>
         <span class="badge bg-white text-primary px-3 py-2 rounded-pill shadow-sm" id="view_p_id">-</span>
+        <div class="small mt-2 opacity-75" id="view_p_old_id"></div>
       </div>
       <div class="modal-body p-4 bg-light">
         <div class="row g-3">

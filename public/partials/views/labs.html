@@ -7,6 +7,7 @@
     <div>
       <button class="btn btn-danger shadow-sm fw-bold me-2" onclick="window.bulkDelete('labs')"><i class="fas fa-trash-alt me-1"></i> ລຶບລາຍການທີ່ເລືອກ</button>
       <input type="file" id="labExcelInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="window.handleLabExcelUpload(event)">
+      <button class="btn btn-outline-success shadow-sm fw-bold me-2" onclick="window.downloadExcelTemplate('labs')"><i class="fas fa-download me-1"></i> Template</button>
       <button class="btn btn-success shadow-sm fw-bold me-2" onclick="document.getElementById('labExcelInput').click()"><i class="fas fa-file-excel me-1"></i> ອັບໂຫຼດ Excel</button>
       <button class="btn btn-primary shadow-sm fw-bold" onclick="window.openLabMasterModal()"><i class="fas fa-plus me-1"></i> ເພີ່ມແລັບໃໝ່</button>
     </div>
