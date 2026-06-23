@@ -732,6 +732,7 @@ Object.assign(window.appTranslations.en, {
   'ipd.unitPrice': 'Unit Price',
   'ipd.deleteRecord': 'Delete this record?',
   'ipd.delete': 'Delete',
+  'ipd.disable': 'Disable',
   'ipd.edit': 'Edit',
   'ipd.view': 'View',
   'ipd.drugRequired': 'Drug is required',
@@ -894,6 +895,7 @@ Object.assign(window.appTranslations.lo, {
   'ipd.unitPrice': 'ລາຄາຕໍ່ໜ່ວຍ',
   'ipd.deleteRecord': 'ລຶບບັນທຶກນີ້ບໍ?',
   'ipd.delete': 'ລຶບ',
+  'ipd.disable': 'ປິດໃຊ້ງານ',
   'ipd.edit': 'ແກ້ໄຂ',
   'ipd.view': 'ເບິ່ງ',
   'ipd.drugRequired': 'ກະລຸນາປ້ອນຊື່ຢາ',
@@ -2810,10 +2812,10 @@ window.initApp = async function () {
 
     window.toggleLoading(true);
 
-    // 1. Seed Defaults First (Await completion)
-    await window.seedMasterDefaults();
+    // Seed Defaults in background (don't block login)
+    window.seedMasterDefaults();
 
-    // 2. Fetch all other data in parallel
+    // Fetch all other data in parallel
     await Promise.all([
       supabaseClient.from(dbTable('MasterData')).select('ID,Category,Value').order('Category').then(({ data, error }) => {
         if (error) { console.error('MasterData load error:', error); return; }
@@ -7496,14 +7498,25 @@ window.seedMasterDefaults = async function () {
   };
 
   try {
-    for (const [category, values] of Object.entries(defaults)) {
-      const { data: existing } = await supabaseClient.from(dbTable('MasterData')).select('ID').eq('Category', category).limit(1);
-      if (!existing || existing.length === 0) {
-        console.log(`Seeding ${category} defaults...`);
-        const rows = values.map(v => ({ Category: category, Value: v }));
-        await supabaseClient.from(dbTable('MasterData')).insert(rows);
-      }
+    if (localStorage.getItem('his_master_seeded_v1') === '1') return;
+
+    const entries = Object.entries(defaults);
+    const existsResults = await Promise.all(
+      entries.map(([category]) =>
+        supabaseClient.from(dbTable('MasterData')).select('ID', { head: true, count: 'exact' }).eq('Category', category)
+      )
+    );
+
+    const missing = entries.filter((_, i) => (existsResults[i].count || 0) === 0);
+    if (missing.length === 0) {
+      localStorage.setItem('his_master_seeded_v1', '1');
+      return;
     }
+
+    const allRows = missing.flatMap(([category, values]) => values.map(v => ({ Category: category, Value: v })));
+    console.log(`Seeding ${missing.length} categories (${allRows.length} rows)...`);
+    await supabaseClient.from(dbTable('MasterData')).insert(allRows);
+    localStorage.setItem('his_master_seeded_v1', '1');
   } catch (err) {
     console.error("Seeding error:", err);
   }
@@ -9551,6 +9564,10 @@ window.ipdBedById = function (bedId) {
   return window.ipdWardBedState.beds.find(b => String(b.Bed_ID) === String(bedId)) || null;
 };
 
+window.ipdIsVipWard = function (ward) {
+  return String(ward?.Ward_Type || '').toUpperCase() === 'VIP' || /vip/i.test(String(ward?.Ward_Name || ''));
+};
+
 window.ipdIsActiveAdmission = function (admission) {
   if (!admission) return false;
   const dischargeDate = String(admission?.Discharge_Date || '').trim();
@@ -10066,7 +10083,7 @@ window.renderIpdBedBoard = function () {
   }
 
   const filteredBedIds = new Set(state.filteredBeds.map(b => String(b.Bed_ID)));
-  const isVipWard = w => String(w?.Ward_Type || '').toUpperCase() === 'VIP' || /vip/i.test(String(w?.Ward_Name || ''));
+  const isVipWard = window.ipdIsVipWard;
   const regularWards = state.wards.filter(w => !isVipWard(w));
   const vipWards = state.wards.filter(isVipWard);
 
@@ -10678,10 +10695,39 @@ window.loadIpdConfigPage = async function () {
     window.renderIpdWardsTable();
     window.renderIpdRoomsTable();
     window.renderIpdBedsTable();
+    window.bindIpdConfigTabs();
   } catch (err) {
     console.error('IPD config load error:', err);
     $('#ipdWardsTable tbody, #ipdRoomsTable tbody, #ipdBedsTable tbody').html('');
   }
+};
+
+window.bindIpdConfigTabs = function () {
+  const $tabs = $('#ipdConfigTabs');
+  if (!$tabs.length) return;
+
+  const showPane = (paneId) => {
+    $('#view-ipd_config .tab-pane').removeClass('show active').css('display', 'none');
+    const $target = $('#view-ipd_config #' + paneId);
+    $target.addClass('show active').css('display', 'block');
+    $tabs.find('.nav-link').removeClass('active');
+    $tabs.find('a[href="#' + paneId + '"]').addClass('active');
+    const tableId = { ipdConfigWards: 'ipdWardsTable', ipdConfigRooms: 'ipdRoomsTable', ipdConfigBeds: 'ipdBedsTable' }[paneId];
+    if (tableId && $.fn.DataTable.isDataTable('#' + tableId)) {
+      $('#' + tableId).DataTable().columns.adjust();
+    }
+  };
+
+  showPane('ipdConfigWards');
+
+  if ($tabs.data('ipdConfigBound')) return;
+  $tabs.data('ipdConfigBound', true);
+  $tabs.on('click', 'a[data-bs-toggle="tab"]', function (e) {
+    e.preventDefault();
+    const href = $(this).attr('href') || '';
+    const paneId = href.replace(/^#/, '');
+    if (paneId) showPane(paneId);
+  });
 };
 
 window.loadIpdInpatientListPage = async function () {
@@ -10763,8 +10809,9 @@ window.renderIpdWardsTable = function () {
     <td>${window.ipdEscape(w.Department || '-')}</td>
     <td><span class="badge ${w.Status === 'Inactive' ? 'bg-secondary' : 'bg-success'}">${window.ipdEscape(window.ipdTranslateValue(w.Status || 'Active'))}</span></td>
     <td class="text-center">
-      <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" onclick="window.openIpdWardModal('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-edit"></i></button>
-      <button class="btn btn-sm btn-outline-secondary btn-ipd-config-delete" onclick="window.deactivateIpdWard('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-ban"></i></button>
+      <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" title="${window.ipdEscape(window.t('ipd.edit'))}" onclick="window.openIpdWardModal('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-edit"></i></button>
+      <button class="btn btn-sm btn-outline-secondary me-1 btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.disable'))}" onclick="window.deactivateIpdWard('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-ban"></i></button>
+      <button class="btn btn-sm btn-danger btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.delete'))}" onclick="window.deleteIpdWard('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-trash"></i></button>
     </td>
   </tr>`).join('');
   $('#ipdWardsTable tbody').html(rows);
@@ -10783,8 +10830,9 @@ window.renderIpdRoomsTable = function () {
       <td>${window.ipdEscape(r.Floor || ward?.Floor || '-')}</td>
       <td><span class="badge ${r.Status === 'Maintenance' ? 'bg-warning text-dark' : r.Status === 'Inactive' ? 'bg-secondary' : 'bg-success'}">${window.ipdEscape(window.ipdTranslateValue(r.Status || 'Active'))}</span></td>
       <td class="text-center">
-        <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" onclick="window.openIpdRoomModal('${window.ipdEscape(r.Room_ID)}')"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-sm btn-outline-secondary btn-ipd-config-delete" onclick="window.deactivateIpdRoom('${window.ipdEscape(r.Room_ID)}')"><i class="fas fa-ban"></i></button>
+        <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" title="${window.ipdEscape(window.t('ipd.edit'))}" onclick="window.openIpdRoomModal('${window.ipdEscape(r.Room_ID)}')"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-sm btn-outline-secondary me-1 btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.disable'))}" onclick="window.deactivateIpdRoom('${window.ipdEscape(r.Room_ID)}')"><i class="fas fa-ban"></i></button>
+        <button class="btn btn-sm btn-danger btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.delete'))}" onclick="window.deleteIpdRoom('${window.ipdEscape(r.Room_ID)}')"><i class="fas fa-trash"></i></button>
       </td>
     </tr>`;
   }).join('');
@@ -10815,8 +10863,9 @@ window.renderIpdBedsTable = function () {
       <td>${window.ipdEscape(info.doctor || '-')}</td>
       <td>${window.ipdEscape(info.ipdNo || '-')}</td>
       <td class="text-center">
-        <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" onclick="window.openIpdBedModal('${window.ipdEscape(b.Bed_ID)}')"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-sm btn-outline-secondary btn-ipd-config-delete" onclick="window.changeIpdBedStatus('${window.ipdEscape(b.Bed_ID)}','Inactive')"><i class="fas fa-ban"></i></button>
+        <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" title="${window.ipdEscape(window.t('ipd.edit'))}" onclick="window.openIpdBedModal('${window.ipdEscape(b.Bed_ID)}')"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-sm btn-outline-secondary me-1 btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.disable'))}" onclick="window.changeIpdBedStatus('${window.ipdEscape(b.Bed_ID)}','Inactive')"><i class="fas fa-ban"></i></button>
+        <button class="btn btn-sm btn-danger btn-ipd-config-delete" title="${window.ipdEscape(window.t('ipd.delete'))}" onclick="window.deleteIpdBed('${window.ipdEscape(b.Bed_ID)}')"><i class="fas fa-trash"></i></button>
       </td>
     </tr>`;
   }).join('');
@@ -10906,7 +10955,7 @@ window.openIpdRoomModal = async function (roomId, opts = {}) {
   if (!window.ipdWardBedState.wards.length) return Swal.fire(window.t('ipd.createWardFirst'), window.t('ipd.createWardFirstText'), 'warning');
   const room = roomId ? window.ipdRoomById(roomId) : {};
   const isEdit = !!roomId;
-  const isVipWard = w => String(w?.Ward_Type || '').toUpperCase() === 'VIP' || /vip/i.test(String(w?.Ward_Name || ''));
+  const isVipWard = window.ipdIsVipWard;
   const vipOnly = !!opts.vipOnly || (isEdit && isVipWard(window.ipdWardById(room?.Ward_ID)));
   const wardList = vipOnly ? window.ipdWardBedState.wards.filter(isVipWard) : window.ipdWardBedState.wards;
   if (vipOnly && !wardList.length) return Swal.fire(window.t('ipd.noVipWard'), window.t('ipd.noVipWardText'), 'warning');
@@ -10972,7 +11021,11 @@ window.openIpdBedModal = async function (bedId) {
   if (!window.ipdWardBedState.rooms.length) return Swal.fire(window.t('ipd.createRoomFirst'), window.t('ipd.createRoomFirstText'), 'warning');
   const bed = bedId ? window.ipdBedById(bedId) : {};
   const isEdit = !!bedId;
-  const wardOptions = window.ipdWardBedState.wards.map(w => `<option value="${window.ipdEscape(w.Ward_ID)}" ${String(bed?.Ward_ID || '') === String(w.Ward_ID) ? 'selected' : ''}>${window.ipdEscape(w.Ward_Name || w.Ward_ID)}</option>`).join('');
+  const wardOptions = window.ipdWardBedState.wards.map(w => {
+    const vip = window.ipdIsVipWard(w);
+    const label = (vip ? '\u{1F451} ' : '') + (w.Ward_Name || w.Ward_ID) + (vip ? ' [VIP]' : '');
+    return `<option value="${window.ipdEscape(w.Ward_ID)}" data-vip="${vip ? '1' : '0'}" ${String(bed?.Ward_ID || '') === String(w.Ward_ID) ? 'selected' : ''}>${window.ipdEscape(label)}</option>`;
+  }).join('');
   const roomOptions = window.ipdWardBedState.rooms.map(r => `<option value="${window.ipdEscape(r.Room_ID)}" data-ward="${window.ipdEscape(r.Ward_ID)}" ${String(bed?.Room_ID || '') === String(r.Room_ID) ? 'selected' : ''}>${window.ipdEscape(r.Room_Number || r.Room_ID)}</option>`).join('');
   const result = await Swal.fire({
     title: isEdit ? window.t('ipd.editBed') : window.t('ipd.addBed'),
@@ -10987,6 +11040,11 @@ window.openIpdBedModal = async function (bedId) {
       <div class="full"><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.notes'))}</label><textarea class="form-control" id="ipdBedNotes" rows="2">${window.ipdEscape(bed?.Notes || '')}</textarea></div>
     </div>`,
     didOpen: () => {
+      const $popup = $(Swal.getPopup());
+      const applyVipAccent = () => {
+        const isVip = String($('#ipdBedWard option:selected').data('vip')) === '1';
+        $popup.toggleClass('ipd-vip-modal', isVip);
+      };
       const filterRooms = () => {
         const wardValue = $('#ipdBedWard').val();
         $('#ipdBedRoom option').each(function () {
@@ -10998,8 +11056,9 @@ window.openIpdBedModal = async function (bedId) {
           $('#ipdBedRoom option').filter(function () { return String($(this).data('ward')) === String(wardValue); }).first().prop('selected', true);
         }
       };
-      $('#ipdBedWard').on('change', filterRooms);
+      $('#ipdBedWard').on('change', () => { filterRooms(); applyVipAccent(); });
       filterRooms();
+      applyVipAccent();
     },
     showCancelButton: true,
     confirmButtonText: window.t('common.save'),

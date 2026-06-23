@@ -6667,6 +6667,13 @@ small,
   padding-top: 0 !important;
 }
 
+#view-ipd_config .tab-content > .tab-pane:not(.active) {
+  display: none !important;
+}
+#view-ipd_config .tab-content > .tab-pane.active {
+  display: block !important;
+}
+
 #view-ipd_ward_bed .ipd-ward-group {
   margin-bottom: 14px;
   border: 1px solid #dbe7ef;
