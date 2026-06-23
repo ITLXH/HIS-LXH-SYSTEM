@@ -32,6 +32,12 @@
       </div>
     </div>
   </div>
+  <div class="obs-kpi-grid dashboard-ops-grid mb-3">
+    <article class="obs-kpi obs-kpi-opd dashboard-nav-card" role="button" tabindex="0" onclick="window.loadView('opd_queue')"><span data-i18n="obs.opdToday">OPD Today</span><strong id="dashOpdToday">0</strong></article>
+    <article class="obs-kpi obs-kpi-active dashboard-nav-card" role="button" tabindex="0" onclick="window.loadView('opd_observation')"><span data-i18n="obs.observationPatients">Observation Patients</span><strong id="dashObservationPatients">0</strong></article>
+    <article class="obs-kpi obs-kpi-ipd dashboard-nav-card" role="button" tabindex="0" onclick="window.loadView('ipd_inpatient_list')"><span data-i18n="obs.activeIpd">Active IPD</span><strong id="dashActiveIpd">0</strong></article>
+    <article class="obs-kpi obs-kpi-bed dashboard-nav-card" role="button" tabindex="0" onclick="window.loadView('ipd_ward_bed')"><span data-i18n="obs.bedOccupancy">Bed Occupancy</span><strong id="dashBedOccupancy">0%</strong></article>
+  </div>
   <div id="dashboardPrintArea" class="dashboard-a4-sheet">
     <section class="dashboard-report-page dashboard-report-page--spread">
       <div class="dashboard-kpi-grid dashboard-kpi-grid--spread">

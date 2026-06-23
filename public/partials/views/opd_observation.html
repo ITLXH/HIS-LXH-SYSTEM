@@ -1,0 +1,66 @@
+<div id="view-opd_observation" class="ipd-workspace" style="display:none;">
+  <div class="ipd-page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="d-flex align-items-center flex-wrap gap-2">
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-procedures text-primary me-2"></i><span data-i18n="obs.title">OPD Follow-up / Observation</span></h3>
+      <div class="ipd-status-pills">
+        <span class="ipd-pill"><i class="fas fa-bed"></i> <span data-i18n="ipd.totalBeds">Total Beds</span>: <strong id="obsTotalBeds">0</strong></span>
+        <span class="ipd-pill is-occupied"><i class="fas fa-procedures"></i> <span data-i18n="ipd.occupied">Occupied</span>: <strong id="obsOccupiedBeds">0</strong></span>
+        <span class="ipd-pill is-available"><i class="fas fa-check-circle"></i> <span data-i18n="ipd.available">Available</span>: <strong id="obsAvailableBeds">0</strong></span>
+        <span class="ipd-pill is-reserved"><i class="fas fa-bookmark"></i> <span data-i18n="ipd.reserved">Reserved</span>: <strong id="obsReservedBeds">0</strong></span>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center bg-white border rounded px-2 py-1 shadow-sm">
+        <i class="far fa-calendar-alt text-info me-2"></i>
+        <input type="date" id="obsStartDate" class="form-control form-control-sm border-0 p-0" style="width:115px;">
+        <span class="mx-2 text-muted">-</span>
+        <input type="date" id="obsEndDate" class="form-control form-control-sm border-0 p-0" style="width:115px;">
+      </div>
+      <button class="btn btn-info text-white fw-bold shadow-sm px-3" onclick="window.loadObservationPage()">
+        <i class="fas fa-search me-1"></i><span data-i18n="common.search">Search</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="obsBedBoard"></div>
+
+  <div class="card card-outline card-info shadow-sm mt-3">
+    <div class="card-body table-responsive p-0">
+      <table id="observationTable" class="table table-hover align-middle mb-0 w-100">
+        <thead class="bg-light">
+          <tr>
+            <th data-i18n="obs.observationNo">Observation No</th>
+            <th>HN</th>
+            <th data-i18n="ipd.patientName">Patient Name</th>
+            <th data-i18n="ipd.doctor">Doctor</th>
+            <th data-i18n="ipd.diagnosis">Diagnosis</th>
+            <th data-i18n="obs.startTime">Start Time</th>
+            <th data-i18n="obs.currentDuration">Current Duration</th>
+            <th data-i18n="ipd.status">Status</th>
+            <th class="text-center" data-i18n="common.action">Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="obs-detail-panel mt-3" id="observationDetailPanel" style="display:none;">
+    <div class="obs-detail-head">
+      <div>
+        <h5 id="obsDetailTitle" class="fw-bold mb-1"></h5>
+        <div id="obsDetailMeta" class="text-muted small"></div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-danger" onclick="window.closeObservationDetail()"><i class="fas fa-times"></i></button>
+        <button class="btn btn-sm btn-outline-primary btn-obs-note" onclick="window.openObservationNoteModal('VITAL_SIGN')"><i class="fas fa-heartbeat me-1"></i><span data-i18n="obs.addVital">Vital Sign</span></button>
+        <button class="btn btn-sm btn-outline-dark btn-obs-note" onclick="window.openObservationNoteModal('DOCTOR_NOTE')"><i class="fas fa-user-md me-1"></i><span data-i18n="obs.doctorNote">Doctor Note</span></button>
+        <button class="btn btn-sm btn-outline-success btn-obs-note" onclick="window.openObservationNoteModal('NURSING_NOTE')"><i class="fas fa-user-nurse me-1"></i><span data-i18n="obs.nursingNote">Nursing Note</span></button>
+        <button class="btn btn-sm btn-outline-warning btn-obs-convert" onclick="window.convertObservationToIpd(window.currentObservationId)"><i class="fas fa-bed me-1"></i><span data-i18n="obs.convertToIpd">Convert to IPD</span></button>
+        <button class="btn btn-sm btn-outline-secondary btn-obs-discharge" onclick="window.dischargeObservation(window.currentObservationId)"><i class="fas fa-sign-out-alt me-1"></i><span data-i18n="obs.discharge">Discharge</span></button>
+      </div>
+    </div>
+    <div id="obsSixHourAlert" class="alert alert-warning py-2 px-3 my-3" style="display:none;"></div>
+    <div id="observationTimeline" class="obs-timeline"></div>
+  </div>
+</div>

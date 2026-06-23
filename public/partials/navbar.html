@@ -12,37 +12,48 @@
       <i class="fas fa-chart-pie"></i><span data-i18n="nav.dashboard">Dashboard</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-report">
-      <i class="fas fa-file-invoice"></i><span>ລາຍງານ</span>
+      <i class="fas fa-stream"></i><span data-i18n="nav.report">ສະຖານະຄິວຄົນເຈັບ</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-visit_history">
       <i class="fas fa-history"></i><span>ປະຫວັດການກວດ</span>
     </a>
-    <a href="#" class="his-nav-link" id="nav-patients">
+    <a href="#" class="his-nav-link mnu-patients" id="nav-patients">
       <i class="fas fa-address-book"></i><span>ຄົນເຈັບ</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-triage">
       <i class="fas fa-heartbeat"></i><span>ຊັກປະຫວັດ</span>
     </a>
-    <a href="#" class="his-nav-link" id="nav-opd">
-      <i class="fas fa-user-md"></i><span>ຫ້ອງກວດ</span>
+    <a href="#" class="his-nav-link mnu-opd" id="nav-opd">
+      <i class="fas fa-user-md"></i><span data-i18n="nav.opd">ຫ້ອງກວດແພດ (OPD)</span>
     </a>
-    <a href="#" class="his-nav-link" id="nav-vaccines">
-      <i class="fas fa-syringe"></i><span>ວັກຊີນ</span>
-    </a>
-    <a href="#" class="his-nav-link" id="nav-appointments">
-      <i class="fas fa-calendar-check"></i><span>ນັດໝາຍ</span>
-    </a>
+
+    <!-- OPD Observation dropdown -->
+    <div class="his-dropdown mnu-opd_observation">
+      <a href="#" class="his-nav-link his-dropdown-toggle">
+        <i class="fas fa-procedures"></i><span data-i18n="nav.opdObservationManagement">ຄົນເຈັບນອນຕິດຕາມ OPD</span><i class="fas fa-chevron-down his-chevron"></i>
+      </a>
+      <div class="his-dropdown-menu">
+        <a href="#" class="his-dropdown-item" id="nav-opd_observation"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.opdObservationBeds">ບອດຕຽງ OPD ຕິດຕາມ</span></a>
+      </div>
+    </div>
 
     <!-- IPD dropdown -->
     <div class="his-dropdown mnu-ipd_ward_bed mnu-ipd_inpatient_list">
       <a href="#" class="his-nav-link his-dropdown-toggle">
-        <i class="fas fa-procedures"></i><span data-i18n="nav.ipdManagement">IPD Management</span><i class="fas fa-chevron-down his-chevron"></i>
+        <i class="fas fa-hospital-user"></i><span data-i18n="nav.ipdManagement">ຄົນເຈັບນອນ IPD</span><i class="fas fa-chevron-down his-chevron"></i>
       </a>
       <div class="his-dropdown-menu">
-        <a href="#" class="his-dropdown-item" id="nav-ipd_ward_bed"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.wardBedManagement">Ward / Bed Management</span></a>
-        <a href="#" class="his-dropdown-item" id="nav-ipd_inpatient_list"><i class="fas fa-clipboard-list me-2 text-info"></i><span data-i18n="nav.inpatientList">Inpatient List</span></a>
+        <a href="#" class="his-dropdown-item" id="nav-ipd_ward_bed"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.bedManagement">ຈັດການຕຽງ</span></a>
+        <a href="#" class="his-dropdown-item" id="nav-ipd_inpatient_list"><i class="fas fa-clipboard-list me-2 text-info"></i><span data-i18n="nav.ipdInpatients">ລາຍຊື່ IPD</span></a>
       </div>
     </div>
+
+    <a href="#" class="his-nav-link" id="nav-vaccines">
+      <i class="fas fa-syringe"></i><span data-i18n="nav.vaccines">ວັກຊີນ</span>
+    </a>
+    <a href="#" class="his-nav-link" id="nav-appointments">
+      <i class="fas fa-calendar-check"></i><span data-i18n="nav.appointments">ນັດໝາຍ</span>
+    </a>
 
     <!-- Admin dropdown -->
     <div class="his-dropdown mnu-settings mnu-services mnu-drugs mnu-labs mnu-vaccine_master mnu-locations mnu-orgs mnu-users mnu-ipd_config">
@@ -82,7 +93,7 @@
         <div class="his-dropdown-header" id="bell-header">ບໍ່ມີການແຈ້ງເຕືອນ</div>
         <div id="bell-list" style="max-height:260px;overflow-y:auto;"></div>
         <div class="his-dropdown-footer">
-          <a href="#" id="nav-appointments">ເບິ່ງການນັດໝາຍທັງໝົດ</a>
+          <a href="#" class="his-dropdown-item" id="nav-appointments_alert" data-view="appointments" data-route="/appointments">ເບິ່ງການນັດໝາຍທັງໝົດ</a>
         </div>
       </div>
     </div>

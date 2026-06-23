@@ -1,8 +1,8 @@
 <div id="view-report" style="display:none;">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 pb-2" style="border-bottom:2px solid var(--border-color);">
     <div>
-      <h4 class="fw-bold m-0 text-dark"><i class="fas fa-file-invoice text-primary me-2"></i>ລາຍງານສະຫຼຸບ (Summary Report)</h4>
-      <p class="text-muted mb-0 mt-0" style="font-size:11px;">ສະຫຼຸບຂໍ້ມູນຜູ້ໃຊ້ບໍລິການ — ສະແດງທຸກຄົນທີ່ຜ່ານລະບົບຕາມວັນທີ</p>
+      <h4 class="fw-bold m-0 text-dark"><i class="fas fa-stream text-primary me-2"></i>ສະຖານະຄິວຄົນເຈັບ (Patient Queue Status)</h4>
+      <p class="text-muted mb-0 mt-0" style="font-size:11px;">ຕິດຕາມສະຖານະຄົນເຈັບໃນແຕ່ລະຂັ້ນຕອນຂອງລະບົບ — ລົງທະບຽນ → ຊັກປະຫວັດ → ກວດ → ປິດຈົບ</p>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center bg-white p-2 rounded shadow-sm border">
       <span class="text-muted" style="font-size:11px;" id="repRefreshTime">ອັບເດດ: -</span>
@@ -53,6 +53,13 @@
       <div>
         <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;line-height:1.1;">ຍັງບໍ່ໄດ້ຊັກປະຫວັດ</div>
         <div class="fw-bold" style="font-size:24px;line-height:1.2;color:#6366f1;" id="repNoVisit">0</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3 px-4 py-3 rounded shadow-sm bg-white border flex-fill" style="border-left:4px solid #14b8a6!important;min-width:220px;">
+      <i class="fas fa-notes-medical" style="font-size:22px;color:#0f766e;"></i>
+      <div>
+        <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;line-height:1.1;">OPD Observation</div>
+        <div class="fw-bold" style="font-size:24px;line-height:1.2;color:#0f766e;" id="repObservation">0</div>
       </div>
     </div>
   </div>

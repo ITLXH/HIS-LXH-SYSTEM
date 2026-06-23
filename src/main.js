@@ -133,15 +133,15 @@ const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 window.appTranslations = {
   lo: {
     'nav.dashboard': 'ແຜງຄວບຄຸມ',
-    'nav.report': 'ລາຍງານ',
+    'nav.report': 'ສະຖານະຄິວຄົນເຈັບ',
     'nav.visitHistory': 'ປະຫວັດການກວດ',
     'nav.patients': 'ຄົນເຈັບ',
     'nav.triage': 'ຊັກປະຫວັດ',
-    'nav.opd': 'ຫ້ອງກວດ',
+    'nav.opd': 'ຫ້ອງກວດແພດ (OPD)',
     'nav.vaccines': 'ວັກຊີນ',
     'nav.appointments': 'ນັດໝາຍ',
     'nav.settings': 'ຕັ້ງຄ່າ',
-    'nav.ipdManagement': 'ຈັດການ IPD',
+    'nav.ipdManagement': 'ຄົນເຈັບນອນ IPD',
     'nav.ipdDashboard': 'ແຜງຄວບຄຸມ IPD',
     'nav.admitPatient': 'ຮັບຄົນເຈັບນອນ',
     'nav.wardBedManagement': 'ຈັດການຫວອດ / ຕຽງ',
@@ -204,7 +204,7 @@ window.appTranslations = {
     'ipd.editWard': 'ແກ້ໄຂຫວອດ',
     'ipd.wardType': 'ປະເພດຫວອດ',
     'ipd.description': 'ລາຍລະອຽດ',
-    'ipd.wardRequired': 'ກະລຸນາປ້ອນລະຫັດຫວອດ ແລະ ຊື່ຫວອດ.',
+    'ipd.wardRequired': 'ກະລຸນາປ້ອນຊື່ຫວອດ.',
     'ipd.wardSaved': 'ບັນທຶກຂໍ້ມູນຫວອດແລ້ວ.',
     'ipd.createWardFirst': 'ກະລຸນາເພີ່ມຫວອດກ່ອນ',
     'ipd.createWardFirstText': 'ຕ້ອງມີຫວອດກ່ອນຈຶ່ງຈະເພີ່ມຫ້ອງໄດ້.',
@@ -212,14 +212,15 @@ window.appTranslations = {
     'ipd.roomNumber': 'ເລກຫ້ອງ',
     'ipd.roomType': 'ປະເພດຫ້ອງ',
     'ipd.chargePerDay': 'ຄ່າຫ້ອງ / ມື້',
-    'ipd.roomRequired': 'ກະລຸນາປ້ອນລະຫັດຫ້ອງ ແລະ ເລກຫ້ອງ.',
+    'ipd.roomRequired': 'ກະລຸນາປ້ອນເລກຫ້ອງ.',
     'ipd.roomSaved': 'ບັນທຶກຂໍ້ມູນຫ້ອງແລ້ວ.',
     'ipd.createRoomFirst': 'ກະລຸນາເພີ່ມຫ້ອງກ່ອນ',
     'ipd.createRoomFirstText': 'ຕ້ອງມີຫ້ອງກ່ອນຈຶ່ງຈະເພີ່ມຕຽງໄດ້.',
     'ipd.editBed': 'ແກ້ໄຂຕຽງ',
     'ipd.bedNumber': 'ເລກຕຽງ',
     'ipd.notes': 'ໝາຍເຫດ',
-    'ipd.bedRequired': 'ກະລຸນາປ້ອນລະຫັດຕຽງ ແລະ ເລກຕຽງ.',
+    'ipd.bedRequired': 'ກະລຸນາປ້ອນເລກຕຽງ.',
+    'ipd.bedNumberRequired': 'ກະລຸນາປ້ອນເລກຕຽງ.',
     'ipd.bedDuplicate': 'ເລກຕຽງຕ້ອງບໍ່ຊ້ຳກັນໃນຫ້ອງດຽວກັນ.',
     'ipd.bedSaved': 'ບັນທຶກຂໍ້ມູນຕຽງແລ້ວ.',
     'ipd.assign': 'ຈັດຕຽງ',
@@ -296,15 +297,15 @@ window.appTranslations = {
   },
   en: {
     'nav.dashboard': 'Dashboard',
-    'nav.report': 'Reports',
+    'nav.report': 'Patient Queue Status',
     'nav.visitHistory': 'Visit History',
     'nav.patients': 'Patients',
     'nav.triage': 'Triage',
-    'nav.opd': 'OPD',
+    'nav.opd': 'Doctor Room (OPD)',
     'nav.vaccines': 'Vaccines',
     'nav.appointments': 'Appointments',
     'nav.settings': 'Settings',
-    'nav.ipdManagement': 'IPD Management',
+    'nav.ipdManagement': 'Inpatients (IPD)',
     'nav.ipdDashboard': 'IPD Dashboard',
     'nav.admitPatient': 'Admit Patient',
     'nav.wardBedManagement': 'Ward / Bed Management',
@@ -372,7 +373,7 @@ window.appTranslations = {
     'ipd.editWard': 'Edit Ward',
     'ipd.wardType': 'Ward Type',
     'ipd.description': 'Description',
-    'ipd.wardRequired': 'Ward ID and Ward Name are required.',
+    'ipd.wardRequired': 'Ward Name is required.',
     'ipd.wardSaved': 'Ward has been saved.',
     'ipd.createWardFirst': 'Create ward first',
     'ipd.createWardFirstText': 'Please create a ward before adding rooms.',
@@ -380,14 +381,15 @@ window.appTranslations = {
     'ipd.roomNumber': 'Room Number',
     'ipd.roomType': 'Room Type',
     'ipd.chargePerDay': 'Charge / Day',
-    'ipd.roomRequired': 'Room ID and Room Number are required.',
+    'ipd.roomRequired': 'Room Number is required.',
     'ipd.roomSaved': 'Room has been saved.',
     'ipd.createRoomFirst': 'Create room first',
     'ipd.createRoomFirstText': 'Please create a room before adding beds.',
     'ipd.editBed': 'Edit Bed',
     'ipd.bedNumber': 'Bed Number',
     'ipd.notes': 'Notes',
-    'ipd.bedRequired': 'Bed ID and Bed Number are required.',
+    'ipd.bedRequired': 'Bed Number is required.',
+    'ipd.bedNumberRequired': 'Bed Number is required.',
     'ipd.bedDuplicate': 'Bed number must be unique within the same room.',
     'ipd.bedSaved': 'Bed has been saved.',
     'ipd.assign': 'Assign',
@@ -1226,6 +1228,104 @@ Object.assign(window.appTranslations.lo, {
   'ipd.patientMustBeRegistered': 'ກະລຸນາເລືອກ HN ຄົນເຈັບຈາກລາຍຊື່ລົງທະບຽນ.'
 });
 
+Object.assign(window.appTranslations.lo, {
+  'nav.patientManagement': 'ຈັດການຄົນເຈັບ',
+  'nav.opdGroup': 'ຄົນເຈັບນອກ (OPD)',
+  'nav.opdQueue': 'ຄິວ OPD',
+  'nav.opdConsultation': 'ກວດຄົນເຈັບ',
+  'nav.opdObservation': 'ຕິດຕາມ OPD',
+  'nav.opdObservationManagement': 'ຄົນເຈັບນອນຕິດຕາມ OPD',
+  'nav.opdObservationBeds': 'ບອດຕຽງ OPD ຕິດຕາມ',
+  'nav.patientList': 'ລາຍຊື່ຄົນເຈັບ',
+  'nav.ipdGroup': 'ຄົນເຈັບໃນ (IPD)',
+  'nav.ipdDashboardShort': 'Dashboard',
+  'nav.ipdAdmission': 'ຮັບເຂົ້ານອນ',
+  'nav.bedManagement': 'ຈັດການຕຽງ',
+  'nav.ipdInpatients': 'ລາຍຊື່ IPD',
+  'nav.ipdDischarge': 'ຈຳໜ່າຍອອກ',
+  'obs.title': 'ຄົນເຈັບນອນຕິດຕາມ OPD',
+  'obs.subtitle': 'ຄົນເຈັບນອນຕິດຕາມໄລຍະສັ້ນໃນ OPD ໂດຍບໍ່ນັບເປັນ IPD',
+  'obs.opdToday': 'OPD ມື້ນີ້',
+  'obs.observationPatients': 'ກຳລັງຕິດຕາມ',
+  'obs.activeIpd': 'IPD Active',
+  'obs.bedOccupancy': 'ອັດຕາຄອງຕຽງ',
+  'obs.admissionsToday': 'ຮັບນອນມື້ນີ້',
+  'obs.dischargesToday': 'ອອກໂຮງໝໍມື້ນີ້',
+  'obs.observationNo': 'ເລກ Observation',
+  'obs.startTime': 'ເວລາເລີ່ມ',
+  'obs.currentDuration': 'ໄລຍະເວລາ',
+  'obs.openObservation': 'ເປີດ Observation',
+  'obs.convertToIpd': 'ປ່ຽນເປັນ IPD',
+  'obs.discharge': 'ຈຳໜ່າຍ',
+  'obs.addVital': 'ສັນຍານຊີບ',
+  'obs.doctorNote': 'ບັນທຶກແພດ',
+  'obs.nursingNote': 'ບັນທຶກພະຍາບານ',
+  'obs.medication': 'ຢາ',
+  'obs.procedure': 'ຫັດຖະການ',
+  'obs.startObservation': 'Observation',
+  'obs.assignBed': 'ມອບຕຽງ OPD ສັງເກດ',
+  'obs.bedOptional': 'ຍັງບໍ່ມອບຕຽງ (ນັ່ງລໍ)',
+  'obs.noObsWardHint': 'ຍັງບໍ່ມີຫວອດປະເພດ "OPD_Observation". ໄປ ຕັ້ງຄ່າ → ຕັ້ງຄ່າ IPD → ເພີ່ມຫວອດ ແລ້ວເລືອກ Type = "OPD_Observation".',
+  'obs.bedBoardTitle': 'ຈັດການຕຽງ OPD ຕິດຕາມ',
+  'obs.bedBoardSubtitle': 'ຫວອດປະເພດ OPD_Observation · ມອບຕຽງ ແລະ ດູການໃຊ້ງານ',
+  'obs.noBedAssigned': 'ບໍ່ໄດ້ມອບຕຽງ',
+  'obs.sixHourAlert': 'Observation ເກີນ 6 ຊົ່ວໂມງ. ກະລຸນາພິຈາລະນາຮັບນອນ IPD.',
+  'obs.noData': 'ບໍ່ມີລາຍການ Observation',
+  'obs.createTitle': 'ສ້າງ OPD Follow-up / Observation',
+  'obs.saved': 'ບັນທຶກ Observation ແລ້ວ',
+  'obs.converted': 'ສ້າງ IPD admission ແລ້ວ. ກະລຸນາຈັດຕຽງຕໍ່.',
+  'obs.discharged': 'ຈຳໜ່າຍຈາກ Observation ແລ້ວ'
+});
+
+Object.assign(window.appTranslations.en, {
+  'nav.patientManagement': 'Patient Management',
+  'nav.opdGroup': 'Outpatients (OPD)',
+  'nav.opdQueue': 'OPD Queue',
+  'nav.opdConsultation': 'Patient Consultation',
+  'nav.opdObservation': 'OPD Follow-up',
+  'nav.opdObservationManagement': 'OPD Observation Patients',
+  'nav.opdObservationBeds': 'OPD Observation Bed Board',
+  'nav.patientList': 'Patient List',
+  'nav.ipdGroup': 'Inpatients (IPD)',
+  'nav.ipdDashboardShort': 'Dashboard',
+  'nav.ipdAdmission': 'Admission',
+  'nav.bedManagement': 'Bed Management',
+  'nav.ipdInpatients': 'IPD List',
+  'nav.ipdDischarge': 'Discharge',
+  'obs.title': 'OPD Observation Patients',
+  'obs.subtitle': 'Short-stay OPD observation patients, not counted as IPD',
+  'obs.opdToday': 'OPD Today',
+  'obs.observationPatients': 'Observation Patients',
+  'obs.activeIpd': 'Active IPD',
+  'obs.bedOccupancy': 'Bed Occupancy',
+  'obs.admissionsToday': 'Admissions Today',
+  'obs.dischargesToday': 'Discharges Today',
+  'obs.observationNo': 'Observation No',
+  'obs.startTime': 'Start Time',
+  'obs.currentDuration': 'Current Duration',
+  'obs.openObservation': 'Open Observation',
+  'obs.convertToIpd': 'Convert to IPD',
+  'obs.discharge': 'Discharge',
+  'obs.addVital': 'Vital Sign',
+  'obs.doctorNote': 'Doctor Note',
+  'obs.nursingNote': 'Nursing Note',
+  'obs.medication': 'Medication',
+  'obs.procedure': 'Procedure',
+  'obs.startObservation': 'Observation',
+  'obs.assignBed': 'Assign OPD Observation Bed',
+  'obs.bedOptional': 'No bed yet (waiting area)',
+  'obs.noObsWardHint': 'No ward with Type = "OPD_Observation" exists yet. Go to Settings → IPD Config → add a ward and set Type = "OPD_Observation".',
+  'obs.bedBoardTitle': 'OPD Observation Bed Management',
+  'obs.bedBoardSubtitle': 'Wards of type OPD_Observation · assign beds and view utilization',
+  'obs.noBedAssigned': 'No bed assigned',
+  'obs.sixHourAlert': 'Observation exceeds 6 hours. Consider IPD Admission.',
+  'obs.noData': 'No observation records',
+  'obs.createTitle': 'Create OPD Follow-up / Observation',
+  'obs.saved': 'Observation saved',
+  'obs.converted': 'IPD admission has been created. Please assign a bed next.',
+  'obs.discharged': 'Observation discharged'
+});
+
 Object.assign(window.appTranslations.en, {
   'datatable.search': 'Search:',
   'datatable.lengthMenu': 'Show _MENU_',
@@ -1707,7 +1807,11 @@ window.refreshCurrentViewLocalization = function () {
     return;
   }
 
-  if (typeof window.loadView === 'function') window.loadView(visibleView);
+  if (typeof window.loadView === 'function') {
+    const route = window.parseProtectedRoute?.(window.location.pathname);
+    if (route?.view === visibleView) window.loadView(route.routeKey || visibleView, { ...route, replace: true });
+    else window.loadView(visibleView, { replace: true });
+  }
 };
 
 window.ipdTranslateValue = function (value) {
@@ -1743,9 +1847,16 @@ window.applyAppLanguage = function () {
   const navTextMap = {
     'nav-report': 'nav.report',
     'nav-visit_history': 'nav.visitHistory',
-    'nav-patients': 'nav.patients',
+    'nav-patients': 'nav.patientList',
     'nav-triage': 'nav.triage',
-    'nav-opd': 'nav.opd',
+    'nav-opd_queue': 'nav.opdQueue',
+    'nav-opd_consultation': 'nav.opdConsultation',
+    'nav-opd_observation': 'nav.opdObservationBeds',
+    'nav-ipd_dashboard': 'nav.ipdDashboardShort',
+    'nav-ipd_admission': 'nav.ipdAdmission',
+    'nav-ipd_ward_bed': 'nav.bedManagement',
+    'nav-ipd_inpatient_list': 'nav.ipdInpatients',
+    'nav-ipd_discharge': 'nav.ipdDischarge',
     'nav-vaccines': 'nav.vaccines',
     'nav-appointments': 'nav.appointments'
   };
@@ -1756,6 +1867,8 @@ window.applyAppLanguage = function () {
 };
 
 window.refreshVisibleIpdLocalization = function () {
+  const route = window.parseProtectedRoute?.(window.location.pathname);
+  if (route?.view) window.applyHisRouteModeLabels?.(route);
   if ($('#view-ipd_ward_bed:visible').length && typeof window.applyIpdWardBedFilters === 'function') {
     window.applyIpdWardBedFilters();
   }
@@ -1775,10 +1888,131 @@ window.refreshVisibleIpdLocalization = function () {
 
 const APP_INTENDED_ROUTE_KEY = 'hisIntendedRoute';
 
+window.HIS_NAV_ROUTES = {
+  dashboard: { view: 'dashboard', navId: 'dashboard', path: '/dashboard' },
+  report: { view: 'report', navId: 'report', path: '/report' },
+  visit_history: { view: 'visit_history', navId: 'visit_history', path: '/visit_history' },
+  triage: { view: 'triage', navId: 'triage', path: '/triage' },
+  vaccines: { view: 'vaccines', navId: 'vaccines', path: '/vaccines' },
+  appointments: { view: 'appointments', navId: 'appointments', path: '/appointments' },
+  opd_queue: { view: 'opd', navId: 'opd_queue', path: '/opd/queue' },
+  opd_consultation: { view: 'opd', navId: 'opd_consultation', path: '/opd/consultation' },
+  opd_observation: { view: 'opd_observation', navId: 'opd_observation', path: '/opd/observation' },
+  patients: { view: 'patients', navId: 'patients', path: '/patients' },
+  ipd_dashboard: { view: 'ipd_ward_bed', navId: 'ipd_dashboard', path: '/ipd/dashboard', mode: 'ipd_dashboard' },
+  ipd_admission: { view: 'ipd_ward_bed', navId: 'ipd_admission', path: '/ipd/admission', mode: 'ipd_admission' },
+  ipd_ward_bed: { view: 'ipd_ward_bed', navId: 'ipd_ward_bed', path: '/ipd/bed-management', mode: 'ipd_bed_management' },
+  ipd_inpatient_list: { view: 'ipd_inpatient_list', navId: 'ipd_inpatient_list', path: '/ipd/inpatients', mode: 'ipd_inpatients' },
+  ipd_discharge: { view: 'ipd_inpatient_list', navId: 'ipd_discharge', path: '/ipd/discharge', mode: 'ipd_discharge' },
+  ipd_config: { view: 'ipd_config', navId: 'ipd_config', path: '/ipd_config' },
+  settings: { view: 'settings', navId: 'settings', path: '/settings' },
+  orgs: { view: 'orgs', navId: 'orgs', path: '/orgs' },
+  users: { view: 'users', navId: 'users', path: '/users' },
+  services: { view: 'services', navId: 'services', path: '/services' },
+  locations: { view: 'locations', navId: 'locations', path: '/locations' },
+  drugs: { view: 'drugs', navId: 'drugs', path: '/drugs' },
+  labs: { view: 'labs', navId: 'labs', path: '/labs' },
+  vaccine_master: { view: 'vaccine_master', navId: 'vaccine_master', path: '/vaccine_master' },
+  activity_log: { view: 'activity_log', navId: 'activity_log', path: '/activity_log' },
+  backup: { view: 'backup', navId: 'backup', path: '/backup' },
+  'public-queue': { view: 'public-queue', navId: 'public-queue', path: '/public-queue' }
+};
+
+window.HIS_PATH_ROUTES = {
+  '/dashboard': 'dashboard',
+  '/report': 'report',
+  '/visit_history': 'visit_history',
+  '/triage': 'triage',
+  '/vaccines': 'vaccines',
+  '/appointments': 'appointments',
+  '/patients': 'patients',
+  '/opd': 'opd_queue',
+  '/opd/queue': 'opd_queue',
+  '/opd/consultation': 'opd_consultation',
+  '/opd/observation': 'opd_observation',
+  '/opd_observation': 'opd_observation',
+  '/ipd/dashboard': 'ipd_dashboard',
+  '/ipd/admission': 'ipd_admission',
+  '/ipd/bed-management': 'ipd_ward_bed',
+  '/ipd/inpatients': 'ipd_inpatient_list',
+  '/ipd/discharge': 'ipd_discharge',
+  '/ipd_ward_bed': 'ipd_ward_bed',
+  '/ipd_inpatient_list': 'ipd_inpatient_list',
+  '/ipd_config': 'ipd_config',
+  '/settings': 'settings',
+  '/orgs': 'orgs',
+  '/users': 'users',
+  '/services': 'services',
+  '/locations': 'locations',
+  '/drugs': 'drugs',
+  '/labs': 'labs',
+  '/vaccine_master': 'vaccine_master',
+  '/activity_log': 'activity_log',
+  '/backup': 'backup',
+  '/public-queue': 'public-queue'
+};
+
+window.HIS_VIEW_DEFAULT_ROUTE = {
+  opd: 'opd_queue',
+  opd_observation: 'opd_observation',
+  patients: 'patients',
+  ipd_ward_bed: 'ipd_ward_bed',
+  ipd_inpatient_list: 'ipd_inpatient_list'
+};
+
+window.resolveHisRouteTarget = function (viewOrRoute, options = {}) {
+  const requested = String(viewOrRoute || 'dashboard');
+  const routeKey = window.HIS_NAV_ROUTES[requested]
+    ? requested
+    : (window.HIS_VIEW_DEFAULT_ROUTE[requested] || requested);
+  const route = window.HIS_NAV_ROUTES[routeKey] || { view: requested, navId: requested, path: `/${requested}` };
+  return {
+    ...route,
+    routeKey,
+    view: options.view || route.view || requested,
+    navId: options.navId || route.navId || routeKey,
+    path: options.path || route.path || `/${route.view || requested}`,
+    mode: options.mode || route.mode || null
+  };
+};
+
+window.updateHisBrowserRoute = function (target, options = {}) {
+  if (options.updateUrl === false || !target?.path || !window.history) return;
+  const currentPath = window.location.pathname;
+  const nextPath = target.path;
+  const state = { view: target.view, routeKey: target.routeKey, mode: target.mode || null };
+  if (target.view === 'ipd_chart') return;
+  if (options.replace || currentPath === nextPath) window.history.replaceState(state, '', nextPath);
+  else window.history.pushState(state, '', nextPath);
+};
+
+window.applyHisRouteModeLabels = function (target) {
+  if (!target) return;
+  if (target.view === 'ipd_ward_bed') {
+    const key = target.mode === 'ipd_dashboard'
+      ? 'nav.ipdDashboardShort'
+      : (target.mode === 'ipd_admission' ? 'nav.ipdAdmission' : 'nav.bedManagement');
+    $('#view-ipd_ward_bed [data-i18n="ipd.title"]').text(window.t(key));
+  }
+  if (target.view === 'ipd_inpatient_list') {
+    const key = target.mode === 'ipd_discharge' ? 'nav.ipdDischarge' : 'nav.ipdInpatients';
+    $('#view-ipd_inpatient_list [data-i18n="nav.inpatientList"]').text(window.t(key));
+  }
+};
+
 window.parseProtectedRoute = function (pathname = window.location.pathname) {
   const ipdChartPathMatch = pathname.match(/^\/ipd\/chart\/([^/]+)\/?$/) || pathname.match(/^\/ipd\/admissions\/([^/]+)\/chart\/?$/);
   if (ipdChartPathMatch) {
     return { view: 'ipd_chart', admissionId: decodeURIComponent(ipdChartPathMatch[1]), path: `/ipd/chart/${encodeURIComponent(decodeURIComponent(ipdChartPathMatch[1]))}` };
+  }
+  const normalized = (`/${String(pathname || '').replace(/^\/+/, '')}`).replace(/\/+$/, '') || '/dashboard';
+  const routeKey = window.HIS_PATH_ROUTES[normalized] || window.HIS_PATH_ROUTES[decodeURIComponent(normalized)];
+  if (routeKey) {
+    const target = window.resolveHisRouteTarget(routeKey);
+    return {
+      ...target,
+      redirectPath: normalized !== target.path ? target.path : null
+    };
   }
   return null;
 };
@@ -2267,7 +2501,7 @@ window.decorateDataTableUi = function (tableNode) {
 // ==========================================
 async function loadPartials() {
   const views = [
-    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd',
+    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_observation',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
     'labs', 'services', 'locations', 'users', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
@@ -2490,9 +2724,17 @@ $(document).ready(async function () {
     let id = $(this).attr('id');
     if (id && id.startsWith('nav-')) {
       e.preventDefault();
-      let view = id.replace('nav-', '');
-      window.loadView(view);
+      let routeKey = id.replace('nav-', '');
+      let view = $(this).attr('data-view') || routeKey;
+      if (!window.HIS_NAV_ROUTES?.[routeKey] && window.HIS_NAV_ROUTES?.[view]) routeKey = view;
+      let route = $(this).attr('data-route') || null;
+      window.loadView(routeKey, { view, path: route || undefined });
     }
+  });
+
+  window.addEventListener('popstate', function () {
+    const route = window.parseProtectedRoute(window.location.pathname);
+    if (route?.view) window.loadView(route.routeKey || route.view, { ...route, updateUrl: false });
   });
 
   $('#triageForm input[name="v_bp"]').on('input', function () {
@@ -2652,6 +2894,7 @@ window.handleServiceSelectionChange = function () {
 
 window.logout = async function () {
   window.toggleLoading(true);
+  if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   await supabaseClient.auth.signOut();
   window.logAction('Logout', 'ອອກຈາກລະບົບ', 'Auth');
   currentUser = null;
@@ -2673,6 +2916,32 @@ window.toggleLoading = function (s) {
 
 window.getLocalStr = function (dObj) {
   return dObj.getFullYear() + '-' + String(dObj.getMonth() + 1).padStart(2, '0') + '-' + String(dObj.getDate()).padStart(2, '0');
+};
+
+window.getLocalDateKey = function (value) {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return raw.slice(0, 10);
+  return window.getLocalStr(d);
+};
+
+window.getLocalDayIsoBounds = function (dateValue) {
+  const key = dateValue || window.getLocalStr(new Date());
+  const parts = String(key).slice(0, 10).split('-').map(Number);
+  const y = parts[0] || new Date().getFullYear();
+  const m = parts[1] || (new Date().getMonth() + 1);
+  const d = parts[2] || new Date().getDate();
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+};
+
+window.getLocalDateRangeIsoBounds = function (startDate, endDate) {
+  const start = window.getLocalDayIsoBounds(startDate);
+  const end = window.getLocalDayIsoBounds(endDate || startDate);
+  return { startIso: start.startIso, endIso: end.endIso };
 };
 
 window.normalizeBooleanSetting = function (value) {
@@ -2761,7 +3030,7 @@ window.getPostLoginView = function (perms) {
     localStorage.removeItem('his_last_selected_module');
   }
   if (allowedDashboard) return 'dashboard';
-  return ['patients', 'triage', 'opd', 'ipd_ward_bed'].find(view => window.canUserAccessView(view, perms)) || 'dashboard';
+  return ['patients', 'triage', 'opd', 'opd_observation', 'ipd_ward_bed'].find(view => window.canUserAccessView(view, perms)) || 'dashboard';
 };
 
 window.initApp = async function () {
@@ -2769,7 +3038,7 @@ window.initApp = async function () {
     $('#login-section').hide();
     $('#app-content').show();
     $('#sidebarUserName').text(currentUser.name);
-    $('.mnu-dashboard, .mnu-report, .mnu-patients, .mnu-triage, .mnu-opd, .mnu-orgs, .mnu-users, .mnu-settings, .mnu-services, .mnu-locations, .mnu-appointments, .mnu-vaccines, .mnu-vaccine_master, .mnu-drugs, .mnu-labs, .mnu-ipd_ward_bed, .mnu-ipd_inpatient_list, .mnu-ipd_config').hide();
+    $('.mnu-dashboard, .mnu-report, .mnu-patients, .mnu-triage, .mnu-opd, .mnu-opd_observation, .mnu-orgs, .mnu-users, .mnu-settings, .mnu-services, .mnu-locations, .mnu-appointments, .mnu-vaccines, .mnu-vaccine_master, .mnu-drugs, .mnu-labs, .mnu-ipd_ward_bed, .mnu-ipd_inpatient_list, .mnu-ipd_config').hide();
 
     let perms = (currentUser.permissions || "").split(',');
     if (currentUser.role === 'admin' || perms.includes('all')) {
@@ -2815,6 +3084,9 @@ window.initApp = async function () {
     // Seed Defaults in background (don't block login)
     window.seedMasterDefaults();
 
+    // Subscribe to OPD queue changes so doctors get notified on new arrivals
+    window.setupOpdQueueRealtime();
+
     // Fetch all other data in parallel
     await Promise.all([
       supabaseClient.from(dbTable('MasterData')).select('ID,Category,Value').order('Category').then(({ data, error }) => {
@@ -2836,19 +3108,7 @@ window.initApp = async function () {
         locationsDataStore.forEach(l => o += `<option value="${l.district}">${l.district}</option>`);
         if (typeof jQuery !== 'undefined') $('#p_district').html(o);
       }),
-      supabaseClient.from(dbTable('Organizations')).select('*').eq('Status', 'Active').then(({ data }) => {
-        let orgOptions = '<option value="">-- ເລືອກອົງກອນ --</option>';
-        let seenOpts = new Set();
-        (data || []).forEach(org => {
-          if (org.Org_Code && !seenOpts.has(org.Org_Code)) {
-            seenOpts.add(org.Org_Code);
-            orgOptions += `<option value="${org.Org_Code}">${org.Org_Code} - ${org.Org_Name}</option>`;
-          }
-        });
-        if (typeof jQuery !== 'undefined') {
-          $('#p_org_id').html(orgOptions).select2({ dropdownParent: $('#patientModal'), placeholder: "-- ເລືອກອົງກອນ --", allowClear: true });
-        }
-      }),
+      window.refreshPatientOrgDropdown(),
       new Promise((resolve) => { window.preloadDropdownDataCallback(resolve); })
     ]);
 
@@ -2870,19 +3130,27 @@ window.initApp = async function () {
     $('body').removeClass('auth-checking');
     
     const intendedRoute = window.consumeIntendedRoute();
-    if (systemSettings.rememberLastModule && intendedRoute?.view === 'ipd_chart' && intendedRoute.admissionId) {
-      window.ipdCurrentChartAdmissionId = intendedRoute.admissionId;
-      if (window.history?.replaceState) window.history.replaceState({ view: 'ipd_chart', admissionId: intendedRoute.admissionId }, '', intendedRoute.path || `/ipd/chart/${encodeURIComponent(intendedRoute.admissionId)}`);
+    const currentRoute = window.parseProtectedRoute(window.location.pathname);
+    const routeToOpen = intendedRoute || currentRoute;
+    if (routeToOpen?.view === 'ipd_chart' && routeToOpen.admissionId) {
+      window.ipdCurrentChartAdmissionId = routeToOpen.admissionId;
+      if (window.history?.replaceState) window.history.replaceState({ view: 'ipd_chart', admissionId: routeToOpen.admissionId }, '', routeToOpen.path || `/ipd/chart/${encodeURIComponent(routeToOpen.admissionId)}`);
       await window.fetchIpdWardBedData();
       window.prepareIpdUnfilteredState();
       window.loadView('ipd_chart');
       return;
     }
+    if (routeToOpen?.view) {
+      window.ipdCurrentChartAdmissionId = null;
+      window.loadView(routeToOpen.routeKey || routeToOpen.view, { ...routeToOpen, replace: true });
+      return;
+    }
 
     window.ipdCurrentChartAdmissionId = null;
     const postLoginView = window.getPostLoginView(perms);
-    if (window.history?.replaceState) window.history.replaceState({ view: postLoginView }, '', `/${postLoginView}`);
-    window.loadView(postLoginView);
+    const postLoginTarget = window.resolveHisRouteTarget(postLoginView);
+    if (window.history?.replaceState) window.history.replaceState({ view: postLoginTarget.view, routeKey: postLoginTarget.routeKey }, '', postLoginTarget.path);
+    window.loadView(postLoginView, { replace: true });
     
     $('body').on('click', '.btn-timeline', function() {
       let pid = $(this).attr('data-pid');
@@ -2897,10 +3165,13 @@ window.initApp = async function () {
   }
 };
 
-window.loadView = function (v) {
+window.loadView = function (v, options = {}) {
+  const routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
+  v = routeTarget.view;
   if (systemSettings.rememberLastModule && v && !['public-queue', 'ipd_chart'].includes(v)) {
     localStorage.setItem('his_last_selected_module', v);
   }
+  window.updateHisBrowserRoute?.(routeTarget, options);
   if (typeof bootstrap !== 'undefined') {
     $('.modal.show').each(function () {
       let bsModal = bootstrap.Modal.getInstance(this);
@@ -2913,7 +3184,8 @@ window.loadView = function (v) {
   // Handle Active States
   $('.nav-link, .his-nav-link, .his-dropdown-item, .his-dropdown-toggle').removeClass('active');
 
-  var navEl = $('#nav-' + v);
+  var navEl = $('#nav-' + routeTarget.navId);
+  if (!navEl.length) navEl = $('#nav-' + v);
   if (navEl.length) {
     navEl.addClass('active');
     let parentDropdown = navEl.closest('.his-dropdown');
@@ -2923,11 +3195,12 @@ window.loadView = function (v) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_observation', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
   });
+  window.applyHisRouteModeLabels?.(routeTarget);
 
   // Special handling for TV Display (Hide Navbars)
   if (v === 'public-queue') {
@@ -2964,12 +3237,29 @@ window.loadView = function (v) {
     }
     window.loadQueue();
   }
+  if (v === 'opd_observation') {
+    if (!$('#obsStartDate').val()) {
+      let today = new Date();
+      $('#obsStartDate').val(window.getLocalStr(today));
+      $('#obsEndDate').val(window.getLocalStr(today));
+    }
+    window.loadObservationPage();
+  }
   if (v === 'users') window.loadUsers();
   if (v === 'services') window.loadServicesMasterView();
   if (v === 'locations') window.loadLocationsMasterView();
   if (v === 'appointments') window.loadAppointments();
-  if (v === 'ipd_ward_bed') window.loadIpdWardBedManagement();
-  if (v === 'ipd_inpatient_list') window.loadIpdInpatientListPage();
+  if (v === 'ipd_ward_bed') {
+    window.loadIpdWardBedManagement();
+    if (routeTarget.mode === 'ipd_admission') {
+      setTimeout(() => { $('.btn-ipd-admit:visible').first().trigger('focus'); }, 250);
+    }
+  }
+  if (v === 'ipd_inpatient_list') {
+    if (routeTarget.mode === 'ipd_discharge') window.ipdInpatientFilter = 'discharged';
+    else if (routeTarget.mode === 'ipd_inpatients') window.ipdInpatientFilter = 'active';
+    window.loadIpdInpatientListPage();
+  }
   if (v === 'ipd_config') window.loadIpdConfigPage();
   if (v === 'ipd_chart' && window.ipdCurrentChartAdmissionId) window.loadIpdClinicalChart(window.ipdCurrentChartAdmissionId);
   if (v === 'vaccines') window.loadPatientVaccines();
@@ -3085,36 +3375,84 @@ window.executePrint = function (containerId) {
 };
 
 window.checkAlerts = async function () {
-  const today = new Date().toISOString().split('T')[0];
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + 14);
-  const futureDateStr = futureDate.toISOString().split('T')[0];
+  const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
+  const todayRange = window.getLocalDayIsoBounds(today);
   const { data: appts } = await supabaseClient
     .from(dbTable('Appointments'))
     .select('Appt_ID,Patient_Name,Appt_Date,Appt_Time,Type,Status')
     .eq('Status', 'Pending');
-  const alerts = [];
+  const appointmentAlerts = [];
   (appts || []).forEach(r => {
     if (!r.Appt_Date) return;
     const aDate = r.Appt_Date.split('T')[0];
     const diffDays = Math.round((new Date(aDate) - new Date(today)) / 86400000);
     if (diffDays < 0 || (diffDays >= 0 && diffDays <= 14)) {
-      alerts.push({ id: r.Appt_ID, patientName: r.Patient_Name, date: aDate, time: r.Appt_Time, type: r.Type, isOverdue: diffDays < 0, daysOut: diffDays });
+      appointmentAlerts.push({ id: r.Appt_ID, patientName: r.Patient_Name, date: aDate, time: r.Appt_Time, type: r.Type, isOverdue: diffDays < 0, daysOut: diffDays });
     }
   });
-  alerts.sort((a, b) => a.daysOut - b.daysOut);
+  appointmentAlerts.sort((a, b) => a.daysOut - b.daysOut);
+
+  const roomAlerts = [];
+  try {
+    const { data: opdRows, error: opdError } = await supabaseClient.from(dbTable('Visits'))
+      .select('Visit_ID,Patient_ID,Patient_Name,Department,Status,Date')
+      .eq('Status', 'Waiting OPD')
+      .gte('Date', todayRange.startIso)
+      .lte('Date', todayRange.endIso)
+      .order('Date', { ascending: false })
+      .limit(100);
+    if (opdError) throw opdError;
+    (opdRows || []).forEach(r => {
+      if (!window.isOpdRoomMatch || !window.isOpdRoomMatch(r.Department)) return;
+      const d = r.Date ? new Date(r.Date) : null;
+      roomAlerts.push({
+        id: r.Visit_ID,
+        patientName: r.Patient_Name || r.Patient_ID || '-',
+        patientId: r.Patient_ID || '',
+        department: r.Department || 'OPD',
+        date: d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : '-',
+        time: d && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-'
+      });
+    });
+    opdActiveRoomAlerts = roomAlerts;
+  } catch (err) {
+    console.warn('OPD room alert load failed:', err);
+    opdActiveRoomAlerts = [];
+  }
+
   (() => {
-    if (!alerts) return;
-    let count = alerts.length;
+    const count = appointmentAlerts.length + roomAlerts.length;
     let badge = $('#bell-count');
     let header = $('#bell-header');
     let list = $('#bell-list');
+    const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
     if (count > 0) {
       badge.text(count).show();
-      header.html(`<span class="text-danger"><i class="fas fa-exclamation-circle"></i> ມີນັດໝາຍຕ້ອງຕິດຕາມ ${count} ລາຍການ</span>`);
+      const roomLabel = window.getOpdMyRoom ? (window.getOpdMyRoom() || 'ທຸກຫ້ອງ') : 'ທຸກຫ້ອງ';
+      header.html(`<span class="text-danger"><i class="fas fa-exclamation-circle"></i> ມີການແຈ້ງເຕືອນ ${count} ລາຍການ</span><div class="small text-muted mt-1">OPD: ${esc(roomLabel)}</div>`);
       let html = '';
-      alerts.forEach(a => {
+      roomAlerts.forEach(a => {
+        html += `<a href="#" class="his-dropdown-item py-2 border-bottom border-secondary border-opacity-25" onclick="window.loadView('opd_queue'); return false;">
+                            <div class="d-flex align-items-center w-100">
+                                <div class="me-3">
+                                    <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px; min-width:32px; font-size: 11px;">
+                                        <i class="fas fa-user-md"></i>
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 overflow-hidden" style="line-height: 1.2;">
+                                    <h6 class="m-0 fw-bold mb-1" style="font-size:12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(a.patientName)}</h6>
+                                    <div class="text-info opacity-100 mb-1" style="font-size:10.5px; font-weight: 500;">
+                                        <i class="fas fa-door-open me-1" style="font-size: 9px;"></i>${esc(a.department)}
+                                    </div>
+                                    <div class="text-warning opacity-100" style="font-size:10.5px; font-weight: 600;">
+                                        <i class="far fa-clock me-1" style="font-size: 9px;"></i>ລໍຖ້າກວດ (${esc(a.date)} ${esc(a.time)})
+                                    </div>
+                                </div>
+                            </div>
+                         </a>`;
+      });
+      appointmentAlerts.forEach(a => {
         let dateColor = a.isOverdue ? "text-danger fw-bold" : (a.daysOut === 0 ? "text-info fw-bold" : "text-warning");
         let label = a.isOverdue ? "ກາຍກຳນົດແລ້ວ!" : (a.daysOut === 0 ? "ມື້ນີ້!" : (a.daysOut === 1 ? "ມື້ອື່ນ" : `ອີກ ${a.daysOut} ວັນ`));
         let iconBg = a.isOverdue ? "bg-danger text-white" : "bg-light text-dark";
@@ -3128,12 +3466,12 @@ window.checkAlerts = async function () {
                                     </div>
                                 </div>
                                 <div class="flex-grow-1 overflow-hidden" style="line-height: 1.2;">
-                                    <h6 class="m-0 fw-bold text-white mb-1" style="font-size:12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.patientName}</h6>
+                                    <h6 class="m-0 fw-bold mb-1" style="font-size:12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(a.patientName)}</h6>
                                     <div class="text-info opacity-100 mb-1" style="font-size:10.5px; font-weight: 500;">
-                                        <i class="fas fa-tag me-1" style="font-size: 9px;"></i>${a.time} - ${textType}
+                                        <i class="fas fa-tag me-1" style="font-size: 9px;"></i>${esc(a.time)} - ${textType}
                                     </div>
                                     <div class="${dateColor} opacity-100" style="font-size:10.5px; font-weight: 600;">
-                                        <i class="far fa-clock me-1" style="font-size: 9px;"></i>${label} (${a.date})
+                                        <i class="far fa-clock me-1" style="font-size: 9px;"></i>${label} (${esc(a.date)})
                                     </div>
                                 </div>
                             </div>
@@ -3142,8 +3480,8 @@ window.checkAlerts = async function () {
       list.html(html);
     } else {
       badge.hide();
-      header.text('ບໍ່ມີການແຈ້ງເຕືອນນັດໝາຍ');
-      list.html('<div class="text-center py-3 text-muted small">ຍັງບໍ່ມີນັດໝາຍໃນໄລຍະ 14 ວັນນີ້</div>');
+      header.text('ບໍ່ມີການແຈ້ງເຕືອນ');
+      list.html('<div class="text-center py-3 text-muted small">ບໍ່ມີຄິວ OPD ຂອງຫ້ອງນີ້ ຫຼື ນັດໝາຍໃນໄລຍະ 14 ວັນ</div>');
     }
   })();
 };
@@ -3251,6 +3589,7 @@ window.fetchDashboardData = async function (rangeType) {
   };
   const activeRangeType = window.currentDashRangeType || 'custom';
   const activeShiftType = window.currentDashShiftType || 'all';
+  const visitRange = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
   $('#dashReportStartLabel').text(sDate);
   $('#dashReportEndLabel').text(eDate);
@@ -3260,6 +3599,7 @@ window.fetchDashboardData = async function (rangeType) {
   let d = new Date();
   $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   $('#dash-total, #dash-new, #dash-old, #dash-inscorp').html('<i class="fas fa-spinner fa-spin"></i>');
+  $('#dashOpdToday, #dashObservationPatients, #dashActiveIpd, #dashBedOccupancy').html('<i class="fas fa-spinner fa-spin"></i>');
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -3269,8 +3609,8 @@ window.fetchDashboardData = async function (rangeType) {
       const { data: chunk, error } = await supabaseClient
         .from(dbTable('Visits'))
         .select('*')
-        .gte('Date', sDate + 'T00:00:00Z')
-        .lte('Date', eDate + 'T23:59:59Z')
+        .gte('Date', visitRange.startIso)
+        .lte('Date', visitRange.endIso)
         .range(startRange, startRange + 999);
       
       if (error) { 
@@ -3382,9 +3722,34 @@ window.fetchDashboardData = async function (rangeType) {
     });
 
     window.renderDashboardCharts(visitsWithDetails);
+    window.updateDashboardOperationalStats(sDate, eDate, data);
 
   } catch (err) {
     console.error(' Dashboard Error:', err);
+  }
+};
+
+window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInRange) {
+  try {
+    const today = window.getLocalStr(new Date());
+    const [obsRes, ipdRes, bedsRes] = await Promise.all([
+      window.obsFrom(OPD_OBSERVATION_TABLE).select('observation_id,status', { count: 'exact' }).in('status', window.obsActiveStatuses),
+      supabaseClient.from(dbTable('Admissions')).select('*').order('Created_At', { ascending: false }).limit(1000),
+      supabaseClient.from(dbTable('Beds')).select('Bed_ID,Status,Bed_Status').limit(1000)
+    ]);
+    const admissions = ipdRes.data || [];
+    const beds = bedsRes.data || [];
+    const activeBeds = beds.filter(b => !['Inactive', 'Maintenance'].includes(String(b.Status || b.Bed_Status || '').trim()));
+    const occupiedBeds = activeBeds.filter(b => String(b.Status || b.Bed_Status || '').trim() === 'Occupied').length;
+    const occupancy = activeBeds.length ? Math.round((occupiedBeds / activeBeds.length) * 100) : 0;
+    $('#dashOpdToday').text((visitsInRange || []).filter(v => window.getLocalDateKey(v.Date) === today).length);
+    $('#dashObservationPatients').text(obsRes.count ?? (obsRes.data || []).length);
+    $('#dashActiveIpd').text(admissions.filter(a => window.ipdIsActiveAdmission(a)).length);
+    $('#dashBedOccupancy').text(`${occupancy}%`);
+  } catch (err) {
+    console.warn('Dashboard operational stats failed:', err);
+    $('#dashOpdToday, #dashObservationPatients, #dashActiveIpd').text('0');
+    $('#dashBedOccupancy').text('0%');
   }
 };
 
@@ -3779,6 +4144,7 @@ window.getPatientStage = function (visit) {
   if (!visit) return 1; // ລົງທະບຽນເທົ່ານັ້ນ
   const s = window.normalizeVisitStatus(visit.Status);
   const dischargeStatus = (visit.Discharge_Status || '').toString();
+  if (s === 'OPD Observation' || s === 'Admit IPD' || /ຕິດຕາມ OPD|ນອນ IPD/.test(dischargeStatus)) return 5;
   if (s === 'Waiting Lab' || s === 'Calling Lab' || /Waiting Lab/i.test(dischargeStatus)) return 4;
   if (s === 'Waiting OPD' || s === 'Calling OPD') return 3;
   if (s === 'Triage' || s === 'Waiting Triage' || s === 'Calling Triage') return 2;
@@ -3830,23 +4196,47 @@ window.isSuspiciousDuplicateVisit = function (visit, duplicateVisitMap) {
     && ['Waiting OPD', 'Calling OPD', 'Waiting Lab', 'Calling Lab', 'Completed', 'Done', 'Pharmacy'].includes(normalizedStatus);
 };
 
-window.renderPipeline = function (stage) {
+window.resolvePipelineOutcome = function (visit) {
+  const ds = String(visit?.Discharge_Status || '').trim();
+  const status = window.normalizeVisitStatus(visit?.Status || '');
+  if (/ນອນ IPD|Admit IPD/i.test(ds) || status === 'Admit IPD') {
+    return { icon: 'fa-bed', label: 'IPD', color: '#dc2626' };
+  }
+  if (/ຕິດຕາມ OPD|Observation/i.test(ds) || status === 'OPD Observation') {
+    return { icon: 'fa-notes-medical', label: 'ຕິດຕາມ', color: '#f59e0b' };
+  }
+  if (/Transfer|ສົ່ງຕໍ່/i.test(ds) || status === 'Transfer') {
+    return { icon: 'fa-ambulance', label: 'ສົ່ງຕໍ່', color: '#6b7280' };
+  }
+  if (/ຮັບຢາ|Pharmacy/i.test(ds) || status === 'Pharmacy') {
+    return { icon: 'fa-pills', label: 'ຮັບຢາ', color: '#16a34a' };
+  }
+  return { icon: 'fa-check-circle', label: 'ສຳເລັດ', color: '#16a34a' };
+};
+
+window.renderPipeline = function (stage, visit) {
+  const outcome = visit ? window.resolvePipelineOutcome(visit) : { icon: 'fa-check-circle', label: 'ສຳເລັດ', color: '#16a34a' };
   const steps = [
     { icon: 'fa-user-plus', label: 'ລົງທະບຽນ' },
     { icon: 'fa-clipboard-list', label: 'ຊັກປະຫວັດ' },
     { icon: 'fa-stethoscope', label: 'ຫ້ອງກວດ' },
     { icon: 'fa-flask', label: 'ຖ້າຜົນ' },
-    { icon: 'fa-check-circle', label: 'ສຳເລັດ' },
+    { icon: outcome.icon, label: outcome.label, finalColor: outcome.color },
   ];
   let h = '<div style="display:flex;align-items:center;padding:4px 0">';
   steps.forEach((s, i) => {
     const done = i + 1 < stage;
     const active = i + 1 === stage;
-    const bg = done ? '#1B6BB0' : active ? '#DD1F26' : '#e2e8f0';
-    const tc = done || active ? '#fff' : '#94a3b8';
-    const lc = done ? '#115892' : active ? '#115892' : '#94a3b8';
+    const isFinal = i === steps.length - 1;
+    const finalReached = isFinal && stage >= steps.length;
+    let bg, tc, lc;
+    if (finalReached && s.finalColor) {
+      bg = s.finalColor; tc = '#fff'; lc = s.finalColor;
+    } else if (done) { bg = '#1B6BB0'; tc = '#fff'; lc = '#115892'; }
+    else if (active) { bg = '#DD1F26'; tc = '#fff'; lc = '#115892'; }
+    else { bg = '#e2e8f0'; tc = '#94a3b8'; lc = '#94a3b8'; }
     if (i > 0) {
-      const cc = i < stage - 1 ? '#1B6BB0' : '#e2e8f0';
+      const cc = i < stage - 1 ? '#1B6BB0' : (finalReached ? bg : '#e2e8f0');
       h += `<div style="flex:1;height:3px;background:${cc};margin-bottom:20px;min-width:6px"></div>`;
     }
     h += `<div style="text-align:center;flex-shrink:0">
@@ -3861,6 +4251,8 @@ window.renderPipeline = function (stage) {
 };
 
 window.buildPatientVisitSummaryData = async function (sDate, eDate) {
+  const visitRange = window.getLocalDateRangeIsoBounds(sDate, eDate);
+
   // 1A. Fetch Patients registered in date range
   let patientMap = {};
   let pStart = 0;
@@ -3885,8 +4277,8 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   while (true) {
     const { data: chunk, error: vErr } = await supabaseClient.from(dbTable('Visits'))
       .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
-      .gte('Date', sDate + 'T00:00:00Z')
-      .lte('Date', eDate + 'T23:59:59Z')
+      .gte('Date', visitRange.startIso)
+      .lte('Date', visitRange.endIso)
       .not('Date', 'is', null)
       .order('Date', { ascending: false })
       .range(vStart, vStart + 999);
@@ -3974,6 +4366,7 @@ window._fetchReportData = async function (sDate, eDate) {
   try {
     const processed = await window.buildPatientVisitSummaryData(sDate, eDate);
     window.renderReportPage(processed);
+    window.updateReportObservationStats(sDate, eDate);
   } catch (err) {
     console.error('Report Fetch Error:', err);
     Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນລາຍງານໄດ້: ' + err.message, 'error');
@@ -4004,7 +4397,7 @@ window.renderReportPage = function (res) {
   let h = '';
   res.forEach((r, i) => {
     const stage = window.getPatientStage(r.latestVisit);
-    const pipeline = window.renderPipeline(stage);
+    const pipeline = window.renderPipeline(stage, r.latestVisit);
     const patientStatus = r.status === 'ໃໝ່'
       ? '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">ຄົນເຈັບໃໝ່</span>'
       : r.status === 'ເກົ່າ'
@@ -4430,28 +4823,74 @@ window.generateNextPatientID = async function () {
   try {
     const { data, error } = await supabaseClient
       .from(dbTable('Patients'))
-      .select('Patient_ID');
+      .select('Patient_ID')
+      .ilike('Patient_ID', `${patientIdPrefix}${patientIdYear}%`)
+      .order('Patient_ID', { ascending: false })
+      .limit(100);
 
     if (error) throw error;
 
     let maxNum = 0;
-    if (data && data.length > 0) {
-      data.forEach(row => {
-        const patientId = (row.Patient_ID || '').toUpperCase();
-        const match = patientId.match(patientIdPattern);
-        if (match) {
-          let num = parseInt(match[1], 10);
-          if (!isNaN(num) && num > maxNum) {
-            maxNum = num;
-          }
-        }
-      });
-    }
+    (data || []).forEach(row => {
+      const match = String(row.Patient_ID || '').toUpperCase().match(patientIdPattern);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
 
     return `${patientIdPrefix}${patientIdYear}-${String(maxNum + 1).padStart(patientIdDigits, '0')}`;
   } catch (err) {
     console.error("Error generating next patient ID:", err);
     return `${patientIdPrefix}${patientIdYear}-000001`; // Fallback
+  }
+};
+
+window.generateNextMasterIDs = async function (tableName, idColumn, prefix, padding = 3, count = 1) {
+  try {
+    const { data, error } = await supabaseClient.from(dbTable(tableName)).select(idColumn);
+    if (error) throw error;
+    const pattern = new RegExp(`^${prefix}(\\d+)$`, 'i');
+    let maxNum = 0;
+    (data || []).forEach(row => {
+      const m = String(row[idColumn] || '').match(pattern);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    const ids = [];
+    for (let i = 1; i <= count; i++) ids.push(`${prefix}${String(maxNum + i).padStart(padding, '0')}`);
+    return ids;
+  } catch (err) {
+    console.error(`generateNextMasterIDs(${tableName}) error:`, err);
+    const baseTs = Date.now();
+    return Array.from({ length: count }, (_, i) => `${prefix}${String(baseTs + i).slice(-Math.max(padding, 6))}`);
+  }
+};
+
+window.generateNextMasterID = async function (tableName, idColumn, prefix, padding = 3) {
+  const [id] = await window.generateNextMasterIDs(tableName, idColumn, prefix, padding, 1);
+  return id;
+};
+
+window.refreshPatientOrgDropdown = async function () {
+  try {
+    const { data } = await supabaseClient.from(dbTable('Organizations')).select('*').eq('Status', 'Active');
+    let orgOptions = '<option value="">-- ເລືອກອົງກອນ --</option>';
+    const seen = new Set();
+    (data || []).forEach(org => {
+      if (org.Org_Code && !seen.has(org.Org_Code)) {
+        seen.add(org.Org_Code);
+        orgOptions += `<option value="${org.Org_Code}">${org.Org_Code} - ${org.Org_Name}</option>`;
+      }
+    });
+    if (typeof jQuery !== 'undefined' && $('#p_org_id').length) {
+      try { if ($('#p_org_id').data('select2')) $('#p_org_id').select2('destroy'); } catch (e) {}
+      $('#p_org_id').html(orgOptions).select2({ dropdownParent: $('#patientModal'), placeholder: '-- ເລືອກອົງກອນ --', allowClear: true });
+    }
+  } catch (err) {
+    console.warn('refreshPatientOrgDropdown failed:', err);
   }
 };
 
@@ -4603,11 +5042,28 @@ window.initPatientTable = async function () {
 
   try {
     // Supabase/PostgREST returns 1000 rows by default, so load every page.
-    const data = await window.fetchSupabaseRows('Patients', {
-      select: '*',
-      orderBy: 'Patient_ID',
-      ascending: false
-    });
+    const totalCountRes = await supabaseClient.from(dbTable('Patients')).select('Patient_ID', { head: true, count: 'exact' });
+    const totalCount = totalCountRes.count || 0;
+
+    const pageSize = 1000;
+    const numPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const pageQueries = [];
+    for (let p = 0; p < numPages; p++) {
+      pageQueries.push(
+        supabaseClient.from(dbTable('Patients')).select('*')
+          .order('Patient_ID', { ascending: false })
+          .range(p * pageSize, (p + 1) * pageSize - 1)
+      );
+    }
+    const t0 = performance.now();
+    const results = await Promise.all(pageQueries);
+    const errored = results.find(r => r.error);
+    if (errored) throw errored.error;
+    const data = results.flatMap(r => r.data || []);
+    console.log(`Patients loaded: ${data.length} rows in ${Math.round(performance.now() - t0)}ms (${numPages} parallel pages)`);
+
+    const $loadAllNotice = $('#patientLoadAllNotice');
+    if ($loadAllNotice.length) $loadAllNotice.empty().hide();
 
     $('#patientTable tbody').empty();
 
@@ -4701,6 +5157,7 @@ window.initPatientTable = async function () {
     $('#patientTable tbody').html(h);
     const patientTable = $('#patientTable').DataTable({
       responsive: true,
+      deferRender: true,
       pageLength: 10,
       order: [[2, "desc"]],
       language: window.getDataTableLanguage({ emptyTable: window.t('patients.noPatientData') })
@@ -5078,6 +5535,7 @@ window.submitTriageForm = function (e) {
 
 window.executeTriageSave = async function (fd) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
+  fd.v_department = String(fd.v_department || '').trim() || 'OPD ທົ່ວໄປ';
 
   console.log('=== TRIAGE SAVE DEBUG ===');
   console.log('Visit ID:', fd.visitId);
@@ -5293,8 +5751,9 @@ window.ipdCalculateBmiValue = function (weight, height) {
 
 window._fetchTriageQueue = async function (sDate, eDate) {
   try {
-    if (!sDate) sDate = new Date().toISOString().split('T')[0];
+    if (!sDate) sDate = window.getLocalStr(new Date());
     if (!eDate) eDate = sDate;
+    const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
     // 1. Fetch Visits (Paginated)
     let visits = [];
@@ -5302,8 +5761,8 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     while (true) {
       const { data: chunk, error: vError } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
-        .gte('Date', sDate + 'T00:00:00Z')
-        .lte('Date', eDate + 'T23:59:59Z')
+        .gte('Date', range.startIso)
+        .lte('Date', range.endIso)
         .order('Date', { ascending: true })
         .range(startRange, startRange + 999);
       
@@ -5472,16 +5931,17 @@ window._fetchTriageQueue = async function (sDate, eDate) {
 
 window._fetchOpdQueue = async function (sDate, eDate) {
   try {
-    if (!sDate) sDate = new Date().toISOString().split('T')[0];
+    if (!sDate) sDate = window.getLocalStr(new Date());
     if (!eDate) eDate = sDate;
+    const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
     // 1. Fetch Visits with range (Paginated)
     let visitsInRange = [];
     let startRange = 0;
     while (true) {
       const { data: chunk, error } = await supabaseClient.from(dbTable('Visits')).select('*')
-        .gte('Date', sDate + 'T00:00:00Z')
-        .lte('Date', eDate + 'T23:59:59Z')
+        .gte('Date', range.startIso)
+        .lte('Date', range.endIso)
         .order('Date', { ascending: true })
         .range(startRange, startRange + 999);
 
@@ -5510,7 +5970,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       const today = sDate;
       rawVisits = (visitsActive || []).filter(v => {
         if (!v.Date) return true; // Include NULL dates (might be today's records)
-        const visitDate = new Date(v.Date).toISOString().split('T')[0];
+        const visitDate = window.getLocalDateKey(v.Date);
         return visitDate === today;
       });
       
@@ -5866,15 +6326,852 @@ window.deleteVisitFlow = async function (visitId, patientId) {
   }
 };
 
+// ============================================================
+// OPD Follow-up / Observation (separate from IPD admissions)
+// ============================================================
+const OPD_OBSERVATION_TABLE = 'opd_observations';
+const OPD_OBSERVATION_NOTES_TABLE = 'opd_observation_notes';
+window.observationRows = [];
+window.observationPatientsById = {};
+window.observationNotes = [];
+window.currentObservationId = null;
+
+window.obsFrom = function (tableName) {
+  return supabaseClient.from(tableName);
+};
+
+window.obsEscape = function (value) {
+  return window.ipdEscape ? window.ipdEscape(value) : String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+};
+
+window.obsActiveStatuses = ['WAITING', 'UNDER_OBSERVATION'];
+
+window.obsGetOccupiedBedIds = async function () {
+  try {
+    const { data, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+      .select('bed_id,status')
+      .in('status', window.obsActiveStatuses)
+      .not('bed_id', 'is', null);
+    if (error) return new Set();
+    return new Set((data || []).map(r => String(r.bed_id)));
+  } catch (e) { return new Set(); }
+};
+
+window.obsActiveObservationByBedId = async function () {
+  try {
+    const { data, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+      .select('*')
+      .in('status', window.obsActiveStatuses)
+      .not('bed_id', 'is', null);
+    if (error) return {};
+    const map = {};
+    (data || []).forEach(r => { if (r.bed_id) map[String(r.bed_id)] = r; });
+    return map;
+  } catch (e) { return {}; }
+};
+
+window.obsDurationHours = function (row) {
+  if (!row?.start_datetime) return 0;
+  const start = new Date(row.start_datetime).getTime();
+  const end = row.end_datetime ? new Date(row.end_datetime).getTime() : Date.now();
+  if (!start || Number.isNaN(start) || Number.isNaN(end)) return Number(row.duration_hours || 0);
+  return Math.max(0, (end - start) / 3600000);
+};
+
+window.obsFormatDuration = function (row) {
+  const hours = window.obsDurationHours(row);
+  const h = Math.floor(hours);
+  const m = Math.floor((hours - h) * 60);
+  return `${h}h ${String(m).padStart(2, '0')}m`;
+};
+
+window.obsStatusBadge = function (status) {
+  const s = String(status || 'WAITING').toUpperCase();
+  const cls = {
+    WAITING: 'bg-secondary',
+    UNDER_OBSERVATION: 'bg-info',
+    COMPLETED: 'bg-success',
+    TRANSFER_TO_IPD: 'bg-warning text-dark',
+    DISCHARGED: 'bg-dark'
+  }[s] || 'bg-secondary';
+  return `<span class="badge ${cls}">${window.obsEscape(s.replace(/_/g, ' '))}</span>`;
+};
+
+window.obsPatientName = function (row) {
+  const p = window.observationPatientsById[row?.patient_id] || window.observationPatientsById[row?.hn] || null;
+  return [p?.First_Name, p?.Last_Name].filter(Boolean).join(' ') || row?.patient_name || row?.patient_id || row?.hn || '-';
+};
+
+window.fetchObservationPatients = async function (rows) {
+  window.observationPatientsById = {};
+  const ids = [...new Set((rows || []).flatMap(r => [r.patient_id, r.hn]).filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').in('Patient_ID', chunk);
+    if (error) {
+      console.warn('Observation patient lookup failed:', error);
+      continue;
+    }
+    (data || []).forEach(p => { window.observationPatientsById[p.Patient_ID] = p; });
+  }
+};
+
+window.fetchObservationRows = async function (sDate, eDate) {
+  const { data, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+    .select('*')
+    .order('start_datetime', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  const startKey = sDate || window.getLocalStr(new Date());
+  const endKey = eDate || startKey;
+  return (data || []).filter(row => {
+    if (window.obsActiveStatuses.includes(String(row.status || '').toUpperCase())) return true;
+    const key = String(row.start_datetime || '').slice(0, 10);
+    return key >= startKey && key <= endKey;
+  });
+};
+
+window.loadObservationPage = async function () {
+  const sDate = $('#obsStartDate').val() || window.getLocalStr(new Date());
+  const eDate = $('#obsEndDate').val() || sDate;
+  if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
+  $('#observationTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  try {
+    await window.fetchIpdWardBedData?.();
+    window.observationRows = await window.fetchObservationRows(sDate, eDate);
+    await window.fetchObservationPatients(window.observationRows);
+    await window.updateObservationStats(sDate, eDate);
+    await window.renderObsBedBoard();
+    window.renderObservationTable();
+  } catch (err) {
+    console.error('Observation load failed:', err);
+    $('#observationTable tbody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${window.obsEscape(err.message || err)}</td></tr>`);
+  }
+};
+
+window.renderObsBedBoard = async function () {
+  const $board = $('#obsBedBoard');
+  if (!$board.length) return;
+  const state = window.ipdWardBedState || { wards: [], rooms: [], beds: [] };
+  const obsWards = (state.wards || []).filter(w => window.ipdIsObsWard(w));
+  if (!obsWards.length) {
+    $('#obsTotalBeds, #obsOccupiedBeds, #obsAvailableBeds, #obsReservedBeds').text('0');
+    $board.html(`<div class="ipd-empty-state"><div><i class="fas fa-bed fa-2x mb-3 d-block"></i>${window.obsEscape(window.t('obs.noObsWardHint'))}</div></div>`);
+    return;
+  }
+  const obsByBed = await window.obsActiveObservationByBedId();
+  const wardIds = new Set(obsWards.map(w => String(w.Ward_ID)));
+  const obsRooms = (state.rooms || []).filter(r => wardIds.has(String(r.Ward_ID)));
+  const obsBeds = (state.beds || []).filter(b => wardIds.has(String(b.Ward_ID)));
+  const obsBedStatus = (bed) => obsByBed[String(bed.Bed_ID)] ? 'Occupied' : (window.ipdBedStatus?.(bed) || 'Available');
+  $('#obsTotalBeds').text(obsBeds.length);
+  $('#obsOccupiedBeds').text(obsBeds.filter(b => obsBedStatus(b) === 'Occupied').length);
+  $('#obsAvailableBeds').text(obsBeds.filter(b => obsBedStatus(b) === 'Available').length);
+  $('#obsReservedBeds').text(obsBeds.filter(b => obsBedStatus(b) === 'Reserved').length);
+
+  const obsActionMenu = (bed, obsRow, status) => {
+    const menuId = `obsBedActions${window.obsEscape(String(bed.Bed_ID).replace(/[^a-zA-Z0-9]/g, ''))}`;
+    if (!obsRow) {
+      return `<div class="ipd-bed-actions-row">
+        <button type="button" class="btn btn-success ipd-bed-action-trigger" disabled>
+          <i class="fas fa-check me-1"></i>${window.obsEscape(window.t('ipd.available'))}
+        </button>
+      </div>`;
+    }
+    return `<div class="ipd-bed-actions-row">
+      <div class="dropdown ipd-bed-action-wrap">
+        <button class="btn btn-primary dropdown-toggle ipd-bed-action-trigger btn-obs-view" type="button" id="${menuId}" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fas fa-bolt me-1"></i>${window.obsEscape(window.t('common.action'))}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
+          <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationDetail('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-eye me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
+          <li><a class="dropdown-item text-warning btn-obs-convert" href="#" onclick="window.convertObservationToIpd('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-bed me-2"></i>${window.obsEscape(window.t('obs.convertToIpd'))}</a></li>
+          <li><a class="dropdown-item text-secondary btn-obs-discharge" href="#" onclick="window.dischargeObservation('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-sign-out-alt me-2"></i>${window.obsEscape(window.t('obs.discharge'))}</a></li>
+        </ul>
+      </div>
+    </div>`;
+  };
+
+  const renderWardGroup = (ward) => {
+    const wardBeds = obsBeds.filter(b => String(b.Ward_ID) === String(ward.Ward_ID));
+    if (!wardBeds.length) return '';
+    const occupied = wardBeds.filter(b => obsBedStatus(b) === 'Occupied').length;
+    const available = wardBeds.filter(b => obsBedStatus(b) === 'Available').length;
+    const cleaning = wardBeds.filter(b => obsBedStatus(b) === 'Cleaning').length;
+    const maintenance = wardBeds.filter(b => obsBedStatus(b) === 'Maintenance').length;
+    const wardRooms = obsRooms.filter(r => String(r.Ward_ID) === String(ward.Ward_ID));
+    let inner = `<section class="ipd-ward-group ipd-board-mode-compact">
+      <div class="ipd-ward-header">
+        <div class="ipd-ward-title">
+          <span class="ipd-ward-icon"><i class="fas fa-hospital"></i></span>
+          <div>
+            <strong>${window.obsEscape(ward.Ward_Name || ward.Ward_ID)}</strong>
+            <small>${window.obsEscape(ward.Ward_ID)} | ${wardBeds.length} ${window.obsEscape(window.t('ipd.beds'))}</small>
+          </div>
+        </div>
+        <div class="ipd-ward-metrics">
+          <span class="is-occupied">${occupied}/${wardBeds.length} ${window.obsEscape(window.t('ipd.occupied'))}</span>
+          <span class="is-available">${available} ${window.obsEscape(window.t('ipd.available'))}</span>
+          <span class="is-cleaning">${cleaning} ${window.obsEscape(window.t('ipd.cleaning'))}</span>
+          <span class="is-maintenance">${maintenance} ${window.obsEscape(window.t('ipd.maintenance'))}</span>
+        </div>
+      </div>`;
+
+    wardRooms.forEach(room => {
+      const roomBeds = wardBeds.filter(b => String(b.Room_ID) === String(room.Room_ID));
+      if (!roomBeds.length) return;
+      inner += `<div class="ipd-room-section">
+        <div class="ipd-room-title">
+          <div class="ipd-room-title-left">
+            <span><i class="fas fa-door-open me-1"></i>${window.obsEscape(window.t('ipd.room'))} ${window.obsEscape(room.Room_Number || '-')}</span>
+          </div>
+          <small>${window.obsEscape(window.ipdTranslateValue(room.Room_Type || 'General'))} | ${roomBeds.length} ${window.obsEscape(window.t('ipd.beds'))}</small>
+        </div>
+        <div class="ipd-bed-grid">`;
+
+      roomBeds.forEach(bed => {
+        const obsRow = obsByBed[String(bed.Bed_ID)];
+        const status = obsBedStatus(bed);
+        const hours = obsRow ? Number(obsRow.duration_hours || window.obsDurationHours(obsRow) || 0) : 0;
+        const overSix = !!obsRow && hours >= 6;
+        const patientName = obsRow ? window.obsPatientName(obsRow) : '';
+        const displayStatus = overSix ? `<span class="ipd-status-badge ipd-status-maintenance">6h+</span>` : window.ipdStatusBadge(status);
+        inner += `<article class="ipd-bed-card ipd-bed-card-compact status-${status.toLowerCase()}">
+          <div class="ipd-compact-card-head">
+            <div class="ipd-bed-number">${window.obsEscape(bed.Bed_Number || '-')}</div>
+            ${displayStatus}
+          </div>
+          ${obsRow ? `<div class="ipd-compact-patient">${window.obsEscape(patientName)}</div>
+            <div class="ipd-compact-meta">HN ${window.obsEscape(obsRow.hn || obsRow.patient_id || '-')} - ${window.obsEscape(obsRow.observation_id || '')}</div>
+            <div class="ipd-compact-meta">${window.obsEscape(window.obsFormatDuration(obsRow))}${overSix ? ` - ${window.obsEscape(window.t('obs.convertToIpd'))}` : ''}</div>` :
+            `<div class="ipd-compact-bedtype">${window.obsEscape(window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}</div>`}
+          <div class="ipd-compact-actions">${obsActionMenu(bed, obsRow, status)}</div>
+        </article>`;
+      });
+      inner += '</div></div>';
+    });
+
+    inner += '</section>';
+    return inner;
+  };
+
+  const groupsHtml = obsWards.map(renderWardGroup).filter(Boolean).join('');
+  const html = groupsHtml ? `<section class="ipd-board-segment ipd-board-segment-general">
+    <header class="ipd-board-segment-header">
+      <div class="ipd-board-segment-icon"><i class="fas fa-hospital-symbol"></i></div>
+      <div class="ipd-board-segment-titles">
+        <strong>${window.obsEscape(window.t('obs.bedBoardTitle'))}</strong>
+        <small>${window.obsEscape(window.t('obs.bedBoardSubtitle'))} · ${obsWards.length} ${window.obsEscape(window.t('ipd.wardsCount'))}</small>
+      </div>
+    </header>
+    <div class="ipd-board-segment-body">${groupsHtml}</div>
+  </section>` : '';
+  $board.html(html || `<div class="ipd-empty-state">${window.obsEscape(window.t('obs.noObsWardHint'))}</div>`);
+  window.applyButtonPermissions?.();
+};
+
+window.updateObservationStats = async function (sDate, eDate) {
+  const today = window.getLocalStr(new Date());
+  const todayRange = window.getLocalDayIsoBounds(today);
+  try {
+    const [opdRes, obsRes, ipdRes] = await Promise.all([
+      supabaseClient.from(dbTable('Visits')).select('Visit_ID', { count: 'exact', head: true }).gte('Date', todayRange.startIso).lte('Date', todayRange.endIso),
+      window.obsFrom(OPD_OBSERVATION_TABLE).select('observation_id,status,start_datetime', { count: 'exact' }).in('status', window.obsActiveStatuses),
+      supabaseClient.from(dbTable('Admissions')).select('*').order('Created_At', { ascending: false }).limit(1000)
+    ]);
+    const admissions = ipdRes.data || [];
+    const activeIpd = admissions.filter(a => window.ipdIsActiveAdmission(a)).length;
+    const admissionsToday = admissions.filter(a => window.ipdAdmissionDate(a) === today).length;
+    const dischargesToday = admissions.filter(a => window.ipdDischargeDate(a) === today).length;
+    $('#obsKpiOpdToday').text(opdRes.count || 0);
+    $('#obsKpiActive').text(obsRes.count ?? (obsRes.data || []).length);
+    $('#obsKpiActiveIpd').text(activeIpd);
+    $('#obsKpiAdmissionsToday').text(admissionsToday);
+    $('#obsKpiDischargesToday').text(dischargesToday);
+  } catch (err) {
+    console.warn('Observation stats failed:', err);
+  }
+};
+
+window.renderObservationTable = function () {
+  if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
+  const rows = window.observationRows || [];
+  const html = rows.map(row => {
+    const active = window.obsActiveStatuses.includes(String(row.status || '').toUpperCase());
+    const sixHour = active && window.obsDurationHours(row) >= 6;
+    const duration = `${window.obsFormatDuration(row)}${sixHour ? ' <span class="badge bg-warning text-dark ms-1">6h+</span>' : ''}`;
+    return `<tr class="${sixHour ? 'table-warning' : ''}">
+      <td><code>${window.obsEscape(row.observation_id)}</code></td>
+      <td class="fw-bold">${window.obsEscape(row.hn || row.patient_id || '-')}</td>
+      <td>${window.obsEscape(window.obsPatientName(row))}</td>
+      <td>${window.obsEscape(row.doctor_id || '-')}</td>
+      <td>${window.obsEscape(row.diagnosis || '-')}</td>
+      <td>${window.obsEscape(window.ipdFormatDateTime ? window.ipdFormatDateTime(row.start_datetime) : row.start_datetime)}</td>
+      <td class="fw-bold">${duration}</td>
+      <td>${window.obsStatusBadge(row.status)}</td>
+      <td class="text-center">
+        <div class="d-flex justify-content-center gap-1">
+          <button class="btn btn-sm btn-info text-white btn-obs-view" onclick="window.openObservationDetail('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.openObservation'))}"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-warning btn-obs-convert" onclick="window.convertObservationToIpd('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.convertToIpd'))}"><i class="fas fa-bed"></i></button>
+          <button class="btn btn-sm btn-secondary btn-obs-discharge" onclick="window.dischargeObservation('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.discharge'))}"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  $('#observationTable tbody').html(html);
+  $('#observationTable').DataTable({ responsive: true, pageLength: 10, language: { search: 'ຄົ້ນຫາ:', emptyTable: window.t('obs.noData') } });
+  window.applyButtonPermissions?.();
+};
+
+window.openObservationFromVisit = async function (queueIndex) {
+  const q = queueDataStore[queueIndex];
+  if (!q) return;
+  await window.ipdLoadProviders?.();
+  await window.fetchIpdWardBedData?.();
+  const doctorDefault = q.doctor || (currentUser?.role === 'doctor' ? currentUser.name : '') || window.ipdCurrentUserName?.() || '';
+
+  // Build OPD-observation bed picker (only beds in wards with Ward_Type='OPD_Observation' that are Available)
+  const state = window.ipdWardBedState || { wards: [], rooms: [], beds: [] };
+  const obsWardIds = new Set((state.wards || []).filter(w => window.ipdIsObsWard(w)).map(w => String(w.Ward_ID)));
+  const occupiedBedIds = await window.obsGetOccupiedBedIds();
+  const availableObsBeds = (state.beds || []).filter(b => obsWardIds.has(String(b.Ward_ID)) && window.ipdBedStatus(b) === 'Available' && !occupiedBedIds.has(String(b.Bed_ID)));
+  const bedOptions = '<option value="">-- ' + window.obsEscape(window.t('obs.bedOptional')) + ' --</option>' + availableObsBeds.map(b => {
+    const ward = (state.wards || []).find(w => String(w.Ward_ID) === String(b.Ward_ID));
+    const room = (state.rooms || []).find(r => String(r.Room_ID) === String(b.Room_ID));
+    const label = `${ward?.Ward_Name || b.Ward_ID} / ${room?.Room_Number || b.Room_ID} / ${b.Bed_Number || b.Bed_ID}`;
+    return `<option value="${window.obsEscape(b.Bed_ID)}" data-ward="${window.obsEscape(b.Ward_ID)}" data-room="${window.obsEscape(b.Room_ID)}">${window.obsEscape(label)}</option>`;
+  }).join('');
+  const noObsBedsWarning = availableObsBeds.length === 0 && obsWardIds.size === 0
+    ? `<div class="full"><div class="alert alert-info py-2 px-3 mb-0" style="font-size:12.5px;"><i class="fas fa-info-circle me-1"></i> ${window.obsEscape(window.t('obs.noObsWardHint'))}</div></div>` : '';
+
+  const result = await Swal.fire({
+    title: window.t('obs.createTitle'),
+    width: 760,
+    html: `<div class="ipd-form-grid">
+      <div><label class="form-label fw-bold">HN</label><input class="form-control" value="${window.obsEscape(q.patientId || '')}" readonly></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.patientName'))}</label><input class="form-control" value="${window.obsEscape(q.patientName || '')}" readonly></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.doctor'))}</label><input id="obsCreateDoctor" class="form-control" value="${window.obsEscape(doctorDefault)}"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('obs.startTime'))}</label><input type="datetime-local" id="obsCreateStart" class="form-control" value="${new Date().toISOString().slice(0, 16)}"></div>
+      <div class="full"><label class="form-label fw-bold"><i class="fas fa-bed me-1 text-warning"></i>${window.obsEscape(window.t('obs.assignBed'))}</label><select id="obsCreateBed" class="form-select">${bedOptions}</select></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.diagnosis'))}</label><textarea id="obsCreateDiagnosis" class="form-control" rows="2">${window.obsEscape(q.diagnosis || '')}</textarea></div>
+      ${noObsBedsWarning}
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: window.t('common.save'),
+    cancelButtonText: window.t('common.cancel'),
+    preConfirm: () => {
+      const $bed = $('#obsCreateBed option:selected');
+      return {
+        doctor: $('#obsCreateDoctor').val().trim(),
+        start: $('#obsCreateStart').val(),
+        diagnosis: $('#obsCreateDiagnosis').val().trim(),
+        bedId: $bed.val() || null,
+        wardId: $bed.data('ward') || null,
+        roomId: $bed.data('room') || null
+      };
+    }
+  });
+  if (!result.isConfirmed) return;
+  const observationId = window.ipdId ? window.ipdId('OBS') : `OBS${Date.now()}`;
+  const payload = {
+    observation_id: observationId,
+    visit_id: q.visitId || null,
+    hn: q.patientId || null,
+    patient_id: q.patientId || null,
+    doctor_id: result.value.doctor || null,
+    start_datetime: result.value.start ? new Date(result.value.start).toISOString() : new Date().toISOString(),
+    diagnosis: result.value.diagnosis || null,
+    status: 'UNDER_OBSERVATION',
+    bed_id: result.value.bedId || null,
+    ward_id: result.value.wardId || null,
+    room_id: result.value.roomId || null,
+    created_by: currentUser?.name || currentUser?.id || null
+  };
+  const { error } = await window.obsFrom(OPD_OBSERVATION_TABLE).insert([payload]);
+  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE).insert([{
+    observation_id: observationId,
+    note_type: 'DOCTOR_NOTE',
+    note_text: result.value.diagnosis || 'Doctor assessment / start observation',
+    recorded_by: result.value.doctor || currentUser?.name || currentUser?.id || null
+  }]);
+  window.logAction?.('Add', `Create OPD Observation ${observationId} from visit ${q.visitId}`, 'OPD Observation');
+  Swal.fire(window.t('common.saved'), window.t('obs.saved'), 'success');
+  window.loadView('opd_observation');
+};
+
+window.openObservationDetail = async function (observationId) {
+  window.currentObservationId = observationId;
+  const row = (window.observationRows || []).find(r => String(r.observation_id) === String(observationId));
+  if (!row) return;
+  $('#observationDetailPanel').show();
+  $('#obsDetailTitle').text(`${row.observation_id} - ${window.obsPatientName(row)}`);
+  $('#obsDetailMeta').text(`HN ${row.hn || row.patient_id || '-'} | ${row.doctor_id || '-'} | ${row.diagnosis || '-'}`);
+  const sixHour = window.obsActiveStatuses.includes(String(row.status || '').toUpperCase()) && window.obsDurationHours(row) >= 6;
+  $('#obsSixHourAlert')
+    .toggle(!!sixHour)
+    .html(`<strong>${window.obsEscape(window.t('obs.sixHourAlert'))}</strong> <button class="btn btn-sm btn-warning ms-2 btn-obs-convert" onclick="window.convertObservationToIpd('${window.obsEscape(row.observation_id)}')">${window.obsEscape(window.t('obs.convertToIpd'))}</button>`);
+  const { data, error } = await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE)
+    .select('*')
+    .eq('observation_id', observationId)
+    .order('note_datetime', { ascending: true });
+  if (error) {
+    $('#observationTimeline').html(`<div class="alert alert-danger">${window.obsEscape(error.message)}</div>`);
+    return;
+  }
+  window.observationNotes = data || [];
+  window.renderObservationTimeline(row, window.observationNotes);
+  window.applyButtonPermissions?.();
+};
+
+window.closeObservationDetail = function () {
+  window.currentObservationId = null;
+  $('#observationDetailPanel').hide();
+};
+
+window.renderObservationTimeline = function (row, notes) {
+  const iconMap = {
+    VITAL_SIGN: 'fas fa-heartbeat text-danger',
+    DOCTOR_NOTE: 'fas fa-user-md text-primary',
+    NURSING_NOTE: 'fas fa-user-nurse text-success',
+    MEDICATION: 'fas fa-pills text-success',
+    PROCEDURE: 'fas fa-procedures text-warning'
+  };
+  const events = [{
+    at: row.start_datetime,
+    type: 'Arrival',
+    icon: 'fas fa-door-open text-info',
+    title: 'Arrival / Start Observation',
+    body: row.diagnosis || '-',
+    by: row.doctor_id || row.created_by || ''
+  }];
+  (notes || []).forEach(n => {
+    const vital = n.note_type === 'VITAL_SIGN'
+      ? [`T ${n.temp || '-'}`, `BP ${n.bp || '-'}`, `P ${n.pulse || '-'}`, `RR ${n.rr || '-'}`, `SpO2 ${n.spo2 || '-'}`, `Pain ${n.pain_score || '-'}`].join(' | ')
+      : '';
+    const med = n.note_type === 'MEDICATION' ? n.medication : '';
+    const proc = n.note_type === 'PROCEDURE' ? n.procedure_name : '';
+    events.push({
+      at: n.note_datetime,
+      type: n.note_type,
+      icon: iconMap[n.note_type] || 'fas fa-note-sticky text-secondary',
+      title: n.note_type.replace(/_/g, ' '),
+      body: vital || med || proc || n.note_text || '-',
+      by: n.recorded_by || ''
+    });
+  });
+  if (row.end_datetime) {
+    events.push({
+      at: row.end_datetime,
+      type: row.status,
+      icon: row.status === 'TRANSFER_TO_IPD' ? 'fas fa-bed text-warning' : 'fas fa-sign-out-alt text-dark',
+      title: row.status === 'TRANSFER_TO_IPD' ? 'Transfer to IPD' : 'Discharge',
+      body: row.ipd_admission_id ? `IPD: ${row.ipd_admission_id}` : row.status,
+      by: ''
+    });
+  }
+  events.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
+  $('#observationTimeline').html(events.map(e => `<div class="obs-timeline-item">
+    <div class="obs-timeline-dot"><i class="${e.icon}"></i></div>
+    <div class="obs-timeline-card">
+      <div class="d-flex justify-content-between gap-2">
+        <strong>${window.obsEscape(e.title)}</strong>
+        <span class="text-muted small">${window.obsEscape(window.ipdFormatDateTime ? window.ipdFormatDateTime(e.at) : e.at)}</span>
+      </div>
+      <div class="mt-1">${window.obsEscape(e.body || '-')}</div>
+      ${e.by ? `<div class="text-muted small mt-1">${window.obsEscape(e.by)}</div>` : ''}
+    </div>
+  </div>`).join(''));
+};
+
+window.openObservationNoteModal = async function (noteType) {
+  const observationId = window.currentObservationId;
+  if (!observationId) return;
+  const type = String(noteType || 'NURSING_NOTE').toUpperCase();
+  const typeLabel = window.t(type === 'VITAL_SIGN' ? 'obs.addVital' : type === 'DOCTOR_NOTE' ? 'obs.doctorNote' : type === 'MEDICATION' ? 'obs.medication' : type === 'PROCEDURE' ? 'obs.procedure' : 'obs.nursingNote');
+  const vitalHtml = type === 'VITAL_SIGN' ? `
+      <div><label class="form-label fw-bold">Temp</label><input id="obsNoteTemp" class="form-control"></div>
+      <div><label class="form-label fw-bold">BP</label><input id="obsNoteBp" class="form-control" placeholder="120/80"></div>
+      <div><label class="form-label fw-bold">Pulse</label><input id="obsNotePulse" class="form-control"></div>
+      <div><label class="form-label fw-bold">RR</label><input id="obsNoteRr" class="form-control"></div>
+      <div><label class="form-label fw-bold">SpO2</label><input id="obsNoteSpo2" class="form-control"></div>
+      <div><label class="form-label fw-bold">Pain Score</label><input id="obsNotePain" class="form-control" type="number" min="0" max="10"></div>` : '';
+  const extraHtml = type === 'MEDICATION'
+    ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.medication'))}</label><input id="obsNoteMedication" class="form-control"></div>`
+    : type === 'PROCEDURE'
+      ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.procedure'))}</label><input id="obsNoteProcedure" class="form-control"></div>`
+      : '';
+  const result = await Swal.fire({
+    title: typeLabel,
+    width: 760,
+    html: `<div class="ipd-form-grid">
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.dateTime'))}</label><input type="datetime-local" id="obsNoteAt" class="form-control" value="${new Date().toISOString().slice(0, 16)}"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.by'))}</label><input id="obsNoteBy" class="form-control" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>
+      ${vitalHtml}
+      ${extraHtml}
+      <div class="full"><label class="form-label fw-bold">Note</label><textarea id="obsNoteText" class="form-control" rows="3"></textarea></div>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: window.t('common.save'),
+    cancelButtonText: window.t('common.cancel'),
+    preConfirm: () => ({
+      note_datetime: $('#obsNoteAt').val() ? new Date($('#obsNoteAt').val()).toISOString() : new Date().toISOString(),
+      recorded_by: $('#obsNoteBy').val().trim(),
+      note_text: $('#obsNoteText').val().trim(),
+      temp: $('#obsNoteTemp').val() || null,
+      bp: $('#obsNoteBp').val() || null,
+      pulse: $('#obsNotePulse').val() || null,
+      rr: $('#obsNoteRr').val() || null,
+      spo2: $('#obsNoteSpo2').val() || null,
+      pain_score: $('#obsNotePain').val() || null,
+      medication: $('#obsNoteMedication').val() || null,
+      procedure_name: $('#obsNoteProcedure').val() || null
+    })
+  });
+  if (!result.isConfirmed) return;
+  const payload = {
+    id: window.ipdId ? window.ipdId('OBSN') : `OBSN${Date.now()}`,
+    observation_id: observationId,
+    note_type: type,
+    ...result.value
+  };
+  const { error } = await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE).insert([payload]);
+  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  window.logAction?.('Add', `Observation note ${type} - ${observationId}`, 'OPD Observation');
+  await window.openObservationDetail(observationId);
+};
+
+window.dischargeObservation = async function (observationId) {
+  const row = (window.observationRows || []).find(r => String(r.observation_id) === String(observationId));
+  if (!row || ['DISCHARGED', 'TRANSFER_TO_IPD'].includes(String(row.status || '').toUpperCase())) return;
+  const confirm = await Swal.fire({
+    title: window.t('obs.discharge'),
+    text: row.observation_id,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: window.t('obs.discharge'),
+    cancelButtonText: window.t('common.cancel')
+  });
+  if (!confirm.isConfirmed) return;
+  const { error } = await window.obsFrom(OPD_OBSERVATION_TABLE).update({
+    status: 'DISCHARGED',
+    end_datetime: new Date().toISOString(),
+    bed_id: null,
+    room_id: null,
+    ward_id: null
+  }).eq('observation_id', observationId);
+  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  window.logAction?.('Update', `Discharge OPD Observation ${observationId}`, 'OPD Observation');
+  Swal.fire(window.t('common.saved'), window.t('obs.discharged'), 'success');
+  await window.loadObservationPage();
+  window.closeObservationDetail();
+};
+
+window.convertObservationToIpd = async function (observationId) {
+  const row = (window.observationRows || []).find(r => String(r.observation_id) === String(observationId));
+  if (!row || String(row.status || '').toUpperCase() === 'TRANSFER_TO_IPD') return;
+  const duration = window.obsDurationHours(row);
+  const message = duration >= 6 ? window.t('obs.sixHourAlert') : 'Observation is under 6 hours. Continue conversion?';
+  const confirm = await Swal.fire({
+    title: window.t('obs.convertToIpd'),
+    text: message,
+    icon: duration >= 6 ? 'warning' : 'question',
+    showCancelButton: true,
+    confirmButtonText: window.t('obs.convertToIpd'),
+    cancelButtonText: window.t('common.cancel')
+  });
+  if (!confirm.isConfirmed) return;
+
+  const patient = window.observationPatientsById[row.patient_id] || window.observationPatientsById[row.hn] || {};
+  const patientName = [patient.First_Name, patient.Last_Name].filter(Boolean).join(' ') || row.patient_id || row.hn || '';
+  const admissionId = window.ipdId('IPD');
+  const now = new Date();
+  const payload = {
+    Admission_ID: admissionId,
+    Patient_ID: row.patient_id || row.hn || null,
+    Patient_Name: patientName,
+    Admitting_Doctor: row.doctor_id || null,
+    Diagnosis_Admission: row.diagnosis || null,
+    Admission_Date: window.getLocalStr(now),
+    Admission_Time: now.toTimeString().slice(0, 5),
+    Ward_ID: null,
+    Room_ID: null,
+    Bed_ID: null,
+    Status: 'Admitted',
+    Source_Visit_ID: row.visit_id || null,
+    Admission_Source: 'OPD Observation',
+    Notes: `Converted from OPD Observation ${row.observation_id}`,
+    Created_At: now.toISOString()
+  };
+  const res = await window.ipdMutate('Admissions', 'insert', payload, null, payload);
+  if (res.error) return Swal.fire(window.t('common.error'), res.error.message, 'error');
+  await window.copyLatestOpdVitalsToIpdAdmission(admissionId, payload.Patient_ID);
+  const upd = await window.obsFrom(OPD_OBSERVATION_TABLE).update({
+    status: 'TRANSFER_TO_IPD',
+    end_datetime: now.toISOString(),
+    ipd_admission_id: admissionId,
+    converted_at: now.toISOString(),
+    bed_id: null,
+    room_id: null,
+    ward_id: null
+  }).eq('observation_id', observationId);
+  if (upd.error) console.warn('Observation transfer status update failed:', upd.error);
+  window.logAction?.('Update', `Convert OPD Observation ${observationId} to IPD ${admissionId}`, 'OPD Observation');
+  Swal.fire(window.t('common.saved'), window.t('obs.converted'), 'success').then(() => {
+    window.loadView('ipd_ward_bed');
+  });
+};
+
+window.updateReportObservationStats = async function (sDate, eDate) {
+  if (!$('#repObservation').length) return;
+  try {
+    const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
+    const { count, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+      .select('observation_id', { count: 'exact', head: true })
+      .gte('start_datetime', range.startIso)
+      .lte('start_datetime', range.endIso);
+    if (error) throw error;
+    $('#repObservation').text(count || 0);
+  } catch (err) {
+    console.warn('Report observation stat failed:', err);
+    $('#repObservation').text('0');
+  }
+};
+
+// ============================================================
+// OPD doctor-room notifications (Supabase Realtime)
+// ============================================================
+let opdQueueChannel = null;
+let opdQueuePollInterval = null;
+const opdNotifiedVisitIds = new Set();
+let opdActiveRoomAlerts = [];
+const OPD_MY_ROOM_KEY = 'his_opd_my_room';
+
+window.getOpdMyRoom = function () {
+  try { return localStorage.getItem(OPD_MY_ROOM_KEY) || ''; } catch (e) { return ''; }
+};
+window.saveOpdMyRoom = function (value) {
+  try { localStorage.setItem(OPD_MY_ROOM_KEY, value || ''); } catch (e) {}
+  window.requestOpdNotificationPermission();
+  window.seedOpdNotifiedVisits();
+  if (typeof window.loadQueue === 'function' && $('#view-opd').is(':visible')) window.loadQueue();
+  if (typeof window.checkAlerts === 'function') window.checkAlerts();
+};
+
+window.populateOpdMyRoomFilter = function () {
+  const $sel = $('#opdMyRoomFilter');
+  if (!$sel.length) return;
+  const rooms = (masterDataStore?.Department || []).map(d => d.value).filter(Boolean);
+  const currentVal = window.getOpdMyRoom();
+  let html = '<option value="">🔔 ທຸກຫ້ອງ</option>';
+  rooms.forEach(r => { html += `<option value="${r}" ${r === currentVal ? 'selected' : ''}>${r}</option>`; });
+  $sel.html(html).val(currentVal);
+};
+
+window.normalizeOpdRoomName = function (value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+};
+
+window.isOpdRoomMatch = function (department, selectedRoom = window.getOpdMyRoom()) {
+  const room = window.normalizeOpdRoomName(selectedRoom);
+  if (!room) return true;
+  return window.normalizeOpdRoomName(department) === room;
+};
+
+window.isWaitingOpdStatus = function (status) {
+  return window.normalizeVisitStatus(status) === 'Waiting OPD';
+};
+
+window.seedOpdNotifiedVisits = async function () {
+  opdNotifiedVisitIds.clear();
+  try {
+    const { data } = await supabaseClient.from(dbTable('Visits'))
+      .select('Visit_ID,Department')
+      .eq('Status', 'Waiting OPD')
+      .limit(1000);
+    (data || []).forEach(r => {
+      if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.add(r.Visit_ID);
+    });
+  } catch (e) {
+    console.warn('seed waiting OPD failed:', e);
+  }
+};
+
+window.handleOpdQueueNotification = function (row) {
+  if (!row || !window.isWaitingOpdStatus(row.Status)) return;
+  const visitId = row.Visit_ID;
+  if (!visitId || opdNotifiedVisitIds.has(visitId)) return;
+  if (!window.isOpdRoomMatch(row.Department)) return;
+
+  opdNotifiedVisitIds.add(visitId);
+  const patientName = row.Patient_Name || row.Patient_ID || '-';
+  const department = String(row.Department || '').trim() || 'OPD';
+  window.showOpdQueueToast(patientName, department);
+  window.playOpdNotificationSound();
+  window.showOpdDesktopNotification(patientName, department);
+  if (typeof window.checkAlerts === 'function') window.checkAlerts();
+};
+
+window.pollOpdQueueNotifications = async function () {
+  try {
+    const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
+    const todayRange = window.getLocalDayIsoBounds(today);
+    const { data, error } = await supabaseClient.from(dbTable('Visits'))
+      .select('Visit_ID,Patient_ID,Patient_Name,Department,Status,Date')
+      .eq('Status', 'Waiting OPD')
+      .gte('Date', todayRange.startIso)
+      .lte('Date', todayRange.endIso)
+      .order('Date', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    (data || []).reverse().forEach(row => window.handleOpdQueueNotification(row));
+  } catch (e) {
+    console.warn('OPD notification poll failed:', e);
+  }
+};
+
+window.setupOpdQueueRealtime = async function () {
+  if (opdQueueChannel) {
+    try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
+    opdQueueChannel = null;
+  }
+  if (opdQueuePollInterval) {
+    clearInterval(opdQueuePollInterval);
+    opdQueuePollInterval = null;
+  }
+
+  // Seed with currently-existing "Waiting OPD" visit IDs so we only notify on NEW arrivals
+  await window.seedOpdNotifiedVisits();
+
+  opdQueueChannel = supabaseClient.channel('opd-queue-notifications')
+    .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      if ($('#view-opd').is(':visible')) window.loadQueue();
+      window.handleOpdQueueNotification(row);
+    })
+    .subscribe();
+
+  // Realtime can be unavailable depending on Supabase project settings; poll as a quiet fallback.
+  opdQueuePollInterval = setInterval(window.pollOpdQueueNotifications, 15000);
+};
+
+window.teardownOpdQueueRealtime = function () {
+  if (opdQueueChannel) {
+    try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
+    opdQueueChannel = null;
+  }
+  if (opdQueuePollInterval) {
+    clearInterval(opdQueuePollInterval);
+    opdQueuePollInterval = null;
+  }
+  opdNotifiedVisitIds.clear();
+  opdActiveRoomAlerts = [];
+};
+
+window.showOpdQueueToast = function (patientName, department) {
+  let $c = $('#opdToastContainer');
+  if (!$c.length) {
+    $('body').append('<div id="opdToastContainer" class="opd-toast-container"></div>');
+    $c = $('#opdToastContainer');
+  }
+  const toastId = 'opdToast_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+  const safeName = String(patientName).replace(/</g, '&lt;');
+  const safeDept = String(department).replace(/</g, '&lt;');
+  $c.append(
+    `<div id="${toastId}" class="opd-toast" onclick="document.getElementById('${toastId}').remove()">
+       <div class="opd-toast-icon"><i class="fas fa-user-md"></i></div>
+       <div class="opd-toast-body">
+         <div class="opd-toast-title">ມີຄົນເຈັບໃໝ່ສົ່ງມາ</div>
+         <div class="opd-toast-text"><strong>${safeName}</strong> → <span class="opd-toast-dept">${safeDept}</span></div>
+       </div>
+       <button class="opd-toast-close" onclick="event.stopPropagation();document.getElementById('${toastId}').remove()">&times;</button>
+     </div>`
+  );
+  setTimeout(() => { const el = document.getElementById(toastId); if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); } }, 8000);
+};
+
+let opdAudioCtx = null;
+window.unlockOpdAudio = function () {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!opdAudioCtx) opdAudioCtx = new AudioCtx();
+    if (opdAudioCtx.state === 'suspended') opdAudioCtx.resume();
+  } catch (e) {}
+};
+document.addEventListener('click', window.unlockOpdAudio, { once: false, passive: true });
+document.addEventListener('keydown', window.unlockOpdAudio, { once: false, passive: true });
+
+window.playOpdNotificationSound = function () {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!opdAudioCtx) opdAudioCtx = new AudioCtx();
+    if (opdAudioCtx.state === 'suspended') opdAudioCtx.resume();
+    const ctx = opdAudioCtx;
+    const playTone = (freq, startOffset, duration, gainPeak = 0.5) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t0 = ctx.currentTime + startOffset;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(gainPeak, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.05);
+    };
+    // Hospital ding-dong style: 4 pulses, attention-grabbing
+    playTone(880, 0.00, 0.18);
+    playTone(1320, 0.22, 0.22);
+    playTone(880, 0.50, 0.18);
+    playTone(1320, 0.72, 0.30);
+  } catch (e) { console.warn('Audio notification failed:', e); }
+};
+
+window.requestOpdNotificationPermission = function () {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
+};
+
+window.showOpdDesktopNotification = function (patientName, department) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const n = new Notification('🔔 ມີຄົນເຈັບໃໝ່ໃນຫ້ອງກວດ', {
+      body: `${patientName} → ${department}`,
+      tag: 'opd-new-patient',
+      requireInteraction: false
+    });
+    setTimeout(() => { try { n.close(); } catch (e) {} }, 8000);
+  } catch (e) { /* ignore */ }
+};
+
+window.triggerOpdTestNotification = function () {
+  window.unlockOpdAudio();
+  window.showOpdQueueToast('ທົດສອບ — ນາງສາວ ສຸກ', window.getOpdMyRoom() || 'OPD ທົ່ວໄປ');
+  window.playOpdNotificationSound();
+  window.showOpdDesktopNotification('ທົດສອບ — ນາງສາວ ສຸກ', window.getOpdMyRoom() || 'OPD ທົ່ວໄປ');
+};
+
 window.loadQueue = async function () {
   try {
     let sDate = $('#opdStartDate').val();
     let eDate = $('#opdEndDate').val();
     if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
     $('#queueTableBody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+    window.populateOpdMyRoomFilter();
 
-    const q = await window._fetchOpdQueue(sDate, eDate);
-    queueDataStore = q || [];
+    const allQueueRows = await window._fetchOpdQueue(sDate, eDate);
+    const myRoom = window.getOpdMyRoom();
+    const q = myRoom
+      ? (allQueueRows || []).filter(r => window.isOpdRoomMatch(r.department, myRoom))
+      : (allQueueRows || []);
+    queueDataStore = q;
     if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
     let h = '';
     if (q && q.length > 0) {
@@ -5888,12 +7185,14 @@ window.loadQueue = async function () {
           b = isCalling ? '<span class="badge bg-danger animate__animated animate__flash animate__infinite"><i class="fas fa-volume-up"></i> ກຳລັງເອີ້ນ...</span>' : '<span class="badge bg-warning text-dark"><i class="fas fa-user-clock"></i> ລໍຖ້າກວດ</span>';
           a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
                         <button class="btn btn-sm btn-info text-white fw-bold me-1" onclick="window.openEMR(${i})"><i class="fas fa-stethoscope"></i> ເປີດກວດ</button>
+                        <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
                         <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerPublicCall('${r.visitId}', '${r.patientId}', '${r.department || 'ຫ້ອງກວດ (OPD)'}')" title="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
                         <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-file-medical"></i> ພິມ</button>`;
         } else if (status === 'Waiting Lab' || status === 'Calling Lab') {
           b = isCalling ? '<span class="badge bg-danger animate__animated animate__flash animate__infinite"><i class="fas fa-volume-up"></i> ກຳລັງເອີ້ນ...</span>' : '<span class="badge bg-primary"><i class="fas fa-flask"></i> ລໍຖ້າຜົນແລັບ</span>';
           a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
                         <button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openEMR(${i})"><i class="fas fa-edit"></i> ອ່ານຜົນແລັບ</button>
+                        <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
                         <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerPublicCall('${r.visitId}', '${r.patientId}', '${r.department || 'ຫ້ອງກວດ (OPD)'}')" title="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
                         <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-file-medical"></i> ພິມ</button>`;
         } else {
@@ -5901,6 +7200,7 @@ window.loadQueue = async function () {
           a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
                        <button class="btn btn-sm btn-success text-white fw-bold me-1" onclick="window.viewEMR(${i})" title="ເບິ່ງລາຍລະອຽດການກວດ"><i class="fas fa-eye"></i></button>
                        <button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openEMR(${i})" title="ແກ້ໄຂການກວດ"><i class="fas fa-edit"></i></button>
+                       <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
                        <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-print"></i></button>`;
         }
         let nb = r.isNew ? '<span class="badge bg-success ms-2">ໃໝ່</span>' : '<span class="badge bg-secondary ms-2">ເກົ່າ</span>';
@@ -5917,6 +7217,7 @@ window.loadQueue = async function () {
     }
     $('#queueTableBody').html(h);
     $('#queueTable').DataTable({ responsive: true, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວລໍຖ້າ" } });
+    window.applyButtonPermissions?.();
   } catch (err) {
     console.error("Critical loadQueue Error:", err);
     let msg = err.message || "Unknown error";
@@ -6063,7 +7364,9 @@ window.resolveVisitStatusFromDischarge = function (dischargeStatus) {
     "ລໍຖ້າຜົນແລັບ (Waiting Lab)": "Waiting Lab",
     "ສົ່ງຕໍ່ (Transfer)": "Transfer",
     "ກວດສຳເລັດ / ກັບບ້ານ": "Completed",
-    "ຮັບຢາກັບບ້ານ": "Pharmacy"
+    "ຮັບຢາກັບບ້ານ": "Pharmacy",
+    "ສົ່ງເຂົ້າຕິດຕາມ OPD": "OPD Observation",
+    "ສົ່ງເຂົ້ານອນ IPD": "Admit IPD"
   };
 
   if (statusMap[value]) return statusMap[value];
@@ -6071,6 +7374,8 @@ window.resolveVisitStatusFromDischarge = function (dischargeStatus) {
   const normalized = value.toLowerCase();
   if (normalized.includes('waiting lab') || value.includes('ລໍຖ້າຜົນແລັບ')) return 'Waiting Lab';
   if (normalized.includes('transfer') || value.includes('ສົ່ງຕໍ່')) return 'Transfer';
+  if (normalized.includes('observation') || value.includes('ຕິດຕາມ OPD')) return 'OPD Observation';
+  if (normalized.includes('admit ipd') || value.includes('ນອນ IPD')) return 'Admit IPD';
   if (normalized.includes('pharmacy') || normalized.includes('rx') || value.includes('ຮັບຢາ')) return 'Pharmacy';
   return 'Completed';
 };
@@ -6212,12 +7517,82 @@ window.submitEMRForm = async function (e) {
 
   if (updateError) {
     Swal.fire('ຜິດພາດ!', updateError.message, 'error');
-  } else {
-    $('#emrModal').modal('hide');
-    window.loadQueue();
-    window.logAction('Save', 'EMR saved - Visit ' + visitId, 'OPD');
-    Swal.fire({ title: 'ສຳເລັດ!', text: 'ບັນທຶກແລ້ວ', icon: 'success', timer: 1500, showConfirmButton: false });
+    return;
   }
+
+  // Branch side-effects based on chosen discharge status
+  if (mainStatus === 'OPD Observation') {
+    await window.handleEmrSendToObservation({ visitId, patientId, doctor: docName, diagnosis: dx });
+  } else if (mainStatus === 'Admit IPD') {
+    await window.handleEmrSendToIpd({ visitId, patientId, patientName: $('#emrPatientName').text().trim(), doctor: docName, diagnosis: dx });
+    return; // handleEmrSendToIpd navigates to bed board
+  }
+
+  $('#emrModal').modal('hide');
+  window.loadQueue();
+  window.logAction('Save', 'EMR saved - Visit ' + visitId + ' (' + mainStatus + ')', 'OPD');
+  Swal.fire({ title: 'ສຳເລັດ!', text: 'ບັນທຶກແລ້ວ', icon: 'success', timer: 1500, showConfirmButton: false });
+};
+
+window.handleEmrSendToObservation = async function ({ visitId, patientId, doctor, diagnosis }) {
+  try {
+    const observationId = window.ipdId ? window.ipdId('OBS') : `OBS${Date.now()}`;
+    const payload = {
+      observation_id: observationId,
+      visit_id: visitId || null,
+      hn: patientId || null,
+      patient_id: patientId || null,
+      doctor_id: doctor || null,
+      start_datetime: new Date().toISOString(),
+      diagnosis: diagnosis || null,
+      status: 'UNDER_OBSERVATION',
+      created_by: currentUser?.name || currentUser?.id || null
+    };
+    const { error } = await window.obsFrom(OPD_OBSERVATION_TABLE).insert([payload]);
+    if (error) { console.warn('Auto-create observation failed:', error); return; }
+    await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE).insert([{
+      observation_id: observationId,
+      note_type: 'DOCTOR_NOTE',
+      note_text: diagnosis || 'EMR closed → observation',
+      recorded_by: doctor || null
+    }]);
+    window.logAction?.('Add', `EMR → Observation ${observationId} (visit ${visitId})`, 'OPD Observation');
+  } catch (err) { console.warn('handleEmrSendToObservation error:', err); }
+};
+
+window.handleEmrSendToIpd = async function ({ visitId, patientId, patientName, doctor, diagnosis }) {
+  const admissionId = window.ipdId('IPD');
+  const now = new Date();
+  const payload = {
+    Admission_ID: admissionId,
+    Patient_ID: patientId || null,
+    Patient_Name: patientName || patientId || '',
+    Admitting_Doctor: doctor || null,
+    Diagnosis_Admission: diagnosis || null,
+    Admission_Date: window.getLocalStr(now),
+    Admission_Time: now.toTimeString().slice(0, 5),
+    Ward_ID: null, Room_ID: null, Bed_ID: null,
+    Status: 'Admitted',
+    Source_Visit_ID: visitId || null,
+    Admission_Source: 'EMR Discharge',
+    Notes: `Admitted from EMR visit ${visitId}`,
+    Created_At: now.toISOString()
+  };
+  const res = await window.ipdMutate('Admissions', 'insert', payload, null, payload);
+  if (res.error) {
+    Swal.fire('ຜິດພາດ!', `ບັນທຶກ EMR ສຳເລັດແຕ່ສ້າງ IPD admission ບໍ່ໄດ້: ${res.error.message}`, 'error');
+    return;
+  }
+  await window.copyLatestOpdVitalsToIpdAdmission?.(admissionId, patientId);
+  window.logAction?.('Add', `EMR → IPD admission ${admissionId} (visit ${visitId})`, 'OPD');
+  $('#emrModal').modal('hide');
+  Swal.fire({
+    title: 'ສ້າງ IPD ແລ້ວ',
+    html: `Admission: <strong>${window.ipdEscape(admissionId)}</strong><br><small class="text-muted">ກະລຸນາມອບຕຽງໃຫ້ຄົນເຈັບ</small>`,
+    icon: 'success',
+    timer: 2200,
+    showConfirmButton: false
+  }).then(() => window.loadView('ipd_ward_bed'));
 };
 
 window.printOPDCard = async function (s, i) {
@@ -6809,21 +8184,25 @@ window.submitDrugMasterForm = async function (e) {
   if (e) e.preventDefault();
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
 
-  let isEdit = $('#dr_id').val() !== '';
-  let row = {
-    Drug_Name: $('#dr_name').val(), Description: $('#dr_desc').val()
-  };
+  const isEdit = $('#dr_id').val() !== '';
+  const row = { Drug_Name: $('#dr_name').val(), Description: $('#dr_desc').val() };
 
-  if (isEdit) {
-    await supabaseClient.from(dbTable('Drugs_Master')).update(row).eq('Drug_ID', $('#dr_id').val());
-  } else {
-    await supabaseClient.from(dbTable('Drugs_Master')).insert(row);
+  try {
+    if (isEdit) {
+      const { error } = await supabaseClient.from(dbTable('Drugs_Master')).update(row).eq('Drug_ID', $('#dr_id').val());
+      if (error) throw error;
+    } else {
+      row.Drug_ID = await window.generateNextMasterID('Drugs_Master', 'Drug_ID', 'DRUG', 3);
+      const { error } = await supabaseClient.from(dbTable('Drugs_Master')).insert(row);
+      if (error) throw error;
+    }
+    $('#drugMasterModal').modal('hide');
+    window.loadDrugsMaster();
+    window.preloadDropdownData();
+    Swal.fire('ສຳເລັດ!', '', 'success');
+  } catch (err) {
+    Swal.fire('ຜິດພາດ', err.message || String(err), 'error');
   }
-
-  $('#drugMasterModal').modal('hide');
-  window.loadDrugsMaster();
-  window.preloadDropdownData();
-  Swal.fire('ສຳເລັດ!', '', 'success');
 };
 
 window.loadLabsMaster = async function () {
@@ -6909,6 +8288,7 @@ window.submitLabMasterForm = async function (e) {
       const { error } = await supabaseClient.from(dbTable('Labs_Master')).update(row).eq('Lab_ID', labId);
       if (error) throw error;
     } else {
+      row.Lab_ID = await window.generateNextMasterID('Labs_Master', 'Lab_ID', 'LAB', 3);
       const { data, error } = await supabaseClient.from(dbTable('Labs_Master')).insert(row).select('Lab_ID').single();
       if (error) throw error;
       labId = data?.Lab_ID;
@@ -6976,7 +8356,7 @@ $(document).on('shown.bs.tab', '#users-tab', function () {
 // Load activity log when log tab is shown
 $(document).on('shown.bs.tab', '#log-tab', function () {
   if (!$('#logStartDate').val()) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = window.getLocalStr(new Date());
     $('#logStartDate').val(today);
     $('#logEndDate').val(today);
   }
@@ -7031,8 +8411,8 @@ window.togglePermissionsBox = function () {
   
   // Preset permissions by role
   const rolePermissions = {
-    'doctor': 'dashboard,report,patients,triage,opd,labs,drugs,appointments,vaccines,activity_log',
-    'nurse': 'dashboard,patients,triage,appointments,vaccines',
+    'doctor': 'dashboard,report,patients,triage,opd,opd_observation,labs,drugs,appointments,vaccines,activity_log',
+    'nurse': 'dashboard,patients,triage,opd_observation,appointments,vaccines',
     'lab': 'dashboard,report,labs',
     'pharmacy': 'dashboard,report,drugs',
     'reception': 'dashboard,patients,appointments,orgs',
@@ -7101,6 +8481,13 @@ window.applyButtonPermissions = function () {
   if (!window.can('opd', 'edit')) $('.btn-opd-edit, .btn-open-emr').hide();
   if (!window.can('opd', 'delete')) $('.btn-opd-delete').hide();
   if (!window.can('opd', 'print')) $('.btn-opd-print, .btn-print-opd').hide();
+
+  // OPD Follow-up / Observation buttons
+  if (!window.can('opd_observation', 'view')) $('.btn-obs-view').hide();
+  if (!window.can('opd_observation', 'add')) $('.btn-obs-add').hide();
+  if (!window.can('opd_observation', 'note')) $('.btn-obs-note').hide();
+  if (!window.can('opd_observation', 'convert')) $('.btn-obs-convert').hide();
+  if (!window.can('opd_observation', 'discharge')) $('.btn-obs-discharge').hide();
   
   // Labs buttons
   if (!window.can('labs', 'view')) $('.btn-labs-view').hide();
@@ -7196,6 +8583,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: true, delete: true, triage: true, print_qr: true },
       triage: { view: true, edit: true, delete: true, call: true },
       opd: { view: true, edit: true, delete: true, print: true },
+      opd_observation: { view: true, add: true, note: true, convert: true, discharge: true },
       labs: { view: true, add: true, edit: true, delete: true },
       drugs: { view: true, add: true, edit: true, delete: true },
       appointments: { view: true, add: true, edit: true, delete: true },
@@ -7206,6 +8594,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: true, delete: false, triage: true, print_qr: true },
       triage: { view: true, edit: true, delete: false, call: true },
       opd: { view: true, edit: true, delete: false, print: true },
+      opd_observation: { view: true, add: true, note: true, convert: true, discharge: true },
       labs: { view: true, add: true, edit: true, delete: false },
       drugs: { view: true, add: true, edit: true, delete: false },
       appointments: { view: true, add: true, edit: true, delete: false },
@@ -7216,6 +8605,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: true, print_qr: false },
       triage: { view: true, edit: true, delete: false, call: true },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: true, add: true, note: true, convert: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: true, edit: false, delete: false },
@@ -7226,6 +8616,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: false, add: false, note: false, convert: false, discharge: false },
       labs: { view: true, add: true, edit: true, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: false, add: false, edit: false, delete: false },
@@ -7236,6 +8627,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: false, add: false, note: false, convert: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: true, add: true, edit: true, delete: false },
       appointments: { view: false, add: false, edit: false, delete: false },
@@ -7246,6 +8638,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: true, edit: false, delete: false, triage: false, print_qr: true },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: false, add: false, note: false, convert: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: true, edit: false, delete: false },
@@ -7256,6 +8649,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: false, add: false, note: false, convert: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: false, edit: false, delete: false },
@@ -7266,6 +8660,7 @@ window.resetToRoleDefaults = function () {
       patients: { view: true, add: false, edit: false, delete: false, triage: false, print_qr: false },
       triage: { view: false, edit: false, delete: false, call: false },
       opd: { view: false, edit: false, delete: false, print: false },
+      opd_observation: { view: false, add: false, note: false, convert: false, discharge: false },
       labs: { view: false, add: false, edit: false, delete: false },
       drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: false, edit: false, delete: false },
@@ -7315,6 +8710,13 @@ window.saveButtonPermissions = async function () {
       edit: $('#perm_opd_edit').is(':checked'),
       delete: $('#perm_opd_delete').is(':checked'),
       print: $('#perm_opd_print').is(':checked')
+    },
+    opd_observation: {
+      view: $('#perm_opd_observation_view').is(':checked'),
+      add: $('#perm_opd_observation_add').is(':checked'),
+      note: $('#perm_opd_observation_note').is(':checked'),
+      convert: $('#perm_opd_observation_convert').is(':checked'),
+      discharge: $('#perm_opd_observation_discharge').is(':checked')
     },
     labs: {
       view: $('#perm_labs_view').is(':checked'),
@@ -7864,33 +9266,50 @@ window.toggleOrg = async function (id, currentStatus) {
   let newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
   await supabaseClient.from(dbTable('Organizations')).update({ Status: newStatus }).eq('Org_ID', id);
   window.loadOrgs();
+  window.preloadDropdownData();
+  window.refreshPatientOrgDropdown();
 };
 
 window.submitOrgForm = async function (e) {
   if (e) e.preventDefault();
+  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
 
-  let isEdit = $('#o_rowIdx').val() !== '';
-  let row = {
-    Cus_ID_Ex: $('#o_cusId').val(), Name: $('#o_name').val(),
-    Org_Name: $('#o_orgName').val(), Org_Code: $('#o_orgCode').val(),
+  const isEdit = $('#o_rowIdx').val() !== '';
+  const row = {
+    Cus_ID_Ex: $('#o_cusId').val(),
+    Name: $('#o_name').val(),
+    Org_Name: $('#o_orgName').val(),
+    Org_Code: $('#o_orgCode').val(),
     Discount: $('#o_discount').val()
   };
 
-  if (isEdit) {
-    await supabaseClient.from(dbTable('Organizations')).update(row).eq('Org_ID', $('#o_rowIdx').val());
-  } else {
-    row.Status = 'Active';
-    await supabaseClient.from(dbTable('Organizations')).insert(row);
+  try {
+    if (isEdit) {
+      const { error } = await supabaseClient.from(dbTable('Organizations')).update(row).eq('Org_ID', $('#o_rowIdx').val());
+      if (error) throw error;
+    } else {
+      row.Status = 'Active';
+      row.Org_ID = (row.Org_Code || '').trim() || await window.generateNextMasterID('Organizations', 'Org_ID', 'ORG', 3);
+      const { error } = await supabaseClient.from(dbTable('Organizations')).insert(row);
+      if (error) throw error;
+    }
+    $('#orgModal').modal('hide');
+    window.loadOrgs();
+    window.preloadDropdownData();
+    window.refreshPatientOrgDropdown();
+    Swal.fire('ສຳເລັດ!', '', 'success');
+  } catch (err) {
+    Swal.fire('ຜິດພາດ', err.message || String(err), 'error');
   }
-
-  $('#orgModal').modal('hide');
-  window.loadOrgs();
-  window.preloadDropdownData();
 };
 
-window.openOrgModal = function () {
+window.openOrgModal = async function () {
   $('#orgForm')[0].reset();
   $('#o_rowIdx').val('');
+  try {
+    const nextCode = await window.generateNextMasterID('Organizations', 'Org_Code', 'ORG', 3);
+    $('#o_orgCode').val(nextCode);
+  } catch (e) { /* fallback: leave blank */ }
   $('#orgModal').modal('show');
 };
 
@@ -8488,6 +9907,13 @@ window.handleOrgExcelUpload = function (e) {
         insertData.push(obj);
       }
 
+      const missingIdRows = insertData.filter(d => !d.Org_ID);
+      if (missingIdRows.length) {
+        const ids = await window.generateNextMasterIDs('Organizations', 'Org_ID', 'ORG', 3, missingIdRows.length);
+        let k = 0;
+        insertData.forEach(d => { if (!d.Org_ID) d.Org_ID = (d.Org_Code || '').trim() || ids[k++]; });
+      }
+
       const { error } = await supabaseClient.from(dbTable('Organizations')).insert(insertData);
       if (error) {
         Swal.fire('Error', error.message, 'error');
@@ -8523,6 +9949,8 @@ window.handleDrugExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
+      const ids = await window.generateNextMasterIDs('Drugs_Master', 'Drug_ID', 'DRUG', 3, insertData.length);
+      insertData.forEach((d, i) => { d.Drug_ID = ids[i]; });
       const { error } = await supabaseClient.from(dbTable('Drugs_Master')).insert(insertData);
       if (!error) {
         Swal.fire('ສຳເລັດ!', `ນຳເຂົ້າ ${insertData.length} ລາຍການ`, 'success');
@@ -8560,7 +9988,8 @@ window.handleLabExcelUpload = function (e) {
     }
 
     if (insertData.length > 0) {
-      const payload = insertData.map(item => ({ Lab_Name: item.Lab_Name, Description: item.Description }));
+      const labIds = await window.generateNextMasterIDs('Labs_Master', 'Lab_ID', 'LAB', 3, insertData.length);
+      const payload = insertData.map((item, i) => ({ Lab_ID: labIds[i], Lab_Name: item.Lab_Name, Description: item.Description }));
       const { data: insertedRows, error } = await supabaseClient.from(dbTable('Labs_Master')).insert(payload).select('Lab_ID,Lab_Name');
       if (!error) {
         const ensureResult = await window.ensureLabCategoriesExist(importCategories);
@@ -8718,11 +10147,12 @@ window.loadActivityLog = async function () {
   $('#activityLogTableBody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
+    const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
     let query = supabaseClient
       .from(dbTable('activity_logs'))
       .select('*')
-      .gte('timestamp', sDate + 'T00:00:00Z')
-      .lte('timestamp', eDate + 'T23:59:59Z')
+      .gte('timestamp', range.startIso)
+      .lte('timestamp', range.endIso)
       .order('timestamp', { ascending: false })
       .limit(500);
 
@@ -8845,11 +10275,12 @@ window.initPublicQueueView = async function () {
 };
 
 window.refreshPublicQueueDisplay = async function () {
-  let today = new Date().toISOString().split('T')[0];
+  let today = window.getLocalStr(new Date());
+  const todayRange = window.getLocalDayIsoBounds(today);
   const { data: visits, error } = await supabaseClient.from(dbTable('Visits'))
     .select('*')
-    .gte('Date', today + 'T00:00:00Z')
-    .lte('Date', today + 'T23:59:59Z')
+    .gte('Date', todayRange.startIso)
+    .lte('Date', todayRange.endIso)
     .order('Date', { ascending: true });
 
   if (error) return console.error('refreshPublicQueueDisplay error:', error);
@@ -9568,6 +10999,11 @@ window.ipdIsVipWard = function (ward) {
   return String(ward?.Ward_Type || '').toUpperCase() === 'VIP' || /vip/i.test(String(ward?.Ward_Name || ''));
 };
 
+window.ipdIsObsWard = function (ward) {
+  const t = String(ward?.Ward_Type || '').toUpperCase();
+  return t === 'OPD_OBSERVATION' || t === 'OPD_OBS' || /\bobservation\b/i.test(String(ward?.Ward_Name || ''));
+};
+
 window.ipdIsActiveAdmission = function (admission) {
   if (!admission) return false;
   const dischargeDate = String(admission?.Discharge_Date || '').trim();
@@ -10065,7 +11501,10 @@ window.applyIpdWardBedFilters = function () {
 };
 
 window.renderIpdSummaryCards = function () {
-  const beds = window.ipdWardBedState.beds;
+  const state = window.ipdWardBedState;
+  // Exclude OPD-observation ward beds from the IPD summary so census numbers stay IPD-only
+  const obsWardIds = new Set(state.wards.filter(w => window.ipdIsObsWard(w)).map(w => String(w.Ward_ID)));
+  const beds = state.beds.filter(b => !obsWardIds.has(String(b.Ward_ID)));
   const count = status => beds.filter(b => window.ipdBedStatus(b) === status).length;
 
   $('#ipdTotalBeds').text(beds.length);
@@ -10084,8 +11523,11 @@ window.renderIpdBedBoard = function () {
 
   const filteredBedIds = new Set(state.filteredBeds.map(b => String(b.Bed_ID)));
   const isVipWard = window.ipdIsVipWard;
-  const regularWards = state.wards.filter(w => !isVipWard(w));
-  const vipWards = state.wards.filter(isVipWard);
+  const isObsWard = window.ipdIsObsWard;
+  // IPD bed board excludes OPD-observation wards — those render on the OPD Follow-up page only
+  const nonObsWards = state.wards.filter(w => !isObsWard(w));
+  const regularWards = nonObsWards.filter(w => !isVipWard(w));
+  const vipWards = nonObsWards.filter(isVipWard);
 
   const renderWardGroup = (ward) => {
     const wardRooms = state.rooms.filter(r => String(r.Ward_ID) === String(ward.Ward_ID));
@@ -10800,13 +12242,19 @@ window.renderIpdDischargePage = function () {
 };
 
 window.renderIpdWardsTable = function () {
-  if ($.fn.DataTable.isDataTable('#ipdWardsTable')) $('#ipdWardsTable').DataTable().destroy();
+  const $table = $('#ipdWardsTable');
+  if ($.fn.DataTable.isDataTable('#ipdWardsTable')) $table.DataTable().destroy();
+  $table.find('thead').html(`<tr>
+    <th>${window.ipdEscape(window.t('ipd.wardName'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.wardType'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.floor'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.status'))}</th>
+    <th class="text-center">${window.ipdEscape(window.t('common.action'))}</th>
+  </tr>`);
   const rows = window.ipdWardBedState.wards.map(w => `<tr>
-    <td><code>${window.ipdEscape(w.Ward_ID)}</code></td>
     <td class="fw-bold text-primary">${window.ipdEscape(w.Ward_Name || '-')}</td>
     <td>${window.ipdEscape(w.Ward_Type ? window.ipdTranslateValue(w.Ward_Type) : '-')}</td>
     <td>${window.ipdEscape(w.Floor || '-')}</td>
-    <td>${window.ipdEscape(w.Department || '-')}</td>
     <td><span class="badge ${w.Status === 'Inactive' ? 'bg-secondary' : 'bg-success'}">${window.ipdEscape(window.ipdTranslateValue(w.Status || 'Active'))}</span></td>
     <td class="text-center">
       <button class="btn btn-sm btn-primary me-1 btn-ipd-config-edit" title="${window.ipdEscape(window.t('ipd.edit'))}" onclick="window.openIpdWardModal('${window.ipdEscape(w.Ward_ID)}')"><i class="fas fa-edit"></i></button>
@@ -10815,15 +12263,23 @@ window.renderIpdWardsTable = function () {
     </td>
   </tr>`).join('');
   $('#ipdWardsTable tbody').html(rows);
-  $('#ipdWardsTable').DataTable({ responsive: true, pageLength: 10 });
+  $table.DataTable({ responsive: true, pageLength: 10 });
 };
 
 window.renderIpdRoomsTable = function () {
-  if ($.fn.DataTable.isDataTable('#ipdRoomsTable')) $('#ipdRoomsTable').DataTable().destroy();
+  const $table = $('#ipdRoomsTable');
+  if ($.fn.DataTable.isDataTable('#ipdRoomsTable')) $table.DataTable().destroy();
+  $table.find('thead').html(`<tr>
+    <th>${window.ipdEscape(window.t('ipd.ward'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.roomNumber'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.roomType'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.floor'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.status'))}</th>
+    <th class="text-center">${window.ipdEscape(window.t('common.action'))}</th>
+  </tr>`);
   const rows = window.ipdWardBedState.rooms.map(r => {
     const ward = window.ipdWardById(r.Ward_ID);
     return `<tr>
-      <td><code>${window.ipdEscape(r.Room_ID)}</code></td>
       <td>${window.ipdEscape(ward?.Ward_Name || r.Ward_ID || '-')}</td>
       <td class="fw-bold text-primary">${window.ipdEscape(r.Room_Number || '-')}</td>
       <td>${window.ipdEscape(r.Room_Type ? window.ipdTranslateValue(r.Room_Type) : '-')}</td>
@@ -10837,11 +12293,23 @@ window.renderIpdRoomsTable = function () {
     </tr>`;
   }).join('');
   $('#ipdRoomsTable tbody').html(rows);
-  $('#ipdRoomsTable').DataTable({ responsive: true, pageLength: 10 });
+  $table.DataTable({ responsive: true, pageLength: 10 });
 };
 
 window.renderIpdBedsTable = function () {
-  if ($.fn.DataTable.isDataTable('#ipdBedsTable')) $('#ipdBedsTable').DataTable().destroy();
+  const $table = $('#ipdBedsTable');
+  if ($.fn.DataTable.isDataTable('#ipdBedsTable')) $table.DataTable().destroy();
+  $table.find('thead').html(`<tr>
+    <th>${window.ipdEscape(window.t('ipd.ward'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.room'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.bedNo'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.bedType'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.status'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.patient'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.doctor'))}</th>
+    <th>${window.ipdEscape(window.t('ipd.ipdNo'))}</th>
+    <th class="text-center">${window.ipdEscape(window.t('common.action'))}</th>
+  </tr>`);
   const rows = window.ipdWardBedState.filteredBeds.map(b => {
     const ward = window.ipdWardById(b.Ward_ID);
     const room = window.ipdRoomById(b.Room_ID);
@@ -10849,9 +12317,8 @@ window.renderIpdBedsTable = function () {
     const reservation = window.ipdReservationInfo(b);
     const status = window.ipdBedStatus(b);
     return `<tr>
-      <td><code>${window.ipdEscape(b.Bed_ID)}</code></td>
-      <td>${window.ipdEscape(ward?.Ward_Name || b.Ward_ID || '-')}</td>
-      <td>${window.ipdEscape(room?.Room_Number || b.Room_ID || '-')}</td>
+      <td>${window.ipdEscape(ward?.Ward_Name || '-')}</td>
+      <td>${window.ipdEscape(room?.Room_Number || '-')}</td>
       <td class="fw-bold text-primary">${window.ipdEscape(b.Bed_Number || '-')}</td>
       <td>${window.ipdEscape(window.ipdTranslateValue(b.Bed_Type || 'Standard'))}</td>
       <td>${window.ipdStatusBadge(status)}</td>
@@ -10870,7 +12337,7 @@ window.renderIpdBedsTable = function () {
     </tr>`;
   }).join('');
   $('#ipdBedsTable tbody').html(rows);
-  $('#ipdBedsTable').DataTable({ responsive: true, pageLength: 10 });
+  $table.DataTable({ responsive: true, pageLength: 10 });
 };
 
 window.renderIpdMovementTable = function () {
@@ -10911,11 +12378,10 @@ window.openIpdWardModal = async function (wardId) {
     title: isEdit ? window.t('ipd.editWard') : window.t('ipd.addWard'),
     width: 720,
     html: `<div class="ipd-form-grid">
-      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.wardId'))}</label><input class="form-control" id="ipdWardId" value="${window.ipdEscape(ward?.Ward_ID || window.ipdId('WARD'))}" ${isEdit ? 'readonly' : ''}></div>
+      <input type="hidden" id="ipdWardId" value="${window.ipdEscape(ward?.Ward_ID || window.ipdId('WARD'))}">
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.wardName'))}</label><input class="form-control" id="ipdWardName" value="${window.ipdEscape(ward?.Ward_Name || '')}" required></div>
-      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.wardType'))}</label><select class="form-select" id="ipdWardType">${window.ipdOptions(['Male','Female','Pediatric','Maternity','ICU','Emergency','Private','General'], ward?.Ward_Type || 'General')}</select></div>
+      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.wardType'))}</label><select class="form-select" id="ipdWardType">${window.ipdOptions(['Male','Female','Pediatric','Maternity','ICU','Emergency','Private','General','VIP','OPD_Observation'], ward?.Ward_Type || 'General')}</select></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.floor'))}</label><input class="form-control" id="ipdWardFloor" value="${window.ipdEscape(ward?.Floor || '')}"></div>
-      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.department'))}</label><input class="form-control" id="ipdWardDepartment" value="${window.ipdEscape(ward?.Department || 'IPD')}"></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.status'))}</label><select class="form-select" id="ipdWardStatus">${window.ipdOptions(['Active','Inactive'], ward?.Status || 'Active')}</select></div>
       <div class="full"><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.description'))}</label><textarea class="form-control" id="ipdWardDescription" rows="2">${window.ipdEscape(ward?.Description || ward?.Notes || '')}</textarea></div>
     </div>`,
@@ -10928,13 +12394,13 @@ window.openIpdWardModal = async function (wardId) {
         Ward_Name: $('#ipdWardName').val().trim(),
         Ward_Type: $('#ipdWardType').val(),
         Floor: $('#ipdWardFloor').val().trim(),
-        Department: $('#ipdWardDepartment').val().trim(),
+        Department: ward?.Department || 'IPD',
         Status: $('#ipdWardStatus').val(),
         Description: $('#ipdWardDescription').val().trim(),
         Notes: $('#ipdWardDescription').val().trim(),
         Updated_At: new Date().toISOString()
       };
-      if (!payload.Ward_ID || !payload.Ward_Name) {
+      if (!payload.Ward_Name) {
         Swal.showValidationMessage(window.t('ipd.wardRequired'));
         return false;
       }
@@ -10973,7 +12439,7 @@ window.openIpdRoomModal = async function (roomId, opts = {}) {
     width: 720,
     customClass: vipOnly ? { popup: 'ipd-vip-modal' } : {},
     html: `<div class="ipd-form-grid">
-      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.roomId'))}</label><input class="form-control" id="ipdRoomId" value="${window.ipdEscape(room?.Room_ID || window.ipdId('ROOM'))}" ${isEdit ? 'readonly' : ''}></div>
+      <input type="hidden" id="ipdRoomId" value="${window.ipdEscape(room?.Room_ID || window.ipdId('ROOM'))}">
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.roomNumber'))}</label><input class="form-control" id="ipdRoomNumber" value="${window.ipdEscape(room?.Room_Number || '')}"></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.roomType'))}</label><select class="form-select" id="ipdRoomType">${window.ipdOptions(['Private','Semi-private','General','ICU','Isolation'], room?.Room_Type || defaultRoomType)}</select></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.floor'))}</label><input class="form-control" id="ipdRoomFloor" value="${window.ipdEscape(room?.Floor || '')}"></div>
@@ -10996,7 +12462,7 @@ window.openIpdRoomModal = async function (roomId, opts = {}) {
         Notes: $('#ipdRoomDescription').val().trim(),
         Updated_At: new Date().toISOString()
       };
-      if (!payload.Room_ID || !payload.Room_Number) {
+      if (!payload.Room_Number) {
         Swal.showValidationMessage(window.t('ipd.roomRequired'));
         return false;
       }
@@ -11021,17 +12487,26 @@ window.openIpdBedModal = async function (bedId) {
   if (!window.ipdWardBedState.rooms.length) return Swal.fire(window.t('ipd.createRoomFirst'), window.t('ipd.createRoomFirstText'), 'warning');
   const bed = bedId ? window.ipdBedById(bedId) : {};
   const isEdit = !!bedId;
+  const defaultWardId = String(bed?.Ward_ID || window.ipdWardBedState.wards[0]?.Ward_ID || '');
+  const roomOptionsForWard = (wardId, selectedRoomId = '') => {
+    const rooms = window.ipdWardBedState.rooms.filter(r => String(r.Ward_ID) === String(wardId));
+    if (!rooms.length) return `<option value="" disabled selected>${window.ipdEscape(window.t('ipd.createRoomFirst'))}</option>`;
+    return rooms.map((r, index) => {
+      const selected = String(selectedRoomId || '') === String(r.Room_ID) || (!selectedRoomId && index === 0);
+      return `<option value="${window.ipdEscape(r.Room_ID)}" ${selected ? 'selected' : ''}>${window.ipdEscape(r.Room_Number || '-')}</option>`;
+    }).join('');
+  };
   const wardOptions = window.ipdWardBedState.wards.map(w => {
     const vip = window.ipdIsVipWard(w);
     const label = (vip ? '\u{1F451} ' : '') + (w.Ward_Name || w.Ward_ID) + (vip ? ' [VIP]' : '');
-    return `<option value="${window.ipdEscape(w.Ward_ID)}" data-vip="${vip ? '1' : '0'}" ${String(bed?.Ward_ID || '') === String(w.Ward_ID) ? 'selected' : ''}>${window.ipdEscape(label)}</option>`;
+    return `<option value="${window.ipdEscape(w.Ward_ID)}" data-vip="${vip ? '1' : '0'}" ${defaultWardId === String(w.Ward_ID) ? 'selected' : ''}>${window.ipdEscape(label)}</option>`;
   }).join('');
-  const roomOptions = window.ipdWardBedState.rooms.map(r => `<option value="${window.ipdEscape(r.Room_ID)}" data-ward="${window.ipdEscape(r.Ward_ID)}" ${String(bed?.Room_ID || '') === String(r.Room_ID) ? 'selected' : ''}>${window.ipdEscape(r.Room_Number || r.Room_ID)}</option>`).join('');
+  const roomOptions = roomOptionsForWard(defaultWardId, bed?.Room_ID || '');
   const result = await Swal.fire({
     title: isEdit ? window.t('ipd.editBed') : window.t('ipd.addBed'),
     width: 720,
     html: `<div class="ipd-form-grid">
-      <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.bedId'))}</label><input class="form-control" id="ipdBedId" value="${window.ipdEscape(bed?.Bed_ID || window.ipdId('BED'))}" ${isEdit ? 'readonly' : ''}></div>
+      <input type="hidden" id="ipdBedId" value="${window.ipdEscape(bed?.Bed_ID || window.ipdId('BED'))}">
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.ward'))}</label><select class="form-select" id="ipdBedWard">${wardOptions}</select></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.room'))}</label><select class="form-select" id="ipdBedRoom">${roomOptions}</select></div>
       <div><label class="form-label fw-bold">${window.ipdEscape(window.t('ipd.bedNumber'))}</label><input class="form-control" id="ipdBedNumber" value="${window.ipdEscape(bed?.Bed_Number || '')}"></div>
@@ -11045,19 +12520,12 @@ window.openIpdBedModal = async function (bedId) {
         const isVip = String($('#ipdBedWard option:selected').data('vip')) === '1';
         $popup.toggleClass('ipd-vip-modal', isVip);
       };
-      const filterRooms = () => {
+      const refreshRooms = (selectedRoomId = '') => {
         const wardValue = $('#ipdBedWard').val();
-        $('#ipdBedRoom option').each(function () {
-          const match = String($(this).data('ward')) === String(wardValue);
-          $(this).toggle(match);
-        });
-        const selected = $('#ipdBedRoom option:selected');
-        if (!selected.length || String(selected.data('ward')) !== String(wardValue)) {
-          $('#ipdBedRoom option').filter(function () { return String($(this).data('ward')) === String(wardValue); }).first().prop('selected', true);
-        }
+        $('#ipdBedRoom').html(roomOptionsForWard(wardValue, selectedRoomId));
       };
-      $('#ipdBedWard').on('change', () => { filterRooms(); applyVipAccent(); });
-      filterRooms();
+      $('#ipdBedWard').on('change', () => { refreshRooms(); applyVipAccent(); });
+      refreshRooms(bed?.Room_ID || '');
       applyVipAccent();
     },
     showCancelButton: true,
@@ -11076,8 +12544,12 @@ window.openIpdBedModal = async function (bedId) {
         Last_Status_Updated_At: new Date().toISOString(),
         Updated_At: new Date().toISOString()
       };
-      if (!payload.Bed_ID || !payload.Bed_Number) {
-        Swal.showValidationMessage(window.t('ipd.bedRequired'));
+      if (!payload.Bed_Number) {
+        Swal.showValidationMessage(window.t('ipd.bedNumberRequired'));
+        return false;
+      }
+      if (!payload.Room_ID) {
+        Swal.showValidationMessage(window.t('ipd.createRoomFirstText'));
         return false;
       }
       const duplicate = window.ipdWardBedState.beds.some(b =>

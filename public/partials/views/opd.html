@@ -11,11 +11,15 @@
         <span class="mx-2 text-muted">-</span>
         <input type="date" id="opdEndDate" class="form-control form-control-sm border-0 p-0" style="width:115px;">
       </div>
+      <select id="opdMyRoomFilter" class="form-select form-select-sm shadow-sm" style="width:auto;min-width:170px;" onchange="window.saveOpdMyRoom(this.value)" title="ກອງສະເພາະຫ້ອງຂອງຂ້ອຍ (ການແຈ້ງເຕືອນຈະຍິງສະເພາະຫ້ອງນີ້)">
+        <option value="">🔔 ທຸກຫ້ອງ</option>
+      </select>
       <button class="btn btn-info text-white fw-bold shadow-sm px-3" onclick="window.loadQueue()">
         <i class="fas fa-search me-1"></i> ຄົ້ນຫາ
       </button>
     </div>
   </div>
+  <div id="opdToastContainer" class="opd-toast-container"></div>
   <div class="card card-outline card-info shadow-sm">
     <div class="card-body table-responsive p-0">
       <table id="queueTable" class="table table-hover align-middle mb-0">
