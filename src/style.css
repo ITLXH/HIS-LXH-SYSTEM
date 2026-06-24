@@ -7562,6 +7562,25 @@ small,
   position: relative;
 }
 
+/* Epic-style grouped actions on occupied beds:
+   [Vital Sign (red)] [Document ▼ (blue)] [Bed Mgmt ▼ (dark)] */
+#view-opd_observation .obs-bed-actions-grouped {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#view-opd_observation .obs-bed-actions-grouped > .btn,
+#view-opd_observation .obs-bed-actions-grouped > .dropdown {
+  flex: 1 1 0;
+  min-width: 0;
+}
+#view-opd_observation .obs-bed-actions-grouped .ipd-bed-action-trigger {
+  width: 100%;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #view-opd_observation .ipd-compact-actions {
   right: 10px;
   bottom: 10px;

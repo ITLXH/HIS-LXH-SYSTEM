@@ -1285,7 +1285,9 @@ Object.assign(window.appTranslations.lo, {
   'obs.noOpdCandidates': 'ບໍ່ມີຄົນເຈັບ OPD ທີ່ສາມາດສ້າງ Observation ໄດ້',
   'obs.saved': 'ບັນທຶກ Observation ແລ້ວ',
   'obs.converted': 'ສ້າງ IPD admission ແລ້ວ. ກະລຸນາຈັດຕຽງຕໍ່.',
-  'obs.discharged': 'ຈຳໜ່າຍຈາກ Observation ແລ້ວ'
+  'obs.discharged': 'ຈຳໜ່າຍຈາກ Observation ແລ້ວ',
+  'obs.documentNote': 'ບັນທຶກ',
+  'obs.bedManagement': 'ຈັດການຕຽງ'
 });
 
 Object.assign(window.appTranslations.en, {
@@ -1342,7 +1344,9 @@ Object.assign(window.appTranslations.en, {
   'obs.noOpdCandidates': 'No OPD queue patient available for Observation',
   'obs.saved': 'Observation saved',
   'obs.converted': 'IPD admission has been created. Please assign a bed next.',
-  'obs.discharged': 'Observation discharged'
+  'obs.discharged': 'Observation discharged',
+  'obs.documentNote': 'Document',
+  'obs.bedManagement': 'Bed Management'
 });
 
 Object.assign(window.appTranslations.en, {
@@ -6552,27 +6556,30 @@ window.renderObsBedBoard = async function () {
         </button>
       </div>`;
     }
-    const statusColor = {
-      Available: 'btn-success',
-      Occupied: 'btn-dark',
-      Reserved: 'btn-primary',
-      Cleaning: 'btn-warning',
-      Maintenance: 'btn-secondary',
-      Inactive: 'btn-secondary'
-    }[status] || 'btn-primary';
     const obsIdArg = JSON.stringify(String(obsRow.observation_id || '')).replace(/"/g, '&quot;');
-    return `<div class="ipd-bed-actions-row">
+    const docMenuId = `${menuId}Doc`;
+    const bedMenuId = `${menuId}Bed`;
+    return `<div class="ipd-bed-actions-row obs-bed-actions-grouped">
+      <button type="button" class="btn btn-danger ipd-bed-action-trigger btn-obs-note" title="${window.obsEscape(window.t('obs.addVital'))}" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'VITAL_SIGN'); return false;">
+        <i class="fas fa-heartbeat me-1"></i>${window.obsEscape(window.t('obs.addVital'))}
+      </button>
       <div class="dropdown ipd-bed-action-wrap">
-        <button class="btn ${statusColor} dropdown-toggle ipd-bed-action-trigger btn-obs-view" type="button" id="${menuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
-          <i class="fas fa-bolt me-1"></i>${window.obsEscape(window.t('common.action'))}
+        <button class="btn btn-primary dropdown-toggle ipd-bed-action-trigger btn-obs-note" type="button" id="${docMenuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
+          <i class="fas fa-pen me-1"></i>${window.obsEscape(window.t('obs.documentNote'))}
         </button>
-        <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
-          <li><a class="dropdown-item text-dark btn-obs-view" href="#" onclick="window.openObservationDetail(${obsIdArg}); return false;"><i class="fas fa-file-medical me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
-          <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationTransferModal(${obsIdArg}); return false;"><i class="fas fa-exchange-alt me-2"></i>${window.obsEscape(window.t('ipd.transferBed'))}</a></li>
-          <li><a class="dropdown-item text-danger btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'VITAL_SIGN'); return false;"><i class="fas fa-heartbeat me-2"></i>${window.obsEscape(window.t('obs.addVital'))}</a></li>
+        <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${docMenuId}">
           <li><a class="dropdown-item text-primary btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'DOCTOR_NOTE'); return false;"><i class="fas fa-user-md me-2"></i>${window.obsEscape(window.t('obs.doctorNote'))}</a></li>
           <li><a class="dropdown-item text-success btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'NURSING_NOTE'); return false;"><i class="fas fa-user-nurse me-2"></i>${window.obsEscape(window.t('obs.nursingNote'))}</a></li>
           <li><a class="dropdown-item text-warning btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'PROCEDURE'); return false;"><i class="fas fa-procedures me-2"></i>${window.obsEscape(window.t('obs.procedure'))}</a></li>
+        </ul>
+      </div>
+      <div class="dropdown ipd-bed-action-wrap">
+        <button class="btn btn-dark dropdown-toggle ipd-bed-action-trigger btn-obs-view" type="button" id="${bedMenuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
+          <i class="fas fa-bed me-1"></i>${window.obsEscape(window.t('obs.bedManagement'))}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${bedMenuId}">
+          <li><a class="dropdown-item text-dark btn-obs-view" href="#" onclick="window.openObservationDetail(${obsIdArg}); return false;"><i class="fas fa-file-medical me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
+          <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationTransferModal(${obsIdArg}); return false;"><i class="fas fa-exchange-alt me-2"></i>${window.obsEscape(window.t('ipd.transferBed'))}</a></li>
           <li><a class="dropdown-item text-warning btn-obs-convert" href="#" onclick="window.convertObservationToIpd(${obsIdArg}); return false;"><i class="fas fa-bed me-2"></i>${window.obsEscape(window.t('obs.convertToIpd'))}</a></li>
           <li><a class="dropdown-item text-secondary btn-obs-discharge" href="#" onclick="window.dischargeObservation(${obsIdArg}); return false;"><i class="fas fa-sign-out-alt me-2"></i>${window.obsEscape(window.t('ipd.dischargeReleaseBed'))}</a></li>
         </ul>

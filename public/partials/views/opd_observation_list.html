@@ -44,15 +44,25 @@
         <h5 id="obsListDetailTitle" class="fw-bold mb-1"></h5>
         <div id="obsListDetailMeta" class="text-muted small"></div>
       </div>
-      <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-sm btn-outline-danger" onclick="window.closeObservationDetail()"><i class="fas fa-times"></i></button>
-        <button class="btn btn-sm btn-outline-primary btn-obs-note" onclick="window.openObservationNoteModal('VITAL_SIGN')"><i class="fas fa-heartbeat me-1"></i><span data-i18n="obs.addVital">Vital Sign</span></button>
-        <button class="btn btn-sm btn-outline-dark btn-obs-note" onclick="window.openObservationNoteModal('DOCTOR_NOTE')"><i class="fas fa-user-md me-1"></i><span data-i18n="obs.doctorNote">Doctor Note</span></button>
-        <button class="btn btn-sm btn-outline-success btn-obs-note" onclick="window.openObservationNoteModal('NURSING_NOTE')"><i class="fas fa-user-nurse me-1"></i><span data-i18n="obs.nursingNote">Nursing Note</span></button>
-        <button class="btn btn-sm btn-outline-warning btn-obs-note" onclick="window.openObservationNoteModal('PROCEDURE')"><i class="fas fa-procedures me-1"></i><span data-i18n="obs.procedure">Procedure</span></button>
-        <button class="btn btn-sm btn-outline-primary btn-obs-view" onclick="window.openObservationTransferModal(window.currentObservationId)"><i class="fas fa-exchange-alt me-1"></i><span data-i18n="ipd.transferBed">Transfer Bed</span></button>
-        <button class="btn btn-sm btn-outline-warning btn-obs-convert" onclick="window.convertObservationToIpd(window.currentObservationId)"><i class="fas fa-bed me-1"></i><span data-i18n="obs.convertToIpd">Convert to IPD</span></button>
-        <button class="btn btn-sm btn-outline-secondary btn-obs-discharge" onclick="window.dischargeObservation(window.currentObservationId)"><i class="fas fa-sign-out-alt me-1"></i><span data-i18n="ipd.dischargeReleaseBed">Discharge / Release Bed</span></button>
+      <div class="d-flex flex-wrap gap-2 obs-detail-toolbar">
+        <button class="btn btn-sm btn-outline-danger" onclick="window.closeObservationDetail()" title="Close"><i class="fas fa-times"></i></button>
+        <button class="btn btn-sm btn-danger btn-obs-note" onclick="window.openObservationNoteModal('VITAL_SIGN')"><i class="fas fa-heartbeat me-1"></i><span data-i18n="obs.addVital">Vital Sign</span></button>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-primary dropdown-toggle btn-obs-note" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-pen me-1"></i><span data-i18n="obs.documentNote">Document</span></button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item btn-obs-note" href="#" onclick="window.openObservationNoteModal('DOCTOR_NOTE'); return false;"><i class="fas fa-user-md text-primary me-2"></i><span data-i18n="obs.doctorNote">Doctor Note</span></a></li>
+            <li><a class="dropdown-item btn-obs-note" href="#" onclick="window.openObservationNoteModal('NURSING_NOTE'); return false;"><i class="fas fa-user-nurse text-success me-2"></i><span data-i18n="obs.nursingNote">Nursing Note</span></a></li>
+            <li><a class="dropdown-item btn-obs-note" href="#" onclick="window.openObservationNoteModal('PROCEDURE'); return false;"><i class="fas fa-procedures text-warning me-2"></i><span data-i18n="obs.procedure">Procedure</span></a></li>
+          </ul>
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-dark dropdown-toggle btn-obs-view" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="fas fa-bed me-1"></i><span data-i18n="obs.bedManagement">Bed Management</span></button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item btn-obs-view" href="#" onclick="window.openObservationTransferModal(window.currentObservationId); return false;"><i class="fas fa-exchange-alt text-primary me-2"></i><span data-i18n="ipd.transferBed">Transfer Bed</span></a></li>
+            <li><a class="dropdown-item btn-obs-convert" href="#" onclick="window.convertObservationToIpd(window.currentObservationId); return false;"><i class="fas fa-bed text-warning me-2"></i><span data-i18n="obs.convertToIpd">Convert to IPD</span></a></li>
+            <li><a class="dropdown-item btn-obs-discharge" href="#" onclick="window.dischargeObservation(window.currentObservationId); return false;"><i class="fas fa-sign-out-alt text-secondary me-2"></i><span data-i18n="ipd.dischargeReleaseBed">Discharge / Release Bed</span></a></li>
+          </ul>
+        </div>
       </div>
     </div>
     <div id="obsListSixHourAlert" class="alert alert-warning py-2 px-3 my-3" style="display:none;"></div>
