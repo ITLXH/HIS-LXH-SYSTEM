@@ -2632,6 +2632,22 @@ $(document).ready(async function () {
       $('#p_province').val(loc ? loc.province : '');
     });
 
+    // Emergency-contact relationship: dropdown from MasterData + free-text entry
+    // (Select2 `tags: true` lets the user pick a stored value OR type their own,
+    // e.g. ເພື່ອນສະໜິດ / ຍ່າ / ປ້າ, without first adding it in Settings).
+    $('#p_emer_relation').select2({
+      dropdownParent: $('#patientModal'),
+      placeholder: '-- ເລືອກ ຫຼື ພິມຄວາມສຳພັນ --',
+      allowClear: true,
+      tags: true,
+      width: '100%',
+      createTag: function (params) {
+        const term = (params.term || '').trim();
+        if (!term) return null;
+        return { id: term, text: term, newTag: true };
+      }
+    });
+
     $('#a_patient').select2({ dropdownParent: $('#apptModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
       let d = $(this).select2('data');
       if (d && d.length > 0 && d[0].id) {
@@ -5468,7 +5484,14 @@ window.editPatient = async function (id) {
     $('#p_allergy_choice').val('ມີ');
     $('#p_allergy').val(allergyVal).show();
   }
-  $('#p_emer_relation').val(d.emer_relation || '').trigger('change');
+  // Relationship may be a custom value (Select2 tags) not present in the
+  // MasterData-populated <option> list — inject it so .val() can select it.
+  const emerRel = String(d.emer_relation || '').trim();
+  const $emer = $('#p_emer_relation');
+  if (emerRel && !$emer.find(`option[value="${emerRel.replace(/"/g, '\\"')}"]`).length) {
+    $emer.append(new Option(emerRel, emerRel, true, true));
+  }
+  $emer.val(emerRel).trigger('change');
   $('#p_org_id').val(d.org_id).trigger('change');
   $('#p_district').val(d.district).trigger('change');
   $('#p_province').val(d.province || '');
