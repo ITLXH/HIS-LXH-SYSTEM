@@ -3556,26 +3556,25 @@ window.preloadDropdownDataCallback = function (resolve) {
   let promises = [
     window.fetchSupabaseRows('Patients', { select: '*', orderBy: 'Patient_ID', ascending: false }).then((data) => {
       allPatientsList = (data || []).map(p => ({ id: p.Patient_ID, oldId: window.normalizePatientCode(p.Old_Patient_ID || ''), fullname: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() }));
-      let opts = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກຄົນເຈັບ --</option>';
+      let opts = '<option value=""></option>';
       allPatientsList.forEach(p => { opts += `<option value="${p.id}">${p.id}${p.oldId ? ` / Old: ${p.oldId}` : ''} - ${p.fullname}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_patient').html(opts).trigger('change'); $('#pv_patient').html(opts).trigger('change'); }
     }),
-    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name').eq('Status', 'Active').then(({ data }) => {
+    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name,Contact_Name').limit(9999).then(({ data }) => {
       activeOrgsList = [];
-      let seenOpts = new Set();
       (data || []).forEach(r => {
-        if (r.Org_Code && !seenOpts.has(r.Org_Code)) {
-          seenOpts.add(r.Org_Code);
-          activeOrgsList.push({ id: r.Org_Code, name: r.Org_Name });
-        }
+        let contact = r.Name || r.Contact_Name;
+        let displayName = `${r.Org_Code} - ${r.Org_Name}`;
+        if (contact) displayName += ` (${contact})`;
+        activeOrgsList.push({ id: r.Org_ID, name: displayName });
       });
-      let opts = '<option value="">-- ຄົ້ນຫາ ແລະ ເລືອກອົງກອນ --</option>';
-      activeOrgsList.forEach(o => { opts += `<option value="${o.id}">${o.id} - ${o.name}</option>`; });
+      let opts = '<option value=""></option>';
+      activeOrgsList.forEach(o => { opts += `<option value="${o.id}">${o.name}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_org').html(opts).trigger('change'); }
     }),
     supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data }) => {
       drugsMasterList = (data || []).map(r => ({ id: r.Drug_ID, name: r.Drug_Name, desc: r.Description || '' }));
-      let o = '<option value="">-- ເລືອກຢາ --</option>';
+      let o = '<option value=""></option>';
       drugsMasterList.forEach(d => { o += `<option value="${d.name}">${d.name}${d.desc ? ' (' + d.desc + ')' : ''}</option>`; });
       if (typeof jQuery !== 'undefined') $('#emrAddDrugSelect').html(o).trigger('change');
     }),
@@ -4940,18 +4939,30 @@ window.generateNextMasterID = async function (tableName, idColumn, prefix, paddi
 
 window.refreshPatientOrgDropdown = async function () {
   try {
-    const { data } = await supabaseClient.from(dbTable('Organizations')).select('*').eq('Status', 'Active');
-    let orgOptions = '<option value="">-- ເລືອກອົງກອນ --</option>';
-    const seen = new Set();
+    const { data, error } = await supabaseClient
+      .from(dbTable('Organizations')).select('*').limit(9999);
+    if (error) {
+      console.warn('refreshPatientOrgDropdown Supabase error:', error);
+      return;
+    }
+    console.log('refreshPatientOrgDropdown: loaded', data?.length, 'organizations');
+    let orgOptions = '<option value=""></option>';
     (data || []).forEach(org => {
-      if (org.Org_Code && !seen.has(org.Org_Code)) {
-        seen.add(org.Org_Code);
-        orgOptions += `<option value="${org.Org_Code}">${org.Org_Code} - ${org.Org_Name}</option>`;
+      const isActive = !org.Status || org.Status === 'Active';
+      if (isActive && org.Org_ID) {
+        let contact = org.Name || org.Contact_Name;
+        let displayName = `${org.Org_Code} - ${org.Org_Name}`;
+        if (contact) displayName += ` (${contact})`;
+        orgOptions += `<option value="${org.Org_ID}">${displayName}</option>`;
       }
     });
     if (typeof jQuery !== 'undefined' && $('#p_org_id').length) {
       try { if ($('#p_org_id').data('select2')) $('#p_org_id').select2('destroy'); } catch (e) {}
-      $('#p_org_id').html(orgOptions).select2({ dropdownParent: $('#patientModal'), placeholder: '-- ເລືອກອົງກອນ --', allowClear: true });
+      $('#p_org_id').html(orgOptions).select2({
+        dropdownParent: $('#patientModal'),
+        placeholder: '-- ເລືອກອົງກອນ --',
+        allowClear: true
+      });
     }
   } catch (err) {
     console.warn('refreshPatientOrgDropdown failed:', err);
@@ -5329,8 +5340,9 @@ window.uploadPatientPhoto = async function (pId) {
 };
 
 window.openNewPatientModal = function () {
-  // Re-populate all master dropdowns to ensure they're never empty
+  // Re-populate all master dropdowns and org dropdown to ensure they're never empty
   window.loadMasterDataGlobalCallback(masterDataStore);
+  window.refreshPatientOrgDropdown();
 
   $('#patientForm')[0].reset();
   $('#p_action').val("new");
@@ -5356,6 +5368,7 @@ window.openNewPatientModal = function () {
 };
 
 window.editPatient = async function (id) {
+  window.refreshPatientOrgDropdown();
   Swal.fire({ title: 'ກຳລັງດຶງຂໍ້ມູນ...', didOpen: () => Swal.showLoading() });
   const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   Swal.close();
@@ -9424,7 +9437,13 @@ window.fetchOrg = async function () {
     $('#p_org_name, #p_discount_show').val('');
     return;
   }
-  const { data, error } = await supabaseClient.from(dbTable('Organizations')).select('*').eq('Org_Code', c).limit(1);
+  const { data, error } = await supabaseClient.from(dbTable('Organizations')).select('*').or(`Org_ID.eq."${c}",Org_Code.eq."${c}"`).limit(1);
+  if (error) {
+    console.warn('fetchOrg Supabase error:', error);
+    $('#p_org_name').val('❌ ເກີດຂໍ້ຜິດພາດ');
+    $('#p_discount_show').val('');
+    return;
+  }
   if (data && data.length > 0) {
     $('#p_org_name').val(data[0].Org_Name);
     $('#p_discount_show').val(data[0].Discount || "ບໍ່ມີສ່ວນຫຼຸດ");
@@ -9816,7 +9835,7 @@ window.loadOrgs = async function () {
   $('#orgTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: orgs, error } = await supabaseClient.from(dbTable('Organizations')).select('*');
+    const { data: orgs, error } = await supabaseClient.from(dbTable('Organizations')).select('*').limit(9999);
 
     // 🚨 ດັກຈັບ Error ຕາມ Antigravity
     if (error) {
