@@ -133,15 +133,15 @@ const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 window.appTranslations = {
   lo: {
     'nav.dashboard': 'ແຜງຄວບຄຸມ',
-    'nav.report': 'ສະຖານະຄິວຄົນເຈັບ',
+    'nav.report': 'ຄິວຄົນເຈັບ',
     'nav.visitHistory': 'ປະຫວັດການກວດ',
     'nav.patients': 'ຄົນເຈັບ',
     'nav.triage': 'ຊັກປະຫວັດ',
-    'nav.opd': 'ຫ້ອງກວດແພດ (OPD)',
+    'nav.opd': 'OPD',
     'nav.vaccines': 'ວັກຊີນ',
     'nav.appointments': 'ນັດໝາຍ',
     'nav.settings': 'ຕັ້ງຄ່າ',
-    'nav.ipdManagement': 'ຄົນເຈັບນອນ IPD',
+    'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'ແຜງຄວບຄຸມ IPD',
     'nav.admitPatient': 'ຮັບຄົນເຈັບນອນ',
     'nav.wardBedManagement': 'ຈັດການຫວອດ / ຕຽງ',
@@ -297,15 +297,15 @@ window.appTranslations = {
   },
   en: {
     'nav.dashboard': 'Dashboard',
-    'nav.report': 'Patient Queue Status',
+    'nav.report': 'Queue',
     'nav.visitHistory': 'Visit History',
     'nav.patients': 'Patients',
     'nav.triage': 'Triage',
-    'nav.opd': 'Doctor Room (OPD)',
+    'nav.opd': 'OPD',
     'nav.vaccines': 'Vaccines',
     'nav.appointments': 'Appointments',
     'nav.settings': 'Settings',
-    'nav.ipdManagement': 'Inpatients (IPD)',
+    'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'IPD Dashboard',
     'nav.admitPatient': 'Admit Patient',
     'nav.wardBedManagement': 'Ward / Bed Management',
@@ -1241,10 +1241,10 @@ Object.assign(window.appTranslations.lo, {
   'nav.opdQueue': 'ຄິວ OPD',
   'nav.opdConsultation': 'ກວດຄົນເຈັບ',
   'nav.opdObservation': 'ຕິດຕາມ OPD',
-  'nav.opdObservationManagement': 'ຄົນເຈັບນອນຕິດຕາມ OPD',
+  'nav.opdObservationManagement': 'ນອນ OPD',
   'nav.opdObservationBeds': 'ບອດຕຽງ OPD ຕິດຕາມ',
   'nav.opdObservationList': 'ລາຍຊື່ຄົນເຈັບນອນ OPD',
-  'nav.patientList': 'ລາຍຊື່ຄົນເຈັບ',
+  'nav.patientList': 'ຄົນເຈັບ',
   'nav.ipdGroup': 'ຄົນເຈັບໃນ (IPD)',
   'nav.ipdDashboardShort': 'Dashboard',
   'nav.ipdAdmission': 'ຮັບເຂົ້ານອນ',
@@ -1296,7 +1296,7 @@ Object.assign(window.appTranslations.en, {
   'nav.opdQueue': 'OPD Queue',
   'nav.opdConsultation': 'Patient Consultation',
   'nav.opdObservation': 'OPD Follow-up',
-  'nav.opdObservationManagement': 'OPD Observation Patients',
+  'nav.opdObservationManagement': 'OPD Obs',
   'nav.opdObservationBeds': 'OPD Observation Bed Board',
   'nav.opdObservationList': 'OPD Observation Patient List',
   'nav.patientList': 'Patient List',
@@ -7545,9 +7545,12 @@ window.updateReportObservationStats = async function (sDate, eDate) {
 // ============================================================
 let opdQueueChannel = null;
 let opdQueuePollInterval = null;
-const opdNotifiedVisitIds = new Set();
+// visitId -> last-notified-at (ms). Map (not Set) so we can re-notify every minute
+// while the patient is still "Waiting OPD" (doctor hasn't pressed ຮັບ).
+const opdNotifiedVisitIds = new Map();
 let opdActiveRoomAlerts = [];
 const OPD_MY_ROOM_KEY = 'his_opd_my_room';
+const OPD_NOTIFICATION_REPEAT_MS = 60 * 1000;
 
 window.getOpdMyRoom = function () {
   try { return localStorage.getItem(OPD_MY_ROOM_KEY) || ''; } catch (e) { return ''; }
@@ -7591,8 +7594,11 @@ window.seedOpdNotifiedVisits = async function () {
       .select('Visit_ID,Department')
       .eq('Status', 'Waiting OPD')
       .limit(1000);
+    // Seed with "just notified" so existing waiters don't flood on login;
+    // they'll re-trigger after OPD_NOTIFICATION_REPEAT_MS if still unhandled.
+    const now = Date.now();
     (data || []).forEach(r => {
-      if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.add(r.Visit_ID);
+      if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.set(r.Visit_ID, now);
     });
   } catch (e) {
     console.warn('seed waiting OPD failed:', e);
@@ -7602,13 +7608,17 @@ window.seedOpdNotifiedVisits = async function () {
 window.handleOpdQueueNotification = function (row) {
   if (!row || !window.isWaitingOpdStatus(row.Status)) return;
   const visitId = row.Visit_ID;
-  if (!visitId || opdNotifiedVisitIds.has(visitId)) return;
+  if (!visitId) return;
   if (!window.isOpdRoomMatch(row.Department)) return;
 
-  opdNotifiedVisitIds.add(visitId);
+  const now = Date.now();
+  const lastNotifiedAt = opdNotifiedVisitIds.get(visitId);
+  if (lastNotifiedAt != null && (now - lastNotifiedAt) < OPD_NOTIFICATION_REPEAT_MS) return;
+
+  opdNotifiedVisitIds.set(visitId, now);
   const patientName = row.Patient_Name || row.Patient_ID || '-';
   const department = String(row.Department || '').trim() || 'OPD';
-  window.showOpdQueueToast(patientName, department);
+  window.showOpdQueueToast(patientName, department, visitId);
   window.playOpdNotificationSound();
   window.showOpdDesktopNotification(patientName, department);
   if (typeof window.checkAlerts === 'function') window.checkAlerts();
@@ -7626,7 +7636,14 @@ window.pollOpdQueueNotifications = async function () {
       .order('Date', { ascending: false })
       .limit(100);
     if (error) throw error;
-    (data || []).reverse().forEach(row => window.handleOpdQueueNotification(row));
+    const rows = data || [];
+    // Drop tracking for visits the doctor has accepted (no longer "Waiting OPD"),
+    // so if the same visit ever re-enters the queue we notify immediately again.
+    const stillWaiting = new Set(rows.map(r => r.Visit_ID).filter(Boolean));
+    for (const id of Array.from(opdNotifiedVisitIds.keys())) {
+      if (!stillWaiting.has(id)) opdNotifiedVisitIds.delete(id);
+    }
+    rows.reverse().forEach(row => window.handleOpdQueueNotification(row));
   } catch (e) {
     console.warn('OPD notification poll failed:', e);
   }
@@ -7671,17 +7688,24 @@ window.teardownOpdQueueRealtime = function () {
   opdActiveRoomAlerts = [];
 };
 
-window.showOpdQueueToast = function (patientName, department) {
+window.showOpdQueueToast = function (patientName, department, visitId) {
   let $c = $('#opdToastContainer');
   if (!$c.length) {
     $('body').append('<div id="opdToastContainer" class="opd-toast-container"></div>');
     $c = $('#opdToastContainer');
   }
+  // De-dup: if a sticky toast for this visit is already on screen, leave it alone.
+  // (The 60s re-notify still re-plays the sound + desktop alert via callers.)
+  if (visitId) {
+    const safeAttr = String(visitId).replace(/"/g, '');
+    if (document.querySelector(`.opd-toast[data-visit-id="${safeAttr}"]`)) return;
+  }
   const toastId = 'opdToast_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
   const safeName = String(patientName).replace(/</g, '&lt;');
   const safeDept = String(department).replace(/</g, '&lt;');
+  const visitAttr = visitId ? ` data-visit-id="${String(visitId).replace(/"/g, '')}"` : '';
   $c.append(
-    `<div id="${toastId}" class="opd-toast" onclick="document.getElementById('${toastId}').remove()">
+    `<div id="${toastId}"${visitAttr} class="opd-toast" onclick="document.getElementById('${toastId}').remove()">
        <div class="opd-toast-icon"><i class="fas fa-user-md"></i></div>
        <div class="opd-toast-body">
          <div class="opd-toast-title">ມີຄົນເຈັບໃໝ່ສົ່ງມາ</div>
@@ -7690,7 +7714,7 @@ window.showOpdQueueToast = function (patientName, department) {
        <button class="opd-toast-close" onclick="event.stopPropagation();document.getElementById('${toastId}').remove()">&times;</button>
      </div>`
   );
-  setTimeout(() => { const el = document.getElementById(toastId); if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); } }, 8000);
+  // Sticky: no auto-dismiss. Toast stays until the doctor clicks the card or the × button.
 };
 
 let opdAudioCtx = null;

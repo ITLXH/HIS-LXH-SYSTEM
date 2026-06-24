@@ -1,9 +1,8 @@
 <!-- ===== TOP NAVBAR ===== -->
 <nav class="his-topnav" id="his-topnav">
-  <!-- Brand -->
-  <div class="his-brand">
-    <img src="/luckxay-logo.jpg" alt="Luckxay Hospital" class="his-brand-logo">
-    <span id="topnavBrandName">Luckxay Hospital</span>
+  <!-- Brand (logo only — name removed to save navbar space) -->
+  <div class="his-brand his-brand-logo-only">
+    <img src="/luckxay-logo.jpg" alt="Luckxay Hospital" class="his-brand-logo" title="Luckxay Hospital">
   </div>
 
   <!-- Menu items -->
@@ -12,7 +11,7 @@
       <i class="fas fa-chart-pie"></i><span data-i18n="nav.dashboard">Dashboard</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-report">
-      <i class="fas fa-stream"></i><span data-i18n="nav.report">ສະຖານະຄິວຄົນເຈັບ</span>
+      <i class="fas fa-stream"></i><span data-i18n="nav.report">ຄິວຄົນເຈັບ</span>
     </a>
     <a href="#" class="his-nav-link" id="nav-visit_history">
       <i class="fas fa-history"></i><span>ປະຫວັດການກວດ</span>
@@ -24,13 +23,13 @@
       <i class="fas fa-heartbeat"></i><span>ຊັກປະຫວັດ</span>
     </a>
     <a href="#" class="his-nav-link mnu-opd" id="nav-opd">
-      <i class="fas fa-user-md"></i><span data-i18n="nav.opd">ຫ້ອງກວດແພດ (OPD)</span>
+      <i class="fas fa-user-md"></i><span data-i18n="nav.opd">OPD</span>
     </a>
 
     <!-- OPD Observation dropdown -->
     <div class="his-dropdown mnu-opd_observation">
       <a href="#" class="his-nav-link his-dropdown-toggle">
-        <i class="fas fa-procedures"></i><span data-i18n="nav.opdObservationManagement">ຄົນເຈັບນອນຕິດຕາມ OPD</span><i class="fas fa-chevron-down his-chevron"></i>
+        <i class="fas fa-procedures"></i><span data-i18n="nav.opdObservationManagement">ນອນ OPD</span><i class="fas fa-chevron-down his-chevron"></i>
       </a>
       <div class="his-dropdown-menu">
         <a href="#" class="his-dropdown-item" id="nav-opd_observation"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.opdObservationBeds">ບອດຕຽງ OPD ຕິດຕາມ</span></a>
@@ -41,7 +40,7 @@
     <!-- IPD dropdown -->
     <div class="his-dropdown mnu-ipd_ward_bed mnu-ipd_inpatient_list">
       <a href="#" class="his-nav-link his-dropdown-toggle">
-        <i class="fas fa-hospital-user"></i><span data-i18n="nav.ipdManagement">ຄົນເຈັບນອນ IPD</span><i class="fas fa-chevron-down his-chevron"></i>
+        <i class="fas fa-hospital-user"></i><span data-i18n="nav.ipdManagement">IPD</span><i class="fas fa-chevron-down his-chevron"></i>
       </a>
       <div class="his-dropdown-menu">
         <a href="#" class="his-dropdown-item" id="nav-ipd_ward_bed"><i class="fas fa-bed me-2 text-primary"></i><span data-i18n="nav.bedManagement">ຈັດການຕຽງ</span></a>

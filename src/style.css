@@ -1406,6 +1406,13 @@ body {
   flex-shrink: 0;
 }
 
+/* Logo-only brand: no text, tighter padding to free up navbar space */
+.his-brand.his-brand-logo-only {
+  padding: 0 8px 0 0;
+  margin-right: 6px;
+  gap: 0;
+}
+
 .his-brand i {
   color: var(--primary);
   font-size: 18px;
@@ -1435,8 +1442,8 @@ body {
 .his-nav-link {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 5px;
+  padding: 6px 9px;
   border-radius: 6px;
   color: var(--nav-text) !important;
   text-decoration: none !important;
@@ -7764,10 +7771,12 @@ small,
   min-width: 320px;
   max-width: min(420px, calc(100vw - 32px));
   padding: 14px 18px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 100%);
-  color: #fff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  border-left: 4px solid var(--primary);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
   cursor: pointer;
   animation: opdToastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   transition: opacity 0.35s linear;
@@ -7777,22 +7786,35 @@ small,
   width: 42px;
   height: 42px;
   min-width: 42px;
-  background: rgba(255, 255, 255, 0.18);
+  background: #dc2626;
+  color: #ffffff;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
+  box-shadow: 0 4px 10px rgba(220, 38, 38, 0.35);
   animation: opdToastPulse 1.8s ease-in-out infinite;
 }
 
 .opd-toast-body { flex: 1; line-height: 1.35; }
-.opd-toast-title { font-size: 12px; font-weight: 600; opacity: 0.9; letter-spacing: 0.3px; }
-.opd-toast-text { font-size: 14px; font-weight: 500; margin-top: 2px; }
+.opd-toast-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  letter-spacing: 0.3px;
+}
+.opd-toast-text {
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 2px;
+  color: #0f172a;
+}
 .opd-toast-dept {
   display: inline-block;
   padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--primary);
+  color: #ffffff;
   border-radius: 6px;
   font-weight: 700;
   margin-left: 4px;
@@ -7800,14 +7822,14 @@ small,
 .opd-toast-close {
   background: transparent;
   border: 0;
-  color: #fff;
+  color: #94a3b8;
   font-size: 20px;
   line-height: 1;
-  opacity: 0.7;
+  opacity: 0.85;
   padding: 0 4px;
   cursor: pointer;
 }
-.opd-toast-close:hover { opacity: 1; }
+.opd-toast-close:hover { opacity: 1; color: #dc2626; }
 
 @keyframes opdToastSlideIn {
   from { transform: translateX(120%); opacity: 0; }
