@@ -10426,10 +10426,11 @@ window.handleLocationExcelUpload = function (e) {
     let jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
 
     let insertData = [];
+    let baseTime = Date.now();
     for (let i = 1; i < jsonData.length; i++) {
       let row = jsonData[i];
       if (row.length < 1 || !row[0]) continue;
-      insertData.push({ District: row[0], Province: row[1] || '' });
+      insertData.push({ ID: 'LOC' + (baseTime + i), District: row[0], Province: row[1] || '' });
     }
 
     if (insertData.length > 0) {
