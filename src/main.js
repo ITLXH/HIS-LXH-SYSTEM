@@ -7056,17 +7056,60 @@ window.renderObservationTimeline = function (row, notes) {
     by: row.doctor_id || row.created_by || ''
   }];
   (notes || []).forEach(n => {
-    const vital = n.note_type === 'VITAL_SIGN'
-      ? [`T ${n.temp || '-'}`, `BP ${n.bp || '-'}`, `P ${n.pulse || '-'}`, `RR ${n.rr || '-'}`, `SpO2 ${n.spo2 || '-'}`, `Pain ${n.pain_score || '-'}`].join(' | ')
-      : '';
-    const med = n.note_type === 'MEDICATION' ? n.medication : '';
-    const proc = n.note_type === 'PROCEDURE' ? n.procedure_name : '';
+    let body = '';
+    let title = n.note_type.replace(/_/g, ' ');
+    if (n.note_type === 'VITAL_SIGN') {
+      const bp = (n.bp_systolic || n.bp_diastolic) ? `${n.bp_systolic || '-'}/${n.bp_diastolic || '-'}` : (n.bp || '-');
+      body = [
+        `T ${n.temp || '-'}`,
+        `BP ${bp}`,
+        `P ${n.pulse || '-'}`,
+        `RR ${n.rr || '-'}`,
+        `SpO2 ${n.spo2 || '-'}`,
+        `BMI ${n.bmi || window.ipdCalculateBmiValue?.(n.weight, n.height) || '-'}`,
+        `${window.t('ipd.painScore')} ${n.pain_score || '-'}`
+      ].join(' | ');
+      if (n.consciousness) body += ` | ${window.t('ipd.consciousness')} ${window.ipdTranslateValue?.(n.consciousness) || n.consciousness}`;
+      if (n.note_text) body += ` | ${n.note_text}`;
+    } else if (n.note_type === 'DOCTOR_NOTE') {
+      title = `${window.t('ipd.modalDoctorAdd')}${n.visit_type ? ` · ${window.ipdTranslateValue?.(n.visit_type) || n.visit_type}` : ''}`;
+      const parts = [];
+      if (n.diagnosis) parts.push(`Dx: ${n.diagnosis}`);
+      if (n.chief_complaint) parts.push(`CC: ${n.chief_complaint}`);
+      if (n.subjective) parts.push(`S: ${n.subjective}`);
+      if (n.objective) parts.push(`O: ${n.objective}`);
+      if (n.assessment) parts.push(`A: ${n.assessment}`);
+      if (n.plan) parts.push(`P: ${n.plan}`);
+      body = parts.join(' | ') || n.note_text || '-';
+    } else if (n.note_type === 'NURSING_NOTE') {
+      title = `${window.t('ipd.modalNurseAdd')}${n.shift ? ` · ${window.ipdTranslateValue?.(n.shift) || n.shift}` : ''}`;
+      const parts = [];
+      if (n.patient_condition) parts.push(`Cond: ${n.patient_condition}`);
+      if (n.observation_text) parts.push(`Obs: ${n.observation_text}`);
+      if (n.nursing_care_given) parts.push(`Care: ${n.nursing_care_given}`);
+      if (n.response_to_treatment) parts.push(`Resp: ${n.response_to_treatment}`);
+      if (n.intake) parts.push(`In: ${n.intake}`);
+      if (n.output) parts.push(`Out: ${n.output}`);
+      if (n.pain_score) parts.push(`Pain: ${n.pain_score}`);
+      if (n.fall_risk) parts.push(`Fall: ${window.ipdTranslateValue?.(n.fall_risk) || n.fall_risk}`);
+      if (n.allergy_alert) parts.push(`Allergy: ${n.allergy_alert}`);
+      if (n.medication_given) parts.push(`Med: ${n.medication_given}`);
+      if (n.procedure_done) parts.push(`Proc: ${n.procedure_done}`);
+      if (n.note_text) parts.push(n.note_text);
+      body = parts.join(' | ') || '-';
+    } else if (n.note_type === 'MEDICATION') {
+      body = n.medication || n.note_text || '-';
+    } else if (n.note_type === 'PROCEDURE') {
+      body = n.procedure_name || n.note_text || '-';
+    } else {
+      body = n.note_text || '-';
+    }
     events.push({
       at: n.note_datetime,
       type: n.note_type,
       icon: iconMap[n.note_type] || 'fas fa-note-sticky text-secondary',
-      title: n.note_type.replace(/_/g, ' '),
-      body: vital || med || proc || n.note_text || '-',
+      title,
+      body,
       by: n.recorded_by || ''
     });
   });
@@ -7129,55 +7172,207 @@ window.openObservationNoteModal = async function (noteType) {
   const observationId = window.currentObservationId;
   if (!observationId) return;
   const type = String(noteType || 'NURSING_NOTE').toUpperCase();
-  const needsProviderDropdown = ['DOCTOR_NOTE', 'NURSING_NOTE'].includes(type);
+  const needsProviderDropdown = ['DOCTOR_NOTE', 'NURSING_NOTE', 'VITAL_SIGN'].includes(type);
   if (needsProviderDropdown) await window.ipdLoadProviders?.();
-  const typeLabel = window.t(type === 'VITAL_SIGN' ? 'obs.addVital' : type === 'DOCTOR_NOTE' ? 'obs.doctorNote' : type === 'MEDICATION' ? 'obs.medication' : type === 'PROCEDURE' ? 'obs.procedure' : 'obs.nursingNote');
-  const vitalHtml = type === 'VITAL_SIGN' ? `
-      <div><label class="form-label fw-bold">Temp</label><input id="obsNoteTemp" class="form-control"></div>
-      <div><label class="form-label fw-bold">BP</label><input id="obsNoteBp" class="form-control" placeholder="120/80"></div>
-      <div><label class="form-label fw-bold">Pulse</label><input id="obsNotePulse" class="form-control"></div>
-      <div><label class="form-label fw-bold">RR</label><input id="obsNoteRr" class="form-control"></div>
-      <div><label class="form-label fw-bold">SpO2</label><input id="obsNoteSpo2" class="form-control"></div>
-      <div><label class="form-label fw-bold">Pain Score</label><input id="obsNotePain" class="form-control" type="number" min="0" max="10"></div>` : '';
-  const providerHtml = needsProviderDropdown
-    ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t(type === 'DOCTOR_NOTE' ? 'obs.selectDoctors' : 'obs.selectNurses'))}</label><select id="obsNoteProviders" class="form-select" multiple size="6">${window.obsProviderMultiOptions(type === 'DOCTOR_NOTE' ? ['doctor'] : ['nurse'])}</select><div class="form-text">${window.obsEscape(window.t('obs.multiSelectHint'))}</div></div>`
-    : `<div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.by'))}</label><input id="obsNoteBy" class="form-control" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>`;
-  const extraHtml = type === 'PROCEDURE'
-      ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.procedure'))}</label><input id="obsNoteProcedure" class="form-control"></div>`
-      : '';
+
+  // -- Header: same icon + label pattern as IPD modals -----------------------
+  const headerMap = {
+    DOCTOR_NOTE:  { icon: 'fas fa-user-md text-primary',    key: 'ipd.modalDoctorAdd' },
+    NURSING_NOTE: { icon: 'fas fa-user-nurse text-success', key: 'ipd.modalNurseAdd' },
+    VITAL_SIGN:   { icon: 'fas fa-heartbeat text-danger',   key: 'ipd.modalVitalsAdd' },
+    PROCEDURE:    { icon: 'fas fa-procedures text-warning', key: 'obs.procedure' }
+  };
+  const header = headerMap[type] || { icon: 'fas fa-note-sticky text-secondary', key: 'obs.nursingNote' };
+  const title = `<i class="${header.icon} me-2"></i>${window.obsEscape(window.t(header.key))}`;
+
+  // -- Body: per-type fields, mirroring IPD shape ---------------------------
+  const visitTypes = ['Initial', 'Daily Round', 'Follow-up', 'Emergency'];
+  const shiftOpts  = ['Morning', 'Evening', 'Night'];
+  const fallRiskOpts = ['Low', 'Moderate', 'High'];
+  const consciousnessOpts = ['Alert', 'Verbal', 'Pain', 'Unresponsive', 'Drowsy', 'Confused'];
+
+  let bodyHtml = '';
+
+  if (type === 'DOCTOR_NOTE') {
+    bodyHtml = `
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.visitType'))}</label>
+        <select id="obsDoctorVisitType" class="form-select">${window.ipdOptions(visitTypes, 'Daily Round')}</select></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t(type === 'DOCTOR_NOTE' ? 'obs.selectDoctors' : 'obs.selectNurses'))}</label>
+        <select id="obsNoteProviders" class="form-select" multiple size="5">${window.obsProviderMultiOptions(['doctor'])}</select>
+        <div class="form-text">${window.obsEscape(window.t('obs.multiSelectHint'))}</div></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.diagnosis'))}</label>
+        <input id="obsDoctorDiagnosis" class="form-control"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.chiefComplaint'))}</label>
+        <textarea id="obsDoctorChiefComplaint" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">S — ${window.obsEscape(window.t('ipd.subjective'))}</label>
+        <textarea id="obsDoctorSubjective" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">O — ${window.obsEscape(window.t('ipd.objective'))}</label>
+        <textarea id="obsDoctorObjective" class="form-control" rows="3"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">A — ${window.obsEscape(window.t('ipd.assessment'))}</label>
+        <textarea id="obsDoctorAssessment" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">P — ${window.obsEscape(window.t('ipd.plan'))}</label>
+        <textarea id="obsDoctorPlan" class="form-control" rows="4"></textarea></div>`;
+  } else if (type === 'NURSING_NOTE') {
+    bodyHtml = `
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.shift'))}</label>
+        <select id="obsNursingShift" class="form-select">${window.ipdOptions(shiftOpts, 'Morning')}</select></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.selectNurses'))}</label>
+        <select id="obsNoteProviders" class="form-select" multiple size="5">${window.obsProviderMultiOptions(['nurse'])}</select>
+        <div class="form-text">${window.obsEscape(window.t('obs.multiSelectHint'))}</div></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.patientCondition'))}</label>
+        <textarea id="obsNursePatientCondition" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.observation'))}</label>
+        <textarea id="obsNurseObservation" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.nursingCareGiven'))}</label>
+        <textarea id="obsNurseCare" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.responseToTreatment'))}</label>
+        <textarea id="obsNurseResponse" class="form-control" rows="2"></textarea></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.intake'))}</label>
+        <input id="obsNurseIntake" class="form-control" placeholder="e.g. 1500 ml PO + 500 ml IV"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.output'))}</label>
+        <input id="obsNurseOutput" class="form-control" placeholder="e.g. 1200 ml urine"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.painScore'))}</label>
+        <input id="obsNursePain" type="number" min="0" max="10" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.fallRisk'))}</label>
+        <select id="obsNurseFallRisk" class="form-select"><option value="">-</option>${window.ipdOptions(fallRiskOpts, '')}</select></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.allergyAlert'))}</label>
+        <input id="obsNurseAllergy" class="form-control"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.medicationGiven'))}</label>
+        <textarea id="obsNurseMedGiven" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.procedureDone'))}</label>
+        <textarea id="obsNurseProcedureDone" class="form-control" rows="2"></textarea></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.notes'))}</label>
+        <textarea id="obsNoteText" class="form-control" rows="2"></textarea></div>`;
+  } else if (type === 'VITAL_SIGN') {
+    bodyHtml = `
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.temperature'))}</label>
+        <input type="number" step="0.1" id="obsVitalTemp" class="form-control"></div>
+      <div><label class="form-label fw-bold">BP Systolic</label>
+        <input type="number" id="obsVitalBpSys" class="form-control"></div>
+      <div><label class="form-label fw-bold">BP Diastolic</label>
+        <input type="number" id="obsVitalBpDia" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.pulse'))}</label>
+        <input type="number" id="obsVitalPulse" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.respiration'))}</label>
+        <input type="number" id="obsVitalResp" class="form-control"></div>
+      <div><label class="form-label fw-bold">SpO2</label>
+        <input type="number" id="obsVitalSpo2" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.weight'))}</label>
+        <input type="number" step="0.1" id="obsVitalWeight" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.height'))}</label>
+        <input type="number" step="0.1" id="obsVitalHeight" class="form-control"></div>
+      <div><label class="form-label fw-bold">BMI</label>
+        <input type="number" step="0.1" id="obsVitalBmi" class="form-control bg-light fw-bold" readonly></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.painScore'))}</label>
+        <input type="number" min="0" max="10" id="obsVitalPain" class="form-control"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.consciousness'))}</label>
+        <select id="obsVitalConsciousness" class="form-select"><option value="">-</option>${window.ipdOptions(consciousnessOpts, '')}</select></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.provider'))}</label>
+        <select id="obsNoteProviders" class="form-select" multiple size="4">${window.obsProviderMultiOptions(['doctor', 'nurse'])}</select>
+        <div class="form-text">${window.obsEscape(window.t('obs.multiSelectHint'))}</div></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.notes'))}</label>
+        <textarea id="obsNoteText" class="form-control" rows="2"></textarea></div>`;
+  } else { // PROCEDURE (and any other fallback)
+    bodyHtml = `
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.by'))}</label>
+        <input id="obsNoteBy" class="form-control" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.procedure'))}</label>
+        <input id="obsNoteProcedure" class="form-control"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.notes'))}</label>
+        <textarea id="obsNoteText" class="form-control" rows="3"></textarea></div>`;
+  }
+
   const result = await Swal.fire({
-    title: typeLabel,
-    width: 760,
+    title,
+    width: 900,
     html: `<div class="ipd-form-grid">
-      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.dateTime'))}</label><input type="datetime-local" id="obsNoteAt" class="form-control" value="${new Date().toISOString().slice(0, 16)}"></div>
-      ${providerHtml}
-      ${vitalHtml}
-      ${extraHtml}
-      <div class="full"><label class="form-label fw-bold">Note</label><textarea id="obsNoteText" class="form-control" rows="3"></textarea></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.dateTime'))}</label>
+        <input type="datetime-local" id="obsNoteAt" class="form-control" value="${new Date().toISOString().slice(0, 16)}"></div>
+      ${bodyHtml}
     </div>`,
+    didOpen: () => {
+      if (type === 'VITAL_SIGN') {
+        const updateBmi = () => $('#obsVitalBmi').val(window.ipdCalculateBmiValue($('#obsVitalWeight').val(), $('#obsVitalHeight').val()) || '');
+        $('#obsVitalWeight, #obsVitalHeight').on('input', updateBmi);
+      }
+    },
     showCancelButton: true,
     confirmButtonText: window.t('common.save'),
     cancelButtonText: window.t('common.cancel'),
     preConfirm: () => {
       const selectedProviders = needsProviderDropdown ? window.obsSelectedProviderNames('#obsNoteProviders') : [];
+      const primaryRole = type === 'DOCTOR_NOTE' ? 'doctor' : (type === 'NURSING_NOTE' ? 'nurse' : '');
+      const primaryProvider = $('#obsNoteProviders option:selected').first();
       const recordedBy = needsProviderDropdown ? selectedProviders.join(', ') : ($('#obsNoteBy').val() || '').trim();
       if (needsProviderDropdown && !recordedBy) {
         Swal.showValidationMessage(window.t('obs.selectProviderRequired'));
         return false;
       }
-      return {
+      const payload = {
         note_datetime: $('#obsNoteAt').val() ? new Date($('#obsNoteAt').val()).toISOString() : new Date().toISOString(),
         recorded_by: recordedBy,
-        note_text: $('#obsNoteText').val().trim(),
-        temp: $('#obsNoteTemp').val() || null,
-        bp: $('#obsNoteBp').val() || null,
-        pulse: $('#obsNotePulse').val() || null,
-        rr: $('#obsNoteRr').val() || null,
-        spo2: $('#obsNoteSpo2').val() || null,
-        pain_score: $('#obsNotePain').val() || null,
-        medication: null,
-        procedure_name: $('#obsNoteProcedure').val() || null
+        provider_id: primaryProvider.length ? (primaryProvider.val() || null) : null,
+        provider_role: primaryProvider.length ? (primaryProvider.data('role') || primaryRole || null) : (primaryRole || null),
+        note_text: null,
+        // legacy/combined columns
+        temp: null, bp: null, pulse: null, rr: null, spo2: null, pain_score: null,
+        medication: null, procedure_name: null,
+        // doctor SOAP
+        visit_type: null, diagnosis: null, chief_complaint: null,
+        subjective: null, objective: null, assessment: null, plan: null,
+        // nursing rich
+        shift: null, patient_condition: null, observation_text: null,
+        nursing_care_given: null, response_to_treatment: null,
+        intake: null, output: null, fall_risk: null, allergy_alert: null,
+        medication_given: null, procedure_done: null,
+        // vitals extra
+        bp_systolic: null, bp_diastolic: null,
+        weight: null, height: null, bmi: null, consciousness: null
       };
+      if (type === 'DOCTOR_NOTE') {
+        payload.visit_type      = $('#obsDoctorVisitType').val() || null;
+        payload.diagnosis       = $('#obsDoctorDiagnosis').val().trim() || null;
+        payload.chief_complaint = $('#obsDoctorChiefComplaint').val().trim() || null;
+        payload.subjective      = $('#obsDoctorSubjective').val().trim() || null;
+        payload.objective       = $('#obsDoctorObjective').val().trim() || null;
+        payload.assessment      = $('#obsDoctorAssessment').val().trim() || null;
+        payload.plan            = $('#obsDoctorPlan').val().trim() || null;
+        payload.note_text       = [payload.chief_complaint, payload.assessment, payload.plan].filter(Boolean).join(' | ') || null;
+      } else if (type === 'NURSING_NOTE') {
+        payload.shift                 = $('#obsNursingShift').val() || null;
+        payload.patient_condition     = $('#obsNursePatientCondition').val().trim() || null;
+        payload.observation_text      = $('#obsNurseObservation').val().trim() || null;
+        payload.nursing_care_given    = $('#obsNurseCare').val().trim() || null;
+        payload.response_to_treatment = $('#obsNurseResponse').val().trim() || null;
+        payload.intake                = $('#obsNurseIntake').val().trim() || null;
+        payload.output                = $('#obsNurseOutput').val().trim() || null;
+        payload.pain_score            = $('#obsNursePain').val() || null;
+        payload.fall_risk             = $('#obsNurseFallRisk').val() || null;
+        payload.allergy_alert         = $('#obsNurseAllergy').val().trim() || null;
+        payload.medication_given      = $('#obsNurseMedGiven').val().trim() || null;
+        payload.procedure_done        = $('#obsNurseProcedureDone').val().trim() || null;
+        payload.note_text             = $('#obsNoteText').val().trim() || null;
+      } else if (type === 'VITAL_SIGN') {
+        const sys = $('#obsVitalBpSys').val();
+        const dia = $('#obsVitalBpDia').val();
+        payload.temp          = $('#obsVitalTemp').val() || null;
+        payload.bp_systolic   = sys || null;
+        payload.bp_diastolic  = dia || null;
+        payload.bp            = (sys || dia) ? `${sys || ''}/${dia || ''}` : null;
+        payload.pulse         = $('#obsVitalPulse').val() || null;
+        payload.rr            = $('#obsVitalResp').val() || null;
+        payload.spo2          = $('#obsVitalSpo2').val() || null;
+        payload.weight        = $('#obsVitalWeight').val() || null;
+        payload.height        = $('#obsVitalHeight').val() || null;
+        payload.bmi           = window.ipdCalculateBmiValue($('#obsVitalWeight').val(), $('#obsVitalHeight').val());
+        payload.pain_score    = $('#obsVitalPain').val() || null;
+        payload.consciousness = $('#obsVitalConsciousness').val() || null;
+        payload.note_text     = $('#obsNoteText').val().trim() || null;
+      } else {
+        payload.procedure_name = $('#obsNoteProcedure').val().trim() || null;
+        payload.note_text      = $('#obsNoteText').val().trim() || null;
+      }
+      return payload;
     }
   });
   if (!result.isConfirmed) return;

@@ -239,9 +239,11 @@ Automated verification result:
 - 2026-06-24: OPD Observation management/tracking actions aligned with IPD bed management: bed status changes, transfer bed, bed-level notes/vitals/medication/procedure, discharge-to-cleaning, and Convert-to-IPD bed release.
 - 2026-06-24: Fixed OPD Observation bed action dropdown clipping/overlap by overriding board overflow and z-index stacking for the OPD board.
 - 2026-06-24: Temporarily removed OPD Observation medication recording actions. Doctor and nursing note modals now use multi-select provider dropdowns for selecting one or more doctors/nurses.
+- 2026-06-24: OPD Observation modals rebuilt to full IPD parity. Doctor Note now uses IPD SOAP (`visit_type`, `diagnosis`, `chief_complaint`, `subjective`, `objective`, `assessment`, `plan`). Nursing Note now uses IPD shift fields (`shift`, `patient_condition`, `observation_text`, `nursing_care_given`, `response_to_treatment`, `intake`, `output`, `pain_score`, `fall_risk`, `allergy_alert`, `medication_given`, `procedure_done`, `notes`). Vital Sign now splits BP into `bp_systolic`/`bp_diastolic`, adds `weight`/`height`/`bmi` (auto-calc) and `consciousness`. Multi-select provider preserved from previous change. Migration `20260624140000_opd_observation_notes_ipd_parity.sql` adds all the new columns plus `provider_id`/`provider_role`. Timeline renderer (`renderObservationTimeline`) updated to render the structured fields per type.
 - 2026-06-24: `git diff --check` passed with line-ending warnings only.
 - 2026-06-24: `npm run build` passed. Vite emitted the existing large chunk warning for the main bundle.
 
 Database note:
 
 - The Supabase migration must be applied before using the new module against a live database. Until then, the Observation page will show a table-not-found/load error for `opd_observations`.
+- The 2026-06-24 IPD-parity migration adds new columns to `opd_observation_notes`. Before it is applied, saving a Doctor/Nursing/Vital note from the modal will fail with `column ... does not exist`. Apply migration `20260624140000_opd_observation_notes_ipd_parity.sql` before using the new modals.
