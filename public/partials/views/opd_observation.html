@@ -32,8 +32,10 @@
         <button class="btn btn-sm btn-outline-primary btn-obs-note" onclick="window.openObservationNoteModal('VITAL_SIGN')"><i class="fas fa-heartbeat me-1"></i><span data-i18n="obs.addVital">Vital Sign</span></button>
         <button class="btn btn-sm btn-outline-dark btn-obs-note" onclick="window.openObservationNoteModal('DOCTOR_NOTE')"><i class="fas fa-user-md me-1"></i><span data-i18n="obs.doctorNote">Doctor Note</span></button>
         <button class="btn btn-sm btn-outline-success btn-obs-note" onclick="window.openObservationNoteModal('NURSING_NOTE')"><i class="fas fa-user-nurse me-1"></i><span data-i18n="obs.nursingNote">Nursing Note</span></button>
+        <button class="btn btn-sm btn-outline-warning btn-obs-note" onclick="window.openObservationNoteModal('PROCEDURE')"><i class="fas fa-procedures me-1"></i><span data-i18n="obs.procedure">Procedure</span></button>
+        <button class="btn btn-sm btn-outline-primary btn-obs-view" onclick="window.openObservationTransferModal(window.currentObservationId)"><i class="fas fa-exchange-alt me-1"></i><span data-i18n="ipd.transferBed">Transfer Bed</span></button>
         <button class="btn btn-sm btn-outline-warning btn-obs-convert" onclick="window.convertObservationToIpd(window.currentObservationId)"><i class="fas fa-bed me-1"></i><span data-i18n="obs.convertToIpd">Convert to IPD</span></button>
-        <button class="btn btn-sm btn-outline-secondary btn-obs-discharge" onclick="window.dischargeObservation(window.currentObservationId)"><i class="fas fa-sign-out-alt me-1"></i><span data-i18n="obs.discharge">Discharge</span></button>
+        <button class="btn btn-sm btn-outline-secondary btn-obs-discharge" onclick="window.dischargeObservation(window.currentObservationId)"><i class="fas fa-sign-out-alt me-1"></i><span data-i18n="ipd.dischargeReleaseBed">Discharge / Release Bed</span></button>
       </div>
     </div>
     <div id="obsSixHourAlert" class="alert alert-warning py-2 px-3 my-3" style="display:none;"></div>

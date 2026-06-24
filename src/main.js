@@ -460,6 +460,13 @@ Object.assign(window.appTranslations.lo, {
   'ipd.filterDoctor': 'ກັ່ນຕອງຕາມແພດນີ້'
 });
 
+Object.assign(window.appTranslations.lo, {
+  'obs.selectDoctors': 'ເລືອກແພດ',
+  'obs.selectNurses': 'ເລືອກພະຍາບານ',
+  'obs.multiSelectHint': 'ກົດ Ctrl ຫຼື Shift ເພື່ອເລືອກຫຼາຍຄົນ',
+  'obs.selectProviderRequired': 'ກະລຸນາເລືອກຜູ້ບັນທຶກຢ່າງນ້ອຍ 1 ຄົນ'
+});
+
 Object.assign(window.appTranslations.en, {
   'ipd.nurseStation': 'Nurse Station',
   'ipd.compactView': 'Compact View',
@@ -1317,6 +1324,10 @@ Object.assign(window.appTranslations.en, {
   'obs.nursingNote': 'Nursing Note',
   'obs.medication': 'Medication',
   'obs.procedure': 'Procedure',
+  'obs.selectDoctors': 'Select doctors',
+  'obs.selectNurses': 'Select nurses',
+  'obs.multiSelectHint': 'Use Ctrl or Shift to select multiple people',
+  'obs.selectProviderRequired': 'Please select at least one provider',
   'obs.startObservation': 'Observation',
   'obs.assignBed': 'Assign OPD Observation Bed',
   'obs.bedOptional': 'No bed yet (waiting area)',
@@ -6503,22 +6514,67 @@ window.renderObsBedBoard = async function () {
 
   const obsActionMenu = (bed, obsRow, status) => {
     const menuId = `obsBedActions${window.obsEscape(String(bed.Bed_ID).replace(/[^a-zA-Z0-9]/g, ''))}`;
+    const bedIdArg = JSON.stringify(String(bed.Bed_ID || '')).replace(/"/g, '&quot;');
     if (!obsRow) {
+      if (status === 'Available') {
+        return `<div class="ipd-bed-actions-row">
+          <div class="dropdown ipd-bed-action-wrap">
+            <button class="btn btn-success dropdown-toggle ipd-bed-action-trigger btn-obs-add" type="button" id="${menuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
+              <i class="fas fa-bolt me-1"></i>${window.obsEscape(window.t('common.action'))}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
+              <li><a class="dropdown-item text-success btn-obs-add" href="#" onclick="window.openObservationFromBoard(${bedIdArg}); return false;"><i class="fas fa-notes-medical me-2"></i>${window.obsEscape(window.t('obs.startObservation'))}</a></li>
+              <li><a class="dropdown-item text-secondary btn-ipd-config-edit" href="#" onclick="window.changeObservationBedStatus(${bedIdArg}, 'Maintenance'); return false;"><i class="fas fa-tools me-2"></i>${window.obsEscape(window.t('ipd.maintenance'))}</a></li>
+            </ul>
+          </div>
+        </div>`;
+      }
+      const maintenanceItems = status === 'Cleaning' || status === 'Maintenance' || status === 'Reserved'
+        ? `<ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
+            ${status === 'Reserved' ? `<li><a class="dropdown-item text-success btn-obs-add" href="#" onclick="window.openObservationFromBoard(${bedIdArg}); return false;"><i class="fas fa-notes-medical me-2"></i>${window.obsEscape(window.t('obs.startObservation'))}</a></li>` : ''}
+            <li><a class="dropdown-item text-success btn-ipd-config-edit" href="#" onclick="window.changeObservationBedStatus(${bedIdArg}, 'Available'); return false;"><i class="fas fa-check me-2"></i>${window.obsEscape(window.t('ipd.markAvailable'))}</a></li>
+            ${status !== 'Maintenance' ? `<li><a class="dropdown-item text-secondary btn-ipd-config-edit" href="#" onclick="window.changeObservationBedStatus(${bedIdArg}, 'Maintenance'); return false;"><i class="fas fa-tools me-2"></i>${window.obsEscape(window.t('ipd.maintenance'))}</a></li>` : ''}
+          </ul>` : '';
+      if (maintenanceItems) {
+        const triggerClass = status === 'Cleaning' ? 'btn-warning' : status === 'Reserved' ? 'btn-primary' : 'btn-secondary';
+        return `<div class="ipd-bed-actions-row">
+          <div class="dropdown ipd-bed-action-wrap">
+            <button class="btn ${triggerClass} dropdown-toggle ipd-bed-action-trigger" type="button" id="${menuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
+              <i class="fas fa-bolt me-1"></i>${window.obsEscape(window.t('common.action'))}
+            </button>
+            ${maintenanceItems}
+          </div>
+        </div>`;
+      }
       return `<div class="ipd-bed-actions-row">
-        <button type="button" class="btn btn-success ipd-bed-action-trigger" disabled>
-          <i class="fas fa-check me-1"></i>${window.obsEscape(window.t('ipd.available'))}
+        <button type="button" class="btn btn-secondary ipd-bed-action-trigger" disabled>
+          <i class="fas fa-info-circle me-1"></i>${window.obsEscape(window.ipdTranslateValue(status))}
         </button>
       </div>`;
     }
+    const statusColor = {
+      Available: 'btn-success',
+      Occupied: 'btn-dark',
+      Reserved: 'btn-primary',
+      Cleaning: 'btn-warning',
+      Maintenance: 'btn-secondary',
+      Inactive: 'btn-secondary'
+    }[status] || 'btn-primary';
+    const obsIdArg = JSON.stringify(String(obsRow.observation_id || '')).replace(/"/g, '&quot;');
     return `<div class="ipd-bed-actions-row">
       <div class="dropdown ipd-bed-action-wrap">
-        <button class="btn btn-primary dropdown-toggle ipd-bed-action-trigger btn-obs-view" type="button" id="${menuId}" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn ${statusColor} dropdown-toggle ipd-bed-action-trigger btn-obs-view" type="button" id="${menuId}" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-auto-close="true" aria-expanded="false">
           <i class="fas fa-bolt me-1"></i>${window.obsEscape(window.t('common.action'))}
         </button>
         <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
-          <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationDetail('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-eye me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
-          <li><a class="dropdown-item text-warning btn-obs-convert" href="#" onclick="window.convertObservationToIpd('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-bed me-2"></i>${window.obsEscape(window.t('obs.convertToIpd'))}</a></li>
-          <li><a class="dropdown-item text-secondary btn-obs-discharge" href="#" onclick="window.dischargeObservation('${window.obsEscape(obsRow.observation_id)}'); return false;"><i class="fas fa-sign-out-alt me-2"></i>${window.obsEscape(window.t('obs.discharge'))}</a></li>
+          <li><a class="dropdown-item text-dark btn-obs-view" href="#" onclick="window.openObservationDetail(${obsIdArg}); return false;"><i class="fas fa-file-medical me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
+          <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationTransferModal(${obsIdArg}); return false;"><i class="fas fa-exchange-alt me-2"></i>${window.obsEscape(window.t('ipd.transferBed'))}</a></li>
+          <li><a class="dropdown-item text-danger btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'VITAL_SIGN'); return false;"><i class="fas fa-heartbeat me-2"></i>${window.obsEscape(window.t('obs.addVital'))}</a></li>
+          <li><a class="dropdown-item text-primary btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'DOCTOR_NOTE'); return false;"><i class="fas fa-user-md me-2"></i>${window.obsEscape(window.t('obs.doctorNote'))}</a></li>
+          <li><a class="dropdown-item text-success btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'NURSING_NOTE'); return false;"><i class="fas fa-user-nurse me-2"></i>${window.obsEscape(window.t('obs.nursingNote'))}</a></li>
+          <li><a class="dropdown-item text-warning btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'PROCEDURE'); return false;"><i class="fas fa-procedures me-2"></i>${window.obsEscape(window.t('obs.procedure'))}</a></li>
+          <li><a class="dropdown-item text-warning btn-obs-convert" href="#" onclick="window.convertObservationToIpd(${obsIdArg}); return false;"><i class="fas fa-bed me-2"></i>${window.obsEscape(window.t('obs.convertToIpd'))}</a></li>
+          <li><a class="dropdown-item text-secondary btn-obs-discharge" href="#" onclick="window.dischargeObservation(${obsIdArg}); return false;"><i class="fas fa-sign-out-alt me-2"></i>${window.obsEscape(window.t('ipd.dischargeReleaseBed'))}</a></li>
         </ul>
       </div>
     </div>`;
@@ -6532,7 +6588,7 @@ window.renderObsBedBoard = async function () {
     const cleaning = wardBeds.filter(b => obsBedStatus(b) === 'Cleaning').length;
     const maintenance = wardBeds.filter(b => obsBedStatus(b) === 'Maintenance').length;
     const wardRooms = obsRooms.filter(r => String(r.Ward_ID) === String(ward.Ward_ID));
-    let inner = `<section class="ipd-ward-group ipd-board-mode-compact">
+    let inner = `<section class="ipd-ward-group ipd-board-mode-detail">
       <div class="ipd-ward-header">
         <div class="ipd-ward-title">
           <span class="ipd-ward-icon"><i class="fas fa-hospital"></i></span>
@@ -6568,16 +6624,24 @@ window.renderObsBedBoard = async function () {
         const overSix = !!obsRow && hours >= 6;
         const patientName = obsRow ? window.obsPatientName(obsRow) : '';
         const displayStatus = overSix ? `<span class="ipd-status-badge ipd-status-maintenance">6h+</span>` : window.ipdStatusBadge(status);
+        const patientDetails = obsRow ? `<div class="ipd-bed-meta">
+            <div class="ipd-bed-patient-name" title="${window.obsEscape(patientName)}">${window.obsEscape(patientName || '-')}</div>
+            <div class="ipd-bed-line"><span>HN</span> ${window.obsEscape(obsRow.hn || obsRow.patient_id || '-')}</div>
+            ${obsRow.diagnosis ? `<div class="ipd-bed-line" title="${window.obsEscape(obsRow.diagnosis)}"><i class="fas fa-stethoscope text-muted me-1"></i>${window.obsEscape(obsRow.diagnosis)}</div>` : ''}
+            ${obsRow.doctor_id ? `<div class="ipd-bed-line" title="${window.obsEscape(obsRow.doctor_id)}"><i class="fas fa-user-md text-muted me-1"></i>${window.obsEscape(obsRow.doctor_id)}</div>` : ''}
+            <div class="ipd-bed-line"><i class="fas fa-clock text-muted me-1"></i>${window.obsEscape(window.obsFormatDuration(obsRow))}${overSix ? ` <span class="badge bg-warning text-dark ms-1">6h+</span>` : ''}</div>
+          </div>` : `<div class="ipd-bed-meta ipd-bed-empty-meta">
+            <div class="text-muted small">${window.obsEscape(window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}</div>
+          </div>`;
         inner += `<article class="ipd-bed-card status-${status.toLowerCase()}">
-          <div class="ipd-compact-card-head">
-            <div class="ipd-bed-number">${window.obsEscape(bed.Bed_Number || '-')}</div>
+          <div class="ipd-bed-top">
+            <div>
+              <div class="ipd-bed-number">${window.obsEscape(bed.Bed_Number || '-')}</div>
+            </div>
             ${displayStatus}
           </div>
-          ${obsRow ? `<div class="ipd-compact-patient">${window.obsEscape(patientName)}</div>
-            <div class="ipd-compact-meta">HN ${window.obsEscape(obsRow.hn || obsRow.patient_id || '-')} - ${window.obsEscape(obsRow.observation_id || '')}</div>
-            <div class="ipd-compact-meta">${window.obsEscape(window.obsFormatDuration(obsRow))}${overSix ? ` - ${window.obsEscape(window.t('obs.convertToIpd'))}` : ''}</div>` :
-            `<div class="ipd-compact-bedtype">${window.obsEscape(window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}</div>`}
-          <div class="ipd-compact-actions">${obsActionMenu(bed, obsRow, status)}</div>
+          ${patientDetails}
+          <div class="ipd-bed-actions">${obsActionMenu(bed, obsRow, status)}</div>
         </article>`;
       });
       inner += '</div></div>';
@@ -6645,6 +6709,7 @@ window.renderObservationTable = function () {
       <td class="text-center">
         <div class="d-flex justify-content-center gap-1">
           <button class="btn btn-sm btn-info text-white btn-obs-view" onclick="window.openObservationDetail('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.openObservation'))}"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-primary btn-obs-view" onclick="window.openObservationTransferModal('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('ipd.transferBed'))}"><i class="fas fa-exchange-alt"></i></button>
           <button class="btn btn-sm btn-warning btn-obs-convert" onclick="window.convertObservationToIpd('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.convertToIpd'))}"><i class="fas fa-bed"></i></button>
           <button class="btn btn-sm btn-secondary btn-obs-discharge" onclick="window.dischargeObservation('${window.obsEscape(row.observation_id)}')" title="${window.obsEscape(window.t('obs.discharge'))}"><i class="fas fa-sign-out-alt"></i></button>
         </div>
@@ -6656,7 +6721,7 @@ window.renderObservationTable = function () {
   window.applyButtonPermissions?.();
 };
 
-window.openObservationFromVisit = async function (queueIndex, sourceRows = queueDataStore) {
+window.openObservationFromVisit = async function (queueIndex, sourceRows = queueDataStore, options = {}) {
   const q = (sourceRows || queueDataStore || [])[queueIndex];
   if (!q) return;
   await window.ipdLoadProviders?.();
@@ -6672,7 +6737,8 @@ window.openObservationFromVisit = async function (queueIndex, sourceRows = queue
     const ward = (state.wards || []).find(w => String(w.Ward_ID) === String(b.Ward_ID));
     const room = (state.rooms || []).find(r => String(r.Room_ID) === String(b.Room_ID));
     const label = `${ward?.Ward_Name || b.Ward_ID} / ${room?.Room_Number || b.Room_ID} / ${b.Bed_Number || b.Bed_ID}`;
-    return `<option value="${window.obsEscape(b.Bed_ID)}" data-ward="${window.obsEscape(b.Ward_ID)}" data-room="${window.obsEscape(b.Room_ID)}">${window.obsEscape(label)}</option>`;
+    const selected = options.bedId && String(options.bedId) === String(b.Bed_ID) ? ' selected' : '';
+    return `<option value="${window.obsEscape(b.Bed_ID)}" data-ward="${window.obsEscape(b.Ward_ID)}" data-room="${window.obsEscape(b.Room_ID)}"${selected}>${window.obsEscape(label)}</option>`;
   }).join('');
   const noObsBedsWarning = availableObsBeds.length === 0 && obsWardIds.size === 0
     ? `<div class="full"><div class="alert alert-info py-2 px-3 mb-0" style="font-size:12.5px;"><i class="fas fa-info-circle me-1"></i> ${window.obsEscape(window.t('obs.noObsWardHint'))}</div></div>` : '';
@@ -6733,7 +6799,7 @@ window.openObservationFromVisit = async function (queueIndex, sourceRows = queue
   window.loadView('opd_observation');
 };
 
-window.openObservationFromBoard = async function () {
+window.openObservationFromBoard = async function (preferredBedId = null) {
   try {
     const today = window.getLocalStr(new Date());
     const queueRows = await window._fetchOpdQueue(today, today);
@@ -6767,11 +6833,160 @@ window.openObservationFromBoard = async function () {
       preConfirm: () => Number($('#obsBoardVisitSelect').val())
     });
     if (!result.isConfirmed) return;
-    await window.openObservationFromVisit(result.value, candidates);
+    await window.openObservationFromVisit(result.value, candidates, { bedId: preferredBedId });
   } catch (err) {
     console.error('Open observation from board failed:', err);
     await Swal.fire('Error', err.message || String(err), 'error');
   }
+};
+
+window.obsRowById = function (observationId) {
+  return (window.observationRows || []).find(row => String(row.observation_id) === String(observationId)) || null;
+};
+
+window.obsBedById = function (bedId) {
+  return (window.ipdWardBedState?.beds || []).find(bed => String(bed.Bed_ID) === String(bedId)) || null;
+};
+
+window.updateObservationPhysicalBedStatus = async function (bedId, nextStatus, options = {}) {
+  const bed = window.obsBedById(bedId) || window.ipdBedById?.(bedId);
+  if (!bed) {
+    if (!options.silent) await Swal.fire(window.t('common.error'), window.t('ipd.noBedMatch'), 'warning');
+    return false;
+  }
+  const activeByBed = await window.obsActiveObservationByBedId();
+  if (activeByBed[String(bedId)] && !options.allowActive) {
+    if (!options.silent) await Swal.fire(window.t('ipd.cannotChangeStatus'), window.t('ipd.occupiedToAvailableBlocked'), 'warning');
+    return false;
+  }
+  const now = new Date().toISOString();
+  const payload = {
+    Bed_Status: nextStatus,
+    Status: nextStatus,
+    Last_Status_Updated_At: now,
+    Updated_At: now
+  };
+  if (nextStatus !== 'Reserved') {
+    Object.assign(payload, {
+      Reserved_Patient_ID: null,
+      Reserved_Patient_HN: null,
+      Reserved_Patient_Name: null,
+      Reserved_Phone: null,
+      Reserved_By: null,
+      Reserved_At: null,
+      Reserved_From: null,
+      Reserved_Until: null,
+      Reservation_Reason: null,
+      Reservation_Notes: null
+    });
+  }
+  if (['Available', 'Cleaning', 'Maintenance', 'Inactive'].includes(nextStatus)) {
+    Object.assign(payload, {
+      Current_Patient_ID: null,
+      Current_Patient_HN: null,
+      Current_IPD_Admission_ID: null
+    });
+  }
+  const res = await window.ipdMutate('Beds', 'update', payload, { Bed_ID: bed.Bed_ID }, { Status: nextStatus });
+  if (res.error) {
+    if (!options.silent) await Swal.fire(window.t('common.error'), res.error.message, 'error');
+    return false;
+  }
+  window.logAction?.('Update', `OPD Observation bed ${bed.Bed_ID} -> ${nextStatus}`, 'OPD Observation');
+  return true;
+};
+
+window.changeObservationBedStatus = async function (bedId, nextStatus) {
+  const ok = await window.updateObservationPhysicalBedStatus(bedId, nextStatus);
+  if (!ok) return;
+  await window.loadObservationPage();
+  await Swal.fire(window.t('common.saved'), window.ipdTranslateValue(nextStatus), 'success');
+};
+
+window.openObservationTransferModal = async function (observationId) {
+  const row = window.obsRowById(observationId);
+  if (!row || !window.obsActiveStatuses.includes(String(row.status || '').toUpperCase())) {
+    return Swal.fire(window.t('ipd.cannotTransfer'), window.t('obs.noData'), 'warning');
+  }
+  await window.fetchIpdWardBedData?.();
+  const state = window.ipdWardBedState || { wards: [], rooms: [], beds: [] };
+  const obsWardIds = new Set((state.wards || []).filter(w => window.ipdIsObsWard(w)).map(w => String(w.Ward_ID)));
+  const activeByBed = await window.obsActiveObservationByBedId();
+  const destinations = (state.beds || []).filter(b => {
+    if (!obsWardIds.has(String(b.Ward_ID))) return false;
+    if (String(b.Bed_ID) === String(row.bed_id || '')) return false;
+    if (activeByBed[String(b.Bed_ID)]) return false;
+    return ['Available', 'Reserved'].includes(window.ipdBedStatus(b));
+  });
+  if (!destinations.length) return Swal.fire(window.t('ipd.noDestinationBed'), window.t('ipd.noDestinationBedText'), 'warning');
+  const patientName = window.obsPatientName(row);
+  const destinationOptions = destinations.map(b => {
+    const ward = (state.wards || []).find(w => String(w.Ward_ID) === String(b.Ward_ID));
+    const room = (state.rooms || []).find(r => String(r.Room_ID) === String(b.Room_ID));
+    return `<option value="${window.obsEscape(b.Bed_ID)}">${window.obsEscape(ward?.Ward_Name || b.Ward_ID)} / ${window.obsEscape(window.t('ipd.room'))} ${window.obsEscape(room?.Room_Number || b.Room_ID)} / ${window.obsEscape(window.t('ipd.bedNo'))} ${window.obsEscape(b.Bed_Number)}</option>`;
+  }).join('');
+
+  const result = await Swal.fire({
+    title: window.t('ipd.transferTitle'),
+    width: 720,
+    html: `<div class="ipd-form-grid">
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.openObservation'))}</label><input class="form-control" value="${window.obsEscape(row.observation_id)} - ${window.obsEscape(patientName)}" readonly></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.destinationBed'))}</label><select class="form-select" id="obsTransferDestination">${destinationOptions}</select></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.transferDateTime'))}</label><input type="datetime-local" class="form-control" id="obsTransferDateTime" value="${new Date().toISOString().slice(0, 16)}"></div>
+      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.transferredBy'))}</label><input class="form-control" id="obsTransferBy" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.reason'))}</label><input class="form-control" id="obsTransferReason"></div>
+      <div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.note'))}</label><textarea class="form-control" id="obsTransferNote" rows="2"></textarea></div>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: window.t('ipd.transfer'),
+    cancelButtonText: window.t('common.cancel'),
+    preConfirm: () => ({
+      destinationBedId: $('#obsTransferDestination').val(),
+      movementDateTime: $('#obsTransferDateTime').val(),
+      reason: $('#obsTransferReason').val().trim(),
+      note: $('#obsTransferNote').val().trim(),
+      createdBy: $('#obsTransferBy').val().trim()
+    })
+  });
+  if (!result.isConfirmed) return;
+  await window.transferObservationBed(row, result.value);
+};
+
+window.transferObservationBed = async function (row, form) {
+  const destinationBed = window.obsBedById(form.destinationBedId) || window.ipdBedById?.(form.destinationBedId);
+  if (!destinationBed || !['Available', 'Reserved'].includes(window.ipdBedStatus(destinationBed))) {
+    return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.destinationAvailableText'), 'warning');
+  }
+  const sourceBed = row.bed_id ? (window.obsBedById(row.bed_id) || window.ipdBedById?.(row.bed_id)) : null;
+  if (sourceBed) {
+    await window.updateObservationPhysicalBedStatus(sourceBed.Bed_ID, 'Cleaning', { allowActive: true, silent: true });
+  }
+  await window.updateObservationPhysicalBedStatus(destinationBed.Bed_ID, 'Available', { silent: true });
+  const { error } = await window.obsFrom(OPD_OBSERVATION_TABLE).update({
+    ward_id: destinationBed.Ward_ID || null,
+    room_id: destinationBed.Room_ID || null,
+    bed_id: destinationBed.Bed_ID || null
+  }).eq('observation_id', row.observation_id);
+  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+
+  const sourceLabel = sourceBed ? (sourceBed.Bed_Number || sourceBed.Bed_ID) : window.t('obs.noBedAssigned');
+  const destinationLabel = destinationBed.Bed_Number || destinationBed.Bed_ID;
+  await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE).insert([{
+    observation_id: row.observation_id,
+    note_type: 'NURSING_NOTE',
+    note_datetime: form.movementDateTime ? new Date(form.movementDateTime).toISOString() : new Date().toISOString(),
+    note_text: `Transfer bed: ${sourceLabel} -> ${destinationLabel}${form.reason ? ` | Reason: ${form.reason}` : ''}${form.note ? ` | ${form.note}` : ''}`,
+    recorded_by: form.createdBy || currentUser?.name || currentUser?.id || null
+  }]);
+  window.logAction?.('Update', `Transfer OPD Observation ${row.observation_id} bed ${sourceLabel} -> ${destinationLabel}`, 'OPD Observation');
+  await window.loadObservationPage();
+  await window.openObservationDetail(row.observation_id);
+  await Swal.fire(window.t('ipd.transfer'), window.t('ipd.transferredSuccess'), 'success');
+};
+
+window.openObservationNoteFromBoard = async function (observationId, noteType) {
+  await window.openObservationDetail(observationId);
+  await window.openObservationNoteModal(noteType);
 };
 
 window.obsDetailTargets = function () {
@@ -6880,10 +7095,42 @@ window.renderObservationTimeline = function (row, notes) {
   </div>`).join(''));
 };
 
+window.obsProviderMultiOptions = function (roleFilter) {
+  const all = window.ipdProvidersCache || [];
+  const wanted = Array.isArray(roleFilter) ? roleFilter.map(r => String(r).toLowerCase()) : [String(roleFilter || '').toLowerCase()];
+  const roleMatches = (roleValue) => {
+    const role = String(roleValue || '').toLowerCase();
+    return wanted.some(w =>
+      role === w ||
+      role.includes(w) ||
+      (w === 'doctor' && (role.includes('ແພດ') || role.includes('ຫມໍ') || role.includes('ໝໍ'))) ||
+      (w === 'nurse' && role.includes('ພະຍາບານ'))
+    ) || role === 'admin';
+  };
+  const list = all.filter(p => roleMatches(p.role));
+  const currentId = currentUser?.id ? String(currentUser.id) : '';
+  if (!list.length) {
+    return `<option value="" disabled>${window.obsEscape(window.t('ipd.selectProvider'))}</option>`;
+  }
+  return list.map(p => {
+    const selected = currentId && String(p.id) === currentId ? ' selected' : '';
+    const label = `${p.name || p.id || '-'}${p.role ? ` (${p.role})` : ''}`;
+    return `<option value="${window.obsEscape(p.id)}" data-name="${window.obsEscape(p.name || p.id || '')}" data-role="${window.obsEscape(p.role || '')}"${selected}>${window.obsEscape(label)}</option>`;
+  }).join('');
+};
+
+window.obsSelectedProviderNames = function (selector) {
+  return ($(selector).find('option:selected').map((_, opt) => $(opt).data('name') || $(opt).text() || $(opt).val()).get() || [])
+    .map(v => String(v || '').trim())
+    .filter(Boolean);
+};
+
 window.openObservationNoteModal = async function (noteType) {
   const observationId = window.currentObservationId;
   if (!observationId) return;
   const type = String(noteType || 'NURSING_NOTE').toUpperCase();
+  const needsProviderDropdown = ['DOCTOR_NOTE', 'NURSING_NOTE'].includes(type);
+  if (needsProviderDropdown) await window.ipdLoadProviders?.();
   const typeLabel = window.t(type === 'VITAL_SIGN' ? 'obs.addVital' : type === 'DOCTOR_NOTE' ? 'obs.doctorNote' : type === 'MEDICATION' ? 'obs.medication' : type === 'PROCEDURE' ? 'obs.procedure' : 'obs.nursingNote');
   const vitalHtml = type === 'VITAL_SIGN' ? `
       <div><label class="form-label fw-bold">Temp</label><input id="obsNoteTemp" class="form-control"></div>
@@ -6892,9 +7139,10 @@ window.openObservationNoteModal = async function (noteType) {
       <div><label class="form-label fw-bold">RR</label><input id="obsNoteRr" class="form-control"></div>
       <div><label class="form-label fw-bold">SpO2</label><input id="obsNoteSpo2" class="form-control"></div>
       <div><label class="form-label fw-bold">Pain Score</label><input id="obsNotePain" class="form-control" type="number" min="0" max="10"></div>` : '';
-  const extraHtml = type === 'MEDICATION'
-    ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.medication'))}</label><input id="obsNoteMedication" class="form-control"></div>`
-    : type === 'PROCEDURE'
+  const providerHtml = needsProviderDropdown
+    ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t(type === 'DOCTOR_NOTE' ? 'obs.selectDoctors' : 'obs.selectNurses'))}</label><select id="obsNoteProviders" class="form-select" multiple size="6">${window.obsProviderMultiOptions(type === 'DOCTOR_NOTE' ? ['doctor'] : ['nurse'])}</select><div class="form-text">${window.obsEscape(window.t('obs.multiSelectHint'))}</div></div>`
+    : `<div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.by'))}</label><input id="obsNoteBy" class="form-control" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>`;
+  const extraHtml = type === 'PROCEDURE'
       ? `<div class="full"><label class="form-label fw-bold">${window.obsEscape(window.t('obs.procedure'))}</label><input id="obsNoteProcedure" class="form-control"></div>`
       : '';
   const result = await Swal.fire({
@@ -6902,7 +7150,7 @@ window.openObservationNoteModal = async function (noteType) {
     width: 760,
     html: `<div class="ipd-form-grid">
       <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.dateTime'))}</label><input type="datetime-local" id="obsNoteAt" class="form-control" value="${new Date().toISOString().slice(0, 16)}"></div>
-      <div><label class="form-label fw-bold">${window.obsEscape(window.t('ipd.by'))}</label><input id="obsNoteBy" class="form-control" value="${window.obsEscape(currentUser?.name || currentUser?.id || '')}"></div>
+      ${providerHtml}
       ${vitalHtml}
       ${extraHtml}
       <div class="full"><label class="form-label fw-bold">Note</label><textarea id="obsNoteText" class="form-control" rows="3"></textarea></div>
@@ -6910,19 +7158,27 @@ window.openObservationNoteModal = async function (noteType) {
     showCancelButton: true,
     confirmButtonText: window.t('common.save'),
     cancelButtonText: window.t('common.cancel'),
-    preConfirm: () => ({
-      note_datetime: $('#obsNoteAt').val() ? new Date($('#obsNoteAt').val()).toISOString() : new Date().toISOString(),
-      recorded_by: $('#obsNoteBy').val().trim(),
-      note_text: $('#obsNoteText').val().trim(),
-      temp: $('#obsNoteTemp').val() || null,
-      bp: $('#obsNoteBp').val() || null,
-      pulse: $('#obsNotePulse').val() || null,
-      rr: $('#obsNoteRr').val() || null,
-      spo2: $('#obsNoteSpo2').val() || null,
-      pain_score: $('#obsNotePain').val() || null,
-      medication: $('#obsNoteMedication').val() || null,
-      procedure_name: $('#obsNoteProcedure').val() || null
-    })
+    preConfirm: () => {
+      const selectedProviders = needsProviderDropdown ? window.obsSelectedProviderNames('#obsNoteProviders') : [];
+      const recordedBy = needsProviderDropdown ? selectedProviders.join(', ') : ($('#obsNoteBy').val() || '').trim();
+      if (needsProviderDropdown && !recordedBy) {
+        Swal.showValidationMessage(window.t('obs.selectProviderRequired'));
+        return false;
+      }
+      return {
+        note_datetime: $('#obsNoteAt').val() ? new Date($('#obsNoteAt').val()).toISOString() : new Date().toISOString(),
+        recorded_by: recordedBy,
+        note_text: $('#obsNoteText').val().trim(),
+        temp: $('#obsNoteTemp').val() || null,
+        bp: $('#obsNoteBp').val() || null,
+        pulse: $('#obsNotePulse').val() || null,
+        rr: $('#obsNoteRr').val() || null,
+        spo2: $('#obsNoteSpo2').val() || null,
+        pain_score: $('#obsNotePain').val() || null,
+        medication: null,
+        procedure_name: $('#obsNoteProcedure').val() || null
+      };
+    }
   });
   if (!result.isConfirmed) return;
   const payload = {
@@ -6949,6 +7205,9 @@ window.dischargeObservation = async function (observationId) {
     cancelButtonText: window.t('common.cancel')
   });
   if (!confirm.isConfirmed) return;
+  if (row.bed_id) {
+    await window.updateObservationPhysicalBedStatus(row.bed_id, 'Cleaning', { allowActive: true, silent: true });
+  }
   const { error } = await window.obsFrom(OPD_OBSERVATION_TABLE).update({
     status: 'DISCHARGED',
     end_datetime: new Date().toISOString(),
@@ -7002,6 +7261,9 @@ window.convertObservationToIpd = async function (observationId) {
   const res = await window.ipdMutate('Admissions', 'insert', payload, null, payload);
   if (res.error) return Swal.fire(window.t('common.error'), res.error.message, 'error');
   await window.copyLatestOpdVitalsToIpdAdmission(admissionId, payload.Patient_ID);
+  if (row.bed_id) {
+    await window.updateObservationPhysicalBedStatus(row.bed_id, 'Cleaning', { allowActive: true, silent: true });
+  }
   const upd = await window.obsFrom(OPD_OBSERVATION_TABLE).update({
     status: 'TRANSFER_TO_IPD',
     end_datetime: now.toISOString(),

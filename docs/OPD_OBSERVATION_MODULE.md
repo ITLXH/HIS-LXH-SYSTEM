@@ -81,10 +81,20 @@ The OPD Observation page now uses the same operating bed-board format as IPD bed
 - IPD-style workspace header with bed status pills.
 - Ward group -> room section -> bed card layout.
 - Occupied OPD observation beds show patient, HN/observation number, current duration, and a `6h+` warning badge.
-- Bed cards use the same compact action-dropdown pattern as IPD.
-- OPD bed cards use the same expanded board dimensions as the IPD bed board (`repeat(auto-fill, minmax(190px, 1fr))` and `150px` minimum card height).
+- Bed cards now use the same detail-card pattern as IPD bed management, including `ipd-bed-top`, `ipd-bed-meta`, `ipd-bed-line`, and the same action dropdown row.
+- OPD bed cards use the same expanded board grid as the IPD bed board (`repeat(auto-fill, minmax(190px, 1fr))` and `150px` minimum card height).
 - Available observation beds stay visible as available beds.
 - The board header no longer shows date-range filters. It has an `Observation` action button that opens the existing Observation creation flow for a selected OPD queue patient.
+- Empty OPD observation beds also have an IPD-style action dropdown; choosing `Observation` preselects that physical bed in the creation modal.
+- OPD bed actions now mirror IPD bed-management behavior where appropriate:
+  - Available beds: start Observation, mark maintenance.
+  - Cleaning/Maintenance/Reserved beds: mark available and maintenance actions.
+  - Occupied observation beds: open timeline/chart, transfer bed, add vital sign, add doctor/nursing note, add procedure note, convert to IPD, discharge/release bed.
+- Medication recording is temporarily removed from the OPD Observation UI. Existing medication timeline records can still be displayed for historical data, but users cannot create new medication notes from the board or detail panels.
+- Doctor Note and Nursing Note now use provider dropdowns sourced from the same doctor/nurse user cache as IPD. The dropdown supports selecting multiple doctors or multiple nurses for one note, and the selected names are saved into the note `recorded_by` field.
+- Discharge and Convert-to-IPD release the OPD observation bed into `Cleaning`, matching IPD's discharge/release workflow.
+- Observation bed transfer moves the active `opd_observations.bed_id` to the destination OPD observation bed and records a nursing-note timeline event.
+- OPD observation bed-board dropdown menus are allowed to overflow the segment/ward/card containers with a higher stacking layer, preventing the action menu from being clipped or hidden behind neighboring bed cards.
 - The observation list/table is separated into `/opd/observation/list`, matching the IPD dropdown pattern.
 - The bed-board route `/opd/observation` shows only the OPD observation bed board and inline detail timeline, not the list table.
 
@@ -211,7 +221,7 @@ Manual workflow checks after applying the Supabase migration:
 1. Start an observation from an OPD queue row.
 2. Confirm the row appears in OPD Follow-up / Observation.
 3. Add vital signs and confirm timeline ordering.
-4. Add doctor note, nursing note, medication, and procedure notes.
+4. Add doctor note and nursing note with multiple selected providers, then add a procedure note.
 5. Set or wait for a duration of 6 hours or more and confirm the alert appears.
 6. Convert to IPD and confirm an IPD admission is created without automatic bed assignment.
 7. Confirm the original observation changes to `TRANSFER_TO_IPD`.
@@ -225,6 +235,10 @@ Automated verification result:
 - 2026-06-23: `npm run build` passed. Vite emitted the existing large chunk warning for the main bundle.
 - 2026-06-24: OPD Observation bed board restyled to match IPD bed-management format.
 - 2026-06-24: OPD Observation board card size expanded to match IPD board cards, board date filters removed, and an Observation button added for starting Observation from the board.
+- 2026-06-24: OPD Observation board switched from compact cards to the same IPD detail-card layout and action-dropdown behavior, including bed-level Observation creation.
+- 2026-06-24: OPD Observation management/tracking actions aligned with IPD bed management: bed status changes, transfer bed, bed-level notes/vitals/medication/procedure, discharge-to-cleaning, and Convert-to-IPD bed release.
+- 2026-06-24: Fixed OPD Observation bed action dropdown clipping/overlap by overriding board overflow and z-index stacking for the OPD board.
+- 2026-06-24: Temporarily removed OPD Observation medication recording actions. Doctor and nursing note modals now use multi-select provider dropdowns for selecting one or more doctors/nurses.
 - 2026-06-24: `git diff --check` passed with line-ending warnings only.
 - 2026-06-24: `npm run build` passed. Vite emitted the existing large chunk warning for the main bundle.
 

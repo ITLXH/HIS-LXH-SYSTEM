@@ -7320,10 +7320,12 @@ small,
 
 #view-opd_observation .ipd-board-segment {
   margin-bottom: 14px;
+  overflow: visible;
 }
 
 #view-opd_observation .ipd-board-segment-body {
   padding: 12px;
+  overflow: visible;
 }
 
 #view-opd_observation .ipd-ward-group {
@@ -7332,6 +7334,7 @@ small,
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  overflow: visible;
 }
 
 #view-opd_observation .ipd-ward-header {
@@ -7444,11 +7447,13 @@ small,
   gap: 8px;
   align-items: stretch;
   overflow: visible;
+  isolation: isolate;
 }
 
 #view-opd_observation .ipd-bed-card {
   --bed-accent: #1B6BB0;
   position: relative;
+  z-index: 1;
   min-height: 150px;
   height: 100%;
   align-self: stretch;
@@ -7458,9 +7463,10 @@ small,
   background: #ffffff;
   padding: 8px 10px;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 #view-opd_observation .ipd-bed-card::before {
@@ -7479,11 +7485,81 @@ small,
 #view-opd_observation .ipd-bed-card.status-maintenance { --bed-accent: #64748b; }
 #view-opd_observation .ipd-bed-card.status-inactive { --bed-accent: #1f2937; opacity: 0.82; }
 
+#view-opd_observation .ipd-bed-card:hover {
+  border-color: #b8cfdf !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
 #view-opd_observation .ipd-bed-number {
   color: #0f172a;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+#view-opd_observation .ipd-bed-top {
+  margin-bottom: 4px;
+}
+
+#view-opd_observation .ipd-bed-patient-name {
+  font-weight: 700;
+  font-size: 12.5px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+#view-opd_observation .ipd-bed-line {
+  font-size: 11px;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+#view-opd_observation .ipd-bed-line span {
+  font-weight: 700;
+  color: #334155;
+}
+
+#view-opd_observation .ipd-bed-meta {
+  gap: 2px;
+  color: #475569;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+#view-opd_observation .ipd-bed-empty-meta {
+  border: 1px dashed #e6eef5;
+  border-radius: 4px;
+  background: #f8fafc;
+  padding: 6px;
+}
+
+#view-opd_observation .ipd-bed-actions {
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+#view-opd_observation .ipd-bed-actions-row {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+#view-opd_observation .ipd-bed-action-wrap {
+  flex: 1;
+  position: relative;
 }
 
 #view-opd_observation .ipd-compact-actions {
@@ -7530,15 +7606,25 @@ small,
 
 #view-opd_observation .ipd-bed-action-trigger.btn-success { background: #16a34a; }
 #view-opd_observation .ipd-bed-action-trigger.btn-primary { background: #2563eb; }
+#view-opd_observation .ipd-bed-action-trigger.btn-secondary { background: #64748b; }
+#view-opd_observation .ipd-bed-action-trigger.btn-warning { background: #f59e0b; }
+#view-opd_observation .ipd-bed-action-trigger.btn-dark { background: #0f172a; }
+#view-opd_observation .ipd-bed-action-trigger.btn-danger { background: #dc2626; }
+#view-opd_observation .ipd-bed-action-trigger:hover,
+#view-opd_observation .ipd-bed-action-trigger[aria-expanded="true"] {
+  filter: brightness(1.1);
+  color: #fff;
+}
 
 #view-opd_observation .ipd-bed-action-menu {
+  position: absolute !important;
   min-width: 210px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
   font-size: 12px;
   padding: 4px;
-  z-index: 1080;
+  z-index: 3000;
 }
 
 #view-opd_observation .ipd-bed-action-menu .dropdown-item {
@@ -7550,10 +7636,37 @@ small,
   white-space: nowrap;
 }
 
+#view-opd_observation .ipd-bed-action-menu .dropdown-item i {
+  width: 16px;
+  text-align: center;
+  font-size: 11px;
+}
+
+#view-opd_observation .ipd-bed-action-menu .text-success:hover { background: #dcfce7; color: #166534 !important; }
+#view-opd_observation .ipd-bed-action-menu .text-primary:hover { background: #dbeafe; color: #1d4ed8 !important; }
+#view-opd_observation .ipd-bed-action-menu .text-warning:hover { background: #fef3c7; color: #92400e !important; }
+#view-opd_observation .ipd-bed-action-menu .text-danger:hover { background: #fee2e2; color: #991b1b !important; }
+#view-opd_observation .ipd-bed-action-menu .text-dark:hover { background: #e2e8f0; color: #0f172a !important; }
+#view-opd_observation .ipd-bed-action-menu .text-secondary:hover { background: #f1f5f9; color: #334155 !important; }
+
+#view-opd_observation .ipd-status-badge {
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
 #view-opd_observation .ipd-bed-card:has(.dropdown-menu.show),
 #view-opd_observation .ipd-bed-card:focus-within {
   overflow: visible;
-  z-index: 1090;
+  z-index: 2500;
+}
+
+#view-opd_observation .ipd-bed-card:has(.dropdown-menu.show) .ipd-bed-action-menu,
+#view-opd_observation .ipd-bed-card:focus-within .ipd-bed-action-menu {
+  z-index: 3000;
 }
 
 .dashboard-nav-card {
