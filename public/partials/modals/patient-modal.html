@@ -146,11 +146,12 @@
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold text-danger">ສ່ວນຫຼຸດ</label>
-              <input type="text" class="form-control bg-warning bg-opacity-10 p-discount-scroll"
-                     id="p_discount_show" readonly
-                     onfocus="this.removeAttribute('readonly')"
-                     onblur="this.setAttribute('readonly','')"
-                     onkeydown="if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Tab'].includes(event.key))event.preventDefault()">
+              <div class="form-control bg-warning bg-opacity-10 p-discount-scroll"
+                   id="p_discount_show"
+                   tabindex="0"
+                   role="textbox"
+                   aria-readonly="true"
+                   aria-label="ສ່ວນຫຼຸດ"></div>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">ຊ່ອງທາງຮູ້ຈັກ</label>

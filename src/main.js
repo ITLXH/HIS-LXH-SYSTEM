@@ -2947,7 +2947,7 @@ window.toggleAllergyDetail = function () {
 window.clearPatientOrg = function () {
   $('#p_org_id').val(null).trigger('change');
   $('#p_org_name').val('');
-  $('#p_discount_show').val('').removeAttr('title');
+  $('#p_discount_show').text('').removeAttr('title').scrollLeft(0);
 };
 
 window.handleServiceSelectionChange = function () {
@@ -5394,7 +5394,8 @@ window.openNewPatientModal = function () {
   $('#p_id').val("");
   $('#disp_p_id').val("ກຳລັງໂຫຼດ...");
   $('#p_org_id').val(null).trigger('change');
-  $('#p_org_name, #p_discount_show').val('').removeAttr('title');
+  $('#p_org_name').val('').removeAttr('title');
+  $('#p_discount_show').text('').removeAttr('title').scrollLeft(0);
   $('#p_district').val(null).trigger('change');
   $('#dobInput').val('');
   $('#p_allergy_choice').val('ບໍ່ມີ');
@@ -9534,23 +9535,24 @@ window.submitUserForm = async function (e) {
 window.fetchOrg = async function () {
   let c = $('#p_org_id').val();
   if (!c) {
-    $('#p_org_name, #p_discount_show').val('');
+    $('#p_org_name').val('');
+    $('#p_discount_show').text('').removeAttr('title').scrollLeft(0);
     return;
   }
   const { data, error } = await supabaseClient.from(dbTable('Organizations')).select('*').or(`Org_ID.eq."${c}",Org_Code.eq."${c}"`).limit(1);
   if (error) {
     console.warn('fetchOrg Supabase error:', error);
     $('#p_org_name').val('❌ ເກີດຂໍ້ຜິດພາດ');
-    $('#p_discount_show').val('');
+    $('#p_discount_show').text('').removeAttr('title');
     return;
   }
   if (data && data.length > 0) {
     $('#p_org_name').val(data[0].Org_Name).attr('title', data[0].Org_Name || '');
     const disc = data[0].Discount || "ບໍ່ມີສ່ວນຫຼຸດ";
-    $('#p_discount_show').val(disc).attr('title', disc);
+    $('#p_discount_show').text(disc).attr('title', disc).scrollLeft(0);
   } else {
     $('#p_org_name').val('❌ ບໍ່ພົບ').removeAttr('title');
-    $('#p_discount_show').val('').removeAttr('title');
+    $('#p_discount_show').text('').removeAttr('title');
   }
 };
 

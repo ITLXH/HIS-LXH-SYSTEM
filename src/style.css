@@ -473,6 +473,31 @@ body {
   }
 }
 
+/* Discount display — horizontally scrollable when the text is too long */
+.p-discount-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  cursor: text;
+}
+.p-discount-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.p-discount-scroll::-webkit-scrollbar-thumb {
+  background: rgba(var(--primary-rgb), 0.45);
+  border-radius: 3px;
+}
+.p-discount-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--primary-rgb), 0.7);
+}
+.p-discount-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.p-discount-scroll:empty::before {
+  content: '';
+  color: #94a3b8;
+}
+
 /* ===== PATIENT PHOTO ===== */
 .patient-photo-container {
   display: flex;
