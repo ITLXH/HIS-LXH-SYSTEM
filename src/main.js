@@ -3194,9 +3194,40 @@ window.initApp = async function () {
   }
 };
 
+// ---- View-load cache -----------------------------------------------------
+// Skip re-fetching for static-ish views when the user navigates back within
+// VIEW_CACHE_TTL_MS. Live views (queue boards, dashboards, real-time bed
+// state) bypass the cache. Mutations or explicit "ໂຫຼດໃໝ່" buttons should
+// call `window.invalidateViewCache(view)` or pass { force: true }.
+window.viewLoadCache = window.viewLoadCache || {};
+window.VIEW_CACHE_TTL_MS = 60_000;
+window.VIEW_LIVE = new Set([
+  'dashboard', 'report', 'triage', 'opd',
+  'opd_observation', 'opd_observation_list',
+  'ipd_ward_bed', 'ipd_chart', 'public-queue', 'backup'
+]);
+window.shouldLoadView = function (view, options = {}) {
+  if (options && options.force) return true;
+  if (window.VIEW_LIVE.has(view)) return true;
+  const last = window.viewLoadCache[view];
+  if (!last) return true;
+  return (Date.now() - last) > window.VIEW_CACHE_TTL_MS;
+};
+window.markViewLoaded = function (view) { window.viewLoadCache[view] = Date.now(); };
+window.invalidateViewCache = function (view) {
+  if (view) delete window.viewLoadCache[view];
+  else window.viewLoadCache = {};
+};
+
 window.loadView = function (v, options = {}) {
   const routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
   v = routeTarget.view;
+  const _runLoad = (fn) => {
+    if (window.shouldLoadView(v, options)) {
+      fn();
+      window.markViewLoaded(v);
+    }
+  };
   if (systemSettings.rememberLastModule && v && !['public-queue', 'ipd_chart'].includes(v)) {
     localStorage.setItem('his_last_selected_module', v);
   }
@@ -3247,16 +3278,17 @@ window.loadView = function (v, options = {}) {
   if (dashRefreshInterval) clearInterval(dashRefreshInterval);
   if (reportRefreshInterval) clearInterval(reportRefreshInterval);
 
-  // Load Data
-  if (v === 'patients') window.initPatientTable();
-  if (v === 'orgs') window.loadOrgs();
+  // Load Data — cacheable views go through _runLoad (skips fetch when
+  // navigating back within VIEW_CACHE_TTL_MS); live views always reload.
+  if (v === 'patients') _runLoad(() => window.initPatientTable());
+  if (v === 'orgs') _runLoad(() => window.loadOrgs());
   if (v === 'triage') {
     if (!$('#triageStartDate').val()) {
       let today = new Date();
       $('#triageStartDate').val(window.getLocalStr(today));
       $('#triageEndDate').val(window.getLocalStr(today));
     }
-    window.loadTriageQueue();
+    _runLoad(() => window.loadTriageQueue());
   }
   if (v === 'opd') {
     if (!$('#opdStartDate').val()) {
@@ -3264,10 +3296,10 @@ window.loadView = function (v, options = {}) {
       $('#opdStartDate').val(window.getLocalStr(today));
       $('#opdEndDate').val(window.getLocalStr(today));
     }
-    window.loadQueue();
+    _runLoad(() => window.loadQueue());
   }
   if (v === 'opd_observation') {
-    window.loadObservationPage();
+    _runLoad(() => window.loadObservationPage());
   }
   if (v === 'opd_observation_list') {
     if (!$('#obsListStartDate').val()) {
@@ -3275,14 +3307,14 @@ window.loadView = function (v, options = {}) {
       $('#obsListStartDate').val(window.getLocalStr(today));
       $('#obsListEndDate').val(window.getLocalStr(today));
     }
-    window.loadObservationPage();
+    _runLoad(() => window.loadObservationPage());
   }
-  if (v === 'users') window.loadUsers();
-  if (v === 'services') window.loadServicesMasterView();
-  if (v === 'locations') window.loadLocationsMasterView();
-  if (v === 'appointments') window.loadAppointments();
+  if (v === 'users') _runLoad(() => window.loadUsers());
+  if (v === 'services') _runLoad(() => window.loadServicesMasterView());
+  if (v === 'locations') _runLoad(() => window.loadLocationsMasterView());
+  if (v === 'appointments') _runLoad(() => window.loadAppointments());
   if (v === 'ipd_ward_bed') {
-    window.loadIpdWardBedManagement();
+    _runLoad(() => window.loadIpdWardBedManagement());
     if (routeTarget.mode === 'ipd_admission') {
       setTimeout(() => { $('.btn-ipd-admit:visible').first().trigger('focus'); }, 250);
     }
@@ -3290,16 +3322,16 @@ window.loadView = function (v, options = {}) {
   if (v === 'ipd_inpatient_list') {
     if (routeTarget.mode === 'ipd_discharge') window.ipdInpatientFilter = 'discharged';
     else if (routeTarget.mode === 'ipd_inpatients') window.ipdInpatientFilter = 'active';
-    window.loadIpdInpatientListPage();
+    _runLoad(() => window.loadIpdInpatientListPage());
   }
-  if (v === 'ipd_config') window.loadIpdConfigPage();
+  if (v === 'ipd_config') _runLoad(() => window.loadIpdConfigPage());
   if (v === 'ipd_chart' && window.ipdCurrentChartAdmissionId) window.loadIpdClinicalChart(window.ipdCurrentChartAdmissionId);
-  if (v === 'vaccines') window.loadPatientVaccines();
-  if (v === 'vaccine_master') window.loadVaccineMaster();
-  if (v === 'drugs') window.loadDrugsMaster();
-  if (v === 'labs') window.loadLabsMaster();
-  if (v === 'activity_log') window.loadActivityLog();
-  if (v === 'backup') window.initBackupView();
+  if (v === 'vaccines') _runLoad(() => window.loadPatientVaccines());
+  if (v === 'vaccine_master') _runLoad(() => window.loadVaccineMaster());
+  if (v === 'drugs') _runLoad(() => window.loadDrugsMaster());
+  if (v === 'labs') _runLoad(() => window.loadLabsMaster());
+  if (v === 'activity_log') _runLoad(() => window.loadActivityLog());
+  if (v === 'backup') _runLoad(() => window.initBackupView());
 
   if (v === 'settings') {
     supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {

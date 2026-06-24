@@ -9,7 +9,7 @@
       <button class="btn btn-outline-secondary shadow-sm me-2" onclick="window.exportActivityLogCSV()">
         <i class="fas fa-file-csv me-1"></i> Export CSV
       </button>
-      <button class="btn btn-info text-white shadow-sm" onclick="window.loadActivityLog()">
+      <button class="btn btn-info text-white shadow-sm" onclick="window.invalidateViewCache?.('activity_log'); window.loadActivityLog()">
         <i class="fas fa-sync-alt me-1"></i> Refresh
       </button>
     </div>
@@ -63,7 +63,7 @@
           </select>
         </div>
         <div class="col-md-2">
-          <button class="btn btn-primary btn-sm w-100 shadow-sm" onclick="window.loadActivityLog()">
+          <button class="btn btn-primary btn-sm w-100 shadow-sm" onclick="window.invalidateViewCache?.('activity_log'); window.loadActivityLog()">
             <i class="fas fa-search me-1"></i> ຄົ້ນຫາ
           </button>
         </div>
