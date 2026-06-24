@@ -384,3 +384,10 @@ Supabase: project `pzyrowzghrcfpmhkreag.supabase.co`. Apply migrations via Supab
 - Patient_ID format (used as FK across 6 tables)
 - Table prefix (`HIS_One_`)
 - The `dbTable()` wrapper
+
+## 17. Recent Bug Fixes (2026-06-24)
+
+- **Select2 Clear Button**: Fixed an issue where the "Organization Code" dropdown in `patientModal` and `apptModal` was missing the clear (x) button because the default placeholder `<option>` contained text instead of being empty.
+- **Organization Dropdown Items Limit/Display**: Removed the `Org_Code` deduplication in the Organization dropdowns. The dropdowns now display individual customers for organizations (using `Org_ID` as the value and showing the contact name alongside the organization code) instead of grouping by `Org_Code`, which previously caused users to mistakenly think the list was limited to 10 items.
+- **Organization Fetch Compatibility**: Updated the `fetchOrg` function to query by both `Org_ID` and `Org_Code` (using `.or()`) to maintain backward compatibility with existing patient data that might still store `Org_Code` as their `Organization_ID`.
+- **Locations Excel Import ID Generation**: Fixed a "null value in column ID violates not-null constraint" error when uploading Excel files for "Locations" (`HIS_One_Locations`). The system now automatically generates a unique `ID` (e.g. `LOC` + timestamp + index) for each row before inserting it into the database.
