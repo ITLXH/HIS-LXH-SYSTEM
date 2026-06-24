@@ -74,7 +74,11 @@
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">ວ/ດ/ປ ເກີດ (DOB)</label>
-              <input type="date" class="form-control" name="p_dob" id="dobInput" onchange="window.calculateAgeForm()">
+              <input type="text" class="form-control" name="p_dob" id="dobInput"
+                     placeholder="DD/MM/YYYY" maxlength="10" inputmode="numeric"
+                     autocomplete="off"
+                     oninput="window.formatDobInput(this)"
+                     onblur="window.calculateAgeForm()">
             </div>
             <div class="col-md-2">
               <label class="form-label fw-bold">ອາຍຸ</label>
@@ -129,11 +133,24 @@
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">ຊື່ອົງກອນ</label>
-              <input type="text" class="form-control bg-light" name="p_org_name" id="p_org_name" readonly>
+              <div class="input-group">
+                <button type="button" class="btn btn-outline-danger"
+                        id="p_org_clear_btn"
+                        title="ລ້າງອົງກອນ"
+                        onclick="window.clearPatientOrg()"
+                        aria-label="ລ້າງອົງກອນ">
+                  <i class="fas fa-trash-alt"></i>
+                </button>
+                <input type="text" class="form-control bg-light" name="p_org_name" id="p_org_name" readonly>
+              </div>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold text-danger">ສ່ວນຫຼຸດ</label>
-              <input type="text" class="form-control bg-warning bg-opacity-10" id="p_discount_show" readonly>
+              <input type="text" class="form-control bg-warning bg-opacity-10 p-discount-scroll"
+                     id="p_discount_show" readonly
+                     onfocus="this.removeAttribute('readonly')"
+                     onblur="this.setAttribute('readonly','')"
+                     onkeydown="if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Tab'].includes(event.key))event.preventDefault()">
             </div>
             <div class="col-md-3">
               <label class="form-label fw-bold">ຊ່ອງທາງຮູ້ຈັກ</label>
@@ -159,7 +176,18 @@
           <div class="row g-3 mb-3">
             <div class="col-md-6">
               <label class="form-label fw-bold text-danger"><i class="fas fa-exclamation-triangle me-1"></i>ປະຫວັດການແພ້ຢາ (Drug Allergy)</label>
-              <input type="text" class="form-control border-danger" name="p_allergy" placeholder="ຖ້າບໍ່ມີ ໃສ່: ບໍ່ມີ">
+              <div class="row g-2">
+                <div class="col-4">
+                  <select class="form-select border-danger" id="p_allergy_choice" onchange="window.toggleAllergyDetail()">
+                    <option value="ບໍ່ມີ">ບໍ່ມີ</option>
+                    <option value="ມີ">ມີ</option>
+                  </select>
+                </div>
+                <div class="col-8">
+                  <input type="text" class="form-control border-danger" name="p_allergy" id="p_allergy"
+                         placeholder="ລະບຸຢາທີ່ແພ້..." style="display:none;">
+                </div>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label fw-bold">ພະຍາດປະຈຳຕົວ (Underlying Disease)</label>
@@ -178,7 +206,7 @@
             </div>
             <div class="col-md-4">
               <label class="form-label fw-bold">ຄວາມສຳພັນ</label>
-              <input type="text" class="form-control" name="p_emer_relation" placeholder="ພໍ່ / ແມ່ / ພີ່ນ້ອງ...">
+              <select class="form-select dyn-EmergencyRelation" name="p_emer_relation"><option value="">-- ເລືອກ --</option></select>
             </div>
           </div>
 

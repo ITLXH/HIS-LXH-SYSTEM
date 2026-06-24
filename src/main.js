@@ -2896,13 +2896,58 @@ window.doLogin = async function () {
   }
 };
 
+// --- DOB helpers (DD/MM/YYYY UI <-> YYYY-MM-DD storage) ---
+window.dobUiToIso = function (dmy) {
+  const m = String(dmy || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return '';
+  const dd = parseInt(m[1], 10), mm = parseInt(m[2], 10), yyyy = parseInt(m[3], 10);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return '';
+  const d = new Date(Date.UTC(yyyy, mm - 1, dd));
+  if (d.getUTCFullYear() !== yyyy || d.getUTCMonth() !== mm - 1 || d.getUTCDate() !== dd) return '';
+  return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+};
+
+window.dobIsoToUi = function (iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+};
+
+window.formatDobInput = function (input) {
+  // Strip non-digits, then re-inject the two slashes at fixed positions.
+  let v = String(input.value || '').replace(/\D/g, '').slice(0, 8);
+  if (v.length >= 5) v = v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
+  else if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+  input.value = v;
+};
+
 window.calculateAgeForm = function () {
-  let dobVal = $('#dobInput').val();
-  if (dobVal) {
-    let dob = new Date(dobVal);
-    let age = Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970);
-    $('#ageInput').val(age);
+  const ui = $('#dobInput').val();
+  const iso = window.dobUiToIso(ui);
+  if (!iso) return;
+  const dob = new Date(iso);
+  const age = Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970);
+  $('#ageInput').val(age);
+};
+
+// --- Drug allergy toggle (dropdown ມີ/ບໍ່ມີ + detail textbox) ---
+window.toggleAllergyDetail = function () {
+  const choice = $('#p_allergy_choice').val();
+  const $detail = $('#p_allergy');
+  if (choice === 'ມີ') {
+    $detail.show().attr('placeholder', 'ລະບຸຢາທີ່ແພ້...');
+    if (!$detail.val() || $detail.val() === 'ບໍ່ມີ') $detail.val('');
+  } else {
+    $detail.hide().val('ບໍ່ມີ');
   }
+};
+
+// --- Clear button for organization (replaces the tiny Select2 ×) ---
+window.clearPatientOrg = function () {
+  $('#p_org_id').val(null).trigger('change');
+  $('#p_org_name').val('');
+  $('#p_discount_show').val('').removeAttr('title');
 };
 
 window.handleServiceSelectionChange = function () {
@@ -4961,7 +5006,7 @@ window.refreshPatientOrgDropdown = async function () {
       $('#p_org_id').html(orgOptions).select2({
         dropdownParent: $('#patientModal'),
         placeholder: '-- ເລືອກອົງກອນ --',
-        allowClear: true
+        allowClear: false
       });
     }
   } catch (err) {
@@ -5349,8 +5394,11 @@ window.openNewPatientModal = function () {
   $('#p_id').val("");
   $('#disp_p_id').val("ກຳລັງໂຫຼດ...");
   $('#p_org_id').val(null).trigger('change');
-  $('#p_org_name, #p_discount_show').val('');
+  $('#p_org_name, #p_discount_show').val('').removeAttr('title');
   $('#p_district').val(null).trigger('change');
+  $('#dobInput').val('');
+  $('#p_allergy_choice').val('ບໍ່ມີ');
+  $('#p_allergy').val('ບໍ່ມີ').hide();
 
   window.generateNextPatientID().then(id => {
     $('#disp_p_id').val(id);
@@ -5404,10 +5452,22 @@ window.editPatient = async function (id) {
   $('#disp_p_id').val(d.id);
   $('#p_old_patient_id').val(d.old_patient_id);
   for (const [k, v] of Object.entries(d)) {
-    if (k === 'org_id') continue;
+    if (k === 'org_id' || k === 'dob' || k === 'allergy' || k === 'emer_relation') continue;
     let el = document.getElementById('p_' + k) || document.getElementsByName('p_' + k)[0];
     if (el) el.value = v;
   }
+  // DOB stored as YYYY-MM-DD; show as DD/MM/YYYY in the text input.
+  $('#dobInput').val(window.dobIsoToUi(d.dob));
+  // Drug allergy: split into dropdown choice + detail textbox.
+  const allergyVal = String(d.allergy || '').trim();
+  if (!allergyVal || allergyVal === 'ບໍ່ມີ') {
+    $('#p_allergy_choice').val('ບໍ່ມີ');
+    $('#p_allergy').val('ບໍ່ມີ').hide();
+  } else {
+    $('#p_allergy_choice').val('ມີ');
+    $('#p_allergy').val(allergyVal).show();
+  }
+  $('#p_emer_relation').val(d.emer_relation || '').trigger('change');
   $('#p_org_id').val(d.org_id).trigger('change');
   $('#p_district').val(d.district).trigger('change');
   $('#p_province').val(d.province || '');
@@ -5424,6 +5484,15 @@ window.submitPatientForm = async function (e) {
   const isEdit = fd.p_action === 'edit' && fd.p_id;
   const age = parseInt(fd.p_age) || 0;
   const ageGroup = age <= 15 ? '0-15' : (age <= 35 ? '16-35' : (age <= 55 ? '36-55' : '55+'));
+  // DOB UI is DD/MM/YYYY; convert to YYYY-MM-DD (or null if empty/invalid) before save.
+  const dobIso = window.dobUiToIso(fd.p_dob || '');
+  fd.p_dob = dobIso || null;
+  if (fd.p_dob === '') fd.p_dob = null;
+  // Drug allergy: if the dropdown is "ບໍ່ມີ", force the saved value to "ບໍ່ມີ"
+  // regardless of any stale detail text; if "ມີ" but textbox is empty, keep "ມີ".
+  const allergyChoice = $('#p_allergy_choice').val();
+  if (allergyChoice === 'ບໍ່ມີ') fd.p_allergy = 'ບໍ່ມີ';
+  else if (allergyChoice === 'ມີ') fd.p_allergy = String(fd.p_allergy || '').trim() || 'ມີ';
   let pId = fd.p_id;
   if (!isEdit) {
     pId = await window.generateNextPatientID();
@@ -7545,12 +7614,12 @@ window.updateReportObservationStats = async function (sDate, eDate) {
 // ============================================================
 let opdQueueChannel = null;
 let opdQueuePollInterval = null;
-// visitId -> last-notified-at (ms). Map (not Set) so we can re-notify every minute
-// while the patient is still "Waiting OPD" (doctor hasn't pressed ຮັບ).
-const opdNotifiedVisitIds = new Map();
+// Set of Visit_IDs already notified. We alert ONCE per visit; the toast itself
+// is sticky (no auto-dismiss) and stays on screen until the doctor clicks it —
+// so we don't need a time-based repeat or a separate "dismissed" set.
+const opdNotifiedVisitIds = new Set();
 let opdActiveRoomAlerts = [];
 const OPD_MY_ROOM_KEY = 'his_opd_my_room';
-const OPD_NOTIFICATION_REPEAT_MS = 60 * 1000;
 
 window.getOpdMyRoom = function () {
   try { return localStorage.getItem(OPD_MY_ROOM_KEY) || ''; } catch (e) { return ''; }
@@ -7594,11 +7663,11 @@ window.seedOpdNotifiedVisits = async function () {
       .select('Visit_ID,Department')
       .eq('Status', 'Waiting OPD')
       .limit(1000);
-    // Seed with "just notified" so existing waiters don't flood on login;
-    // they'll re-trigger after OPD_NOTIFICATION_REPEAT_MS if still unhandled.
-    const now = Date.now();
+    // Mark every currently-waiting visit as already notified so the doctor
+    // doesn't get a flood of toasts on login; new arrivals after this point
+    // still alert exactly once via realtime / poll.
     (data || []).forEach(r => {
-      if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.set(r.Visit_ID, now);
+      if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.add(r.Visit_ID);
     });
   } catch (e) {
     console.warn('seed waiting OPD failed:', e);
@@ -7610,12 +7679,10 @@ window.handleOpdQueueNotification = function (row) {
   const visitId = row.Visit_ID;
   if (!visitId) return;
   if (!window.isOpdRoomMatch(row.Department)) return;
+  // One alert per visit — toast is sticky and remains until the doctor clicks it.
+  if (opdNotifiedVisitIds.has(visitId)) return;
 
-  const now = Date.now();
-  const lastNotifiedAt = opdNotifiedVisitIds.get(visitId);
-  if (lastNotifiedAt != null && (now - lastNotifiedAt) < OPD_NOTIFICATION_REPEAT_MS) return;
-
-  opdNotifiedVisitIds.set(visitId, now);
+  opdNotifiedVisitIds.add(visitId);
   const patientName = row.Patient_Name || row.Patient_ID || '-';
   const department = String(row.Department || '').trim() || 'OPD';
   window.showOpdQueueToast(patientName, department, visitId);
@@ -7637,10 +7704,10 @@ window.pollOpdQueueNotifications = async function () {
       .limit(100);
     if (error) throw error;
     const rows = data || [];
-    // Drop tracking for visits the doctor has accepted (no longer "Waiting OPD"),
-    // so if the same visit ever re-enters the queue we notify immediately again.
+    // Drop tracking for visits no longer in the queue, so a re-queued visit
+    // (same Visit_ID re-entering 'Waiting OPD') alerts again as a fresh arrival.
     const stillWaiting = new Set(rows.map(r => r.Visit_ID).filter(Boolean));
-    for (const id of Array.from(opdNotifiedVisitIds.keys())) {
+    for (const id of Array.from(opdNotifiedVisitIds)) {
       if (!stillWaiting.has(id)) opdNotifiedVisitIds.delete(id);
     }
     rows.reverse().forEach(row => window.handleOpdQueueNotification(row));
@@ -7688,6 +7755,14 @@ window.teardownOpdQueueRealtime = function () {
   opdActiveRoomAlerts = [];
 };
 
+// Toast click handler — just removes the DOM node. We notify only once per
+// visit (see handleOpdQueueNotification), so there's no extra suppression to
+// track when the doctor closes the card.
+window.dismissOpdToast = function (toastId) {
+  const el = document.getElementById(toastId);
+  if (el) el.remove();
+};
+
 window.showOpdQueueToast = function (patientName, department, visitId) {
   let $c = $('#opdToastContainer');
   if (!$c.length) {
@@ -7695,7 +7770,6 @@ window.showOpdQueueToast = function (patientName, department, visitId) {
     $c = $('#opdToastContainer');
   }
   // De-dup: if a sticky toast for this visit is already on screen, leave it alone.
-  // (The 60s re-notify still re-plays the sound + desktop alert via callers.)
   if (visitId) {
     const safeAttr = String(visitId).replace(/"/g, '');
     if (document.querySelector(`.opd-toast[data-visit-id="${safeAttr}"]`)) return;
@@ -7704,17 +7778,19 @@ window.showOpdQueueToast = function (patientName, department, visitId) {
   const safeName = String(patientName).replace(/</g, '&lt;');
   const safeDept = String(department).replace(/</g, '&lt;');
   const visitAttr = visitId ? ` data-visit-id="${String(visitId).replace(/"/g, '')}"` : '';
+  const dismissCall = `window.dismissOpdToast('${toastId}')`;
   $c.append(
-    `<div id="${toastId}"${visitAttr} class="opd-toast" onclick="document.getElementById('${toastId}').remove()">
+    `<div id="${toastId}"${visitAttr} class="opd-toast" onclick="${dismissCall}">
        <div class="opd-toast-icon"><i class="fas fa-user-md"></i></div>
        <div class="opd-toast-body">
          <div class="opd-toast-title">ມີຄົນເຈັບໃໝ່ສົ່ງມາ</div>
          <div class="opd-toast-text"><strong>${safeName}</strong> → <span class="opd-toast-dept">${safeDept}</span></div>
        </div>
-       <button class="opd-toast-close" onclick="event.stopPropagation();document.getElementById('${toastId}').remove()">&times;</button>
+       <button class="opd-toast-close" onclick="event.stopPropagation();${dismissCall}">&times;</button>
      </div>`
   );
   // Sticky: no auto-dismiss. Toast stays until the doctor clicks the card or the × button.
+  // Clicking either also marks the visit as dismissed so the 60s repeat stays silent.
 };
 
 let opdAudioCtx = null;
@@ -9469,11 +9545,12 @@ window.fetchOrg = async function () {
     return;
   }
   if (data && data.length > 0) {
-    $('#p_org_name').val(data[0].Org_Name);
-    $('#p_discount_show').val(data[0].Discount || "ບໍ່ມີສ່ວນຫຼຸດ");
+    $('#p_org_name').val(data[0].Org_Name).attr('title', data[0].Org_Name || '');
+    const disc = data[0].Discount || "ບໍ່ມີສ່ວນຫຼຸດ";
+    $('#p_discount_show').val(disc).attr('title', disc);
   } else {
-    $('#p_org_name').val('❌ ບໍ່ພົບ');
-    $('#p_discount_show').val('');
+    $('#p_org_name').val('❌ ບໍ່ພົບ').removeAttr('title');
+    $('#p_discount_show').val('').removeAttr('title');
   }
 };
 
@@ -9490,12 +9567,13 @@ window._masterDataFallback = {
   LabCategory: window.emrLabCategoryConfig.map(item => item.label),
   DrugUnit: ["ເມັດ (Tab)","ແຄັບຊູນ (Cap)","ມິນລິລິດ (ml)","ກຣາມ (g)","ຫຼອດ (Amp)","ຕຸກ (Bottle)","ຊອງ (Sachet)","Dose","ບ່ວງ (Spoon)"],
   DrugUsage: ["ac (ກ່ອນອາຫານ 30 ນາທີ)","pc (ຫຼັງອາຫານ 15-30 ນາທີ)","am (ຕອນເຊົ້າ)","pm (ຕອນແລງ)","hs (ກ່ອນນອນ)","bid (ວັນລະ 2 ຄັ້ງ)","tid (ວັນລະ 3 ຄັ້ງ)","qid (ວັນລະ 4 ຄັ້ງ)","prn (ກິນເວລາເຈັບ)","od (ວັນລະ 1 ຄັ້ງ)","stat (ກິນທັນທີ)"],
+  EmergencyRelation: ["ພໍ່","ແມ່","ຜົວ","ເມຍ","ລູກ","ພີ່","ນ້ອງ","ຍາດພີ່ນ້ອງ","ໝູ່","ອື່ນໆ"],
 };
 
 window.loadMasterDataGlobalCallback = function (data) {
   masterDataStore = data || {};
   let missingCategories = [];
-  ['Department', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory'].forEach(c => {
+  ['Department', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
     let o = '<option value="">-- ເລືອກ --</option>';
     const sourceData = masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
     if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
@@ -9529,10 +9607,16 @@ window.seedMasterDefaults = async function () {
     Channel: ["ໂທລະສັບ", "ສອດ", "Facebook", "Line", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານ ຮພ. ອື່ນ", "ສື່ໂຄສະນາ", "ອື່ນໆ"],
     InsCompany: ["ບໍ່ມີ", "LSMI", "PVI", "Axa", "Prudential", "Allianz", "BCEL-AXA", "ອື່ນໆ"],
     Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
+    EmergencyRelation: ["ພໍ່", "ແມ່", "ຜົວ", "ເມຍ", "ລູກ", "ພີ່", "ນ້ອງ", "ຍາດພີ່ນ້ອງ", "ໝູ່", "ອື່ນໆ"],
   };
 
+  // Bumped to v2 so existing installs re-check for newly-introduced categories
+  // (e.g. EmergencyRelation) without wiping rows that were customized by the
+  // hospital. The Category-level count check below still skips anything that
+  // already has at least one row, so nothing gets duplicated.
+  const SEED_FLAG = 'his_master_seeded_v2';
   try {
-    if (localStorage.getItem('his_master_seeded_v1') === '1') return;
+    if (localStorage.getItem(SEED_FLAG) === '1') return;
 
     const entries = Object.entries(defaults);
     const existsResults = await Promise.all(
@@ -9543,14 +9627,14 @@ window.seedMasterDefaults = async function () {
 
     const missing = entries.filter((_, i) => (existsResults[i].count || 0) === 0);
     if (missing.length === 0) {
-      localStorage.setItem('his_master_seeded_v1', '1');
+      localStorage.setItem(SEED_FLAG, '1');
       return;
     }
 
     const allRows = missing.flatMap(([category, values]) => values.map(v => ({ Category: category, Value: v })));
     console.log(`Seeding ${missing.length} categories (${allRows.length} rows)...`);
     await supabaseClient.from(dbTable('MasterData')).insert(allRows);
-    localStorage.setItem('his_master_seeded_v1', '1');
+    localStorage.setItem(SEED_FLAG, '1');
   } catch (err) {
     console.error("Seeding error:", err);
   }
@@ -9558,7 +9642,7 @@ window.seedMasterDefaults = async function () {
 
 window.resetMasterDefaults = async function () {
   const c = $('#masterCategory').val();
-  const seededCategories = ['DrugUsage', 'DrugUnit', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department'];
+  const seededCategories = ['DrugUsage', 'DrugUnit', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department', 'EmergencyRelation'];
   if (!seededCategories.includes(c)) {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ຟັງຊັນນີ້ໃຊ້ໄດ້ສະເພາະກັບ category ທີ່ມີຂໍ້ມູນມາດຕະຖານ', 'info');
   }
@@ -9625,7 +9709,8 @@ window.masterCategoryGroups = [
       { key: 'Gender', label: 'ເພດ', description: 'ຕົວເລືອກເພດສຳລັບ registration' },
       { key: 'Nationality', label: 'ສັນຊາດ', description: 'ລາຍການສັນຊາດທີ່ໃຊ້ໃນລະບົບ' },
       { key: 'Occupation', label: 'ອາຊີບ', description: 'ຂໍ້ມູນອາຊີບສຳລັບຄົນເຈັບ' },
-      { key: 'BloodType', label: 'ໝວດເລືອດ', description: 'ມາດຕະຖານໝວດເລືອດໃນທາງການແພດ' }
+      { key: 'BloodType', label: 'ໝວດເລືອດ', description: 'ມາດຕະຖານໝວດເລືອດໃນທາງການແພດ' },
+      { key: 'EmergencyRelation', label: 'ຄວາມສຳພັນ (ຕິດຕໍ່ສຸກເສີນ)', description: 'ຕົວເລືອກຄວາມສຳພັນຂອງຜູ້ຕິດຕໍ່ສຸກເສີນ (ພໍ່/ແມ່/ຜົວ/ເມຍ ...)' }
     ]
   },
   {
