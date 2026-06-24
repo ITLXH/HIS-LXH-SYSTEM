@@ -10,40 +10,16 @@
       </div>
     </div>
     <div class="d-flex align-items-center gap-2">
-      <div class="d-flex align-items-center bg-white border rounded px-2 py-1 shadow-sm">
-        <i class="far fa-calendar-alt text-info me-2"></i>
-        <input type="date" id="obsStartDate" class="form-control form-control-sm border-0 p-0" style="width:115px;">
-        <span class="mx-2 text-muted">-</span>
-        <input type="date" id="obsEndDate" class="form-control form-control-sm border-0 p-0" style="width:115px;">
-      </div>
+      <button class="btn btn-warning text-dark fw-bold shadow-sm px-3 btn-obs-add" onclick="window.openObservationFromBoard()">
+        <i class="fas fa-notes-medical me-1"></i><span data-i18n="obs.startObservation">Observation</span>
+      </button>
       <button class="btn btn-info text-white fw-bold shadow-sm px-3" onclick="window.loadObservationPage()">
-        <i class="fas fa-search me-1"></i><span data-i18n="common.search">Search</span>
+        <i class="fas fa-sync-alt me-1"></i><span data-i18n="ipd.refresh">Refresh</span>
       </button>
     </div>
   </div>
 
   <div id="obsBedBoard"></div>
-
-  <div class="card card-outline card-info shadow-sm mt-3">
-    <div class="card-body table-responsive p-0">
-      <table id="observationTable" class="table table-hover align-middle mb-0 w-100">
-        <thead class="bg-light">
-          <tr>
-            <th data-i18n="obs.observationNo">Observation No</th>
-            <th>HN</th>
-            <th data-i18n="ipd.patientName">Patient Name</th>
-            <th data-i18n="ipd.doctor">Doctor</th>
-            <th data-i18n="ipd.diagnosis">Diagnosis</th>
-            <th data-i18n="obs.startTime">Start Time</th>
-            <th data-i18n="obs.currentDuration">Current Duration</th>
-            <th data-i18n="ipd.status">Status</th>
-            <th class="text-center" data-i18n="common.action">Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
 
   <div class="obs-detail-panel mt-3" id="observationDetailPanel" style="display:none;">
     <div class="obs-detail-head">

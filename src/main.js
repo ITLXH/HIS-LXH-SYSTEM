@@ -1236,6 +1236,7 @@ Object.assign(window.appTranslations.lo, {
   'nav.opdObservation': 'ຕິດຕາມ OPD',
   'nav.opdObservationManagement': 'ຄົນເຈັບນອນຕິດຕາມ OPD',
   'nav.opdObservationBeds': 'ບອດຕຽງ OPD ຕິດຕາມ',
+  'nav.opdObservationList': 'ລາຍຊື່ຄົນເຈັບນອນ OPD',
   'nav.patientList': 'ລາຍຊື່ຄົນເຈັບ',
   'nav.ipdGroup': 'ຄົນເຈັບໃນ (IPD)',
   'nav.ipdDashboardShort': 'Dashboard',
@@ -1247,6 +1248,7 @@ Object.assign(window.appTranslations.lo, {
   'obs.subtitle': 'ຄົນເຈັບນອນຕິດຕາມໄລຍະສັ້ນໃນ OPD ໂດຍບໍ່ນັບເປັນ IPD',
   'obs.opdToday': 'OPD ມື້ນີ້',
   'obs.observationPatients': 'ກຳລັງຕິດຕາມ',
+  'obs.listSubtitle': 'ລາຍຊື່ຄົນເຈັບທີ່ນອນຕິດຕາມໃນ OPD ແຍກຈາກ IPD',
   'obs.activeIpd': 'IPD Active',
   'obs.bedOccupancy': 'ອັດຕາຄອງຕຽງ',
   'obs.admissionsToday': 'ຮັບນອນມື້ນີ້',
@@ -1272,6 +1274,8 @@ Object.assign(window.appTranslations.lo, {
   'obs.sixHourAlert': 'Observation ເກີນ 6 ຊົ່ວໂມງ. ກະລຸນາພິຈາລະນາຮັບນອນ IPD.',
   'obs.noData': 'ບໍ່ມີລາຍການ Observation',
   'obs.createTitle': 'ສ້າງ OPD Follow-up / Observation',
+  'obs.selectVisitForObservation': 'ເລືອກຄົນເຈັບຈາກ OPD queue',
+  'obs.noOpdCandidates': 'ບໍ່ມີຄົນເຈັບ OPD ທີ່ສາມາດສ້າງ Observation ໄດ້',
   'obs.saved': 'ບັນທຶກ Observation ແລ້ວ',
   'obs.converted': 'ສ້າງ IPD admission ແລ້ວ. ກະລຸນາຈັດຕຽງຕໍ່.',
   'obs.discharged': 'ຈຳໜ່າຍຈາກ Observation ແລ້ວ'
@@ -1285,6 +1289,7 @@ Object.assign(window.appTranslations.en, {
   'nav.opdObservation': 'OPD Follow-up',
   'nav.opdObservationManagement': 'OPD Observation Patients',
   'nav.opdObservationBeds': 'OPD Observation Bed Board',
+  'nav.opdObservationList': 'OPD Observation Patient List',
   'nav.patientList': 'Patient List',
   'nav.ipdGroup': 'Inpatients (IPD)',
   'nav.ipdDashboardShort': 'Dashboard',
@@ -1296,6 +1301,7 @@ Object.assign(window.appTranslations.en, {
   'obs.subtitle': 'Short-stay OPD observation patients, not counted as IPD',
   'obs.opdToday': 'OPD Today',
   'obs.observationPatients': 'Observation Patients',
+  'obs.listSubtitle': 'OPD observation patient list, separated from IPD',
   'obs.activeIpd': 'Active IPD',
   'obs.bedOccupancy': 'Bed Occupancy',
   'obs.admissionsToday': 'Admissions Today',
@@ -1321,6 +1327,8 @@ Object.assign(window.appTranslations.en, {
   'obs.sixHourAlert': 'Observation exceeds 6 hours. Consider IPD Admission.',
   'obs.noData': 'No observation records',
   'obs.createTitle': 'Create OPD Follow-up / Observation',
+  'obs.selectVisitForObservation': 'Select patient from OPD queue',
+  'obs.noOpdCandidates': 'No OPD queue patient available for Observation',
   'obs.saved': 'Observation saved',
   'obs.converted': 'IPD admission has been created. Please assign a bed next.',
   'obs.discharged': 'Observation discharged'
@@ -1852,6 +1860,7 @@ window.applyAppLanguage = function () {
     'nav-opd_queue': 'nav.opdQueue',
     'nav-opd_consultation': 'nav.opdConsultation',
     'nav-opd_observation': 'nav.opdObservationBeds',
+    'nav-opd_observation_list': 'nav.opdObservationList',
     'nav-ipd_dashboard': 'nav.ipdDashboardShort',
     'nav-ipd_admission': 'nav.ipdAdmission',
     'nav-ipd_ward_bed': 'nav.bedManagement',
@@ -1898,6 +1907,7 @@ window.HIS_NAV_ROUTES = {
   opd_queue: { view: 'opd', navId: 'opd_queue', path: '/opd/queue' },
   opd_consultation: { view: 'opd', navId: 'opd_consultation', path: '/opd/consultation' },
   opd_observation: { view: 'opd_observation', navId: 'opd_observation', path: '/opd/observation' },
+  opd_observation_list: { view: 'opd_observation_list', navId: 'opd_observation_list', path: '/opd/observation/list' },
   patients: { view: 'patients', navId: 'patients', path: '/patients' },
   ipd_dashboard: { view: 'ipd_ward_bed', navId: 'ipd_dashboard', path: '/ipd/dashboard', mode: 'ipd_dashboard' },
   ipd_admission: { view: 'ipd_ward_bed', navId: 'ipd_admission', path: '/ipd/admission', mode: 'ipd_admission' },
@@ -1930,7 +1940,9 @@ window.HIS_PATH_ROUTES = {
   '/opd/queue': 'opd_queue',
   '/opd/consultation': 'opd_consultation',
   '/opd/observation': 'opd_observation',
+  '/opd/observation/list': 'opd_observation_list',
   '/opd_observation': 'opd_observation',
+  '/opd_observation_list': 'opd_observation_list',
   '/ipd/dashboard': 'ipd_dashboard',
   '/ipd/admission': 'ipd_admission',
   '/ipd/bed-management': 'ipd_ward_bed',
@@ -1955,6 +1967,7 @@ window.HIS_PATH_ROUTES = {
 window.HIS_VIEW_DEFAULT_ROUTE = {
   opd: 'opd_queue',
   opd_observation: 'opd_observation',
+  opd_observation_list: 'opd_observation_list',
   patients: 'patients',
   ipd_ward_bed: 'ipd_ward_bed',
   ipd_inpatient_list: 'ipd_inpatient_list'
@@ -2501,7 +2514,7 @@ window.decorateDataTableUi = function (tableNode) {
 // ==========================================
 async function loadPartials() {
   const views = [
-    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_observation',
+    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
     'labs', 'services', 'locations', 'users', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
@@ -3017,6 +3030,7 @@ window.canUserAccessView = function (view, perms) {
   if (!view) return false;
   if (currentUser?.role === 'admin' || perms.includes('all')) return true;
   if (view === 'dashboard') return perms.includes('dashboard');
+  if (view === 'opd_observation_list') return perms.includes('opd_observation');
   const permissionKey = view.replace(/^ipd_/, 'ipd_');
   return perms.includes(permissionKey) || perms.includes(view);
 };
@@ -3195,7 +3209,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_observation', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -3238,10 +3252,13 @@ window.loadView = function (v, options = {}) {
     window.loadQueue();
   }
   if (v === 'opd_observation') {
-    if (!$('#obsStartDate').val()) {
+    window.loadObservationPage();
+  }
+  if (v === 'opd_observation_list') {
+    if (!$('#obsListStartDate').val()) {
       let today = new Date();
-      $('#obsStartDate').val(window.getLocalStr(today));
-      $('#obsEndDate').val(window.getLocalStr(today));
+      $('#obsListStartDate').val(window.getLocalStr(today));
+      $('#obsListEndDate').val(window.getLocalStr(today));
     }
     window.loadObservationPage();
   }
@@ -6432,20 +6449,26 @@ window.fetchObservationRows = async function (sDate, eDate) {
 };
 
 window.loadObservationPage = async function () {
-  const sDate = $('#obsStartDate').val() || window.getLocalStr(new Date());
-  const eDate = $('#obsEndDate').val() || sDate;
-  if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
-  $('#observationTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  const isListView = $('#view-opd_observation_list:visible').length > 0;
+  const isBoardView = $('#view-opd_observation:visible').length > 0;
+  const sDate = (isListView ? $('#obsListStartDate').val() : $('#obsStartDate').val()) || window.getLocalStr(new Date());
+  const eDate = (isListView ? $('#obsListEndDate').val() : $('#obsEndDate').val()) || sDate;
+  if (isListView && $('#observationTable').length) {
+    if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
+    $('#observationTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  }
   try {
     await window.fetchIpdWardBedData?.();
     window.observationRows = await window.fetchObservationRows(sDate, eDate);
     await window.fetchObservationPatients(window.observationRows);
     await window.updateObservationStats(sDate, eDate);
-    await window.renderObsBedBoard();
-    window.renderObservationTable();
+    if (isBoardView && $('#obsBedBoard').length) await window.renderObsBedBoard();
+    if (isListView && $('#observationTable').length) window.renderObservationTable();
   } catch (err) {
     console.error('Observation load failed:', err);
-    $('#observationTable tbody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${window.obsEscape(err.message || err)}</td></tr>`);
+    if (isListView && $('#observationTable').length) {
+      $('#observationTable tbody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${window.obsEscape(err.message || err)}</td></tr>`);
+    }
   }
 };
 
@@ -6460,6 +6483,15 @@ window.renderObsBedBoard = async function () {
     return;
   }
   const obsByBed = await window.obsActiveObservationByBedId();
+  const activeObsRows = Object.values(obsByBed || {});
+  if (activeObsRows.length) {
+    const seenObservationIds = new Set((window.observationRows || []).map(row => String(row.observation_id || '')));
+    window.observationRows = [
+      ...(window.observationRows || []),
+      ...activeObsRows.filter(row => !seenObservationIds.has(String(row.observation_id || '')))
+    ];
+    await window.fetchObservationPatients(window.observationRows);
+  }
   const wardIds = new Set(obsWards.map(w => String(w.Ward_ID)));
   const obsRooms = (state.rooms || []).filter(r => wardIds.has(String(r.Ward_ID)));
   const obsBeds = (state.beds || []).filter(b => wardIds.has(String(b.Ward_ID)));
@@ -6536,7 +6568,7 @@ window.renderObsBedBoard = async function () {
         const overSix = !!obsRow && hours >= 6;
         const patientName = obsRow ? window.obsPatientName(obsRow) : '';
         const displayStatus = overSix ? `<span class="ipd-status-badge ipd-status-maintenance">6h+</span>` : window.ipdStatusBadge(status);
-        inner += `<article class="ipd-bed-card ipd-bed-card-compact status-${status.toLowerCase()}">
+        inner += `<article class="ipd-bed-card status-${status.toLowerCase()}">
           <div class="ipd-compact-card-head">
             <div class="ipd-bed-number">${window.obsEscape(bed.Bed_Number || '-')}</div>
             ${displayStatus}
@@ -6594,6 +6626,7 @@ window.updateObservationStats = async function (sDate, eDate) {
 };
 
 window.renderObservationTable = function () {
+  if (!$('#observationTable').length) return;
   if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
   const rows = window.observationRows || [];
   const html = rows.map(row => {
@@ -6623,8 +6656,8 @@ window.renderObservationTable = function () {
   window.applyButtonPermissions?.();
 };
 
-window.openObservationFromVisit = async function (queueIndex) {
-  const q = queueDataStore[queueIndex];
+window.openObservationFromVisit = async function (queueIndex, sourceRows = queueDataStore) {
+  const q = (sourceRows || queueDataStore || [])[queueIndex];
   if (!q) return;
   await window.ipdLoadProviders?.();
   await window.fetchIpdWardBedData?.();
@@ -6700,15 +6733,77 @@ window.openObservationFromVisit = async function (queueIndex) {
   window.loadView('opd_observation');
 };
 
+window.openObservationFromBoard = async function () {
+  try {
+    const today = window.getLocalStr(new Date());
+    const queueRows = await window._fetchOpdQueue(today, today);
+    const { data: activeObs, error: obsErr } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+      .select('visit_id,status')
+      .in('status', window.obsActiveStatuses);
+    if (obsErr) throw obsErr;
+    const activeVisitIds = new Set((activeObs || []).map(row => String(row.visit_id || '')).filter(Boolean));
+    const candidates = (queueRows || []).filter(row => row.visitId && !activeVisitIds.has(String(row.visitId)));
+    if (!candidates.length) {
+      await Swal.fire(window.t('obs.startObservation'), window.t('obs.noOpdCandidates'), 'info');
+      return;
+    }
+    const options = candidates.map((row, index) => {
+      const label = [
+        row.time || '',
+        row.patientId || '',
+        row.patientName || '',
+        row.department || '',
+        row.status || ''
+      ].filter(Boolean).join(' - ');
+      return `<option value="${index}">${window.obsEscape(label)}</option>`;
+    }).join('');
+    const result = await Swal.fire({
+      title: window.t('obs.selectVisitForObservation'),
+      width: 650,
+      html: `<select id="obsBoardVisitSelect" class="form-select">${options}</select>`,
+      showCancelButton: true,
+      confirmButtonText: window.t('obs.startObservation'),
+      cancelButtonText: window.t('common.cancel'),
+      preConfirm: () => Number($('#obsBoardVisitSelect').val())
+    });
+    if (!result.isConfirmed) return;
+    await window.openObservationFromVisit(result.value, candidates);
+  } catch (err) {
+    console.error('Open observation from board failed:', err);
+    await Swal.fire('Error', err.message || String(err), 'error');
+  }
+};
+
+window.obsDetailTargets = function () {
+  const listVisible = $('#view-opd_observation_list:visible').length > 0;
+  return listVisible
+    ? {
+        panel: '#observationListDetailPanel',
+        title: '#obsListDetailTitle',
+        meta: '#obsListDetailMeta',
+        alert: '#obsListSixHourAlert',
+        timeline: '#observationListTimeline'
+      }
+    : {
+        panel: '#observationDetailPanel',
+        title: '#obsDetailTitle',
+        meta: '#obsDetailMeta',
+        alert: '#obsSixHourAlert',
+        timeline: '#observationTimeline'
+      };
+};
+
 window.openObservationDetail = async function (observationId) {
   window.currentObservationId = observationId;
   const row = (window.observationRows || []).find(r => String(r.observation_id) === String(observationId));
   if (!row) return;
-  $('#observationDetailPanel').show();
-  $('#obsDetailTitle').text(`${row.observation_id} - ${window.obsPatientName(row)}`);
-  $('#obsDetailMeta').text(`HN ${row.hn || row.patient_id || '-'} | ${row.doctor_id || '-'} | ${row.diagnosis || '-'}`);
+  const targets = window.obsDetailTargets();
+  $('#observationDetailPanel, #observationListDetailPanel').hide();
+  $(targets.panel).show();
+  $(targets.title).text(`${row.observation_id} - ${window.obsPatientName(row)}`);
+  $(targets.meta).text(`HN ${row.hn || row.patient_id || '-'} | ${row.doctor_id || '-'} | ${row.diagnosis || '-'}`);
   const sixHour = window.obsActiveStatuses.includes(String(row.status || '').toUpperCase()) && window.obsDurationHours(row) >= 6;
-  $('#obsSixHourAlert')
+  $(targets.alert)
     .toggle(!!sixHour)
     .html(`<strong>${window.obsEscape(window.t('obs.sixHourAlert'))}</strong> <button class="btn btn-sm btn-warning ms-2 btn-obs-convert" onclick="window.convertObservationToIpd('${window.obsEscape(row.observation_id)}')">${window.obsEscape(window.t('obs.convertToIpd'))}</button>`);
   const { data, error } = await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE)
@@ -6716,7 +6811,7 @@ window.openObservationDetail = async function (observationId) {
     .eq('observation_id', observationId)
     .order('note_datetime', { ascending: true });
   if (error) {
-    $('#observationTimeline').html(`<div class="alert alert-danger">${window.obsEscape(error.message)}</div>`);
+    $(targets.timeline).html(`<div class="alert alert-danger">${window.obsEscape(error.message)}</div>`);
     return;
   }
   window.observationNotes = data || [];
@@ -6726,7 +6821,7 @@ window.openObservationDetail = async function (observationId) {
 
 window.closeObservationDetail = function () {
   window.currentObservationId = null;
-  $('#observationDetailPanel').hide();
+  $('#observationDetailPanel, #observationListDetailPanel').hide();
 };
 
 window.renderObservationTimeline = function (row, notes) {
@@ -6771,7 +6866,8 @@ window.renderObservationTimeline = function (row, notes) {
     });
   }
   events.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
-  $('#observationTimeline').html(events.map(e => `<div class="obs-timeline-item">
+  const targets = window.obsDetailTargets();
+  $(targets.timeline).html(events.map(e => `<div class="obs-timeline-item">
     <div class="obs-timeline-dot"><i class="${e.icon}"></i></div>
     <div class="obs-timeline-card">
       <div class="d-flex justify-content-between gap-2">

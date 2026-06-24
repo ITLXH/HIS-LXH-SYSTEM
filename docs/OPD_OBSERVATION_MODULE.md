@@ -74,6 +74,7 @@ Current menu path:
 New view:
 
 - `public/partials/views/opd_observation.html`
+- `public/partials/views/opd_observation_list.html`
 
 The OPD Observation page now uses the same operating bed-board format as IPD bed management:
 
@@ -81,8 +82,11 @@ The OPD Observation page now uses the same operating bed-board format as IPD bed
 - Ward group -> room section -> bed card layout.
 - Occupied OPD observation beds show patient, HN/observation number, current duration, and a `6h+` warning badge.
 - Bed cards use the same compact action-dropdown pattern as IPD.
+- OPD bed cards use the same expanded board dimensions as the IPD bed board (`repeat(auto-fill, minmax(190px, 1fr))` and `150px` minimum card height).
 - Available observation beds stay visible as available beds.
-- The observation list/table remains below the bed board for searching, timeline opening, conversion, and discharge.
+- The board header no longer shows date-range filters. It has an `Observation` action button that opens the existing Observation creation flow for a selected OPD queue patient.
+- The observation list/table is separated into `/opd/observation/list`, matching the IPD dropdown pattern.
+- The bed-board route `/opd/observation` shows only the OPD observation bed board and inline detail timeline, not the list table.
 
 This is visual and workflow alignment only. OPD Observation beds still come only from wards marked `Ward_Type='OPD_Observation'`, and they are excluded from IPD bed management, IPD census, IPD admissions, and IPD statistics.
 
@@ -220,6 +224,7 @@ Automated verification result:
 - 2026-06-23: `git diff --check` passed with line-ending warnings only.
 - 2026-06-23: `npm run build` passed. Vite emitted the existing large chunk warning for the main bundle.
 - 2026-06-24: OPD Observation bed board restyled to match IPD bed-management format.
+- 2026-06-24: OPD Observation board card size expanded to match IPD board cards, board date filters removed, and an Observation button added for starting Observation from the board.
 - 2026-06-24: `git diff --check` passed with line-ending warnings only.
 - 2026-06-24: `npm run build` passed. Vite emitted the existing large chunk warning for the main bundle.
 

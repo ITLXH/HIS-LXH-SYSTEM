@@ -42,6 +42,7 @@ These were removed from the visible menu because they duplicated other menu item
 | --- | --- |
 | `/opd` | `/opd/queue` |
 | `/opd_observation` | `/opd/observation` |
+| `/opd_observation_list` | `/opd/observation/list` |
 | `/ipd_ward_bed` | `/ipd/bed-management` |
 | `/ipd_inpatient_list` | `/ipd/inpatients` |
 
@@ -62,6 +63,17 @@ Observation remains under OPD and continues to read/write only:
 - `opd_observation_notes`
 
 IPD navigation points only to admitted inpatient workflow views backed by existing IPD admissions and bed tables.
+
+## OPD Observation Dropdown Update
+
+The OPD Observation dropdown now mirrors the IPD pattern:
+
+| Menu label | Route | View |
+| --- | --- | --- |
+| ບອດຕຽງ OPD ຕິດຕາມ | `/opd/observation` | `opd_observation` |
+| ລາຍຊື່ຄົນເຈັບນອນ OPD | `/opd/observation/list` | `opd_observation_list` |
+
+The bed-board page no longer renders the list table below the board.
 
 ## Verification
 

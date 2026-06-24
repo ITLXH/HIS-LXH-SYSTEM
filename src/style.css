@@ -7440,7 +7440,7 @@ small,
 
 #view-opd_observation .ipd-bed-grid,
 #view-opd_observation .ipd-board-mode-compact .ipd-bed-grid {
-  grid-template-columns: repeat(auto-fill, minmax(170px, 200px));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 8px;
   align-items: stretch;
   overflow: visible;
@@ -7449,8 +7449,9 @@ small,
 #view-opd_observation .ipd-bed-card {
   --bed-accent: #1B6BB0;
   position: relative;
-  min-height: 110px;
-  height: 110px;
+  min-height: 150px;
+  height: 100%;
+  align-self: stretch;
   border: 1px solid #dbe7ef !important;
   border-left-color: #dbe7ef !important;
   border-radius: 6px;
@@ -7459,7 +7460,7 @@ small,
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
 }
 
 #view-opd_observation .ipd-bed-card::before {
@@ -7480,7 +7481,7 @@ small,
 
 #view-opd_observation .ipd-bed-number {
   color: #0f172a;
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -7488,6 +7489,27 @@ small,
 #view-opd_observation .ipd-compact-actions {
   right: 10px;
   bottom: 10px;
+}
+
+#view-opd_observation .ipd-compact-patient,
+#view-opd_observation .ipd-compact-bedtype {
+  font-size: 12.5px;
+  line-height: 1.35;
+  margin-top: 10px;
+  padding-right: 82px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#view-opd_observation .ipd-compact-meta {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #475569;
+  padding-right: 82px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #view-opd_observation .ipd-bed-action-trigger {
@@ -7530,6 +7552,7 @@ small,
 
 #view-opd_observation .ipd-bed-card:has(.dropdown-menu.show),
 #view-opd_observation .ipd-bed-card:focus-within {
+  overflow: visible;
   z-index: 1090;
 }
 
