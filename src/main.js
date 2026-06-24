@@ -10453,32 +10453,52 @@ window.handleOrgExcelUpload = function (e) {
 
       Swal.fire({ title: 'ກຳລັງອັບໂຫຼດ...', didOpen: () => { Swal.showLoading() } });
 
-      let insertData = [];
-      for (let row of excelRows) {
-        let obj = {
-          Cus_ID_Ex: row['Cus_ID_Ex'] || '',
-          Name: row['Name'] || '',
-          Org_Name: row['Org_Name'] || '',
-          Org_Code: row['Org_Code'] || row['Org_ID'] || '',
-          Discount: row['Discount'] ? String(row['Discount']) : '',
-          Status: 'Active'
-        };
-        if (row['Org_ID']) obj.Org_ID = String(row['Org_ID']);
-        insertData.push(obj);
+      // Build candidate rows. Identity priority for the PK Org_ID:
+      //   1) Cus_ID_Ex (unique per customer by design — best for "many customers per org" sheets)
+      //   2) Org_ID (when caller explicitly provides one)
+      //   3) Org_Code (legacy single-org sheets)
+      //   4) generated ORG<seq>
+      const trim = v => String(v == null ? '' : v).trim();
+      const candidates = excelRows.map(row => ({
+        Cus_ID_Ex: trim(row['Cus_ID_Ex']),
+        Name: trim(row['Name']),
+        Org_Name: trim(row['Org_Name']),
+        Org_Code: trim(row['Org_Code']) || trim(row['Org_ID']),
+        Discount: row['Discount'] !== '' && row['Discount'] != null ? String(row['Discount']) : '',
+        Status: 'Active',
+        _explicitOrgId: trim(row['Org_ID'])
+      }));
+
+      const explicitOrCusCount = candidates.filter(c => c._explicitOrgId || c.Cus_ID_Ex).length;
+      const needGen = candidates.length - explicitOrCusCount;
+      const generated = needGen > 0
+        ? await window.generateNextMasterIDs('Organizations', 'Org_ID', 'ORG', 3, needGen)
+        : [];
+      let g = 0;
+      const byId = new Map();
+      for (const c of candidates) {
+        const id = c.Cus_ID_Ex || c._explicitOrgId || generated[g++] || c.Org_Code;
+        if (!id) continue;
+        const { _explicitOrgId, ...rest } = c;
+        byId.set(id, { ...rest, Org_ID: id });
+      }
+      const insertData = Array.from(byId.values());
+      const droppedDupes = candidates.length - insertData.length;
+
+      if (!insertData.length) {
+        Swal.fire('Error', 'ບໍ່ມີຂໍ້ມູນທີ່ສາມາດນຳເຂົ້າໄດ້', 'error');
+        return;
       }
 
-      const missingIdRows = insertData.filter(d => !d.Org_ID);
-      if (missingIdRows.length) {
-        const ids = await window.generateNextMasterIDs('Organizations', 'Org_ID', 'ORG', 3, missingIdRows.length);
-        let k = 0;
-        insertData.forEach(d => { if (!d.Org_ID) d.Org_ID = (d.Org_Code || '').trim() || ids[k++]; });
-      }
-
-      const { error } = await supabaseClient.from(dbTable('Organizations')).insert(insertData);
+      // Upsert so re-imports update existing rows instead of crashing on PK collision.
+      const { error } = await supabaseClient.from(dbTable('Organizations')).upsert(insertData, { onConflict: 'Org_ID' });
       if (error) {
         Swal.fire('Error', error.message, 'error');
       } else {
-        Swal.fire('ສຳເລັດ', 'ນຳເຂົ້າຂໍ້ມູນອົງກອນສຳເລັດແລ້ວ', 'success');
+        const msg = droppedDupes > 0
+          ? `ນຳເຂົ້າ ${insertData.length} ແຖວສຳເລັດ (ຂ້າມຊໍ້າ ${droppedDupes} ແຖວ)`
+          : `ນຳເຂົ້າ ${insertData.length} ແຖວສຳເລັດ`;
+        Swal.fire('ສຳເລັດ', msg, 'success');
         window.loadOrgs();
         window.preloadDropdownData();
       }
