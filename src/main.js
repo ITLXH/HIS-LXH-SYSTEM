@@ -5011,17 +5011,16 @@ window.refreshPatientOrgDropdown = async function () {
     (data || []).forEach(org => {
       const isActive = !org.Status || org.Status === 'Active';
       if (isActive && org.Org_ID) {
-        let contact = org.Name || org.Contact_Name;
-        let displayName = `${org.Org_Code} - ${org.Org_Name}`;
-        if (contact) displayName += ` (${contact})`;
-        orgOptions += `<option value="${org.Org_ID}">${displayName}</option>`;
+        let cusId = org.Cus_ID_Ex || org.Org_Code;
+        let cusName = org.Name || org.Org_Name || '';
+        orgOptions += `<option value="${org.Org_ID}">${cusId} - ${cusName}</option>`;
       }
     });
     if (typeof jQuery !== 'undefined' && $('#p_org_id').length) {
       try { if ($('#p_org_id').data('select2')) $('#p_org_id').select2('destroy'); } catch (e) {}
       $('#p_org_id').html(orgOptions).select2({
         dropdownParent: $('#patientModal'),
-        placeholder: '-- ເລືອກອົງກອນ --',
+        placeholder: '-- ເລືອກລູກຄ້າ --',
         allowClear: false
       });
     }
@@ -8437,10 +8436,19 @@ window.toggleApptCustomerType = function () {
   $('#a_target_id, #a_target_name').val('');
 };
 
-window.openPatientVacModal = function () {
+window.openPatientVacModal = async function () {
   $('#patientVacForm')[0].reset();
   $('#pv_patient').val(null).trigger('change');
   $('#pv_date').val(window.getLocalStr(new Date()));
+  
+  if (!vaccinesMasterList || vaccinesMasterList.length === 0) {
+    await window.loadVaccineMaster();
+  } else if ($('#pv_vaccine option').length <= 1) {
+    let o = '<option value="">-- ເລືອກວັກຊີນ --</option>';
+    vaccinesMasterList.forEach(v => o += `<option value="${v.Vaccine_Name}">${v.Vaccine_Name}</option>`);
+    $('#pv_vaccine').html(o);
+  }
+
   if (document.activeElement) document.activeElement.blur();
   $('#patientVacModal').modal('show');
 };
@@ -8533,6 +8541,7 @@ window.submitApptForm = async function (e) {
   if (isEdit) {
     res = await supabaseClient.from(dbTable('Appointments')).update(row).eq('Appt_ID', $('#a_id').val());
   } else {
+    row.Appt_ID = await window.generateNextMasterID('Appointments', 'Appt_ID', 'APT', 3);
     res = await supabaseClient.from(dbTable('Appointments')).insert(row);
   }
 
@@ -8744,6 +8753,7 @@ window.submitVacMasterForm = async function (e) {
     const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).update(row).eq('Vac_ID', $('#v_id').val());
     if (error) return Swal.fire('Error', error.message, 'error');
   } else {
+    row.Vac_ID = await window.generateNextMasterID('Vaccines_Master', 'Vac_ID', 'VAC', 3);
     const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).insert(row);
     if (error) return Swal.fire('Error', error.message, 'error');
   }
@@ -8812,8 +8822,9 @@ window.submitPatientVacForm = async function (e) {
   let ndate = $('#pv_next_date').val();
   let autoAppt = $('#pv_auto_appt').is(':checked');
 
+  const pvId = await window.generateNextMasterID('Patient_Vaccines', 'Record_ID', 'PV', 3);
   const { error } = await supabaseClient.from(dbTable('Patient_Vaccines')).insert({
-    Patient_ID: pid, Patient_Name: pname, Vaccine_Name: vac,
+    Record_ID: pvId, Patient_ID: pid, Patient_Name: pname, Vaccine_Name: vac,
     Dose_Number: parseInt($('#pv_dose').val()) || 1, Lot_Number: $('#pv_lot').val(),
     Date_Given: $('#pv_date').val(), Next_Appointment_Date: ndate,
     Given_By: $('#pv_doctor').val()
@@ -8825,8 +8836,9 @@ window.submitPatientVacForm = async function (e) {
   }
 
   if (autoAppt && ndate) {
+    const aptId = await window.generateNextMasterID('Appointments', 'Appt_ID', 'APT', 3);
     await supabaseClient.from(dbTable('Appointments')).insert({
-      Target_ID: pid, Target_Name: pname, Type: 'Vaccine',
+      Appt_ID: aptId, Target_ID: pid, Target_Name: pname, Type: 'Vaccine',
       Appt_Date: ndate, Appt_Time: '09:00',
       Reason: 'ນັດໝາຍວັກຊີນ: ' + vac, Doctor_Name: 'System', Status: 'Waiting'
     });
