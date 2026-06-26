@@ -10456,125 +10456,642 @@ window.handlePatientExcelUpload = function (e) {
   if (!file) return;
   let reader = new FileReader();
   reader.onload = async function (evt) {
-    Swal.fire({ title: 'ກຳລັງປະມວນຜົນ...', didOpen: () => Swal.showLoading() });
-    let data = new Uint8Array(evt.target.result);
-    let workbook = XLSX.read(data, { type: 'array', cellDates: true });
-    let firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    let jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: true, defval: "" });
-    const importHeaders = (jsonData[0] || []).map(h => String(h || '').trim().toLowerCase());
-    const headerIndex = {};
-    importHeaders.forEach((h, idx) => { if (h) headerIndex[h] = idx; });
-    const hasPatientHeader = Object.prototype.hasOwnProperty.call(headerIndex, 'patient_id');
-    const getCell = (row, names, fallbackIndex) => {
-      if (hasPatientHeader) {
-        for (const name of names) {
-          const idx = headerIndex[String(name).toLowerCase()];
-          if (idx !== undefined) return row[idx];
+    try {
+      Swal.fire({ title: 'ກຳລັງປະມວນຜົນ...', didOpen: () => Swal.showLoading() });
+
+      // ===== STAGE 1: Read Excel =====
+      let data = new Uint8Array(evt.target.result);
+      let workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      let firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      let jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, raw: true, defval: "" });
+
+      console.log('========== PATIENT EXCEL IMPORT DEBUG ==========');
+      console.log('Raw sheet rows (incl trailing blanks):', jsonData.length);
+
+      // Strip trailing empty rows so totalExcelRows is accurate
+      console.log('Checking for trailing blank rows:');
+      while (jsonData.length > 0) {
+        const last = jsonData[jsonData.length - 1];
+        if (!last) {
+          console.log('  Removed null/undefined trailing entry');
+          jsonData.pop();
+          continue;
         }
-        return '';
+        if (last.length === 0) {
+          console.log('  Removed trailing row (length 0)');
+          jsonData.pop();
+          continue;
+        }
+        const nonEmptyCells = last.filter(c => String(c || '').trim() !== '');
+        if (nonEmptyCells.length === 0) {
+          console.log('  Removed blank trailing row: [' + last.map(c => '"' + (c || '') + '"').join(', ') + ']');
+          jsonData.pop();
+        } else {
+          break;
+        }
       }
-      return row[fallbackIndex];
-    };
-    const toDateValue = (value) => {
-      if (value instanceof Date) {
-        return value.getFullYear() + "-" + String(value.getMonth() + 1).padStart(2, '0') + "-" + String(value.getDate()).padStart(2, '0');
-      }
-      return value || null;
-    };
-    const toTimeValue = (value) => {
-      if (value instanceof Date) return String(value.getHours()).padStart(2, '0') + ":" + String(value.getMinutes()).padStart(2, '0');
-      if (typeof value === 'number') {
-        let totalSeconds = Math.floor(value * 86400);
-        let hours = Math.floor(totalSeconds / 3600);
-        let mins = Math.floor((totalSeconds % 3600) / 60);
-        return String(hours).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
-      }
-      return value || '';
-    };
+      console.log('Rows after stripping trailing blanks:', jsonData.length);
 
-    let insertData = [];
-    for (let i = 1; i < jsonData.length; i++) {
-      let row = jsonData[i];
-      const patientId = window.normalizePatientCode(getCell(row, ['Patient_ID', 'New_Patient_ID', 'LXH_ID'], 0));
-      if (row.length < 1 || !patientId) continue;
-      // Map array columns to Supabase 'Patients' table columns
-      // Assumes standard template structure - adjust map if template varies
-      let parsedAge = parseInt(getCell(row, ['Age'], 6)) || 0;
-      let ageGroup = getCell(row, ['Age_Group'], 28) || '';
-      if (parsedAge && !ageGroup) {
-        ageGroup = parsedAge <= 15 ? '0-15' : (parsedAge <= 35 ? '16-35' : (parsedAge <= 55 ? '36-55' : '55+'));
+      const importHeaders = (jsonData[0] || []).map(h => String(h || '').trim().toLowerCase());
+      const headerIndex = {};
+      importHeaders.forEach((h, idx) => { if (h) headerIndex[h] = idx; });
+      const hasPatientHeader = Object.prototype.hasOwnProperty.call(headerIndex, 'patient_id');
+
+      console.log('Has header row:', !!jsonData[0]);
+      console.log('Header fields:', importHeaders.join(', '));
+      console.log('Uses header lookup:', hasPatientHeader);
+      if (hasPatientHeader) {
+        console.log('Field-to-column mapping:');
+        const allFields = ['Patient_ID','Old_Patient_ID','Title','First_Name','Last_Name','Gender','Date_of_Birth','Age','Nationality','Occupation','Blood_Type','Phone_Number','Email','Address','District','Province','Organization_ID','Name_Org','Insurance_Code','Insured_Person_Name','Drug_Allergy','Underlying_Disease','Emergency_Name','Emergency_Contact','Emergency_Relation','Channel','Registration_Date','Time','Shift','Age_Group'];
+        allFields.forEach(f => {
+          const idx = headerIndex[f.toLowerCase()];
+          console.log('  ' + f + ': column ' + (idx !== undefined ? idx : '*** NOT FOUND ***'));
+        });
+      } else {
+        console.log('WARNING: Header row not detected. Will use fallback column indices.');
       }
 
-      // Map array columns to Supabase 'Patients' table columns accurately based on real Excel structure
-      insertData.push({
-        Patient_ID: patientId,
-        Old_Patient_ID: window.normalizePatientCode(getCell(row, ['Old_Patient_ID', 'Legacy_Patient_ID', 'Old_ID'], '')),
-        Title: getCell(row, ['Title'], 1) || '',
-        First_Name: getCell(row, ['First_Name'], 2) || '',
-        Last_Name: getCell(row, ['Last_Name'], 3) || '',
-        Gender: getCell(row, ['Gender'], 4) || '',
-        Date_of_Birth: toDateValue(getCell(row, ['Date_of_Birth', 'DOB'], 5)),
-        Age: parsedAge,
-        Nationality: getCell(row, ['Nationality'], 7) || '',
-        Occupation: getCell(row, ['Occupation'], 8) || '',
-        Blood_Type: getCell(row, ['Blood_Type'], 9) || '',
-        Phone_Number: getCell(row, ['Phone_Number'], 10) || '',
-        Email: getCell(row, ['Email'], 11) || '',
-        Address: getCell(row, ['Address'], 12) || '',
-        District: getCell(row, ['District'], 13) || '',
-        Province: getCell(row, ['Province'], 14) || '',
-        Organization_ID: getCell(row, ['Organization_ID'], 15) || '',
-        Name_Org: getCell(row, ['Name_Org'], 16) || '',
-        Insurance_Code: getCell(row, ['Insurance_Code'], 17) || '',
-        Insured_Person_Name: getCell(row, ['Insured_Person_Name'], 18) || '',
-        Drug_Allergy: getCell(row, ['Drug_Allergy'], 19) || '',
-        Underlying_Disease: getCell(row, ['Underlying_Disease'], 20) || '',
-        Emergency_Name: getCell(row, ['Emergency_Name'], 21) || '',
-        Emergency_Contact: getCell(row, ['Emergency_Contact'], 22) || '',
-        Emergency_Relation: getCell(row, ['Emergency_Relation'], 23) || '',
-        Channel: getCell(row, ['Channel'], 24) || '',
-        Registration_Date: toDateValue(getCell(row, ['Registration_Date'], 25)),
-        Time: toTimeValue(getCell(row, ['Time'], 26)),
-        Shift: getCell(row, ['Shift'], 27) || '',
-        Age_Group: ageGroup
+      const getCell = (row, names, fallbackIndex) => {
+        if (hasPatientHeader) {
+          for (const name of names) {
+            const idx = headerIndex[String(name).toLowerCase()];
+            if (idx !== undefined) return row[idx];
+          }
+          return '';
+        }
+        return row[fallbackIndex];
+      };
+
+      const monthMap = { jan:1, january:1, feb:2, february:2, mar:3, march:3, apr:4, april:4, may:5,
+        jun:6, june:6, jul:7, july:7, aug:8, august:8, sep:9, september:9, oct:10, october:10,
+        nov:11, november:11, dec:12, december:12 };
+
+      const toDateValue = (value) => {
+        if (value instanceof Date && !isNaN(value)) {
+          return value.getFullYear() + "-" + String(value.getMonth() + 1).padStart(2, '0') + "-" + String(value.getDate()).padStart(2, '0');
+        }
+        if (typeof value === 'number' && !isNaN(value)) {
+          if (value > 1 && value < 60) {
+            // Rare early-1900 date; still try
+            const date = new Date((value - 25569) * 86400 * 1000);
+            if (!isNaN(date)) return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, '0') + "-" + String(date.getDate()).padStart(2, '0');
+          }
+          if (value >= 60) {
+            const date = new Date((value - 25569) * 86400 * 1000);
+            if (!isNaN(date)) return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, '0') + "-" + String(date.getDate()).padStart(2, '0');
+          }
+        }
+        if (typeof value === 'string') {
+          const s = value.trim();
+          if (!s) return null;
+          // YYYY-MM-DD or YYYY/MM/DD
+          const mYMD = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+          if (mYMD) return mYMD[1] + "-" + String(parseInt(mYMD[2],10)).padStart(2,'0') + "-" + String(parseInt(mYMD[3],10)).padStart(2,'0');
+          // DD/MM/YYYY or MM/DD/YYYY (4-digit year)
+          const mDMY = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (mDMY) {
+            let d = parseInt(mDMY[1],10), mo = parseInt(mDMY[2],10), y = parseInt(mDMY[3],10);
+            if (mo > 12) { let t = d; d = mo; mo = t; }
+            return y + "-" + String(mo).padStart(2,'0') + "-" + String(d).padStart(2,'0');
+          }
+          // DD/MM/YY or MM/DD/YY (2-digit year)
+          const mDMY2 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+          if (mDMY2) {
+            let d = parseInt(mDMY2[1],10), mo = parseInt(mDMY2[2],10), y = parseInt(mDMY2[3],10);
+            if (mo > 12) { let t = d; d = mo; mo = t; }
+            y += (y < 50 ? 2000 : 1900);
+            return y + "-" + String(mo).padStart(2,'0') + "-" + String(d).padStart(2,'0');
+          }
+          // DD Month YYYY
+          const mText = s.match(/^(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{4})$/i);
+          if (mText) return mText[3] + "-" + String(monthMap[mText[2].toLowerCase()]).padStart(2,'0') + "-" + String(parseInt(mText[1],10)).padStart(2,'0');
+          // Month DD, YYYY
+          const mText2 = s.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})$/i);
+          if (mText2) return mText2[3] + "-" + String(monthMap[mText2[1].toLowerCase()]).padStart(2,'0') + "-" + String(parseInt(mText2[2],10)).padStart(2,'0');
+          console.warn('toDateValue: unparseable date string "' + s + '"');
+          return s; // return original string instead of silently dropping
+        }
+        if (value === '' || value === null || value === undefined) return null;
+        console.warn('toDateValue: unparseable type/value:', typeof value, value);
+        return String(value);
+      };
+
+      const toTimeValue = (value) => {
+        if (value instanceof Date) return String(value.getHours()).padStart(2, '0') + ":" + String(value.getMinutes()).padStart(2, '0');
+        if (typeof value === 'number') {
+          let totalSeconds = Math.floor(value * 86400);
+          let hours = Math.floor(totalSeconds / 3600);
+          let mins = Math.floor((totalSeconds % 3600) / 60);
+          return String(hours).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
+        }
+        return value || '';
+      };
+
+      // ===== STAGE 2: Parse rows with row-number tracking =====
+      const totalExcelRows = jsonData.length - 1;
+      console.log('Total Excel data rows (excl header):', totalExcelRows);
+
+      let insertData = [];
+      let skippedRows = [];
+      let totalSkippedNoId = 0;
+
+      for (let i = 1; i < jsonData.length; i++) {
+        let row = jsonData[i];
+        const excelRowNum = i + 1;
+        const patientId = window.normalizePatientCode(getCell(row, ['Patient_ID', 'New_Patient_ID', 'LXH_ID'], 0));
+        if (row.length < 1 || !patientId) {
+          const reason = !patientId ? 'Patient_ID missing' : 'Empty row';
+          const oldId = getCell(row, ['Old_Patient_ID', 'Legacy_Patient_ID', 'Old_ID'], '');
+          const firstName = getCell(row, ['First_Name'], 3) || '';
+          const lastName = getCell(row, ['Last_Name'], 4) || '';
+          const dobRaw = getCell(row, ['Date_of_Birth', 'DOB'], 6);
+          const dob = toDateValue(dobRaw);
+          console.log('Row ' + excelRowNum + ': ' + reason);
+          console.log('  Patient_ID: ' + (patientId || '(empty)'));
+          console.log('  Old_ID: ' + (oldId || '(empty)'));
+          console.log('  First_Name: ' + (firstName || '(empty)'));
+          console.log('  Last_Name: ' + (lastName || '(empty)'));
+          console.log('  DOB: ' + (dob || '(empty)'));
+          // Print first 10 cell values to show what's actually in the row
+          if (row && row.length > 0) {
+            const cells = [];
+            for (let ci = 0; ci < Math.min(row.length, 10); ci++) {
+              const cv = row[ci];
+              if (cv !== '' && cv !== undefined && cv !== null) cells.push('col' + ci + '="' + String(cv).substring(0, 50) + '"');
+            }
+            if (cells.length > 0) console.log('  Non-empty cells: ' + cells.join(', '));
+            else console.log('  (all cells empty)');
+          } else {
+            console.log('  (row has no cells)');
+          }
+          skippedRows.push({ rowNum: excelRowNum, reason: reason, patientId: patientId || '', oldId: oldId || '', firstName: firstName, lastName: lastName, dob: dob || '' });
+          totalSkippedNoId++;
+          continue;
+        }
+
+        let parsedAge = parseInt(getCell(row, ['Age'], 7)) || 0;
+        let ageGroup = getCell(row, ['Age_Group'], 29) || '';
+        if (parsedAge && !ageGroup) {
+          ageGroup = parsedAge <= 15 ? '0-15' : (parsedAge <= 35 ? '16-35' : (parsedAge <= 55 ? '36-55' : '55+'));
+        }
+
+        const rawDob = getCell(row, ['Date_of_Birth', 'DOB'], 5);
+        const rawRegDate = getCell(row, ['Registration_Date'], 25);
+        const dobParsed = toDateValue(rawDob);
+        const regDateParsed = toDateValue(rawRegDate);
+
+        if (rawDob !== '' && rawDob !== null && rawDob !== undefined && !dobParsed) {
+          console.warn('Row ' + excelRowNum + ': Date_of_Birth could not be parsed (original: ' + JSON.stringify(rawDob) + ')');
+        }
+        if (rawRegDate !== '' && rawRegDate !== null && rawRegDate !== undefined && !regDateParsed) {
+          console.warn('Row ' + excelRowNum + ': Registration_Date could not be parsed (original: ' + JSON.stringify(rawRegDate) + ')');
+        }
+        // Date pipeline trace for sample rows + any problematic rows
+        const isDateSample = (excelRowNum <= 6 || excelRowNum % 1000 === 0);
+        const dobIssue = (rawDob !== '' && rawDob !== null && rawDob !== undefined && !dobParsed);
+        const regIssue = (rawRegDate !== '' && rawRegDate !== null && rawRegDate !== undefined && !regDateParsed);
+        if (isDateSample || dobIssue || regIssue) {
+          console.log('DATE TRACE row ' + excelRowNum + ':');
+          console.log('  DOB raw=' + JSON.stringify(rawDob) + ' type=' + typeof rawDob + (rawDob instanceof Date ? '(Date)' : '') + ' -> parsed=' + JSON.stringify(dobParsed));
+          console.log('  Registration_Date raw=' + JSON.stringify(rawRegDate) + ' type=' + typeof rawRegDate + (rawRegDate instanceof Date ? '(Date)' : '') + ' -> parsed=' + JSON.stringify(regDateParsed));
+        }
+
+        insertData.push({
+          excelRowNum: excelRowNum,
+          data: {
+            Patient_ID: patientId,
+            Old_Patient_ID: window.normalizePatientCode(getCell(row, ['Old_Patient_ID', 'Legacy_Patient_ID', 'Old_ID'], '')),
+            Title: getCell(row, ['Title'], 2) || '',
+            First_Name: getCell(row, ['First_Name'], 3) || '',
+            Last_Name: getCell(row, ['Last_Name'], 4) || '',
+            Gender: getCell(row, ['Gender'], 5) || '',
+            Date_of_Birth: dobParsed,
+            Age: parsedAge,
+            Nationality: getCell(row, ['Nationality'], 8) || '',
+            Occupation: getCell(row, ['Occupation'], 9) || '',
+            Blood_Type: getCell(row, ['Blood_Type'], 10) || '',
+            Phone_Number: getCell(row, ['Phone_Number'], 11) || '',
+            Email: getCell(row, ['Email'], 12) || '',
+            Address: getCell(row, ['Address'], 13) || '',
+            District: getCell(row, ['District'], 14) || '',
+            Province: getCell(row, ['Province'], 15) || '',
+            Organization_ID: getCell(row, ['Organization_ID'], 16) || '',
+            Name_Org: getCell(row, ['Name_Org'], 17) || '',
+            Insurance_Code: getCell(row, ['Insurance_Code'], 18) || '',
+            Insured_Person_Name: getCell(row, ['Insured_Person_Name'], 19) || '',
+            Drug_Allergy: getCell(row, ['Drug_Allergy'], 20) || '',
+            Underlying_Disease: getCell(row, ['Underlying_Disease'], 21) || '',
+            Emergency_Name: getCell(row, ['Emergency_Name'], 22) || '',
+            Emergency_Contact: getCell(row, ['Emergency_Contact'], 23) || '',
+            Emergency_Relation: getCell(row, ['Emergency_Relation'], 24) || '',
+            Channel: getCell(row, ['Channel'], 25) || '',
+            Registration_Date: regDateParsed,
+            Time: toTimeValue(getCell(row, ['Time'], 27)),
+            Shift: getCell(row, ['Shift'], 28) || '',
+            Age_Group: ageGroup
+          }
+        });
+      }
+
+      console.log('Rows parsed successfully:', insertData.length);
+      console.log('Rows skipped:', totalSkippedNoId);
+      skippedRows.forEach(s => console.log('  Row ' + s.rowNum + ': ' + s.reason));
+
+      // ===== STAGE 3: Dedup with row-number tracking =====
+      const dupesById = {};
+      insertData.forEach(item => {
+        const id = item.data.Patient_ID;
+        if (!dupesById[id]) dupesById[id] = [];
+        dupesById[id].push({ rowNum: item.excelRowNum, data: item.data });
       });
-    }
+      const dupIds = [];
+      const dupRows = [];
+      Object.keys(dupesById).forEach(id => {
+        if (dupesById[id].length > 1) {
+          dupIds.push(id);
+          dupRows.push({ id: id, records: dupesById[id] });
+        }
+      });
 
-    if (insertData.length > 0) {
+      if (dupRows.length > 0) {
+        console.log('');
+        console.log('===== DUPLICATE PATIENT_ID REPORT =====');
+        console.log('Total duplicate IDs: ' + dupIds.length);
+        let csvRows = [];
+        const labels = ['A', 'B', 'C', 'D', 'E'];
+        dupRows.forEach((d, gi) => {
+          const groupNum = gi + 1;
+          console.log('');
+          console.log('--- Duplicate #' + groupNum + ': Patient_ID = ' + d.id + ' ---');
+          console.log('Occurrences: ' + d.records.length);
+          d.records.forEach((rec, ri) => {
+            const tag = labels[ri] || ri;
+            console.log('');
+            console.log('  Record ' + tag + ': Excel row ' + rec.rowNum);
+            Object.keys(rec.data).forEach(key => {
+              const val = rec.data[key];
+              console.log('    ' + key + ': ' + JSON.stringify(val));
+            });
+            // Build CSV row
+            csvRows.push({
+              group: groupNum,
+              patientId: d.id,
+              record: tag,
+              excelRow: rec.rowNum,
+              data: rec.data
+            });
+          });
+          // Compare all pairs
+          console.log('');
+          for (let ri = 0; ri < d.records.length; ri++) {
+            for (let rj = ri + 1; rj < d.records.length; rj++) {
+              const a = d.records[ri].data, b = d.records[rj].data;
+              const diffs = [];
+              const allKeys = Object.keys(a);
+              allKeys.forEach(key => {
+                const va = a[key] !== undefined && a[key] !== null ? String(a[key]) : '';
+                const vb = b[key] !== undefined && b[key] !== null ? String(b[key]) : '';
+                if (va !== vb) diffs.push({ field: key, valA: va, valB: vb });
+              });
+              const tagA = labels[ri] || ri, tagB = labels[rj] || rj;
+              if (diffs.length === 0) {
+                console.log('  Comparison Record ' + tagA + ' vs Record ' + tagB + ': EXACT DUPLICATE (all fields identical)');
+              } else {
+                console.log('  Comparison Record ' + tagA + ' vs Record ' + tagB + ': ' + diffs.length + ' field(s) differ:');
+                diffs.forEach(df => console.log('    ' + df.field + ': "' + df.valA + '" vs "' + df.valB + '"'));
+              }
+            }
+          }
+        });
+        // Generate CSV download
+        if (csvRows.length > 0) {
+          const fields = Object.keys(csvRows[0].data);
+          let csvContent = 'Duplicate_Group,Record,Excel_Row,Patient_ID';
+          fields.forEach(f => { csvContent += ',' + f; });
+          csvContent += '\r\n';
+          csvRows.forEach(row => {
+            csvContent += row.group + ',' + row.record + ',' + row.excelRow + ',' + row.patientId;
+            fields.forEach(f => {
+              const val = row.data[f] !== undefined && row.data[f] !== null ? String(row.data[f]) : '';
+              const escaped = '"' + val.replace(/"/g, '""') + '"';
+              csvContent += ',' + escaped;
+            });
+            csvContent += '\r\n';
+          });
+          try {
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'duplicate_patient_ids.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            console.log('  CSV file "duplicate_patient_ids.csv" generated and download started');
+          } catch (csvErr) {
+            console.warn('  Could not generate CSV download: ' + csvErr.message);
+            console.log('  CSV content:\n' + csvContent);
+          }
+        }
+      } else {
+        console.log('No duplicate Patient_IDs found');
+      }
+
+      // Build deduped list (keep first occurrence)
       const seen = new Set();
       const deduped = [];
-      const dupIds = [];
-      insertData.forEach(row => {
-        const key = String(row.Patient_ID || '').trim();
-        if (!key) return;
-        if (seen.has(key)) { dupIds.push(key); return; }
-        seen.add(key);
-        deduped.push(row);
+      insertData.forEach(item => {
+        if (seen.has(item.data.Patient_ID)) return;
+        seen.add(item.data.Patient_ID);
+        deduped.push(item.data);
       });
-      const existing = await supabaseClient.from(dbTable('Patients'))
-        .select('Patient_ID')
-        .in('Patient_ID', deduped.map(r => r.Patient_ID));
-      const existingIds = new Set((existing.data || []).map(r => String(r.Patient_ID)));
+
+      console.log('After dedup:', deduped.length + ' unique records');
+      console.log('Duplicates removed (records skipped): ' + (insertData.length - deduped.length));
+
+      // Log first 3 records' full payloads before upsert
+      for (let si = 0; si < Math.min(deduped.length, 3); si++) {
+        console.log('PAYLOAD #' + (si + 1) + ' (will be upserted): ' + JSON.stringify(deduped[si], null, 2));
+        // Verify critical fields are present and not blank
+        const p = deduped[si];
+        if (!p.Patient_ID) console.warn('  WARNING: Patient_ID is empty!');
+        if (!p.Date_of_Birth && p.Date_of_Birth !== null) console.warn('  WARNING: Date_of_Birth is empty (not null)');
+        if (!p.Registration_Date && p.Registration_Date !== null) console.warn('  WARNING: Registration_Date is empty (not null)');
+        if (!p.Time && p.Time !== null) console.warn('  WARNING: Time is empty (not null)');
+        if (!p.Shift && p.Shift !== null) console.warn('  WARNING: Shift is empty (not null)');
+      }
+
+      if (deduped.length === 0) {
+        console.log('No records to import - aborting');
+        Swal.fire('ຜິດພາດ!', 'ບໍ່ພົບຂໍ້ມູນ', 'error');
+        $('#patientExcelInput').val('');
+        return;
+      }
+
+      // ===== STAGE 4: Check which patients already exist in DB =====
+      const allIds = deduped.map(r => r.Patient_ID);
+      const chunkSize = 500;
+      const checkChunks = [];
+      for (let i = 0; i < allIds.length; i += chunkSize) checkChunks.push(allIds.slice(i, i + chunkSize));
+      console.log('Checking existing patients in DB (' + checkChunks.length + ' batches of ' + chunkSize + ')...');
+
+      const checkResults = await Promise.all(checkChunks.map(chunk =>
+        supabaseClient.from(dbTable('Patients')).select('Patient_ID').in('Patient_ID', chunk)
+      ));
+
+      let checkFailures = 0;
+      const existingIds = new Set();
+      checkResults.forEach((r, idx) => {
+        if (r.error) {
+          console.error('Check batch ' + idx + ' FAILED: ' + (r.error.message || r.error) + ' (status ' + (r.error.status || 'unknown') + ')');
+          checkFailures++;
+        } else if (r.data) {
+          r.data.forEach(x => existingIds.add(String(x.Patient_ID)));
+        }
+      });
+      if (checkFailures > 0) console.warn('WARNING: ' + checkFailures + '/' + checkChunks.length + ' check batches failed');
+
+      console.log('Existing patients in DB matching the import:', existingIds.size);
+
       const toUpdate = deduped.filter(r => existingIds.has(String(r.Patient_ID)));
       const toInsert = deduped.filter(r => !existingIds.has(String(r.Patient_ID)));
-      const { error } = await supabaseClient.from(dbTable('Patients'))
-        .upsert(deduped, { onConflict: 'Patient_ID', ignoreDuplicates: false });
-      if (!error) {
-        const dupNote = dupIds.length ? `<br><small class="text-muted">ຂ້າມຊ້ຳໃນ Excel: ${dupIds.length} ແຖວ</small>` : '';
-        Swal.fire({
-          title: 'ສຳເລັດ!',
-          html: `ນຳເຂົ້າສຳເລັດ <b>${deduped.length}</b> ລາຍການ<br>(ເພີ່ມໃໝ່: ${toInsert.length} | ອັບເດດທີ່ມີຢູ່: ${toUpdate.length})${dupNote}`,
-          icon: 'success'
-        });
-        window.initPatientTable();
-        window.preloadDropdownData();
-      } else {
-        Swal.fire('ຜິດພາດ!', error.message, 'error');
+      console.log('Records to update:', toUpdate.length);
+      console.log('Records to insert:', toInsert.length);
+
+      // ===== STAGE 5: Upsert in chunks with per-record error handling =====
+      const upsertChunkSize = 500;
+      const upsertChunks = [];
+      for (let i = 0; i < deduped.length; i += upsertChunkSize) upsertChunks.push(deduped.slice(i, i + upsertChunkSize));
+      console.log('Upserting ' + deduped.length + ' records in ' + upsertChunks.length + ' batches...');
+
+      let upsertedCount = 0;
+      let upsertFailed = [];
+      let insertActual = 0;
+      let updateActual = 0;
+
+      for (let ci = 0; ci < upsertChunks.length; ci++) {
+        const chunk = upsertChunks[ci];
+        const { error } = await supabaseClient.from(dbTable('Patients'))
+          .upsert(chunk, { onConflict: 'Patient_ID', ignoreDuplicates: false });
+        if (error) {
+          console.error('Upsert batch ' + ci + ' (' + chunk.length + ' records) FAILED: ' + error.message + ' (status ' + (error.status || 'unknown') + ')');
+          // Retry each record individually to isolate the failing record
+          for (const rec of chunk) {
+            const { error: e2 } = await supabaseClient.from(dbTable('Patients'))
+              .upsert([rec], { onConflict: 'Patient_ID', ignoreDuplicates: false });
+            if (e2) {
+              console.error('  Record ' + rec.Patient_ID + ' FAILED: ' + e2.message + ' (status ' + (e2.status || 'unknown') + ') payload=' + JSON.stringify(rec));
+              upsertFailed.push({ Patient_ID: rec.Patient_ID, error: e2.message, status: e2.status, payload: rec });
+            } else {
+              upsertedCount++;
+              if (existingIds.has(String(rec.Patient_ID))) updateActual++;
+              else insertActual++;
+            }
+          }
+        } else {
+          upsertedCount += chunk.length;
+          chunk.forEach(rec => {
+            if (existingIds.has(String(rec.Patient_ID))) updateActual++;
+            else insertActual++;
+          });
+        }
       }
-    } else {
-      Swal.fire('ຜິດພາດ!', 'ບໍ່ພົບຂໍ້ມູນ', 'error');
+
+      if (upsertFailed.length > 0) {
+        console.error('Records that failed upsert:');
+        upsertFailed.forEach(f => console.error('  ' + f.Patient_ID + ': ' + f.error + ' (status ' + (f.status || 'unknown') + ')'));
+      }
+
+      console.log('Upsert succeeded:', upsertedCount);
+      console.log('  New inserts:', insertActual);
+      console.log('  Updates:', updateActual);
+      console.log('  Failed:', upsertFailed.length);
+
+      // ===== POST-UPSERT VERIFICATION: Query first patient back =====
+      if (deduped.length > 0) {
+        const sampleId = deduped[0].Patient_ID;
+        try {
+          const { data: verifyData, error: verifyErr } = await supabaseClient.from(dbTable('Patients'))
+            .select('Patient_ID, Date_of_Birth, Registration_Date')
+            .eq('Patient_ID', sampleId)
+            .maybeSingle();
+          if (verifyErr) {
+            console.warn('Post-upsert verify failed for ' + sampleId + ': ' + verifyErr.message);
+          } else if (verifyData) {
+            console.log('POST-UPSERT VERIFY for ' + sampleId + ':');
+            console.log('  Sent Date_of_Birth: ' + JSON.stringify(deduped[0].Date_of_Birth));
+            console.log('  DB Date_of_Birth:   ' + JSON.stringify(verifyData.Date_of_Birth));
+            console.log('  Sent Registration_Date: ' + JSON.stringify(deduped[0].Registration_Date));
+            console.log('  DB Registration_Date:   ' + JSON.stringify(verifyData.Registration_Date));
+            if (String(deduped[0].Date_of_Birth) !== String(verifyData.Date_of_Birth)) {
+              console.warn('*** DATE MISMATCH: Date_of_Birth differs between payload and DB! ***');
+            }
+            if (String(deduped[0].Registration_Date) !== String(verifyData.Registration_Date)) {
+              console.warn('*** DATE MISMATCH: Registration_Date differs between payload and DB! ***');
+            }
+          } else {
+            console.warn('Post-upsert verify: ' + sampleId + ' not found in DB');
+          }
+        } catch (vex) {
+          console.warn('Post-upsert verify exception: ' + vex.message);
+        }
+      }
+
+      // ===== STAGE 6: Verify DB total count =====
+      let dbTotal = 0;
+      let dbCountError = null;
+      try {
+        const { count, error: ce } = await supabaseClient.from(dbTable('Patients'))
+          .select('*', { count: 'exact', head: true });
+        if (ce) dbCountError = ce.message;
+        else dbTotal = count;
+      } catch (ex) { dbCountError = ex.message; }
+      if (dbCountError) console.warn('Could not get exact DB count:', dbCountError);
+
+      // ===== STAGE 7: Final reconciliation report =====
+      console.log('========================================');
+      console.log('FINAL IMPORT REPORT:');
+      console.log('  Excel rows (data, excl header): ' + totalExcelRows);
+      console.log('  Rows parsed: ' + insertData.length);
+      console.log('  Skipped (no Patient_ID): ' + totalSkippedNoId);
+      skippedRows.forEach(s => {
+        console.log('    Row ' + s.rowNum + ': ' + s.reason);
+        if (s.patientId || s.oldId || s.firstName || s.lastName || s.dob) {
+          console.log('      Patient_ID: ' + (s.patientId || '(empty)'));
+          console.log('      Old_ID: ' + (s.oldId || '(empty)'));
+          console.log('      First_Name: ' + (s.firstName || '(empty)'));
+          console.log('      Last_Name: ' + (s.lastName || '(empty)'));
+          console.log('      DOB: ' + (s.dob || '(empty)'));
+        }
+      });
+      console.log('  Duplicate IDs: ' + dupIds.length);
+      dupRows.forEach(d => {
+        console.log('    ' + d.id + ':');
+        d.records.forEach(rec => console.log('      Excel row ' + rec.rowNum + ': ' + JSON.stringify(rec.data)));
+      });
+      console.log('  Unique records (after dedup): ' + deduped.length);
+      console.log('  To update (exist in DB): ' + toUpdate.length);
+      console.log('  To insert (new): ' + toInsert.length);
+      console.log('  Actually upserted: ' + upsertedCount);
+      console.log('  Actually inserted: ' + insertActual);
+      console.log('  Actually updated: ' + updateActual);
+      console.log('  Failed: ' + upsertFailed.length);
+      upsertFailed.forEach(f => console.log('    ' + f.Patient_ID + ': ' + f.error));
+      console.log('  DB total after import: ' + (dbTotal || 'unknown'));
+
+      // ===== STAGE 8: ID cross-check (Excel vs Database) =====
+      console.log('');
+      console.log('===== ID CROSS-CHECK (Excel vs Database) =====');
+      const excelAllIds = new Set(insertData.map(item => item.data.Patient_ID));
+      console.log('Unique Patient_IDs in Excel (from parsed rows): ' + excelAllIds.size);
+
+      let dbAllIds = new Set();
+      let idFetchOk = false;
+      try {
+        const allDbRows = await window.fetchSupabaseRows('Patients', { select: 'Patient_ID' });
+        dbAllIds = new Set(allDbRows.map(r => String(r.Patient_ID)));
+        idFetchOk = true;
+      } catch (ex) {
+        console.warn('Could not fetch DB Patient_IDs: ' + ex.message);
+      }
+
+      if (idFetchOk) {
+        console.log('Patient_IDs in database: ' + dbAllIds.size);
+
+        // Missing in DB (in Excel but not in DB)
+        const missingInDb = [];
+        excelAllIds.forEach(id => {
+          if (!dbAllIds.has(id)) {
+            const items = insertData.filter(item => item.data.Patient_ID === id);
+            missingInDb.push({ id: id, records: items });
+          }
+        });
+
+        if (missingInDb.length > 0) {
+          console.log('');
+          console.log('*** MISSING IN DATABASE (' + missingInDb.length + ' Patient_IDs) ***');
+          missingInDb.forEach(m => {
+            console.log('Patient_ID: ' + m.id);
+            m.records.forEach(rec => {
+              console.log('  Excel row: ' + rec.rowNum);
+              console.log('  Full payload: ' + JSON.stringify(rec.data));
+            });
+          });
+        } else {
+          console.log('');
+          console.log('ALL ' + excelAllIds.size + ' EXCEL Patient_IDs CONFIRMED IN DATABASE');
+        }
+
+        // Extra in DB (in DB but not in this Excel import)
+        const extraInDb = [];
+        dbAllIds.forEach(id => { if (!excelAllIds.has(id)) extraInDb.push(id); });
+        console.log('');
+        console.log('Extra in DB (not part of this import): ' + extraInDb.length);
+        if (extraInDb.length > 0 && extraInDb.length <= 100) {
+          extraInDb.sort().forEach(id => console.log('  ' + id));
+        } else if (extraInDb.length > 100) {
+          console.log('  (showing first 100 of ' + extraInDb.length + ')');
+          extraInDb.sort().slice(0, 100).forEach(id => console.log('  ' + id));
+        }
+
+        // Final verdict
+        // totalRows = skippedNoId + insertData.length (all rows with Patient_ID including dupes)
+        // duplicateRecords = insertData.length - deduped.length (how many were removed by dedup)
+        const countCheck = totalExcelRows === (totalSkippedNoId + insertData.length);
+        const idCheck = missingInDb.length === 0;
+        const dupRecordCount = insertData.length - deduped.length;
+        console.log('');
+        console.log('========================================');
+        console.log('VERDICT:');
+        console.log('  Count check: ' + (countCheck ? 'PASS' : 'FAIL') + ' (' + totalExcelRows + ' = ' + totalSkippedNoId + ' skipped + ' + insertData.length + ' parsed)');
+        console.log('    Breakdown: ' + deduped.length + ' unique + ' + dupRecordCount + ' duplicate records removed');
+        console.log('  ID check:    ' + (idCheck ? 'PASS' : 'FAIL') + ' (Missing from DB: ' + missingInDb.length + ')');
+        if (countCheck && idCheck) {
+          console.log('  === ALL OK ===');
+        } else {
+          console.log('  *** ISSUES FOUND - see details above ***');
+        }
+      } else {
+        // Fallback to count-based check
+        console.log('');
+        console.log('ID cross-check skipped (DB fetch failed). Using count-based reconciliation.');
+        const countCheck2 = totalExcelRows === (totalSkippedNoId + insertData.length);
+        if (countCheck2) {
+          console.log('RECONCILIATION OK (count): ' + totalExcelRows + ' = ' + totalSkippedNoId + '(skipped) + ' + insertData.length + '(parsed)');
+        } else {
+          console.log('RECONCILIATION MISMATCH (count): ' + totalExcelRows + ' != ' + totalSkippedNoId + '(skipped) + ' + insertData.length + '(parsed)');
+        }
+      }
+
+      // ===== STAGE 9: Show result to user =====
+      const dupHtml = dupIds.length > 0
+        ? '<br><small class="text-muted">ຊ້ຳໃນ Excel: ' + dupIds.length + ' ແຖວ</small>'
+        : '';
+      const skipHtml = totalSkippedNoId > 0
+        ? '<br><small class="text-muted">ຂ້າມແຖວບໍ່ມີລະຫັດ: ' + totalSkippedNoId + ' ແຖວ</small>'
+        : '';
+      const failHtml = upsertFailed.length > 0
+        ? '<br><small class="text-danger">ລົ້ມເຫຼວ: ' + upsertFailed.length + ' ແຖວ (ເບິ່ງ Console)</small>'
+        : '';
+      const rowHtml = totalExcelRows !== deduped.length
+        ? '<br><small class="text-muted">Excel: ' + totalExcelRows + ' | ນຳເຂົ້າ: ' + deduped.length + ' (ຕ່າງ: ' + (totalExcelRows - deduped.length) + ')</small>'
+        : '';
+      const dbHtml = dbTotal
+        ? '<br><small class="text-muted">ໃນຖານຂໍ້ມູນທັງໝົດ: ' + dbTotal + ' ຄົນ</small>'
+        : '';
+
+      Swal.fire({
+        title: 'ສຳເລັດ!',
+        html: 'ນຳເຂົ້າສຳເລັດ <b>' + deduped.length + '</b> ລາຍການ<br>(ເພີ່ມໃໝ່: ' + toInsert.length + ' | ອັບເດດ: ' + toUpdate.length + ')' + dupHtml + skipHtml + failHtml + rowHtml + dbHtml,
+        icon: 'success'
+      });
+      window.initPatientTable();
+      window.preloadDropdownData();
+    } catch (err) {
+      console.error('Import process threw exception:', err);
+      Swal.fire('ຜິດພາດ!', err.message || 'Unknown error', 'error');
     }
-    $('#patientExcelInput').val("");
+    $('#patientExcelInput').val('');
   };
   reader.readAsArrayBuffer(file);
 };
