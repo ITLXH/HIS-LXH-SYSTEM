@@ -1,14 +1,50 @@
-<!-- Patient Card Print Area -->
+<!-- Patient Card Print Area (3 cards per A4 page) -->
 <div id="print-area" class="print-container">
-  <div class="patient-card">
-    <div class="patient-card-info">
-      <div style="margin-bottom: 6px;"><span style="color:#64748b; font-size: 10px;">ຊື່ ແລະ ນາມສະກຸນ:</span><br><strong id="printName" style="font-size: 14px; color: #0284c7; line-height: 1.2;"></strong></div>
-      <div style="margin-bottom: 4px;"><span style="color:#64748b; font-size: 10px;">ວ/ດ/ປ:</span> <strong id="printDob" style="font-size: 12px; color: #334155;"></strong></div>
-      <div><span style="color:#64748b; font-size: 10px;">ເບີໂທ:</span> <strong id="printPhone" style="font-size: 12px; color: #334155;"></strong></div>
+  <div class="print-card-grid">
+    <div class="patient-card" id="pcard1">
+      <div class="pcard-left">
+        <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate1"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName1"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob1"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr11"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr21"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr31"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printPhone1"></span></div>
+      </div>
+      <div class="pcard-right">
+        <div class="pcard-qr-wrap" id="qrcodeDisplay1"></div>
+        <div class="pcard-id" id="printID1"></div>
+      </div>
     </div>
-    <div class="patient-card-qr" style="text-align: center;">
-      <div id="qrcodeDisplay" style="margin: 0 auto 5px auto; padding: 2px; background: #fff; border-radius: 4px;"></div>
-      <div id="printID" style="font-weight: 900; font-size: 14px; color: #000;"></div>
+    <div class="patient-card" id="pcard2">
+      <div class="pcard-left">
+        <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate2"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName2"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob2"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr12"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr22"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr32"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printPhone2"></span></div>
+      </div>
+      <div class="pcard-right">
+        <div class="pcard-qr-wrap" id="qrcodeDisplay2"></div>
+        <div class="pcard-id" id="printID2"></div>
+      </div>
+    </div>
+    <div class="patient-card" id="pcard3">
+      <div class="pcard-left">
+        <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate3"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName3"></span></div>
+        <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob3"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr13"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr23"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr33"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printPhone3"></span></div>
+      </div>
+      <div class="pcard-right">
+        <div class="pcard-qr-wrap" id="qrcodeDisplay3"></div>
+        <div class="pcard-id" id="printID3"></div>
+      </div>
     </div>
   </div>
 </div>

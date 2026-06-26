@@ -2029,7 +2029,8 @@ h6 {
     width: 100% !important;
     height: auto !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 3mm !important;
+    box-sizing: border-box !important;
   }
 
   .print-active * {
@@ -2049,7 +2050,7 @@ h6 {
 
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 0;
   }
 
   .opd2-row {
@@ -2158,26 +2159,92 @@ h6 {
   vertical-align: top;
 }
 
-/* Patient QR Card */
+/* Patient QR Card (3 per A4, 65×35mm, info left + barcode right) */
+.print-card-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+}
+.pcard-divider {
+  display: none;
+}
 .patient-card {
-  width: 85mm;
-  padding: 8px 10px;
-  border: 2px solid var(--primary);
-  border-radius: 8px;
+  width: 65mm;
+  height: 35mm;
+  padding: 2px 4px;
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
   background: white;
   display: flex !important;
-  align-items: center;
-  gap: 10px;
-  margin: 10mm auto 0 auto;
+  flex-direction: row;
+  align-items: stretch;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.patient-card-info {
+.pcard-left {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding-right: 2px;
 }
-
-.patient-card-qr {
+.pcard-right {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 24mm;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 2px;
+}
+.pcard-row {
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pcard-label {
+  font-size: 7px;
+  color: #64748b;
+  font-weight: 400;
+}
+.pcard-value {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #334155;
+}
+.pcard-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0284c7;
+}
+.pcard-qr-wrap {
+  margin: 0 auto 1px auto;
+  padding: 1px;
+  background: #fff;
+  border-radius: 2px;
+  line-height: 0;
+}
+.pcard-qr-wrap canvas,
+.pcard-qr-wrap img {
+  width: 30px !important;
+  height: 30px !important;
+}
+.pcard-id {
+  font-weight: 900;
+  font-size: 10px;
+  color: #000;
   text-align: center;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
 }
 
 /* Vaccine Card */

@@ -5580,15 +5580,34 @@ window.printQRCard = async function (id) {
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
   const d = {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
-    lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '', phone: data.Phone_Number || '-'
+    lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '',
+    phone: data.Phone_Number || '-', address: data.Address || '',
+    district: data.District || '', province: data.Province || ''
   };
-  $('#printID').text(d.id);
-  $('#printName').text(`${d.title} ${d.firstname} ${d.lastname}`.trim());
-  $('#printDob').text(`${d.dob} (${d.age} ປີ)`);
-  $('#printPhone').text(d.phone);
-  $('#qrcodeDisplay').empty();
-  new QRCode(document.getElementById('qrcodeDisplay'), {
-    text: d.id, width: 65, height: 65, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
+  const fullName = `${d.title} ${d.firstname} ${d.lastname}`.trim();
+  const dobText = `${d.dob} (${d.age} ປີ)`;
+  const addrLine1 = (d.address && `ບ້ານ: ${d.address}`) || '-';
+  const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
+  const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
+  const phoneLine = (d.phone && `ເບີໂທ: ${d.phone}`) || '-';
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('lo', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  [1, 2, 3].forEach(i => {
+    $(`#printDate${i}`).text(dateStr);
+    $(`#printName${i}`).text(fullName);
+    $(`#printDob${i}`).text(dobText);
+    $(`#printAddr1${i}`).text(addrLine1);
+    $(`#printAddr2${i}`).text(addrLine2);
+    $(`#printAddr3${i}`).text(addrLine3);
+    $(`#printPhone${i}`).text(phoneLine);
+    $(`#printID${i}`).text(d.id);
+    const el = document.getElementById(`qrcodeDisplay${i}`);
+    if (el) {
+      el.innerHTML = '';
+      new QRCode(el, {
+        text: d.id, width: 30, height: 30, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
+      });
+    }
   });
   Swal.close();
   window.executePrint('print-area');
