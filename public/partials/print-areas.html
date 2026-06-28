@@ -49,145 +49,185 @@
   </div>
 </div>
 
-<!-- OPD Print Area -->
-<div id="opd-print-area" class="print-container">
-  <div class="opd-page">
-    <img id="print-opd-header-1" class="opd-header-img" />
-    <div class="opd-header-title">ຂໍ້ມູນການລົງທະບຽນ</div>
-    <div class="opd-sub-title">(OPD Card)</div>
-    <table class="opd-table-noborder">
-      <tr>
-        <td width="50%"><b>ID ປະກັນ :</b> <span style="display:inline-block; width:150px; border:1px solid #000; height:20px; vertical-align: middle;"></span></td>
-        <td width="50%" style="text-align:right;"><b>LXH:</b> <span id="popd_cn" style="font-weight:bold; font-size: 16px; border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-      <tr>
-        <td><b>ID ອົງກອນ :</b> <span id="popd_orgid" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td style="text-align:right;"><b>Date Time:</b> <span id="popd_datetime" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-      <tr>
-        <td><b>ຊື່ອົງກອນ :</b> <span id="popd_orgname" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td style="text-align:right;"><b>Vital_ID:</b> <span id="popd_vid" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-      <tr><td colspan="2"><b>ພະແນກ :</b> <span id="popd_dept" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td></tr>
-    </table>
-    <div class="opd-section-title">ຂໍ້ມູນຜູ້ມາຮັບບໍລິການ/Client's Profile</div>
-    <table class="opd-table-noborder">
-      <tr>
-        <td width="40%"><b>ຊື່/Name:</b> <span id="popd_name" style="border-bottom:1px dotted #000;"></span></td>
-        <td width="40%"><b>ນາມສະກຸນ /Surname:</b> <span id="popd_surname" style="border-bottom:1px dotted #000;"></span></td>
-        <td width="20%"><b>ອາຍຸ /Age:</b> <span id="popd_age" style="border-bottom:1px dotted #000;"></span></td>
-      </tr>
-      <tr>
-        <td><b>ວ/ດ/ປ ເກີດ/D.O.B:</b> <span id="popd_dob" style="border-bottom:1px dotted #000;"></span></td>
-        <td colspan="2"><b>ເພດ /Gender:</b> <span id="popd_gender" style="border-bottom:1px dotted #000;"></span></td>
-      </tr>
-      <tr>
-        <td><b>ສັນຊາດ/Nationality:</b> <span id="popd_nation" style="border-bottom:1px dotted #000;"></span></td>
-        <td colspan="2"><b>ອາຊີບ /Occupation:</b> <span id="popd_job" style="border-bottom:1px dotted #000;"></span></td>
-      </tr>
-      <tr>
-        <td><b>ທີ່ຢູ່ ບ້ານ/Address:</b> <span id="popd_village" style="border-bottom:1px dotted #000;"></span></td>
-        <td><b>ເມືອງ /District:</b> <span id="popd_district" style="border-bottom:1px dotted #000;"></span></td>
-        <td><b>ແຂວງ /Province:</b> <span id="popd_prov" style="border-bottom:1px dotted #000;"></span></td>
-      </tr>
-      <tr><td colspan="3"><b>ເບີໂທລະສັບ/Tel:</b> <span id="popd_phone" style="border-bottom:1px dotted #000;"></span></td></tr>
-      <tr><td colspan="3"><b>ສາເຫດມາໂຮງໝໍ/Chief complaint:</b> <span id="popd_cc" style="border-bottom:1px dotted #000; padding:0 50px;"></span></td></tr>
-    </table>
-    <div class="opd-section-title">ອາການຊີວິດ/Vital sign:</div>
-    <table class="opd-table-noborder">
-      <tr>
-        <td width="33%"><b>BT:</b> <span id="popd_temp" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td width="33%"><b>BP:</b> <span id="popd_bp" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td width="34%"><b>PR:</b> <span id="popd_pr" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-      <tr>
-        <td><b>RR:</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:50px;"></span></td>
-        <td><b>SpO2:</b> <span id="popd_spo2" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td><b>Weight:</b> <span id="popd_w" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-      <tr>
-        <td><b>High:</b> <span id="popd_h" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-        <td colspan="2"><b>Nutrition status:</b> <span id="popd_bmi" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td>
-      </tr>
-    </table>
-    <div style="border-top: 1px solid #000; margin-top: auto; padding-top: 15px;">
-      <table class="opd-table-noborder">
-        <tr><td colspan="2"><b>ປະຫວັດການແພ້/Allergy:</b> <span id="popd_allergy" style="border-bottom:1px dotted #000; color:red; padding:0 20px; font-weight:bold;"></span></td></tr>
-        <tr>
-          <td width="50%"><b>ອື່ນໆ/Other:</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:70%;"></span></td>
-          <td width="50%"><b>ອາການແພ້/Symptoms:</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:50%;"></span></td>
-        </tr>
-        <tr><td colspan="2"><b>ປະຫວັດພະຍາດປະຈໍາໂຕ :</b> <span id="popd_disease" style="border-bottom:1px dotted #000; padding:0 20px;"></span></td></tr>
-        <tr><td colspan="2"><b>ລາຍລະອຽດພະຍາດ:</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:80%;"></span></td></tr>
-        <tr><td colspan="2"><b>ຢາ ໃຊ້ປະຈໍາ:</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:80%;"></span></td></tr>
-        <tr>
-          <td width="50%"><b>ວົງເງິນຄຸ້ມຄອງ :</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:60%;"></span></td>
-          <td width="50%"><b>ສ່ວນຫຼຸດ :</b> <span style="display:inline-block; border-bottom:1px dotted #000; width:60%;"></span></td>
-        </tr>
-        <tr><td></td><td style="text-align:center; padding-top:50px;"><b>ຜູ້ບັນທຶກຂໍ້ມູນ</b><br><br>.....................................</td></tr>
-      </table>
+<!-- OPD Print Area - one template only, rendered by the existing OPD PDF workflow -->
+<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-28-triage-provider-datetime-v1">
+  <div class="opd-page opd-page-one opdref-page">
+    <div class="opdref-hidden" aria-hidden="true">
+      <img id="print-opd-footer-1" alt="" />
+      <span id="popd_datetime"></span>
+      <span id="popd_vid"></span>
+      <span id="popd_dept"></span>
+      <span id="popd_surname"></span>
+      <span id="popd_district"></span>
+      <span id="popd_prov"></span>
+      <span id="popd_bmi"></span>
+      <span id="popd_coverage"></span>
     </div>
-    <img id="print-opd-footer-1" class="opd-footer-img" />
+
+    <div class="opdref-sheet">
+      <header class="opdref-header-row">
+        <div class="opdref-header-left">
+          <img id="print-opd-header-1" class="opdref-logo" alt="Logo" />
+        </div>
+        <div class="opdref-header-center">
+          <div class="opdp1-title opdref-title-lao">ຂໍ້ມູນການລົງທະບຽນ</div>
+          <div class="opdref-title-en">(OPD Card)</div>
+        </div>
+        <div class="opdref-header-right">
+          <svg id="popd_patient_barcode" class="opdref-barcode" aria-label="Patient barcode"></svg>
+          <div class="opdref-cn-row">ID: <span id="popd_cn" class="opdref-cn-value"></span></div>
+        </div>
+      </header>
+      <div class="opdref-rule"></div>
+
+      <div class="opdref-section"><span>ຂໍ້ມູນຜູ້ມາຮັບບໍລິການ/Client's Profile</span></div>
+      <div class="opdref-row opdref-row-split">
+        <span>ຊື່ ແລະ ນາມສະກຸນ/Name &amp;</span>
+      </div>
+      <div class="opdref-row">
+        <span>Surname:</span><span id="popd_name" class="opdref-fill opdref-fill-name"></span>
+        <span>ອາຍຸ/Aged:</span><span id="popd_age" class="opdref-fill opdref-fill-age"></span><span>ປີ</span>
+      </div>
+      <div class="opdref-row">
+        <span>ເກີດ/D.O.B:</span><span id="popd_dob" class="opdref-fill opdref-fill-dob"></span>
+        <span>ເພດ/Gender:</span><span class="opdref-check">□ ຊາຍ/Male&nbsp;&nbsp;&nbsp;□ ຍິງ/Female</span>
+      </div>
+      <div class="opdref-row">
+        <span>ສັນຊາດ/Nationality:</span><span id="popd_nation" class="opdref-fill opdref-fill-nation"></span>
+        <span>ອາຊີບ/Occupation:</span><span id="popd_job" class="opdref-fill opdref-fill-job"></span>
+      </div>
+      <div class="opdref-row">
+        <span>ທີ່ຢູ່/Address:</span><span id="popd_village" class="opdref-fill opdref-fill-wide"></span>
+      </div>
+      <div class="opdref-row">
+        <span>ເບີໂທລະສັບ/Tel:</span><span id="popd_phone" class="opdref-fill opdref-fill-tel"></span>
+        <span>ສາຍພົວພັນ/Relationship:</span><span class="opdref-fill opdref-fill-rel"></span>
+      </div>
+      <div class="opdref-row opdref-row-full-line opdref-org-row">
+        <span>Org ID:</span><span id="popd_org_id" class="opdref-fill opdref-fill-org-id"></span>
+        <span>ຊື່ອົງກອນ/Org Name:</span><span id="popd_orgname" class="opdref-fill opdref-fill-org-name-wide"></span>
+      </div>
+      <div class="opdref-row opdref-row-full-line">
+        <span>ສ່ວນຫຼຸດ/Discount:</span><span id="popd_discount" class="opdref-fill opdref-fill-discount-wide"></span>
+      </div>
+      <div class="opdref-row">
+        <span>ສາເຫດມາໂຮງໝໍ/Chief complaint:</span><span id="popd_cc" class="opdref-fill opdref-fill-wide"></span>
+      </div>
+
+      <div class="opdref-rule opdref-rule-tight"></div>
+      <div class="opdref-section opdref-section-plain">ອາການຊີວິດ/Vital sign:</div>
+      <table class="opdref-vital-table">
+        <thead>
+          <tr>
+            <th>BT (°C)</th>
+            <th>BP (mmHg)</th>
+            <th>PR (bpm)</th>
+            <th>RR (bpm)</th>
+            <th>SpO<sub>2</sub> (%)</th>
+            <th>Weight (Kg)</th>
+            <th>High (Cm)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span id="popd_temp">&nbsp;</span></td>
+            <td><span id="popd_bp">&nbsp;</span></td>
+            <td><span id="popd_pr">&nbsp;</span></td>
+            <td><span id="popd_rr">&nbsp;</span></td>
+            <td><span id="popd_spo2">&nbsp;</span></td>
+            <td><span id="popd_w">&nbsp;</span></td>
+            <td><span id="popd_h">&nbsp;</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="opdref-row opdref-row-nutrition">
+        <span>Nutrition status:</span><span class="opdref-fill opdref-fill-wide"></span>
+      </div>
+
+      <div class="opdref-rule opdref-rule-tight"></div>
+      <div class="opdref-section opdref-section-inline"><span>ປະຫວັດການແພ້/Allergy:</span> <span id="popd_allergy_yes">□</span> ມີ/Yes&nbsp;&nbsp;&nbsp;<span id="popd_allergy_no">□</span> ບໍ່ມີ/No</div>
+      <div class="opdref-row opdref-check-row">
+        <span><span id="popd_allergy_drug_check">□</span> ຢາ/Drugs</span><span><span id="popd_allergy_food_check">□</span> ອາຫານ/Foods</span>
+      </div>
+      <div class="opdref-row opdref-row-full-line"><span>ລະບຸສິ່ງທີ່ແພ້:</span><span id="popd_allergy" class="opdref-fill opdref-fill-wide"></span></div>
+      <div class="opdref-row opdref-row-full-line"><span>ອາການແພ້/Symptoms:</span><span id="popd_symptoms" class="opdref-fill opdref-fill-wide"></span></div>
+
+      <div class="opdref-rule opdref-rule-tight"></div>
+      <div class="opdref-section opdref-section-inline"><span>ປະຫວັດພະຍາດປະຈຳໂຕ/Underlying disease:</span> <span id="popd_disease_yes">□</span> ມີ/Yes&nbsp;&nbsp;&nbsp;<span id="popd_disease_no">□</span> ບໍ່ມີ/No</div>
+      <div class="opdref-row"><span>ລາຍລະອຽດພະຍາດ:</span><span id="popd_disease" class="opdref-fill opdref-fill-wide"></span></div>
+      <div class="opdref-row"><span class="opdref-fill opdref-fill-full"></span></div>
+
+      <div class="opdref-section opdref-section-inline opdref-med-title"><span>ຢາທີ່ໃຊ້ປະຈຳ:</span> <span id="popd_medicine_yes">□</span> ມີ/Yes&nbsp;&nbsp;&nbsp;<span id="popd_medicine_no">□</span> ບໍ່ມີ/No</div>
+      <div class="opdref-row"><span>ລາຍລະອຽດຢາໃຊ້ປະຈຳ:</span><span id="popd_regular_medicine" class="opdref-fill opdref-fill-wide"></span></div>
+      <div class="opdref-row"><span class="opdref-fill opdref-fill-full"></span></div>
+
+      <div class="opdref-signature-block">
+        <div class="opdref-signature-title">ຜູ້ບັນທຶກຂໍ້ມູນ</div>
+        <div class="opdref-signature-line">
+          <span class="opdref-sig-label">ຊື່ແຈ້ງ:</span><span id="popd_doctor" class="opdref-fill opdref-fill-signature">&nbsp;</span>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="opd-page opd-page2">
-    <img id="print-opd-header-2" class="opd-header-img" />
-    <div class="opd-header-title" style="margin:4px 0 3px 0;">ໃບບັນທຶກອາການ ແລະ ການປິ່ນປົວ</div>
-    <table class="opd-table-stretch opd2-main-table" style="width:100%;">
-      <thead>
-        <tr>
-          <th width="35%" style="text-align:center;">History and physical exam</th>
-          <th width="45%" style="text-align:center;">Treatment</th>
-          <th width="20%" style="text-align:center;">other</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-        <tr class="opd2-row"><td></td><td></td><td></td></tr>
-      </tbody>
-      <tbody>
-        <tr class="opd2-dx-row"><td><b>Dx:</b></td><td><b>Follow up:</b></td><td><b>Dr.:</b></td></tr>
-      </tbody>
-    </table>
-    <div class="opd-header-title" style="margin:8px 0 3px 0;">ໃບຕິດຕາມອາການ ແລະ ຫັດຖະການ</div>
-    <table class="opd-table-stretch opd2-followup-table" style="width:100%;">
-      <thead>
-        <tr>
-          <th width="10%" style="text-align:center;">Time</th>
-          <th width="30%" style="text-align:center;">ອາການ</th>
-          <th width="45%" style="text-align:center;">ຫັດຖະການ</th>
-          <th width="15%" style="text-align:center;">ຜູ້ບັນທຶກ</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-        <tr class="opd2-followup-row"><td></td><td></td><td></td><td></td></tr>
-      </tbody>
-    </table>
-    <img id="print-opd-footer-2" class="opd-footer-img" />
+  <div class="opd-page opd-page-two opdref-page">
+    <div class="opdref-hidden" aria-hidden="true">
+      <img id="print-opd-header-2" alt="" />
+      <img id="print-opd-footer-2" alt="" />
+    </div>
+    <div class="opdref-sheet opdref-sheet-page2">
+      <div class="opdref-page2-title">ໃບບັນທຶກອາການ ແລະ ການປິ່ນປົວ</div>
+      <table class="opdref-table opdref-treatment-table">
+        <colgroup>
+          <col class="opdref-col-history" />
+          <col class="opdref-col-treatment" />
+          <col class="opdref-col-other" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>History and physical exam</th>
+            <th>Treatment</th>
+            <th>other</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="opdref-treatment-body"><td></td><td></td><td></td></tr>
+          <tr class="opdref-dx-row">
+            <td><b>Dx:</b></td>
+            <td><b>Follow up:</b></td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="opdref-page2-title opdref-page2-title-gap">ໃບຕິດຕາມອາການ ແລະ ຫັດຖະການ</div>
+      <table class="opdref-table opdref-followup-table">
+        <colgroup>
+          <col class="opdref-col-time" />
+          <col class="opdref-col-symptom" />
+          <col class="opdref-col-procedure" />
+          <col class="opdref-col-recorder" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>ອາການ</th>
+            <th>ຫັດຖະການ</th>
+            <th>ຜູ້ບັນທຶກ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 

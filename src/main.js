@@ -1,3 +1,5 @@
+﻿import JsBarcode from 'jsbarcode';
+
 const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6eXJvd3pnaHJjZnBtaGtyZWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MTI2NzcsImV4cCI6MjA5NzE4ODY3N30.aTIC9Ov8jo-WhdUTZ_bZswmOgauC53R7vjYGcUln8Q0";
@@ -83,7 +85,17 @@ let html5QrCode = null;
 let currentReportData = [];
 let currentVisitHistoryData = [];
 let currentTriageData = [];
-let systemSettings = { hospitalName: "", logoUrl: "", opdHeaderUrl: "", opdFooterUrl: "", rememberLastModule: false };
+let systemSettings = {
+  hospitalName: "",
+  logoUrl: "",
+  opdHeaderUrl: "",
+  opdFooterUrl: "",
+  opdPrintPage1HeaderImage: "",
+  opdPrintPage2HeaderImage: "",
+  opdPrintPage1FooterImage: "",
+  opdPrintPage2FooterImage: "",
+  rememberLastModule: false
+};
 let servicesDataStore = [];
 let locationsDataStore = [];
 let allPatientsList = [];
@@ -2544,12 +2556,24 @@ async function loadPartials() {
     'emr-modals'
   ];
 
+  const PARTIAL_CACHE_BUST = '2026-06-28-triage-provider-datetime-v1';
+  const fetchPartial = (url) => {
+    const sep = url.includes('?') ? '&' : '?';
+    return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }).then(r => {
+      if (!r.ok) throw new Error(`Failed to load ${url}: HTTP ${r.status}`);
+      return r.text();
+    });
+  };
+
   try {
     const [navbarHtml, ...rest] = await Promise.all([
-      fetch('/partials/navbar.html').then(r => r.text()),
-      ...views.map(v => fetch(`/partials/views/${v}.html`).then(r => r.text())),
-      ...modals.map(m => fetch(`/partials/modals/${m}.html`).then(r => r.text())),
-      fetch('/partials/print-areas.html').then(r => r.text())
+      fetchPartial('/partials/navbar.html'),
+      ...views.map(v => fetchPartial(`/partials/views/${v}.html`)),
+      ...modals.map(m => fetchPartial(`/partials/modals/${m}.html`)),
+      fetchPartial('/partials/print-areas.html')
     ]);
 
     document.getElementById('partial-navbar').innerHTML = navbarHtml;
@@ -2566,6 +2590,26 @@ async function loadPartials() {
           ⚠️ ບໍ່ສາມາດໂຫຼດ partials ໄດ້.<br>ກະລຸນາ run ຜ່ານ HTTP server (VS Code Live Server ຫຼື npx serve).<br><small>${err.message}</small></div>`;
   }
 }
+
+window.ensureFreshOpdPrintTemplate = async function () {
+  const prints = document.getElementById('partial-prints');
+  const current = document.getElementById('opd-print-area');
+  const expectedVersion = '2026-06-28-triage-provider-datetime-v1';
+  if (prints && current && current.dataset.opdTemplateVersion === expectedVersion) return;
+
+  const res = await fetch(`/partials/print-areas.html?v=${expectedVersion}-${Date.now()}`, {
+    cache: 'no-store',
+    headers: { 'Cache-Control': 'no-cache' }
+  });
+  if (!res.ok) throw new Error(`Failed to refresh OPD print template: HTTP ${res.status}`);
+  if (prints) prints.innerHTML = await res.text();
+};
+
+window.formatOpdPrintPatientId = function (patientId) {
+  const digits = String(patientId || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.padStart(14, '0').slice(-14);
+};
 
 $(document).ready(async function () {
   // Load all HTML partials first, then init the app
@@ -2947,16 +2991,135 @@ window.calculateAgeForm = function () {
   $('#ageInput').val(age);
 };
 
-// --- Drug allergy toggle (dropdown ມີ/ບໍ່ມີ + detail textbox) ---
+// --- Allergy toggle (drug / food detail textboxes) ---
 window.toggleAllergyDetail = function () {
-  const choice = $('#p_allergy_choice').val();
+  const hasDrug = $('#p_has_drug_allergy').is(':checked');
+  const hasFood = $('#p_has_food_allergy').is(':checked');
+  const choice = (hasDrug || hasFood) ? 'ມີ' : 'ບໍ່ມີ';
   const $detail = $('#p_allergy');
-  if (choice === 'ມີ') {
+  const $food = $('#p_food_allergy');
+  const $symptoms = $('#p_allergy_symptoms');
+  $('#p_allergy_choice').val(choice);
+  $('#p_drug_allergy_wrap').toggle(hasDrug);
+  $('#p_food_allergy_wrap').toggle(hasFood);
+
+  if (hasDrug) {
     $detail.show().attr('placeholder', 'ລະບຸຢາທີ່ແພ້...');
     if (!$detail.val() || $detail.val() === 'ບໍ່ມີ') $detail.val('');
   } else {
-    $detail.hide().val('ບໍ່ມີ');
+    $detail.hide().val('');
   }
+
+  if (hasFood) {
+    $food.show();
+  } else {
+    $food.val('');
+  }
+
+  if (choice === 'ມີ') {
+    $symptoms.show();
+  } else {
+    $symptoms.hide().val('');
+  }
+};
+
+window.toggleDiseaseDetail = function () {
+  const hasDisease = $('#p_has_disease').is(':checked');
+  $('#p_disease_wrap').toggle(hasDisease);
+  if (hasDisease) {
+    const $disease = $('#p_disease');
+    if (!$disease.val() || $disease.val() === 'ບໍ່ມີ') $disease.val('');
+  } else {
+    $('#p_disease').val('');
+    $('#p_regular_medicine').val('');
+  }
+};
+
+window.extractTaggedPatientField = function (value, labels = []) {
+  const lines = String(value || '').split(/\r?\n/);
+  const main = [];
+  let tagged = '';
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    const match = labels.find(label => trimmed.startsWith(label));
+    if (match) {
+      tagged = trimmed.slice(match.length).replace(/^[:：]\s*/, '').trim();
+    } else if (trimmed) {
+      main.push(trimmed);
+    }
+  });
+  return {
+    main: main.join(' ').trim(),
+    tagged
+  };
+};
+
+window.parsePatientAllergyInfo = function (value) {
+  const lines = String(value || '').split(/\r?\n/);
+  const untagged = [];
+  let drug = '';
+  let food = '';
+  let symptoms = '';
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const tagged = trimmed.replace(/^[-•]\s*/, '');
+    const readTaggedValue = (labels) => {
+      const match = labels.find(label => tagged.startsWith(label));
+      return match ? tagged.slice(match.length).replace(/^[:：]\s*/, '').trim() : null;
+    };
+    const drugValue = readTaggedValue(['ຢາທີ່ແພ້', 'Drug Allergy', 'Drug', 'ຢາ']);
+    const foodValue = readTaggedValue(['ອາຫານທີ່ແພ້', 'Food Allergy', 'Food', 'ອາຫານ']);
+    const symptomValue = readTaggedValue(['ອາການແພ້', 'Allergy Symptoms', 'Symptoms']);
+    if (drugValue !== null) drug = drugValue;
+    else if (foodValue !== null) food = foodValue;
+    else if (symptomValue !== null) symptoms = symptomValue;
+    else untagged.push(trimmed);
+  });
+
+  const main = untagged.join(' ').trim();
+  if (!drug && !food && main && main !== 'ບໍ່ມີ' && main !== '-') {
+    drug = main === 'ມີ' ? '' : main;
+  }
+  const summary = [
+    drug ? `ຢາ: ${drug}` : '',
+    food ? `ອາຫານ: ${food}` : ''
+  ].filter(Boolean).join(' / ');
+
+  return {
+    allergy: summary || (main === 'ມີ' ? 'ມີ' : 'ບໍ່ມີ'),
+    drug,
+    food,
+    symptoms,
+    hasDrug: !!drug,
+    hasFood: !!food
+  };
+};
+
+window.parsePatientDiseaseInfo = function (value) {
+  const parsed = window.extractTaggedPatientField(value, ['ຢາກິນປະຈຳ', 'ຢາທີ່ໃຊ້ປະຈຳ', 'Regular Medicine']);
+  return {
+    disease: parsed.main || 'ບໍ່ມີ',
+    regularMedicine: parsed.tagged || ''
+  };
+};
+
+window.composePatientAllergyInfo = function (drugAllergy, symptoms, foodAllergy = '') {
+  const drugText = String(drugAllergy || '').trim();
+  const foodText = String(foodAllergy || '').trim();
+  const symptomText = String(symptoms || '').trim();
+  const parts = [];
+  if (drugText && drugText !== 'ບໍ່ມີ') parts.push(`ຢາ: ${drugText}`);
+  if (foodText && foodText !== 'ບໍ່ມີ') parts.push(`ອາຫານ: ${foodText}`);
+  if (symptomText) parts.push(`ອາການແພ້: ${symptomText}`);
+  return parts.length ? parts.join('\n') : 'ບໍ່ມີ';
+};
+
+window.composePatientDiseaseInfo = function (disease, regularMedicine) {
+  const base = String(disease || '').trim() || 'ບໍ່ມີ';
+  const medicineText = String(regularMedicine || '').trim();
+  return medicineText ? `${base}\nຢາກິນປະຈຳ: ${medicineText}` : base;
 };
 
 // --- Clear button for organization (replaces the tiny Select2 ×) ---
@@ -3031,6 +3194,29 @@ window.getLocalDateRangeIsoBounds = function (startDate, endDate) {
   const start = window.getLocalDayIsoBounds(startDate);
   const end = window.getLocalDayIsoBounds(endDate || startDate);
   return { startIso: start.startIso, endIso: end.endIso };
+};
+
+window.getLocalTimeStr = function (dObj) {
+  return String(dObj.getHours()).padStart(2, '0') + ':' + String(dObj.getMinutes()).padStart(2, '0');
+};
+
+window.combineLocalDateTimeIso = function (dateValue, timeValue) {
+  const date = String(dateValue || window.getLocalStr(new Date())).slice(0, 10);
+  const time = String(timeValue || window.getLocalTimeStr(new Date())).slice(0, 5);
+  const d = new Date(`${date}T${time}`);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+};
+
+window.formDateFromIso = function (value) {
+  if (!value) return window.getLocalStr(new Date());
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? String(value).slice(0, 10) : window.getLocalStr(d);
+};
+
+window.formTimeFromIso = function (value) {
+  if (!value) return window.getLocalTimeStr(new Date());
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? String(value).slice(11, 16) : window.getLocalTimeStr(d);
 };
 
 window.normalizeBooleanSetting = function (value) {
@@ -3209,6 +3395,10 @@ window.initApp = async function () {
         if (r.Key === 'LogoUrl') systemSettings.logoUrl = r.Value || '';
         if (r.Key === 'OpdHeaderUrl') systemSettings.opdHeaderUrl = r.Value || '';
         if (r.Key === 'OpdFooterUrl') systemSettings.opdFooterUrl = r.Value || '';
+        if (r.Key === 'opd_print_page1_header_image') systemSettings.opdPrintPage1HeaderImage = r.Value || '';
+        if (r.Key === 'opd_print_page2_header_image') systemSettings.opdPrintPage2HeaderImage = r.Value || '';
+        if (r.Key === 'opd_print_page1_footer_image') systemSettings.opdPrintPage1FooterImage = r.Value || '';
+        if (r.Key === 'opd_print_page2_footer_image') systemSettings.opdPrintPage2FooterImage = r.Value || '';
         if (r.Key === 'RememberLastModule') systemSettings.rememberLastModule = window.normalizeBooleanSetting(r.Value);
       });
     } catch (settingsError) {
@@ -3396,12 +3586,26 @@ window.loadView = function (v, options = {}) {
 
   if (v === 'settings') {
     supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
-      let s = { hospitalName: 'HIS HOSPITAL', logoUrl: '', opdHeaderUrl: '', opdFooterUrl: '', rememberLastModule: false };
+      let s = {
+        hospitalName: 'HIS HOSPITAL',
+        logoUrl: '',
+        opdHeaderUrl: '',
+        opdFooterUrl: '',
+        opdPrintPage1HeaderImage: '',
+        opdPrintPage2HeaderImage: '',
+        opdPrintPage1FooterImage: '',
+        opdPrintPage2FooterImage: '',
+        rememberLastModule: false
+      };
       (data || []).forEach(r => {
         if (r.Key === 'HospitalName') s.hospitalName = r.Value || s.hospitalName;
         if (r.Key === 'LogoUrl') s.logoUrl = r.Value || '';
         if (r.Key === 'OpdHeaderUrl') s.opdHeaderUrl = r.Value || '';
         if (r.Key === 'OpdFooterUrl') s.opdFooterUrl = r.Value || '';
+        if (r.Key === 'opd_print_page1_header_image') s.opdPrintPage1HeaderImage = r.Value || '';
+        if (r.Key === 'opd_print_page2_header_image') s.opdPrintPage2HeaderImage = r.Value || '';
+        if (r.Key === 'opd_print_page1_footer_image') s.opdPrintPage1FooterImage = r.Value || '';
+        if (r.Key === 'opd_print_page2_footer_image') s.opdPrintPage2FooterImage = r.Value || '';
         if (r.Key === 'RememberLastModule') s.rememberLastModule = window.normalizeBooleanSetting(r.Value);
       });
       systemSettings = s;
@@ -3410,6 +3614,14 @@ window.loadView = function (v, options = {}) {
       $('#setOpdHeaderUrl').val(s.opdHeaderUrl);
       $('#setOpdFooterUrl').val(s.opdFooterUrl);
       $('#setRememberLastModule').prop('checked', !!s.rememberLastModule);
+      $('#opd_print_page1_header_image').val(s.opdPrintPage1HeaderImage || '');
+      $('#opd_print_page2_header_image').val(s.opdPrintPage2HeaderImage || '');
+      $('#opd_print_page1_footer_image').val(s.opdPrintPage1FooterImage || '');
+      $('#opd_print_page2_footer_image').val(s.opdPrintPage2FooterImage || '');
+      window.renderOpdPrintImagePreview('opd_print_page1_header_image', s.opdPrintPage1HeaderImage || '');
+      window.renderOpdPrintImagePreview('opd_print_page2_header_image', s.opdPrintPage2HeaderImage || '');
+      window.renderOpdPrintImagePreview('opd_print_page1_footer_image', s.opdPrintPage1FooterImage || '');
+      window.renderOpdPrintImagePreview('opd_print_page2_footer_image', s.opdPrintPage2FooterImage || '');
       if (typeof window.renderMasterCategoryUI === 'function') window.renderMasterCategoryUI();
       window.loadMasterList();
     });
@@ -4400,7 +4612,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   let vStart = 0;
   while (true) {
     const { data: chunk, error: vErr } = await supabaseClient.from(dbTable('Visits'))
-      .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
+      .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Respiration, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
       .gte('Date', visitRange.startIso)
       .lte('Date', visitRange.endIso)
       .not('Date', 'is', null)
@@ -5058,8 +5270,12 @@ window.viewPatientDetail = async function (id) {
     $('#view_p_job').text(data.Occupation || '-');
     $('#view_p_email').text(data.Email || '-');
 
-    $('#view_p_allergy').text(data.Drug_Allergy || 'ບໍ່ມີ');
-    $('#view_p_disease').text(data.Underlying_Disease || 'ບໍ່ມີ');
+    const allergyInfo = window.parsePatientAllergyInfo(data.Drug_Allergy || '');
+    const diseaseInfo = window.parsePatientDiseaseInfo(data.Underlying_Disease || '');
+    $('#view_p_allergy').text(allergyInfo.allergy || 'ບໍ່ມີ');
+    $('#view_p_allergy_symptoms').text(allergyInfo.symptoms || '-');
+    $('#view_p_disease').text(diseaseInfo.disease || 'ບໍ່ມີ');
+    $('#view_p_regular_medicine').text(diseaseInfo.regularMedicine || '-');
     $('#view_p_reg_date').text(`${data.Registration_Date || '-'} (${data.Shift || ''})`);
     $('#view_p_reg_time').text(data.Time || '-');
 
@@ -5274,6 +5490,7 @@ window.initPatientTable = async function () {
 
       const pidMatch = String(r.Patient_ID || '').match(/^LXH(\d{4})-?(\d+)$/i);
       const pidSortKey = pidMatch ? (parseInt(pidMatch[1], 10) * 10000000 + parseInt(pidMatch[2], 10)) : 0;
+      const rowAllergyInfo = window.parsePatientAllergyInfo(r.Drug_Allergy || '');
       h += `<tr>
                     <td class="text-muted small">${r.Registration_Date || '-'}</td>
                     <td class="text-muted small">${r.Time || '-'}</td>
@@ -5284,7 +5501,7 @@ window.initPatientTable = async function () {
                     <td>${age === '-' ? '-' : `${age} ${window.t('patients.yearUnit')}`}</td>
                     <td class="text-muted">${r.Phone_Number || '-'}</td>
                     <td class="small text-muted">${r.District || ''} ${r.Province || ''}</td>
-                    <td class="text-danger fw-bold small">${r.Drug_Allergy || '-'}</td>
+                    <td class="text-danger fw-bold small">${rowAllergyInfo.allergy || '-'}</td>
                     <td>${acts}</td>
                   </tr>`;
     });
@@ -5399,6 +5616,137 @@ window.uploadPatientPhoto = async function (pId) {
   }
 };
 
+window.getOpdPrintImageFieldIds = function (settingKey) {
+  return {
+    hidden: settingKey,
+    input: `${settingKey}_input`,
+    preview: `${settingKey}_preview`,
+    placeholder: `${settingKey}_placeholder`
+  };
+};
+
+window.renderOpdPrintImagePreview = function (settingKey, url) {
+  const ids = window.getOpdPrintImageFieldIds(settingKey);
+  const preview = document.getElementById(ids.preview);
+  const placeholder = document.getElementById(ids.placeholder);
+  if (preview) {
+    if (url) {
+      preview.src = url;
+      preview.style.display = 'block';
+    } else {
+      preview.src = '';
+      preview.style.display = 'none';
+    }
+  }
+  if (placeholder) {
+    placeholder.style.display = url ? 'none' : 'block';
+  }
+};
+
+window.clearOpdPrintImage = function (settingKey) {
+  const ids = window.getOpdPrintImageFieldIds(settingKey);
+  const hidden = document.getElementById(ids.hidden);
+  const input = document.getElementById(ids.input);
+  if (hidden) hidden.value = '';
+  if (input) input.value = '';
+  window.renderOpdPrintImagePreview(settingKey, '');
+};
+
+window.uploadOpdPrintImage = async function (file, settingKey) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const supportedTypes = ['png', 'jpg', 'jpeg', 'webp'];
+  if (!supportedTypes.includes(ext)) throw new Error('Unsupported image type');
+
+  const contentType = file.type || ({
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp'
+  }[ext] || 'application/octet-stream');
+
+  const cleanName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const fileName = `opd-print-settings/${settingKey}/${Date.now()}_${cleanName}`;
+  const { error } = await supabaseClient.storage
+    .from('patient-photos')
+    .upload(fileName, file, { contentType, upsert: true });
+
+  if (error) throw error;
+
+  const { data: urlData } = supabaseClient.storage
+    .from('patient-photos')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+};
+
+window.handleOpdPrintImageUpload = async function (settingKey, input) {
+  const file = input && input.files ? input.files[0] : null;
+  if (!file) return;
+
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+    Swal.fire('ຜິດພາດ', 'ກະລຸນາເລືອກ PNG, JPG, JPEG ຫຼື WEBP', 'warning');
+    input.value = '';
+    return;
+  }
+
+  const ids = window.getOpdPrintImageFieldIds(settingKey);
+  const hidden = document.getElementById(ids.hidden);
+  const previousUrl = hidden ? hidden.value : '';
+  const localUrl = URL.createObjectURL(file);
+
+  window.renderOpdPrintImagePreview(settingKey, localUrl);
+  Swal.fire({ title: 'ກຳລັງອັບໂຫຼດ...', didOpen: () => Swal.showLoading() });
+
+  try {
+    const publicUrl = await window.uploadOpdPrintImage(file, settingKey);
+    if (hidden) hidden.value = publicUrl;
+    window.renderOpdPrintImagePreview(settingKey, publicUrl);
+    Swal.close();
+  } catch (err) {
+    console.error('OPD print image upload error:', err);
+    if (hidden) hidden.value = previousUrl;
+    window.renderOpdPrintImagePreview(settingKey, previousUrl);
+    Swal.close();
+    Swal.fire('ຜິດພາດ', err.message || 'Upload failed', 'error');
+  } finally {
+    URL.revokeObjectURL(localUrl);
+    input.value = '';
+  }
+};
+
+window.renderOpdPatientBarcode = function (patientId) {
+  const svg = document.getElementById('popd_patient_barcode');
+  if (!svg) return;
+
+  const value = String(patientId || '').trim();
+  if (!value) {
+    svg.innerHTML = '';
+    svg.style.display = 'none';
+    return;
+  }
+
+  try {
+    JsBarcode(svg, value, {
+      format: 'CODE128',
+      displayValue: false,
+      font: 'monospace',
+      fontSize: 14,
+      textMargin: 3,
+      margin: 1,
+      width: 3,
+      height: 62,
+      lineColor: '#000',
+      background: '#fff'
+    });
+    svg.style.display = 'block';
+  } catch (err) {
+    console.warn('Barcode render failed:', err);
+    svg.innerHTML = '';
+    svg.style.display = 'none';
+  }
+};
+
 window.openNewPatientModal = function () {
   // Re-populate all master dropdowns and org dropdown to ensure they're never empty
   window.loadMasterDataGlobalCallback(masterDataStore);
@@ -5414,7 +5762,15 @@ window.openNewPatientModal = function () {
   $('#p_district').val(null).trigger('change');
   $('#dobInput').val('');
   $('#p_allergy_choice').val('ບໍ່ມີ');
-  $('#p_allergy').val('ບໍ່ມີ').hide();
+  $('#p_has_drug_allergy, #p_has_food_allergy').prop('checked', false);
+  $('#p_drug_allergy_wrap, #p_food_allergy_wrap').hide();
+  $('#p_allergy').val('').hide();
+  $('#p_food_allergy').val('').hide();
+  $('#p_allergy_symptoms').val('').hide();
+  $('#p_has_disease').prop('checked', false);
+  $('#p_disease_wrap').hide();
+  $('#p_disease').val('');
+  $('#p_regular_medicine').val('');
 
   window.generateNextPatientID().then(id => {
     $('#disp_p_id').val(id);
@@ -5437,6 +5793,8 @@ window.editPatient = async function (id) {
   const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   Swal.close();
   if (error || !data) return;
+  const allergyParts = window.parsePatientAllergyInfo(data.Drug_Allergy || '');
+  const diseaseParts = window.parsePatientDiseaseInfo(data.Underlying_Disease || '');
   const d = {
     id: data.Patient_ID, old_patient_id: data.Old_Patient_ID || '', title: data.Title || '', firstname: data.First_Name || '',
     lastname: data.Last_Name || '', gender: data.Gender || '', dob: data.Date_of_Birth || '',
@@ -5445,8 +5803,11 @@ window.editPatient = async function (id) {
     address: data.Address || '', district: data.District || '', province: data.Province || '',
     org_id: data.Organization_ID || '', org_name: data.Name_Org || '',
     ins_company: data.Insurance_Company || '', ins_code: data.Insurance_Code || '',
-    ins_name: data.Insured_Person_Name || '', allergy: data.Drug_Allergy || 'ບໍ່ມີ',
-    disease: data.Underlying_Disease || 'ບໍ່ມີ', emer_name: data.Emergency_Name || '',
+    ins_name: data.Insured_Person_Name || '', allergy: allergyParts.drug || '',
+    food_allergy: allergyParts.food || '',
+    allergy_symptoms: allergyParts.symptoms || '',
+    disease: diseaseParts.disease || 'ບໍ່ມີ', regular_medicine: diseaseParts.regularMedicine || '',
+    emer_name: data.Emergency_Name || '',
     emer_contact: data.Emergency_Contact || '', emer_relation: data.Emergency_Relation || '',
     channel: data.Channel || '', date: data.Registration_Date || '', time: data.Time || '', shift: data.Shift || '',
     photo_url: data.Photo_URL || ''
@@ -5474,15 +5835,18 @@ window.editPatient = async function (id) {
   }
   // DOB stored as YYYY-MM-DD; show as DD/MM/YYYY in the text input.
   $('#dobInput').val(window.dobIsoToUi(d.dob));
-  // Drug allergy: split into dropdown choice + detail textbox.
-  const allergyVal = String(d.allergy || '').trim();
-  if (!allergyVal || allergyVal === 'ບໍ່ມີ') {
-    $('#p_allergy_choice').val('ບໍ່ມີ');
-    $('#p_allergy').val('ບໍ່ມີ').hide();
-  } else {
-    $('#p_allergy_choice').val('ມີ');
-    $('#p_allergy').val(allergyVal).show();
-  }
+  // Allergy: split into drug / food / symptoms controls.
+  $('#p_has_drug_allergy').prop('checked', !!d.allergy);
+  $('#p_has_food_allergy').prop('checked', !!d.food_allergy);
+  $('#p_allergy').val(d.allergy || '');
+  $('#p_food_allergy').val(d.food_allergy || '');
+  $('#p_allergy_symptoms').val(d.allergy_symptoms || '');
+  window.toggleAllergyDetail();
+  const hasDisease = !!(d.disease && d.disease !== 'ບໍ່ມີ' && d.disease !== '-');
+  $('#p_has_disease').prop('checked', hasDisease);
+  $('#p_disease').val(hasDisease ? d.disease : '');
+  $('#p_regular_medicine').val(hasDisease ? (d.regular_medicine || '') : '');
+  window.toggleDiseaseDetail();
   // Relationship may be a custom value (Select2 tags) not present in the
   // MasterData-populated <option> list — inject it so .val() can select it.
   const emerRel = String(d.emer_relation || '').trim();
@@ -5511,11 +5875,21 @@ window.submitPatientForm = async function (e) {
   const dobIso = window.dobUiToIso(fd.p_dob || '');
   fd.p_dob = dobIso || null;
   if (fd.p_dob === '') fd.p_dob = null;
-  // Drug allergy: if the dropdown is "ບໍ່ມີ", force the saved value to "ບໍ່ມີ"
-  // regardless of any stale detail text; if "ມີ" but textbox is empty, keep "ມີ".
-  const allergyChoice = $('#p_allergy_choice').val();
-  if (allergyChoice === 'ບໍ່ມີ') fd.p_allergy = 'ບໍ່ມີ';
-  else if (allergyChoice === 'ມີ') fd.p_allergy = String(fd.p_allergy || '').trim() || 'ມີ';
+  // Allergy: save drug / food / symptoms into the existing Drug_Allergy text field.
+  const hasDrugAllergy = $('#p_has_drug_allergy').is(':checked');
+  const hasFoodAllergy = $('#p_has_food_allergy').is(':checked');
+  fd.p_allergy = hasDrugAllergy ? (String(fd.p_allergy || '').trim() || 'ມີ') : '';
+  fd.p_food_allergy = hasFoodAllergy ? (String(fd.p_food_allergy || '').trim() || 'ມີ') : '';
+  fd.p_allergy_symptoms = (hasDrugAllergy || hasFoodAllergy) ? String(fd.p_allergy_symptoms || '').trim() : '';
+  const patientAllergyInfo = window.composePatientAllergyInfo(fd.p_allergy, fd.p_allergy_symptoms, fd.p_food_allergy);
+  if (!$('#p_has_disease').is(':checked')) {
+    fd.p_disease = 'ບໍ່ມີ';
+    fd.p_regular_medicine = '';
+  } else {
+    fd.p_disease = String(fd.p_disease || '').trim() || 'ມີ';
+    fd.p_regular_medicine = String(fd.p_regular_medicine || '').trim();
+  }
+  const patientDiseaseInfo = window.composePatientDiseaseInfo(fd.p_disease, fd.p_regular_medicine);
   let pId = fd.p_id;
   if (!isEdit) {
     pId = await window.generateNextPatientID();
@@ -5533,7 +5907,7 @@ window.submitPatientForm = async function (e) {
     District: fd.p_district, Province: fd.p_province,
     Organization_ID: fd.p_org_id, Name_Org: fd.p_org_name,
     Insurance_Company: fd.p_ins_company, Insurance_Code: fd.p_ins_code, Insured_Person_Name: fd.p_ins_name,
-    Drug_Allergy: fd.p_allergy, Underlying_Disease: fd.p_disease,
+    Drug_Allergy: patientAllergyInfo, Underlying_Disease: patientDiseaseInfo,
     Emergency_Name: fd.p_emer_name, Emergency_Contact: fd.p_emer_contact, Emergency_Relation: fd.p_emer_relation,
     Channel: fd.p_channel, Registration_Date: fd.p_date || null, Time: fd.p_time,
     Shift: fd.p_shift, Age_Group: ageGroup,
@@ -5638,13 +6012,35 @@ window.onScanSuccess = function (t) {
 };
 
 window.sendToTriageFlow = async function (id, n) {
+  const now = new Date();
   const result = await Swal.fire({
     title: 'ສົ່ງເຂົ້າ Triage?',
-    text: `ສົ່ງ ${n} ໄປຈຸດຊັກປະຫວັດ?`,
+    html: `<div class="text-start">
+      <p class="mb-3">ສົ່ງ <b>${String(n || '').replace(/</g, '&lt;')}</b> ໄປຈຸດຊັກປະຫວັດ?</p>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label fw-bold">ວັນທີ</label>
+          <input type="date" id="sendTriageDate" class="form-control" value="${window.getLocalStr(now)}">
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-bold">ເວລາ</label>
+          <input type="time" id="sendTriageTime" class="form-control" value="${window.getLocalTimeStr(now)}">
+        </div>
+      </div>
+    </div>`,
     icon: 'question',
     showCancelButton: true,
     confirmButtonText: 'ສົ່ງເຂົ້າຄິວ',
-    confirmButtonColor: '#f59e0b'
+    confirmButtonColor: '#f59e0b',
+    preConfirm: () => {
+      const date = $('#sendTriageDate').val();
+      const time = $('#sendTriageTime').val();
+      if (!date || !time) {
+        Swal.showValidationMessage('ກະລຸນາເລືອກວັນທີ ແລະ ເວລາ');
+        return false;
+      }
+      return { date, time };
+    }
   });
   if (result.isConfirmed) {
     Swal.fire({ title: 'ກຳລັງສົ່ງເຂົ້າຄິວ...', didOpen: () => Swal.showLoading() });
@@ -5658,8 +6054,9 @@ window.sendToTriageFlow = async function (id, n) {
         'error');
     }
     const vId = await window.generateUniqueVisitId();
+    const visitIso = window.combineLocalDateTimeIso(result.value?.date, result.value?.time);
     const { error } = await supabaseClient.from(dbTable('Visits')).insert({
-      Visit_ID: vId, Date: new Date().toISOString(),
+      Visit_ID: vId, Date: visitIso,
       Patient_ID: id, Patient_Name: n, Status: 'Triage'
     });
     if (error) {
@@ -5680,11 +6077,15 @@ window.submitTriageForm = function (e) {
   if (e) e.preventDefault();
   const fd = {};
   new FormData($('#triageForm')[0]).forEach((v, k) => fd[k] = v);
+  fd.v_resp = String(fd.v_resp || '').trim() || '20';
   
-  // ⚠️ BP, Department, Height are now OPTIONAL (not required)
+  if (!String(fd.v_department || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
+    return;
+  }
+
+  // BP and Height are optional.
   let bp = fd.v_bp || "";
-  let dept = fd.v_department || "";
-  let height = fd.v_height || "";
   
   // Only validate BP format if provided
   if (bp && bp.includes('/')) {
@@ -5723,7 +6124,11 @@ window.submitTriageForm = function (e) {
 
 window.executeTriageSave = async function (fd) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-  fd.v_department = String(fd.v_department || '').trim() || 'OPD ທົ່ວໄປ';
+  fd.v_department = String(fd.v_department || '').trim();
+  if (!fd.v_department) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
+    return;
+  }
 
   console.log('=== TRIAGE SAVE DEBUG ===');
   console.log('Visit ID:', fd.visitId);
@@ -5734,7 +6139,8 @@ window.executeTriageSave = async function (fd) {
 
   const parsedBp = window.ipdParseBloodPressure(fd.v_bp);
   const bmiValue = window.ipdCalculateBmiValue(fd.v_weight, fd.v_height);
-  const recordedAt = new Date().toISOString();
+  const recordedAt = window.combineLocalDateTimeIso(fd.v_date, fd.v_time);
+  const recordedBy = String(fd.v_recorded_by || '').trim() || (window.ipdCurrentUserName ? window.ipdCurrentUserName() : (currentUser?.name || currentUser?.id || null));
   const opdVitalPayload = {
     Vital_ID: window.ipdId('OPDVS'),
     Visit_ID: fd.visitId,
@@ -5751,7 +6157,7 @@ window.executeTriageSave = async function (fd) {
     BMI: bmiValue,
     Symptoms: fd.v_symptoms || null,
     Notes: fd.v_notes || null,
-    Recorded_By: window.ipdCurrentUserName ? window.ipdCurrentUserName() : (currentUser?.name || currentUser?.id || null),
+    Recorded_By: recordedBy,
     Created_At: recordedAt,
     Updated_At: recordedAt
   };
@@ -5762,13 +6168,25 @@ window.executeTriageSave = async function (fd) {
   }
   if (vitalRes.error) console.warn('OPD vital signs table is not available yet. Apply IPD clinical migration.', vitalRes.error);
 
-  // Use both Visit_ID and Patient_ID to ensure we update the correct record
-  let query = supabaseClient.from(dbTable('Visits')).update({
-    Status: 'Waiting OPD', BP: fd.v_bp, Temp: fd.v_temp,
+  const visitUpdatePayload = {
+    Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
     Weight: fd.v_weight, Height: fd.v_height,
     BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
-    Department: fd.v_department, Symptoms: fd.v_symptoms
-  }).eq('Visit_ID', fd.visitId);
+    BP_Systolic: parsedBp.systolic, BP_Diastolic: parsedBp.diastolic,
+    Respiratory_Rate: fd.v_resp, O2_Saturation: fd.v_spo2,
+    Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Recorded_By: recordedBy
+  };
+  const visitUpdateFallback = {
+    Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
+    Weight: fd.v_weight, Height: fd.v_height,
+    BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
+    Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Recorded_By: recordedBy
+  };
+
+  // Use both Visit_ID and Patient_ID to ensure we update the correct record
+  let query = supabaseClient.from(dbTable('Visits')).update(visitUpdatePayload).eq('Visit_ID', fd.visitId);
 
   // If Patient_ID is provided, add it to the filter for extra safety
   if (fd.patientId) {
@@ -5776,7 +6194,15 @@ window.executeTriageSave = async function (fd) {
     console.log('Using Patient_ID filter for safety');
   }
 
-  const { data, error } = await query.select();
+  let { data, error } = await query.select();
+  if (error && window.ipdNeedsMigration?.(error)) {
+    console.warn('Visits RR/O2 columns are not available in schema cache. Retrying basic visit update.', error);
+    let fallbackQuery = supabaseClient.from(dbTable('Visits')).update(visitUpdateFallback).eq('Visit_ID', fd.visitId);
+    if (fd.patientId) fallbackQuery = fallbackQuery.eq('Patient_ID', fd.patientId);
+    const fallbackResult = await fallbackQuery.select();
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
 
   console.log('Update result - Data:', data);
   console.log('Update result - Error:', error);
@@ -5785,6 +6211,27 @@ window.executeTriageSave = async function (fd) {
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
   } else {
+    const savedVitals = {
+      rawDate: recordedAt,
+      dateInput: window.formDateFromIso(recordedAt),
+      timeInput: window.formTimeFromIso(recordedAt),
+      date: new Date(recordedAt).toLocaleDateString('en-GB'),
+      time: new Date(recordedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      bp: fd.v_bp || '',
+      temp: fd.v_temp || '',
+      weight: fd.v_weight || '',
+      height: fd.v_height || '',
+      bmi: bmiValue || '',
+      pulse: fd.v_pulse || '',
+      rr: fd.v_resp || '',
+      spo2: fd.v_spo2 || '',
+      symptoms: fd.v_symptoms || '',
+      department: fd.v_department || '',
+      recordedBy
+    };
+    const savedIdx = currentTriageData.findIndex(row => String(row.visitId || row.rowIdx || '') === String(fd.visitId || ''));
+    if (savedIdx >= 0) currentTriageData[savedIdx] = { ...currentTriageData[savedIdx], ...savedVitals };
+
     $('#triageModal').modal('hide');
     window.logAction('Save', 'Triage saved - Visit ' + fd.visitId, 'Triage');
     Swal.fire('ສຳເລັດ!', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ', 'success');
@@ -5937,6 +6384,51 @@ window.ipdCalculateBmiValue = function (weight, height) {
   return Number((w / Math.pow(h / 100, 2)).toFixed(1));
 };
 
+window.fetchLatestOpdVitalsByVisitIds = async function (visitIds = []) {
+  const ids = [...new Set((visitIds || []).filter(Boolean))];
+  const vitalByVisitId = {};
+  if (ids.length === 0) return vitalByVisitId;
+
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunkIds = ids.slice(i, i + 100);
+    const { data, error } = await supabaseClient
+      .from(dbTable('OPD_Vital_Signs'))
+      .select('Visit_ID,Recorded_At,BP_Systolic,BP_Diastolic,Temperature,Pulse,Respiration,SpO2,Weight,Height,BMI,Symptoms,Notes,Recorded_By')
+      .in('Visit_ID', chunkIds)
+      .order('Recorded_At', { ascending: false });
+
+    if (error) {
+      if (!window.ipdNeedsMigration?.(error)) console.warn('OPD vital signs queue lookup failed:', error);
+      return vitalByVisitId;
+    }
+
+    (data || []).forEach(row => {
+      if (row?.Visit_ID && !vitalByVisitId[row.Visit_ID]) vitalByVisitId[row.Visit_ID] = row;
+    });
+  }
+
+  return vitalByVisitId;
+};
+
+window.mergeOpdVitalIntoVisit = function (visit = {}, latestVital = {}) {
+  const bpFromVital = latestVital.BP_Systolic || latestVital.BP_Diastolic
+    ? `${latestVital.BP_Systolic || '-'}/${latestVital.BP_Diastolic || '-'}`
+    : '';
+
+  return {
+    bp: visit.BP || bpFromVital || '',
+    temp: visit.Temp || latestVital.Temperature || '',
+    weight: visit.Weight || latestVital.Weight || '',
+    height: visit.Height || latestVital.Height || '',
+    bmi: visit.BMI || latestVital.BMI || '',
+    pulse: visit.Pulse || latestVital.Pulse || '',
+    rr: visit.Respiration || visit.Respiratory_Rate || latestVital.Respiration || '',
+    spo2: visit.SpO2 || visit.O2_Saturation || latestVital.SpO2 || '',
+    symptoms: visit.Symptoms || latestVital.Symptoms || latestVital.Notes || '',
+    recordedBy: visit.Recorded_By || latestVital.Recorded_By || ''
+  };
+};
+
 window._fetchTriageQueue = async function (sDate, eDate) {
   try {
     if (!sDate) sDate = window.getLocalStr(new Date());
@@ -5989,6 +6481,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     });
 
     if (visits.length === 0) return [];
+    const vitalByVisitId = await window.fetchLatestOpdVitalsByVisitIds(visits.map(v => v.Visit_ID));
 
     // 2. Fetch unique Patient IDs with photo (optional backup)
     const pIds = [...new Set(visits.map(v => v.Patient_ID).filter(id => !!id))];
@@ -6096,8 +6589,12 @@ window._fetchTriageQueue = async function (sDate, eDate) {
         let dObj = new Date(r.Date);
         let p = pMap[r.Patient_ID];
         const visitKey = `${r.Patient_ID}|${r.Date}`;
+        const vital = window.mergeOpdVitalIntoVisit(r, vitalByVisitId[r.Visit_ID]);
         return {
           rowIdx: r.Visit_ID, visitId: r.Visit_ID,
+          rawDate: r.Date || '',
+          dateInput: r.Date ? window.formDateFromIso(r.Date) : window.getLocalStr(new Date()),
+          timeInput: r.Date ? window.formTimeFromIso(r.Date) : window.getLocalTimeStr(new Date()),
           date: r.Date ? dObj.toLocaleDateString('en-GB') : '-',
           time: r.Date ? dObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
           patientId: r.Patient_ID, patientName: r.Patient_Name,
@@ -6107,8 +6604,9 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           age: r.Age || p?.Age || 0,
           gender: r.Gender || p?.Gender || '',
           photoUrl: p?.Photo_URL || '',
-          bp: r.BP, temp: r.Temp, weight: r.Weight, height: r.Height,
-          bmi: r.BMI, pulse: r.Pulse, spo2: r.SpO2, symptoms: r.Symptoms
+          bp: vital.bp, temp: vital.temp, weight: vital.weight, height: vital.height,
+          bmi: vital.bmi, pulse: vital.pulse, rr: vital.rr, spo2: vital.spo2, symptoms: vital.symptoms,
+          recordedBy: vital.recordedBy
         };
       });
   } catch (err) {
@@ -6195,6 +6693,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     });
 
     if (data.length === 0) return [];
+    const vitalByVisitId = await window.fetchLatestOpdVitalsByVisitIds(data.map(v => v.Visit_ID));
 
     const pIds = [...new Set(data.map(v => v.Patient_ID).filter(id => !!id))];
     
@@ -6203,7 +6702,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Age, Photo_URL, Gender')
+          .select('Patient_ID, Age, Photo_URL, Gender, Drug_Allergy, Underlying_Disease')
           .in('Patient_ID', chunkIds);
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
@@ -6269,8 +6768,12 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       let dObj = new Date(r.Date);
       let p = pMap[r.Patient_ID];
       const visitKey = `${r.Patient_ID}|${r.Date}`;
+      const vital = window.mergeOpdVitalIntoVisit(r, vitalByVisitId[r.Visit_ID]);
       return {
         rowIdx: r.Visit_ID, visitId: r.Visit_ID,
+        rawDate: r.Date || '',
+        dateInput: r.Date ? window.formDateFromIso(r.Date) : window.getLocalStr(new Date()),
+        timeInput: r.Date ? window.formTimeFromIso(r.Date) : window.getLocalTimeStr(new Date()),
         date: r.Date ? dObj.toLocaleDateString('en-GB') : '-',
         time: r.Date ? dObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
         patientId: r.Patient_ID, patientName: r.Patient_Name,
@@ -6280,9 +6783,14 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         age: r.Age || p?.Age || 0,
         gender: r.Gender || p?.Gender || '',
         photoUrl: p?.Photo_URL || '',
+        allergy: window.parsePatientAllergyInfo?.(p?.Drug_Allergy || '')?.allergy || p?.Drug_Allergy || '',
+        disease: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.disease || p?.Underlying_Disease || '',
+        regularMedicine: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.regularMedicine || '',
         dischargeStatus: r.Discharge_Status, doctor: r.Doctor_Name,
         nurse: r.Nurse_Name,
-        symptoms: r.Symptoms, bp: r.BP, temp: r.Temp, weight: r.Weight, height: r.Height,
+        symptoms: vital.symptoms, bp: vital.bp, temp: vital.temp, weight: vital.weight, height: vital.height,
+        bmi: vital.bmi, pulse: vital.pulse, rr: vital.rr, spo2: vital.spo2,
+        recordedBy: vital.recordedBy,
         pe: r.Physical_Exam, diagnosis: r.Diagnosis, advice: r.Advice, followup: r.Follow_Up,
         labOrdersStr: r.Lab_Orders_JSON, prescriptionStr: r.Prescription_JSON,
         site: r.Site, type: r.Visit_Type, services: r.Services_List
@@ -6313,7 +6821,7 @@ window.loadTriageQueue = async function () {
       let nb = r.isNew
         ? '<span class="badge patient-badge patient-badge-new ms-2">ຄົນເຈັບໃໝ່</span>'
         : '<span class="badge patient-badge patient-badge-returning ms-2">ຄົນເຈັບເກົ່າ</span>';
-      let btnHtml = `<button class="btn btn-sm btn-info text-white shadow-sm me-1" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-eye"></i></button>`;
+      let btnHtml = `<button class="btn btn-sm btn-triage-view-official me-1" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-file-medical-alt me-1"></i>ເບິ່ງ</button>`;
       if (r.status === 'Triage' || isCalling) {
         btnHtml += `<button class="btn btn-sm btn-danger fw-bold shadow-sm me-1" onclick="window.openTriage(${i})" title="ວັດແທກ"><i class="fas fa-stethoscope"></i> ວັດແທກ</button>`;
       } else {
@@ -6339,24 +6847,21 @@ window.loadTriageQueue = async function () {
   $('#triageTable').DataTable({ responsive: true, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວ Triage" } });
 };
 
-window.viewTriage = function (i) {
+window.viewTriage = async function (i) {
   let r = currentTriageData[i];
+  const latestVitalMap = await window.fetchLatestOpdVitalsByVisitIds?.([r?.visitId || r?.rowIdx]);
+  const latestVital = latestVitalMap?.[r?.visitId || r?.rowIdx];
+  if (latestVital) {
+    r = { ...r, ...window.mergeOpdVitalIntoVisit(r, latestVital) };
+    currentTriageData[i] = r;
+  }
   let isDone = r.status !== 'Triage';
   let statusBadge = isDone
-    ? `<span class="badge bg-success fs-6 px-3 py-2"><i class="fas fa-check-circle me-1"></i> ສົ່ງຫ້ອງກວດແລ້ວ</span>`
-    : `<span class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="fas fa-hourglass-half me-1"></i> ລໍຖ້າວັດແທກ</span>`;
+    ? `<span class="triage-record-status triage-record-status-done"><i class="fas fa-check-circle me-1"></i>ສົ່ງຫ້ອງກວດແລ້ວ</span>`
+    : `<span class="triage-record-status triage-record-status-wait"><i class="fas fa-hourglass-half me-1"></i>ລໍຖ້າວັດແທກ</span>`;
   let newBadge = r.isNew
     ? `<span class="badge patient-badge patient-badge-new ms-2">ຄົນເຈັບໃໝ່</span>`
     : `<span class="badge patient-badge patient-badge-returning ms-2">ຄົນເຈັບເກົ່າ</span>`;
-
-  const makeStat = (label, val, unit, colorClass = '') =>
-    `<div class="col-6 col-md-4 mb-3">
-            <div class="triage-view-stat-card text-center h-100">
-                <div class="small text-muted fw-bold mb-1">${label}</div>
-                <div class="fw-bold triage-view-stat-value ${colorClass}">${val || '<span class="text-muted">-</span>'}</div>
-                ${unit ? `<div class="small text-muted">${unit}</div>` : ''}
-            </div>
-        </div>`;
 
   // Blood pressure color logic
   let bpColor = 'primary';
@@ -6370,43 +6875,75 @@ window.viewTriage = function (i) {
   }
 
   let vitalsHtml = isDone ? `
-        <div class="row g-2">
-          ${makeStat('<i class="fas fa-heart me-1"></i> BP', r.bp, 'mmHg', bpColor)}
-          ${makeStat('<i class="fas fa-thermometer-half me-1"></i> Temp', r.temp ? r.temp + ' °C' : null, null, parseFloat(r.temp) >= 37.5 ? 'triage-stat-danger' : 'triage-stat-info')}
-          ${makeStat('<i class="fas fa-tint me-1"></i> Pulse', r.pulse, 'bpm', 'triage-stat-warn')}
-          ${makeStat('<i class="fas fa-lungs me-1"></i> SpO2', r.spo2 ? r.spo2 + ' %' : null, null, parseFloat(r.spo2) < 95 ? 'triage-stat-danger' : 'triage-stat-ok')}
-          ${makeStat('<i class="fas fa-weight me-1"></i> Weight', r.weight, 'kg', 'triage-stat-muted')}
-          ${makeStat('<i class="fas fa-ruler-vertical me-1"></i> Height', r.height, 'cm', 'triage-stat-muted')}
-        </div>
-        ${r.symptoms ? `<div class="triage-view-note mt-2"><b><i class="fas fa-comment-medical me-1"></i> ອາການເບື້ອງຕົ້ນ:</b> ${r.symptoms}</div>` : ''}
+        <div class="triage-record-section-title">Vital Signs</div>
+        <table class="triage-record-vitals">
+          <thead>
+            <tr>
+              <th>BP</th>
+              <th>Temp</th>
+              <th>PR</th>
+              <th>RR</th>
+              <th>SpO2</th>
+              <th>Weight</th>
+              <th>Height</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="${bpColor}">${r.bp || '-'}</td>
+              <td>${r.temp ? r.temp + ' °C' : '-'}</td>
+              <td>${r.pulse || '-'}</td>
+              <td>${r.rr || '-'}</td>
+              <td>${r.spo2 ? r.spo2 + ' %' : '-'}</td>
+              <td>${r.weight ? r.weight + ' kg' : '-'}</td>
+              <td>${r.height ? r.height + ' cm' : '-'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="triage-record-section-title mt-3">Chief Complaint</div>
+        <div class="triage-record-note">${r.symptoms || '-'}</div>
     ` : `<div class="text-center py-4">
         <i class="fas fa-hourglass-half fa-3x text-muted mb-3 d-block"></i>
         <p class="text-muted">ຍັງບໍ່ໄດ້ວັດ Vital Signs</p>
     </div>`;
 
   Swal.fire({
-      title: `<span class="triage-view-title"><i class="fas fa-heartbeat me-2"></i>${r.patientName} ${newBadge}</span>`,
+      title: `<span class="triage-view-title">ບັນທຶກການຊັກປະຫວັດ</span>`,
     html: `
-          <div class="text-start triage-view-shell">
-            <div class="triage-view-header mb-3">
-                    <div class="d-flex align-items-center gap-3">
-                <div class="triage-view-avatar">
-                  ${r.photoUrl ? `<img src="${r.photoUrl}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user text-muted"></i>`}
-                        </div>
-                        <div>
-                  <div class="fw-bold fs-6">${r.patientId}</div>
-                  <div class="small text-muted"><i class="fas fa-clock me-1"></i>${r.date} ${r.time}</div>
-                  <div class="small mt-1"><span class="badge patient-badge patient-badge-neutral">${r.gender || '-'}</span> <span class="badge patient-badge patient-badge-age">${r.age} ປີ</span></div>
-                        </div>
-                    </div>
-              <div class="text-end triage-view-meta">
-                        ${statusBadge}
-                <div class="small mt-1 text-muted"><i class="fas fa-door-open me-1"></i>${r.department || 'OPD'}</div>
-                    </div>
-                </div>
-                ${vitalsHtml}
-            </div>`,
-    width: '600px',
+      <div class="text-start triage-record-shell">
+        <div class="triage-record-header">
+          <div>
+            <div class="triage-record-name">${r.patientName || '-'}</div>
+            <div class="triage-record-id">${r.patientId || '-'}</div>
+          </div>
+          <div class="triage-record-header-right">
+            ${statusBadge}
+            ${newBadge}
+          </div>
+        </div>
+        <table class="triage-record-info">
+          <tbody>
+            <tr>
+              <th>ວັນທີ / Date</th>
+              <td>${r.date || '-'}</td>
+              <th>ເວລາ / Time</th>
+              <td>${r.time || '-'}</td>
+            </tr>
+            <tr>
+              <th>ເພດ / Gender</th>
+              <td>${r.gender || '-'}</td>
+              <th>ອາຍຸ / Age</th>
+              <td>${r.age || '-'} ປີ</td>
+            </tr>
+            <tr>
+              <th>ຫ້ອງກວດ / Department</th>
+              <td colspan="3">${r.department || 'OPD'}</td>
+            </tr>
+          </tbody>
+        </table>
+        ${vitalsHtml}
+      </div>`,
+    width: '760px',
       confirmButtonText: isDone ? '<i class="fas fa-edit me-1"></i> ແກ້ໄຂ' : '<i class="fas fa-stethoscope me-1"></i> ວັດແທກຕອນນີ້',
       confirmButtonColor: '#1B6BB0',
     showCancelButton: true,
@@ -6415,8 +6952,14 @@ window.viewTriage = function (i) {
   }).then(res => { if (res.isConfirmed) window.openTriage(i); });
 };
 
-window.openTriage = function (i) {
+window.openTriage = async function (i) {
   let r = currentTriageData[i];
+  const latestVitalMap = await window.fetchLatestOpdVitalsByVisitIds?.([r?.visitId || r?.rowIdx]);
+  const latestVital = latestVitalMap?.[r?.visitId || r?.rowIdx];
+  if (latestVital) {
+    r = { ...r, ...window.mergeOpdVitalIntoVisit(r, latestVital) };
+    currentTriageData[i] = r;
+  }
   $('#vPatientId').text(r.patientId);
   $('#vPatientName').text(r.patientName);
 
@@ -6437,14 +6980,23 @@ window.openTriage = function (i) {
   console.log('Triage Modal - Visit ID:', r.rowIdx, 'Patient ID:', r.patientId);
 
   // Always populate fields if data exists (to support editing old records)
+  $('#v_date').val(r.dateInput || window.getLocalStr(new Date()));
+  $('#v_time').val(r.timeInput || window.getLocalTimeStr(new Date()));
   $('input[name="v_bp"]').val(r.bp || '').trigger('input');
   $('input[name="v_temp"]').val(r.temp || '');
   $('input[name="v_weight"]').val(r.weight || '');
   $('input[name="v_height"]').val(r.height || '');
   $('input[name="v_pulse"]').val(r.pulse || '');
+  $('input[name="v_resp"]').val(r.rr || '20');
   $('input[name="v_spo2"]').val(r.spo2 || '');
   $('textarea[name="v_symptoms"]').val(r.symptoms || '');
   $('select[name="v_department"]').val(r.department || '');
+  const recordedBy = String(r.recordedBy || '').trim();
+  const $recordedBy = $('#v_recorded_by');
+  if (recordedBy && !$recordedBy.find(`option[value="${recordedBy.replace(/"/g, '\\"')}"]`).length) {
+    $recordedBy.append(new Option(recordedBy, recordedBy, true, true));
+  }
+  $recordedBy.val(recordedBy);
   window.calculateBMI();
 
   // Clear "Calling" status if opening
@@ -8174,6 +8726,9 @@ window.openEMR = function (i) {
     $('#emrTemp').text("-");
   }
 
+  $('#emrPulse').text(q.pulse ? q.pulse + " bpm" : "-");
+  $('#emrResp').text(q.rr ? q.rr + " /min" : "-");
+  $('#emrSpo2').text(q.spo2 ? q.spo2 + " %" : "-");
   $('#emrWeight').text(q.weight ? q.weight + " kg" : "-");
   
   // Add Height and BMI display
@@ -8189,6 +8744,28 @@ window.openEMR = function (i) {
   }
   $('#emrHeight').text(heightText);
   $('#emrBmi').text(bmiText);
+  const setEmrOpdText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value || '-';
+  };
+  setEmrOpdText('emrOpdPatientId', q.patientId);
+  setEmrOpdText('emrOpdPatientName', q.patientName);
+  setEmrOpdText('emrOpdGenderAge', `${q.gender || '-'} / ${q.age || '-'} ປີ`);
+  setEmrOpdText('emrOpdDepartment', q.department || 'OPD');
+  setEmrOpdText('emrOpdDateTime', `${q.date || '-'} ${q.time || ''}`.trim());
+  setEmrOpdText('emrOpdRecordedBy', q.recordedBy || q.nurse || '-');
+  setEmrOpdText('emrOpdBp', q.bp || '-');
+  setEmrOpdText('emrOpdTemp', q.temp ? `${q.temp} °C` : '-');
+  setEmrOpdText('emrOpdPr', q.pulse || '-');
+  setEmrOpdText('emrOpdRr', q.rr || '-');
+  setEmrOpdText('emrOpdSpo2', q.spo2 ? `${q.spo2} %` : '-');
+  setEmrOpdText('emrOpdWeight', q.weight ? `${q.weight} kg` : '-');
+  setEmrOpdText('emrOpdHeight', heightText);
+  setEmrOpdText('emrOpdBmi', bmiText);
+  setEmrOpdText('emrOpdCc', q.symptoms || '-');
+  setEmrOpdText('emrOpdAllergy', q.allergy || 'ບໍ່ມີ');
+  setEmrOpdText('emrOpdDisease', q.disease || 'ບໍ່ມີ');
+  setEmrOpdText('emrOpdMedicine', q.regularMedicine || '-');
   
   $('#emrPE').val(q.pe || '');
   $('#emrDiagnosis').val(q.diagnosis || '');
@@ -8357,25 +8934,96 @@ window.printOPDCard = async function (s, i) {
       return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບໃນລະບົບ', 'error');
     }
 
+    const latestVitalMap = await window.fetchLatestOpdVitalsByVisitIds?.([v.visitId || v.rowIdx]);
+    const latestVital = latestVitalMap?.[v.visitId || v.rowIdx];
+    if (latestVital) v = { ...v, ...window.mergeOpdVitalIntoVisit(v, latestVital) };
+
+    await window.ensureFreshOpdPrintTemplate?.();
+
     let h1 = document.getElementById('print-opd-header-1');
     let h2 = document.getElementById('print-opd-header-2');
     let f1 = document.getElementById('print-opd-footer-1');
     let f2 = document.getElementById('print-opd-footer-2');
+    let opdPages = document.querySelectorAll('#opd-print-area .opd-page');
+    let page1 = opdPages && opdPages[0] ? opdPages[0] : null;
+    let page2 = opdPages && opdPages[1] ? opdPages[1] : null;
+    let sidebarLogo = document.querySelector('.his-brand-logo');
+    let fallbackLogoSrc = sidebarLogo ? (sidebarLogo.getAttribute('src') || sidebarLogo.src || '') : '';
+    let bindOpdLogo = function (img, src) {
+      if (!img) return;
+      img.alt = '';
+      if (!src) {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        return;
+      }
+      img.onerror = function () {
+        if (img.src && fallbackLogoSrc && img.src !== fallbackLogoSrc) {
+          img.onerror = null;
+          img.src = fallbackLogoSrc;
+          img.style.display = 'block';
+        } else {
+          img.style.display = 'none';
+        }
+      };
+      img.src = src;
+      img.style.display = 'block';
+    };
+    let hideOpdPrintAsset = function (img) {
+      if (!img) return;
+      img.alt = '';
+      img.removeAttribute('src');
+      img.setAttribute('src', '');
+      img.style.display = 'none';
+      img.style.visibility = 'hidden';
+      img.style.height = '0';
+      img.style.overflow = 'hidden';
+      img.style.pageBreakBefore = 'auto';
+      img.style.pageBreakAfter = 'auto';
+      img.style.pageBreakInside = 'avoid';
+    };
 
-    if (systemSettings.opdHeaderUrl) {
-      if (h1) { h1.src = systemSettings.opdHeaderUrl; h1.style.display = 'block'; }
-      if (h2) { h2.src = systemSettings.opdHeaderUrl; h2.style.display = 'block'; }
+    let mountOpdAsset = function (img, targetPage) {
+      if (!img) return;
+      if (targetPage && img.parentElement !== targetPage) targetPage.appendChild(img);
+      img.style.display = 'block';
+      img.style.visibility = 'visible';
+      img.style.height = 'auto';
+      img.style.overflow = 'hidden';
+    };
+
+    if (page1) page1.classList.remove('opd-page--has-top-asset', 'opd-page--has-bottom-asset');
+    if (page2) page2.classList.remove('opd-page--has-top-asset', 'opd-page--has-bottom-asset');
+
+    let page1HeaderSrc = systemSettings.opdPrintPage1HeaderImage || systemSettings.opdHeaderUrl || systemSettings.logoUrl || fallbackLogoSrc;
+    let page2HeaderSrc = systemSettings.opdPrintPage2HeaderImage || systemSettings.opdHeaderUrl || '';
+    let page1FooterSrc = systemSettings.opdPrintPage1FooterImage || systemSettings.opdFooterUrl || '';
+    let page2FooterSrc = systemSettings.opdPrintPage2FooterImage || systemSettings.opdFooterUrl || '';
+
+    bindOpdLogo(h1, page1HeaderSrc);
+
+    if (page2HeaderSrc) {
+      bindOpdLogo(h2, page2HeaderSrc);
+      mountOpdAsset(h2, page2);
+      if (page2) page2.classList.add('opd-page--has-top-asset');
     } else {
-      if (h1) { h1.src = ''; h1.setAttribute('src', ''); h1.style.display = 'none'; }
-      if (h2) { h2.src = ''; h2.setAttribute('src', ''); h2.style.display = 'none'; }
+      hideOpdPrintAsset(h2);
     }
 
-    if (systemSettings.opdFooterUrl) {
-      if (f1) { f1.src = systemSettings.opdFooterUrl; f1.style.display = 'block'; }
-      if (f2) { f2.src = systemSettings.opdFooterUrl; f2.style.display = 'block'; }
+    if (page1FooterSrc) {
+      bindOpdLogo(f1, page1FooterSrc);
+      mountOpdAsset(f1, page1);
+      if (page1) page1.classList.add('opd-page--has-bottom-asset');
     } else {
-      if (f1) { f1.src = ''; f1.setAttribute('src', ''); f1.style.display = 'none'; }
-      if (f2) { f2.src = ''; f2.setAttribute('src', ''); f2.style.display = 'none'; }
+      hideOpdPrintAsset(f1);
+    }
+
+    if (page2FooterSrc) {
+      bindOpdLogo(f2, page2FooterSrc);
+      mountOpdAsset(f2, page2);
+      if (page2) page2.classList.add('opd-page--has-bottom-asset');
+    } else {
+      hideOpdPrintAsset(f2);
     }
 
     let safeSetText = function (id, text) {
@@ -8383,30 +9031,33 @@ window.printOPDCard = async function (s, i) {
       if (el) el.innerText = text;
     };
 
-    safeSetText('popd_cn', d.Patient_ID || "-");
-    safeSetText('popd_orgid', d.Organization_ID || "-");
-    safeSetText('popd_orgname', d.Name_Org || "-");
-    safeSetText('popd_datetime', `${v.date || window.getLocalStr(new Date())} ${v.time || ""}`);
-    safeSetText('popd_vid', v.visitId || "-");
-    safeSetText('popd_dept', v.department || "-");
-    safeSetText('popd_name', d.First_Name || "");
-    safeSetText('popd_surname', d.Last_Name || "");
-    safeSetText('popd_age', d.Age || "-");
-    safeSetText('popd_dob', d.Date_of_Birth || "-");
-    safeSetText('popd_gender', d.Gender || "-");
-    safeSetText('popd_nation', d.Nationality || "-");
-    safeSetText('popd_job', d.Occupation || "-");
-    safeSetText('popd_village', d.Address || "-");
-    safeSetText('popd_district', d.District || "-");
-    safeSetText('popd_prov', d.Province || "-");
-    safeSetText('popd_phone', d.Phone_Number || "-");
-    safeSetText('popd_cc', v.symptoms || "-");
-    safeSetText('popd_temp', v.temp ? v.temp + " °C" : "-");
-    safeSetText('popd_bp', v.bp || "-");
-    safeSetText('popd_pr', v.pulse || "-");
-    safeSetText('popd_spo2', v.spo2 ? v.spo2 + " %" : "-");
-    safeSetText('popd_w', v.weight ? v.weight + " kg" : "-");
-    safeSetText('popd_h', v.height ? v.height + " cm" : "-");
+    const printPatientId = d.Patient_ID || '';
+    safeSetText('popd_cn', printPatientId);
+    safeSetText('popd_org_id', d.Organization_ID || '');
+    safeSetText('popd_orgname', d.Name_Org || '');
+    safeSetText('popd_datetime', ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || '')).trim());
+    safeSetText('popd_vid', v.visitId || '');
+    safeSetText('popd_dept', v.department || '');
+    window.renderOpdPatientBarcode(printPatientId);
+    safeSetText('popd_name', d.First_Name || '');
+    safeSetText('popd_surname', d.Last_Name || '');
+    safeSetText('popd_age', d.Age || '');
+    safeSetText('popd_dob', d.Date_of_Birth || '');
+    safeSetText('popd_gender', d.Gender || '');
+    safeSetText('popd_nation', d.Nationality || '');
+    safeSetText('popd_job', d.Occupation || '');
+    safeSetText('popd_village', d.Address || '');
+    safeSetText('popd_district', d.District || '');
+    safeSetText('popd_prov', d.Province || '');
+    safeSetText('popd_phone', d.Phone_Number || '');
+    safeSetText('popd_cc', v.symptoms || '');
+    safeSetText('popd_temp', v.temp ? v.temp + ' °C' : '');
+    safeSetText('popd_bp', v.bp || '');
+    safeSetText('popd_pr', v.pulse || '');
+    safeSetText('popd_rr', v.rr || v.Respiration || v.resp || '-');
+    safeSetText('popd_spo2', v.spo2 || v.SpO2 || '-');
+    safeSetText('popd_w', v.weight ? v.weight + ' kg' : '');
+    safeSetText('popd_h', v.height ? v.height + ' cm' : '');
 
     let bmiText = "-";
     if (v.weight && v.height) {
@@ -8417,17 +9068,183 @@ window.printOPDCard = async function (s, i) {
       }
     }
 
+    const printAllergyInfo = window.parsePatientAllergyInfo(d.Drug_Allergy || '');
+    const printDiseaseInfo = window.parsePatientDiseaseInfo(d.Underlying_Disease || '');
+    const hasPrintAllergy = !!(printAllergyInfo.hasDrug || printAllergyInfo.hasFood || printAllergyInfo.symptoms);
+    const hasPrintDisease = !!(printDiseaseInfo.disease && printDiseaseInfo.disease !== 'ບໍ່ມີ' && printDiseaseInfo.disease !== '-');
+    const hasPrintMedicine = !!(printDiseaseInfo.regularMedicine && printDiseaseInfo.regularMedicine !== 'ບໍ່ມີ' && printDiseaseInfo.regularMedicine !== '-');
+    const checkedMark = '☑';
+    const emptyMark = '□';
     safeSetText('popd_bmi', bmiText);
-    safeSetText('popd_allergy', d.Drug_Allergy || "ບໍ່ມີ");
-    safeSetText('popd_disease', d.Underlying_Disease || "ບໍ່ມີ");
+    safeSetText('popd_allergy_yes', hasPrintAllergy ? checkedMark : emptyMark);
+    safeSetText('popd_allergy_no', hasPrintAllergy ? emptyMark : checkedMark);
+    safeSetText('popd_allergy_drug_check', printAllergyInfo.hasDrug ? checkedMark : emptyMark);
+    safeSetText('popd_allergy_food_check', printAllergyInfo.hasFood ? checkedMark : emptyMark);
+    safeSetText('popd_allergy', printAllergyInfo.allergy || '');
+    safeSetText('popd_symptoms', printAllergyInfo.symptoms || '');
+    safeSetText('popd_disease_yes', hasPrintDisease ? checkedMark : emptyMark);
+    safeSetText('popd_disease_no', hasPrintDisease ? emptyMark : checkedMark);
+    safeSetText('popd_disease', printDiseaseInfo.disease || '');
+    safeSetText('popd_medicine_yes', hasPrintMedicine ? checkedMark : emptyMark);
+    safeSetText('popd_medicine_no', hasPrintMedicine ? emptyMark : checkedMark);
+    safeSetText('popd_regular_medicine', printDiseaseInfo.regularMedicine || '');
+    safeSetText('popd_coverage', d.Name_Org || '');
+    safeSetText('popd_discount', d.Discount || '');
+    safeSetText('popd_doctor', v.recordedBy || v.nurse || '');
 
     Swal.close();
-    window.executePrint('opd-print-area');
+    // OPD card uses programmatic PDF export (Option B) instead of window.print().
+    // This avoids Chrome's browser-injected date/URL/page-number headers, which
+    // the print dialog otherwise stamps on every printed page.
+    await window.exportOpdCardAsPdf(printPatientId);
 
   } catch (err) {
     Swal.close();
     console.error("Print Error:", err);
     Swal.fire('ຂໍ້ຜິດພາດ', 'ເກີດບັນຫາໃນການຈັດກຽມເອກະສານ', 'error');
+  }
+};
+
+/**
+ * Render #opd-print-area to a real PDF (no browser print dialog) using
+ * html2canvas + jsPDF directly. Output: exactly 2 A4 portrait pages,
+ * no browser-injected date / URL / page numbers, full content visible
+ * on both pages. Opens in a new tab so the user can save/print without
+ * re-entering the browser print dialog.
+ *
+ * NOTE: this deliberately bypasses html2pdf.js. html2pdf clones the source
+ * element into its own off-screen container with its own viewport sizing,
+ * which was clipping our 186mm-wide pages to the right half. Calling the
+ * underlying libs directly avoids that whole class of problem.
+ */
+window.exportOpdCardAsPdf = async function (filenameSuffix) {
+  const target = document.getElementById('opd-print-area');
+  if (!target) return;
+
+  const html2canvas = window.html2canvas;
+  const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (typeof html2canvas !== 'function' || typeof jsPDF !== 'function') {
+    Swal.fire('PDF Error', 'PDF libraries (html2canvas/jsPDF) are not loaded', 'error');
+    return;
+  }
+
+  // Reveal #opd-print-area so html2canvas can read its computed layout
+  const wrapper = document.querySelector('.wrapper');
+  const prevWrapperDisplay = wrapper ? wrapper.style.display : '';
+  if (wrapper) wrapper.style.display = 'none';
+
+  const allPrintEls = document.querySelectorAll('.print-container');
+  const prevContainerState = [];
+  allPrintEls.forEach(el => {
+    prevContainerState.push({ el, display: el.style.display, active: el.classList.contains('print-active') });
+    el.style.display = (el.id === 'opd-print-area') ? 'block' : 'none';
+    el.classList.remove('print-active');
+  });
+  target.classList.add('print-active');
+
+  // Ensure layout / fonts are ready
+  await new Promise(r => setTimeout(r, 250));
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (_) { /* ignore */ }
+  }
+
+  const safeStamp = String(filenameSuffix || '').replace(/[^a-zA-Z0-9_-]/g, '') || Date.now();
+  const filename = `OPD-Card-${safeStamp}.pdf`;
+
+  // A4 portrait, with 10mm top/bottom and 12mm side margins
+  const PAGE_W_MM = 210, PAGE_H_MM = 297;
+  const MARGIN_X_MM = 12, MARGIN_Y_MM = 10;
+  const INNER_W_MM = PAGE_W_MM - 2 * MARGIN_X_MM; // 186
+  const INNER_H_MM = PAGE_H_MM - 2 * MARGIN_Y_MM; // 277
+  // 96 dpi → 1mm = 3.7795 px
+  const CSS_PX_PER_MM = 96 / 25.4;
+  const INNER_W_PX = Math.round(INNER_W_MM * CSS_PX_PER_MM); // ≈ 703
+  const INNER_H_PX = Math.round(INNER_H_MM * CSS_PX_PER_MM); // ≈ 1047
+
+  const pages = Array.from(target.querySelectorAll('.opd-page')).slice(0, 2);
+
+  // Force each .opd-page to the exact printable size so html2canvas captures the
+  // full sheet at the same width jsPDF will place it (no scaling surprises).
+  const prevPageStyles = pages.map(page => ({
+    page,
+    cssText: page.style.cssText
+  }));
+  pages.forEach(page => {
+    Object.assign(page.style, {
+      width: INNER_W_MM + 'mm',
+      minWidth: INNER_W_MM + 'mm',
+      maxWidth: INNER_W_MM + 'mm',
+      height: INNER_H_MM + 'mm',
+      minHeight: INNER_H_MM + 'mm',
+      maxHeight: INNER_H_MM + 'mm',
+      margin: '0',
+      padding: '0',
+      overflow: 'hidden',
+      background: '#fff',
+      boxSizing: 'border-box'
+    });
+  });
+
+  let blobUrl = null;
+  try {
+    if (pages.length !== 2) {
+      throw new Error(`Expected 2 OPD pages, found ${pages.length}`);
+    }
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: INNER_W_PX,
+        windowHeight: INNER_H_PX,
+        width: INNER_W_PX,
+        height: INNER_H_PX,
+        scrollX: 0,
+        scrollY: -window.scrollY
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      if (i > 0) pdf.addPage('a4', 'portrait');
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        MARGIN_X_MM,
+        MARGIN_Y_MM,
+        INNER_W_MM,
+        INNER_H_MM,
+        `opd-page-${i + 1}`,
+        'FAST'
+      );
+    }
+
+    const blob = pdf.output('blob');
+    blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch (err) {
+    console.error('OPD PDF export failed:', err);
+    Swal.fire('PDF Error', 'Could not create OPD PDF', 'error');
+  } finally {
+    prevPageStyles.forEach(({ page, cssText }) => { page.style.cssText = cssText; });
+    target.classList.remove('print-active');
+    prevContainerState.forEach(({ el, display, active }) => {
+      el.style.display = display || '';
+      if (active) el.classList.add('print-active');
+    });
+    if (wrapper) wrapper.style.display = prevWrapperDisplay || 'block';
+    if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
   }
 };
 
@@ -9629,7 +10446,7 @@ window._masterDataFallback = {
 window.loadMasterDataGlobalCallback = function (data) {
   masterDataStore = data || {};
   let missingCategories = [];
-  ['Department', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
+  ['Department', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Nurse', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
     let o = '<option value="">-- ເລືອກ --</option>';
     const sourceData = masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
     if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
@@ -10129,6 +10946,7 @@ window.submitSettingsForm = async function (e) {
 
     // ອັບເດດຄ່າໃນລະບົບ
     systemSettings = {
+      ...systemSettings,
       hospitalName: ns.HospitalName,
       logoUrl: ns.LogoUrl,
       opdHeaderUrl: ns.OpdHeaderUrl,
@@ -10146,6 +10964,40 @@ window.submitSettingsForm = async function (e) {
   }
 };
 
+window.submitOpdPrintSettingsForm = async function (e) {
+  if (e) e.preventDefault();
+  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
+
+  const settings = [
+    { Key: 'opd_print_page1_header_image', Value: $('#opd_print_page1_header_image').val() || '' },
+    { Key: 'opd_print_page2_header_image', Value: $('#opd_print_page2_header_image').val() || '' },
+    { Key: 'opd_print_page1_footer_image', Value: $('#opd_print_page1_footer_image').val() || '' },
+    { Key: 'opd_print_page2_footer_image', Value: $('#opd_print_page2_footer_image').val() || '' }
+  ];
+
+  try {
+    const { error } = await supabaseClient.from(dbTable('Settings')).upsert(settings, { onConflict: 'Key' });
+    if (error) {
+      console.error('OPD print settings save error:', error);
+      Swal.fire('Error', error.message, 'error');
+      return;
+    }
+
+    systemSettings = {
+      ...systemSettings,
+      opdPrintPage1HeaderImage: settings[0].Value,
+      opdPrintPage2HeaderImage: settings[1].Value,
+      opdPrintPage1FooterImage: settings[2].Value,
+      opdPrintPage2FooterImage: settings[3].Value
+    };
+
+    Swal.fire('ສຳເລັດ!', 'ບັນທຶກຄ່າຮູບພາບ OPD print ແລ້ວ', 'success');
+  } catch (err) {
+    console.error('OPD print settings save exception:', err);
+    Swal.fire('Error', err.message, 'error');
+  }
+};
+
 // ຟັງຊັນສຳລັບດຶງຄ່າຕັ້ງຄ່າມາສະແດງ
 window.loadSettingsData = async function () {
   try {
@@ -10156,13 +11008,27 @@ window.loadSettingsData = async function () {
       return;
     }
 
-    let s = {};
+    let s = {
+      hospitalName: 'HIS HOSPITAL',
+      logoUrl: '',
+      opdHeaderUrl: '',
+      opdFooterUrl: '',
+      opdPrintPage1HeaderImage: '',
+      opdPrintPage2HeaderImage: '',
+      opdPrintPage1FooterImage: '',
+      opdPrintPage2FooterImage: '',
+      rememberLastModule: false
+    };
     if (data) {
       data.forEach(row => {
         if (row.Key === 'HospitalName') s.hospitalName = row.Value;
         if (row.Key === 'LogoUrl') s.logoUrl = row.Value;
         if (row.Key === 'OpdHeaderUrl') s.opdHeaderUrl = row.Value;
         if (row.Key === 'OpdFooterUrl') s.opdFooterUrl = row.Value;
+        if (row.Key === 'opd_print_page1_header_image') s.opdPrintPage1HeaderImage = row.Value || '';
+        if (row.Key === 'opd_print_page2_header_image') s.opdPrintPage2HeaderImage = row.Value || '';
+        if (row.Key === 'opd_print_page1_footer_image') s.opdPrintPage1FooterImage = row.Value || '';
+        if (row.Key === 'opd_print_page2_footer_image') s.opdPrintPage2FooterImage = row.Value || '';
         if (row.Key === 'RememberLastModule') s.rememberLastModule = window.normalizeBooleanSetting(row.Value);
       });
     }
@@ -10173,6 +11039,14 @@ window.loadSettingsData = async function () {
     $('#setOpdHeaderUrl').val(s.opdHeaderUrl || "");
     $('#setOpdFooterUrl').val(s.opdFooterUrl || "");
     $('#setRememberLastModule').prop('checked', !!s.rememberLastModule);
+    $('#opd_print_page1_header_image').val(s.opdPrintPage1HeaderImage || '');
+    $('#opd_print_page2_header_image').val(s.opdPrintPage2HeaderImage || '');
+    $('#opd_print_page1_footer_image').val(s.opdPrintPage1FooterImage || '');
+    $('#opd_print_page2_footer_image').val(s.opdPrintPage2FooterImage || '');
+    window.renderOpdPrintImagePreview('opd_print_page1_header_image', s.opdPrintPage1HeaderImage || '');
+    window.renderOpdPrintImagePreview('opd_print_page2_header_image', s.opdPrintPage2HeaderImage || '');
+    window.renderOpdPrintImagePreview('opd_print_page1_footer_image', s.opdPrintPage1FooterImage || '');
+    window.renderOpdPrintImagePreview('opd_print_page2_footer_image', s.opdPrintPage2FooterImage || '');
 
     if (typeof window.loadMasterList === 'function') window.loadMasterList();
   } catch (err) {

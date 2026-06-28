@@ -1,37 +1,85 @@
 <!-- EMR Modal -->
-<div class="modal fade" id="emrModal" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade emr-his-modal" id="emrModal" tabindex="-1" data-bs-backdrop="static">
   <div class="modal-dialog modal-xl">
     <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-info text-white d-flex align-items-center">
-        <div class="d-flex align-items-center gap-3">
-          <div class="emr-photo-wrapper" style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center;">
-            <img id="emr_p_photo" src="" style="display:none; width: 100%; height: 100%; object-fit: cover;">
-            <i class="fas fa-user text-white-50" id="emr_p_photo_placeholder"></i>
-          </div>
+      <!-- Encounter title strip -->
+      <div class="modal-header emr-his-titlebar">
+        <div class="emr-his-titlebar-left">
+          <i class="fas fa-stethoscope"></i>
           <div>
-            <h5 class="modal-title fw-bold mb-0"><i class="fas fa-user-md me-2"></i>ຫ້ອງກວດແພດ (EMR)</h5>
-            <div class="small mt-1 opacity-75"><span id="emrPatientId" class="me-2"></span><span id="emrPatientName" class="fw-bold"></span></div>
+            <div class="emr-his-titlebar-label">Encounter / ບັນທຶກການກວດ</div>
+            <h5 class="emr-his-titlebar-title">ຫ້ອງກວດແພດ (EMR)</h5>
           </div>
         </div>
-        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-3">
-        <div class="alert border rounded d-flex align-items-center gap-3 mb-3 py-2 px-3 bg-light border-secondary" id="emrAllergyBox">
-          <i class="fas fa-exclamation-triangle fa-lg text-secondary" id="emrAllergyIcon"></i>
-          <div><span class="fw-bold text-secondary small">ປະຫວັດການແພ້:</span><span id="emrAllergy" class="fw-bold text-secondary ms-1">ບໍ່ມີ</span></div>
+        <div class="emr-his-titlebar-meta">
+          <span class="emr-his-status-pill" id="emrEncounterStatus">
+            <span class="emr-his-status-dot"></span>OPEN
+          </span>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="card bg-light border-0 mb-3">
-          <div class="card-body py-2 px-3">
-            <div class="d-flex flex-wrap gap-4 align-items-center">
-              <div><i class="fas fa-comment-medical text-primary me-1"></i><b>CC:</b> <span id="emrCC" class="text-dark">-</span></div>
-              <div><i class="fas fa-heartbeat text-danger me-1"></i><b>BP:</b> <span id="emrBp" class="fw-bold">-</span></div>
-              <div><i class="fas fa-thermometer-half text-warning me-1"></i><b>Temp:</b> <span id="emrTemp" class="fw-bold">-</span></div>
-              <div><i class="fas fa-weight text-success me-1"></i><b>Wt:</b> <span id="emrWeight">-</span></div>
-              <div><i class="fas fa-ruler-vertical text-info me-1"></i><b>Ht:</b> <span id="emrHeight" class="fw-bold">-</span></div>
-              <div><i class="fas fa-calculator text-secondary me-1"></i><b>BMI:</b> <span id="emrBmi" class="fw-bold">-</span></div>
+      </div>
+
+      <div class="modal-body p-0">
+        <!-- Patient banner -->
+        <section class="emr-his-banner">
+          <div class="emr-his-banner-photo">
+            <img id="emr_p_photo" src="" alt="" />
+            <i class="fas fa-user" id="emr_p_photo_placeholder"></i>
+          </div>
+          <div class="emr-his-banner-main">
+            <div class="emr-his-banner-name-row">
+              <span id="emrPatientName" class="emr-his-banner-name">—</span>
+            </div>
+            <div class="emr-his-banner-chips">
+              <span class="emr-his-chip emr-his-chip-id" id="emrPatientId">—</span>
+              <span class="emr-his-chip" id="emrPatientDemo"><i class="fas fa-venus-mars"></i><span>—</span></span>
             </div>
           </div>
-        </div>
+          <div class="emr-his-banner-alerts">
+            <div class="emr-his-allergy" id="emrAllergyBox">
+              <i class="fas fa-allergies" id="emrAllergyIcon"></i>
+              <div>
+                <span class="emr-his-allergy-label">ALLERGY</span>
+                <span class="emr-his-allergy-value" id="emrAllergy">ບໍ່ມີ</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Vitals strip -->
+        <section class="emr-his-vitals-strip">
+          <div class="emr-his-vitals-cc"><i class="fas fa-comment-medical"></i>
+            <div><span class="emr-his-vital-key">Chief Complaint</span>
+              <span id="emrCC" class="emr-his-cc-value">-</span>
+            </div>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-heartbeat"></i>
+            <span class="emr-his-vital-key">BP</span><span id="emrBp" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-thermometer-half"></i>
+            <span class="emr-his-vital-key">Temp</span><span id="emrTemp" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-tint"></i>
+            <span class="emr-his-vital-key">PR</span><span id="emrPulse" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-lungs"></i>
+            <span class="emr-his-vital-key">RR</span><span id="emrResp" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-wind"></i>
+            <span class="emr-his-vital-key">SpO₂</span><span id="emrSpo2" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-weight"></i>
+            <span class="emr-his-vital-key">Wt</span><span id="emrWeight" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile"><i class="fas fa-ruler-vertical"></i>
+            <span class="emr-his-vital-key">Ht</span><span id="emrHeight" class="emr-his-vital-val">-</span>
+          </div>
+          <div class="emr-his-vital-tile emr-his-vital-tile-bmi"><i class="fas fa-calculator"></i>
+            <span class="emr-his-vital-key">BMI</span><span id="emrBmi" class="emr-his-vital-val">-</span>
+          </div>
+        </section>
+
+        <div class="emr-his-body">
         <form id="emrForm" onsubmit="window.submitEMRForm(event)">
           <input type="hidden" id="emrRowIdx">
           <div class="emr-workflow-shell">
@@ -86,6 +134,15 @@
                 </div>
               </div>
 
+              <!-- Hidden mirror IDs (kept so existing JS bindings continue to work) -->
+              <div class="emr-opd-mirror-ids" aria-hidden="true" style="display:none;">
+                <span id="emrOpdPatientId"></span><span id="emrOpdPatientName"></span><span id="emrOpdGenderAge"></span>
+                <span id="emrOpdDepartment"></span><span id="emrOpdDateTime"></span><span id="emrOpdRecordedBy"></span>
+                <span id="emrOpdBp"></span><span id="emrOpdTemp"></span><span id="emrOpdPr"></span><span id="emrOpdRr"></span>
+                <span id="emrOpdSpo2"></span><span id="emrOpdWeight"></span><span id="emrOpdHeight"></span><span id="emrOpdBmi"></span>
+                <span id="emrOpdCc"></span><span id="emrOpdAllergy"></span><span id="emrOpdDisease"></span><span id="emrOpdMedicine"></span>
+              </div>
+
               <div class="tab-pane fade emr-workflow-tab-pane" id="emr-lab-pane" role="tabpanel" aria-labelledby="emr-lab-tab">
                 <section class="emr-order-panel lab">
                   <div class="emr-order-panel-header">
@@ -123,8 +180,20 @@
               </div>
             </div>
           </div>
-          <button type="submit" class="btn btn-info text-white w-100 fw-bold mt-3 py-2 shadow-sm"><i class="fas fa-save me-2"></i>ບັນທຶກຜົນການກວດ</button>
         </form>
+        </div><!-- /.emr-his-body -->
+
+        <!-- Footer action bar -->
+        <div class="emr-his-footer">
+          <div class="emr-his-footer-meta">
+            <i class="fas fa-info-circle"></i>
+            <span>ກວດສອບລາຍລະອຽດກ່ອນບັນທຶກ. ການວິນິດໄສ &amp; ສະຖານະປິດຈົບເປັນຂໍ້ບັງຄັບເມື່ອປິດການກວດ.</span>
+          </div>
+          <div class="emr-his-footer-actions">
+            <button type="button" class="btn emr-his-btn-ghost" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>ຍົກເລີກ</button>
+            <button type="submit" form="emrForm" class="btn emr-his-btn-primary"><i class="fas fa-save me-2"></i>ບັນທຶກຜົນການກວດ</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

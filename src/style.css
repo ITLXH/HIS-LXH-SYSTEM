@@ -613,7 +613,140 @@ body {
   color: #1e293b;
 }
 
+.patient-allergy-panel {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.patient-allergy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.patient-allergy-status {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.patient-allergy-status.is-active {
+  color: #dc3545;
+}
+
+.patient-allergy-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.patient-single-option {
+  grid-template-columns: 1fr;
+}
+
+.patient-allergy-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 1px solid #cfe4df;
+  border-radius: 4px;
+  background: #fff;
+  color: #44546a;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.patient-allergy-option:has(input:checked) {
+  border-color: #dc3545;
+  background: #fffafa;
+}
+
+.patient-allergy-option .form-check-input {
+  position: static;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-color: #dc3545;
+}
+
+.patient-allergy-option > span {
+  min-width: 0;
+  padding-left: 0;
+}
+
+.patient-allergy-option strong,
+.patient-allergy-option small {
+  display: block;
+  line-height: 1.25;
+}
+
+.patient-allergy-option strong {
+  font-size: 13px;
+}
+
+.patient-allergy-option small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.patient-allergy-details {
+  margin-top: 8px;
+}
+
+.patient-allergy-detail {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 575.98px) {
+  .patient-allergy-options {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-allergy-head {
+    flex-direction: column;
+  }
+}
+
 /* ===== EMR ORDERS ===== */
+#emrModal .modal-dialog {
+  max-width: min(1420px, calc(100vw - 36px));
+}
+
+#emrModal .modal-content {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#emrModal .modal-header {
+  background: #1f5f97 !important;
+  min-height: 76px;
+}
+
+#emrModal .modal-body {
+  background: #f7f9fc;
+}
+
+#emrModal .card.bg-light {
+  border: 1px solid #d8e1ec !important;
+  background: #ffffff !important;
+  border-radius: 4px;
+}
+
+#emrModal .alert {
+  border-radius: 4px !important;
+}
+
 .emr-workflow-shell {
   border: 1px solid #dbe7ef;
   border-radius: 6px;
@@ -623,7 +756,7 @@ body {
 
 .emr-workflow-tabs {
   border-bottom: 1px solid #dbe7ef;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  background: #eef4fa;
   padding: 10px 12px 0;
   gap: 8px;
 }
@@ -634,11 +767,11 @@ body {
 
 .emr-workflow-tabs .nav-link {
   border: 1px solid transparent;
-  border-radius: 14px 14px 0 0;
-  color: #475569;
+  border-radius: 6px 6px 0 0;
+  color: #394a5f;
   font-size: 13px;
   font-weight: 800;
-  padding: 12px 16px;
+  padding: 11px 15px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -651,10 +784,111 @@ body {
 }
 
 .emr-workflow-tabs .nav-link.active {
-  color: #0f172a;
+  color: #173f66;
   background: #fff;
   border-color: #dbe7ef #dbe7ef #fff;
   box-shadow: 0 -1px 0 #fff inset;
+}
+
+.emr-clinical-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 900;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #d8e1ec;
+}
+
+.emr-clinical-section-title i {
+  color: #1f5f97;
+}
+
+.emr-opd-card-panel {
+  border: 1px solid #d8e1ec;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.emr-opd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.emr-opd-field {
+  border: 1px solid #e1e8f0;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #fbfcfe;
+}
+
+.emr-opd-field span,
+.emr-opd-note span {
+  display: block;
+  color: #667085;
+  font-size: 11.5px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.emr-opd-field strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.emr-opd-vitals-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid #cfd8e3;
+}
+
+.emr-opd-vitals-table th,
+.emr-opd-vitals-table td {
+  border: 1px solid #cfd8e3;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.emr-opd-vitals-table th {
+  background: #f3f6f9;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.emr-opd-vitals-table td {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.emr-opd-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.emr-opd-note {
+  border: 1px solid #e1e8f0;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 10px 12px;
+  min-height: 72px;
+}
+
+.emr-opd-note p {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
 }
 
 .emr-tab-count {
@@ -828,6 +1062,17 @@ body {
 
   .emr-workflow-content {
     padding: 14px;
+  }
+
+  .emr-opd-grid,
+  .emr-opd-notes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .emr-opd-vitals-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
 
@@ -1398,6 +1643,317 @@ body {
   overflow-x: hidden;
   margin: 0;
   padding-top: var(--nav-height);
+}
+
+/* ============================================================
+   EMR (ໜ້າສັ່ງກວດແພດ) — plain clinical HIS look
+   Restrained colors, no gradients, dense info, real-world hospital
+   software feel. The vitals strip + patient banner are the single
+   source of truth — the old "OPD Card" tab is removed because the
+   same data was duplicated there.
+   ============================================================ */
+.emr-his-modal .modal-dialog {
+  max-width: min(1420px, calc(100vw - 36px));
+}
+.emr-his-modal .modal-content {
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #c7d0db;
+  box-shadow: 0 6px 24px rgba(15, 32, 60, 0.12);
+}
+
+/* Top title strip — flat, single solid blue */
+.emr-his-modal .modal-header.emr-his-titlebar {
+  background: #1f5f97 !important;
+  color: #fff;
+  padding: 8px 16px;
+  border-bottom: 1px solid #174a78;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: auto;
+}
+.emr-his-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.emr-his-titlebar-left > i {
+  font-size: 14px;
+  opacity: 0.85;
+}
+.emr-his-titlebar-label {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.75;
+  font-weight: 700;
+}
+.emr-his-titlebar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.emr-his-titlebar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.emr-his-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 2px 9px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.emr-his-status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+/* Patient banner — compact strip, white bg, plain chips */
+.emr-his-banner {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 16px;
+  background: #fff;
+  border-bottom: 1px solid #d8e1ec;
+}
+.emr-his-banner-photo {
+  position: relative;
+  width: 44px; height: 44px;
+  border-radius: 4px;
+  background: #eef2f7;
+  border: 1px solid #cbd5e1;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 20px;
+}
+.emr-his-banner-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: none;
+}
+.emr-his-banner-photo img[src]:not([src=""]) { display: block; }
+.emr-his-banner-photo img[src]:not([src=""]) ~ i { display: none; }
+.emr-his-banner-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+.emr-his-banner-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.emr-his-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.emr-his-chip i { font-size: 9px; opacity: 0.6; }
+.emr-his-chip-id {
+  background: #fff;
+  border-color: #94a3b8;
+  color: #1f5f97;
+  font-family: "Consolas", monospace;
+  font-weight: 700;
+}
+.emr-his-banner-alerts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emr-his-allergy {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  min-width: 0;
+}
+.emr-his-allergy i { font-size: 13px; }
+.emr-his-allergy-label {
+  display: inline;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #991b1b;
+  margin-right: 4px;
+}
+.emr-his-allergy-value {
+  display: inline;
+  font-size: 12px;
+  font-weight: 700;
+  color: #991b1b;
+}
+.emr-his-allergy.is-clear {
+  border-color: #d1d5db;
+  color: #475569;
+}
+.emr-his-allergy.is-clear i,
+.emr-his-allergy.is-clear .emr-his-allergy-label,
+.emr-his-allergy.is-clear .emr-his-allergy-value {
+  color: #64748b;
+}
+
+/* Vital signs strip — flat single-tone, no per-icon colours */
+.emr-his-vitals-strip {
+  display: grid;
+  grid-template-columns: 2.2fr repeat(8, 1fr);
+  background: #fff;
+  border-bottom: 1px solid #d8e1ec;
+}
+.emr-his-vital-tile,
+.emr-his-vitals-cc {
+  background: #fff;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  border-right: 1px solid #e5eaf1;
+}
+.emr-his-vital-tile:last-child { border-right: 0; }
+.emr-his-vitals-cc {
+  background: #f9fafb;
+}
+.emr-his-vitals-cc > i {
+  color: #1f5f97;
+  font-size: 13px;
+}
+.emr-his-vital-tile > i {
+  width: 20px;
+  flex: 0 0 20px;
+  color: #1f5f97;
+  font-size: 12px;
+  text-align: center;
+}
+.emr-his-vital-key {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #6b7280;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.emr-his-vital-val {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.1;
+}
+.emr-his-cc-value {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-top: 2px;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Body wrapper around the form / tabs */
+.emr-his-body {
+  background: #f5f7fa;
+  padding: 12px 14px;
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+.emr-his-body .emr-workflow-shell {
+  border-radius: 4px;
+  border: 1px solid #d8e1ec;
+  box-shadow: none;
+}
+
+/* Footer action bar — flat */
+.emr-his-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 8px 16px;
+  background: #f9fafb;
+  border-top: 1px solid #d8e1ec;
+}
+.emr-his-footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #6b7280;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.emr-his-footer-meta i { color: #1f5f97; }
+.emr-his-footer-actions { display: flex; gap: 8px; }
+.emr-his-btn-ghost {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 5px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 3px;
+}
+.emr-his-btn-ghost:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #334155;
+}
+.emr-his-btn-primary {
+  background: #1f5f97;
+  border: 1px solid #174a78;
+  color: #fff;
+  padding: 5px 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 3px;
+  box-shadow: none;
+}
+.emr-his-btn-primary:hover {
+  background: #174a78;
+  border-color: #0f3a60;
+  color: #fff;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .emr-his-vitals-strip { grid-template-columns: repeat(5, 1fr); }
+  .emr-his-vitals-cc { grid-column: span 5; border-right: 0; border-bottom: 1px solid #e5eaf1; }
+}
+@media (max-width: 760px) {
+  .emr-his-vitals-strip { grid-template-columns: repeat(4, 1fr); }
+  .emr-his-vitals-cc { grid-column: span 4; }
+  .emr-his-banner { grid-template-columns: 44px 1fr; }
+  .emr-his-banner-alerts { grid-column: 1 / -1; }
 }
 
 /* ===== TOP NAVBAR ===== */
@@ -2023,14 +2579,10 @@ h6 {
 
   .print-active {
     display: block !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
     width: 100% !important;
-    height: auto !important;
+    max-width: none !important;
     margin: 0 !important;
-    padding: 3mm !important;
-    box-sizing: border-box !important;
+    padding: 0 !important;
   }
 
   .print-active * {
@@ -2045,118 +2597,2538 @@ h6 {
     background-color: white !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 14px !important;
+    font-size: 12px !important;
   }
 
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 4mm;
   }
 
-  .opd2-row {
-    height: 8mm;
-  }
-
-  .opd2-row td {
-    height: 8mm;
-    padding: 0 5px;
-  }
-
-  .opd2-dx-row td {
-    height: 8mm;
-    padding: 2px 5px;
-    font-size: 12px;
-  }
-
-  .opd2-followup-row {
-    height: 6.5mm;
-  }
-
-  .opd2-followup-row td {
-    height: 6.5mm;
-    padding: 0 5px;
-  }
-
-  .opd-table-stretch thead th {
-    background-color: #e0f2fe !important;
-    font-weight: bold;
-    padding: 3px 5px;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
 }
 
-/* OPD print layout */
+/* ============ OPD PRINT LAYOUT ============ */
 .opd-page {
-  width: 100%;
-  padding: 5mm;
+  width: 202mm;
+  max-width: none;
+  height: 289mm;
+  min-height: 289mm;
+  page: opd-print;
   box-sizing: border-box;
+  position: relative;
   page-break-after: always;
-  background: white;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-size: 12pt;
+  line-height: 1.25;
+  padding: 0;
+  margin: 0 auto;
+}
+
+.opd-page,
+.opd-page * {
+  box-sizing: border-box;
+}
+
+.opd-page:first-child {
+  display: flex;
+  flex-direction: column;
+  width: 198mm;
+  max-width: none;
+  min-height: 289mm;
+  padding: 0;
+  overflow: visible;
+}
+
+.opd-page:first-child {
+  font-size: 12pt;
+  line-height: 1.25;
 }
 
 .opd-page:last-child {
-  page-break-after: avoid;
+  page-break-after: auto;
 }
 
 .opd-header-img {
-  width: 100%;
-  max-height: 35mm;
+  width: 52mm;
+  height: auto;
+  max-width: 55mm;
+  max-height: 39mm;
   object-fit: contain;
   display: block !important;
   visibility: visible !important;
-  margin-bottom: 15px;
+  page-break-inside: avoid;
+  margin: 0.2mm 0 0 0;
 }
 
-.opd-footer-img {
+.opd-page-header {
+  display: grid;
+  grid-template-columns: 55mm 1fr 90mm;
+  gap: 2mm;
+  align-items: center;
+  margin: 0 0 4.5mm;
   width: 100%;
-  max-height: 25mm;
+  max-width: none;
+}
+
+.opd-page-header-left {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.opd-page-header-center {
+  text-align: center;
+  padding-top: 0;
+  min-width: 0;
+}
+
+.opd-page-header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 0;
+}
+
+.opd-patient-barcode {
+  width: 90mm;
+  max-width: 100%;
+  height: 32mm;
+  display: block;
+}
+
+.opd-patient-barcode text {
+  font-family: monospace;
+  font-size: 14pt;
+  font-weight: 700;
+}
+
+#print-opd-header-2,
+#print-opd-footer-1,
+#print-opd-footer-2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 100%;
   object-fit: contain;
-  display: block !important;
-  visibility: visible !important;
-  margin-top: auto;
+  overflow: hidden !important;
+  page-break-inside: avoid;
+  pointer-events: none;
+  height: auto;
+}
+
+#print-opd-header-2 {
+  top: 0;
+}
+
+#print-opd-footer-1,
+#print-opd-footer-2 {
+  bottom: 0;
+}
+
+.opd-page.opd-page--has-top-asset {
+  padding-top: 12mm;
+}
+
+.opd-page.opd-page--has-bottom-asset {
+  padding-bottom: 12mm;
 }
 
 .opd-header-title {
   text-align: center;
-  font-weight: bold;
-  font-size: 18px;
-  margin: 10px 0 5px 0;
+  font-weight: 700;
+  font-size: 24pt;
+  line-height: 1.04;
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .opd-sub-title {
   text-align: center;
-  font-size: 14px;
-  margin-bottom: 15px;
+  font-size: 15pt;
+  font-weight: 400;
+  margin: 0.2mm 0 0;
+}
+
+.opd-page-title {
+  display: block;
+  text-align: center;
+  font-size: 18pt;
+  font-weight: 700;
+  line-height: 1.08;
+  margin: 0 0 1.2mm;
+  width: 100%;
+  max-width: none;
+  overflow-wrap: anywhere;
+}
+
+.opd-head-meta {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.opd-head-meta td {
+  padding: 0.55mm 0.7mm;
+  line-height: 1.22;
+}
+
+.opd-dot-line {
+  display: inline-block;
+  min-width: 34mm;
+  border-bottom: 1px solid #000;
+  padding: 0 1mm 0.2mm;
+  line-height: 1.1;
+  vertical-align: baseline;
+}
+
+.opd-write-line {
+  display: block;
+  width: 100%;
+  border-bottom: 1px solid #000;
+  padding: 0 0 0.25mm;
+  min-height: 4.2mm;
+  word-break: break-word;
+  vertical-align: baseline;
 }
 
 .opd-section-title {
-  font-weight: bold;
-  font-size: 15px;
-  border-bottom: 1px solid #000;
-  margin: 15px 0 8px 0;
-  padding-bottom: 4px;
+  font-size: 16pt;
+  font-weight: 700;
+  border-bottom: 1.5px solid #000;
+  margin: 3mm 0 1.6mm;
+  padding: 1.1mm 0 0.8mm;
+  border-top: 1.5px solid #000;
+  width: 100%;
+  max-width: none;
 }
 
 .opd-table-noborder {
   width: 100%;
+  max-width: none;
   border-collapse: collapse;
 }
 
 .opd-table-noborder td,
 .opd-table-noborder th {
   border: none !important;
-  padding: 6px 4px;
-  font-size: 13px;
+  padding: 0.55mm 0.7mm;
+  font-size: 12pt;
   vertical-align: top;
+  line-height: 1.3;
+}
+
+.opd-profile-table td b {
+  display: inline-block;
+  min-width: 20mm;
+  font-weight: 500;
+}
+
+.opd-profile-table .opd-dot-line {
+  min-width: 34mm;
+}
+
+.opd-profile-table td {
+  padding-top: 1.2mm;
+  padding-bottom: 1.2mm;
+}
+
+.opd-table-stretch {
+  width: 100%;
+  max-width: none;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .opd-table-stretch th,
 .opd-table-stretch td {
-  border: 1px solid #333;
-  padding: 5px;
-  font-size: 12px;
+  border: 0.7px solid #000;
+  padding: 1mm 0.8mm;
+  font-size: 12pt;
   vertical-align: top;
+  line-height: 1.22;
+}
+
+.opd-table-stretch thead th {
+  font-weight: 700;
+  background: #EAF4FB !important;
+  font-size: 15pt;
+  padding-top: 0.8mm;
+  padding-bottom: 0.8mm;
+}
+
+.opd2-main-table tbody tr:not(.opd2-dx-row) td {
+  height: 9.2mm;
+}
+
+.opd2-dx-row td {
+  height: 7.4mm;
+}
+
+.opd2-followup-table tbody tr td {
+  height: 7mm;
+}
+
+.opd-three-col td {
+  padding-top: 1.2mm;
+}
+
+.opd-coverage-row td {
+  padding-top: 1mm;
+}
+
+.opd-informant-table td {
+  padding-top: 1mm;
+}
+
+.opd-page b,
+.opd-page strong {
+  font-weight: 500;
+}
+
+#popd_doctor.opd-write-line {
+  width: 120mm;
+  margin: 0 auto;
+}
+
+.opd-page:first-child .opd-header-title {
+  font-size: 24pt;
+  font-weight: 700;
+}
+
+.opd-page:first-child .opd-section-title {
+  font-size: 16pt;
+  font-weight: 700;
+  margin-top: 3mm;
+  margin-bottom: 1.6mm;
+  padding-top: 1.1mm;
+  border-top: 1.5px solid #000;
+  border-bottom: 1.5px solid #000;
+}
+
+.opd-page:first-child .opd-table-noborder td,
+.opd-page:first-child .opd-table-noborder th {
+  font-size: 13pt;
+  line-height: 1.32;
+  padding: 1mm 1.5mm;
+}
+
+.opd-page:first-child .opd-profile-table td b,
+.opd-page:first-child .opd-table-noborder td b {
+  display: inline-block;
+  min-width: 78px;
+  font-size: 13pt;
+  font-weight: 500;
+}
+
+.opd-page:first-child .opd-dot-line,
+.opd-page:first-child .opd-write-line {
+  font-size: 14pt;
+  font-weight: 600;
+  border-bottom: 1.5px solid #000;
+  padding-bottom: 0.8mm;
+}
+
+.opd-page:first-child .opd-dot-line {
+  min-width: 40mm;
+}
+
+.opd-page:first-child .opd-profile-table .opd-dot-line {
+  min-width: 40mm;
+}
+
+.opd-page:first-child .opd-head-meta {
+  margin-bottom: 0;
+}
+
+.opd-page:first-child .opd-head-meta td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.opd-page:first-child .opd-profile-table td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.opd-page:first-child .opd-three-col td,
+.opd-page:first-child .opd-coverage-row td,
+.opd-page:first-child .opd-informant-table td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.opd-page:first-child .opd-informant-table td[colspan="2"] {
+  padding-top: 0 !important;
+  padding-bottom: 4px !important;
+}
+
+.opd-print-image-card {
+  border: 1px solid #d7e2ee;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.opd-print-image-dropzone {
+  min-height: 140px;
+  border: 1.5px dashed #94a3b8;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef5fb 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+
+.opd-print-image-dropzone img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.opd-print-image-placeholder {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.opd-page:first-child .opd-table-noborder + .opd-table-noborder {
+  margin-top: 2mm;
+}
+
+.opd-page-one {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.opd-page-one .opd-grid,
+.opd-page-one .opd-meta-grid,
+.opd-page-one .opd-section-title,
+.opd-page-one .opd-write-line {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.opd-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16mm;
+  row-gap: 2.2mm;
+  margin-bottom: 2mm;
+}
+
+.opd-grid {
+  display: grid;
+  gap: 2.2mm 7mm;
+}
+
+.opd-profile-grid,
+.opd-informant-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.opd-vital-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.opd-three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 3mm;
+}
+
+.opd-coverage-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 3.2mm;
+}
+
+.opd-span-2 {
+  grid-column: span 2;
+}
+
+.opd-field {
+  display: flex;
+  align-items: baseline;
+  gap: 2.5mm;
+  min-width: 0;
+  font-size: 13pt;
+  line-height: 1.22;
+}
+
+.opd-field b,
+.opd-doctor-signature b {
+  flex: 0 0 auto;
+  font-size: 13pt;
+  font-weight: 500;
+}
+
+.opd-field .opd-dot-line {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.opd-field-stack {
+  display: block;
+}
+
+.opd-field-stack b {
+  display: block;
+  margin-bottom: 1mm;
+}
+
+.opd-field-stack .opd-write-line {
+  min-height: 20mm;
+}
+
+.opd-write-line--large {
+  min-height: 30mm;
+}
+
+.opd-page-one #popd_disease.opd-write-line--large {
+  min-height: 34mm;
+}
+
+.opd-informant-block {
+  margin-top: 0;
+  padding-top: 2.2mm;
+  min-height: 28mm;
+}
+
+.opd-doctor-signature {
+  width: 120mm;
+  margin: 2.5mm auto 0;
+  text-align: center;
+  font-size: 12pt;
+}
+
+.opd-doctor-signature .opd-write-line {
+  margin-top: 1.8mm;
+}
+
+.opd-page:not(.opd-page-one) {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.opd2-main-table {
+  height: 205mm;
+}
+
+.opd2-main-table tbody tr:not(.opd2-dx-row) td {
+  height: 13mm;
+}
+
+.opd2-dx-row td {
+  height: 18mm;
+}
+
+.opd2-followup-table {
+  height: 66mm;
+  border: 0.7px solid #000;
+}
+
+.opd2-followup-table tbody td {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0.7px solid #000 !important;
+  border-right: 0.7px solid #000 !important;
+}
+
+.opd2-followup-table thead th {
+  border-bottom: 0.7px solid #000 !important;
+}
+
+.opd2-followup-table tbody tr td {
+  height: auto;
+}
+
+@media print {
+  @page opd-print {
+    size: A4 portrait;
+    margin: 4mm;
+  }
+
+  .opd-page {
+    width: 202mm;
+    max-width: none;
+    height: 289mm;
+    min-height: 289mm;
+    margin: 0 auto;
+    padding: 0;
+    page-break-after: always;
+  }
+
+  .opd-page:last-child {
+    page-break-after: auto;
+  }
+
+  .opd-header-img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .opd-table-stretch th,
+  .opd-table-stretch td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .opd-table-stretch thead th {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* html2pdf-safe OPD reference layout. These final overrides intentionally avoid
+   flex-based form rows and collapsed table borders because html2canvas can drop
+   those during PDF rasterization. */
+#opd-print-area.opdref {
+  width: 186mm !important;
+  max-width: 186mm !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff !important;
+  overflow: hidden !important;
+}
+
+#opd-print-area.opdref .opd-page,
+#opd-print-area.opdref .opdref-page {
+  width: 186mm !important;
+  min-width: 0 !important;
+  max-width: 186mm !important;
+  height: 277mm !important;
+  min-height: 277mm !important;
+  max-height: 277mm !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  color: #000 !important;
+  position: relative !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  page-break-after: always;
+  break-after: page;
+}
+
+#opd-print-area.opdref .opd-page:last-child,
+#opd-print-area.opdref .opdref-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+#opd-print-area.opdref .opdref-sheet {
+  width: 176mm !important;
+  max-width: 176mm !important;
+  height: 277mm !important;
+  max-height: 277mm !important;
+  margin: 0 auto !important;
+  padding: 1.5mm 0 2mm !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.35 !important;
+}
+
+/* Hide system fields not used by the new template — but DO show the
+   header logo, patient barcode and customer ID. */
+#opd-print-area.opdref .opdref-hidden,
+#opd-print-area.opdref span.opdref-hidden,
+#opd-print-area.opdref #print-opd-header-2,
+#opd-print-area.opdref #print-opd-footer-1,
+#opd-print-area.opdref #print-opd-footer-2,
+#opd-print-area.opdref .opdp1-meta-line,
+#opd-print-area.opdref .opdp1-hidden-value {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  display: block !important;
+}
+
+/* Header row with logo / title / barcode + ID */
+#opd-print-area.opdref .opdref-header-row {
+  display: grid !important;
+  grid-template-columns: 48mm 1fr 64mm !important;
+  align-items: center !important;
+  gap: 2mm !important;
+  width: 100% !important;
+  margin: 0 0 0.5mm !important;
+  padding: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-header-left {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+#opd-print-area.opdref .opdref-header-center {
+  text-align: center !important;
+}
+
+#opd-print-area.opdref .opdref-header-right {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1.5mm !important;
+}
+
+#opd-print-area.opdref .opdref-logo {
+  display: block !important;
+  width: 44mm !important;
+  max-width: 44mm !important;
+  height: auto !important;
+  max-height: 34mm !important;
+  object-fit: contain !important;
+  visibility: visible !important;
+  position: static !important;
+  overflow: visible !important;
+  clip: auto !important;
+}
+
+#opd-print-area.opdref .opdref-barcode {
+  display: block !important;
+  width: 62mm !important;
+  max-width: 62mm !important;
+  height: 15mm !important;
+  visibility: visible !important;
+  position: static !important;
+  overflow: visible !important;
+  clip: auto !important;
+}
+
+#opd-print-area.opdref .opdref-cn-row {
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 15pt !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  width: 62mm !important;
+  line-height: 1.1 !important;
+}
+
+#opd-print-area.opdref .opdref-cn-value {
+  display: inline !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  visibility: visible !important;
+  clip: auto !important;
+  overflow: visible !important;
+  font-weight: 700 !important;
+  color: #000 !important;
+}
+
+/* Title block is now inside the center column */
+#opd-print-area.opdref .opdref-header-center .opdref-title-lao {
+  margin: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-header-center .opdref-title-en {
+  margin: 1mm 0 0 !important;
+}
+
+/* Org / Discount fill widths */
+#opd-print-area.opdref .opdref-fill-org-id        { width: 25mm !important; }
+#opd-print-area.opdref .opdref-fill-org-name      { width: 45mm !important; }
+#opd-print-area.opdref .opdref-fill-org-name-wide { width: 100mm !important; }
+#opd-print-area.opdref .opdref-fill-discount      { width: 14mm !important; }
+#opd-print-area.opdref .opdref-fill-discount-wide { width: 120mm !important; }
+
+/* Vital signs table — replaces the old inline row layout */
+#opd-print-area.opdref .opdref-vital-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  border: 1px solid #000 !important;
+  margin: 0 0 2.5mm !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+}
+
+#opd-print-area.opdref .opdref-vital-table th,
+#opd-print-area.opdref .opdref-vital-table td {
+  border: 1px solid #000 !important;
+  padding: 1mm 0.5mm !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 11.5pt !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  color: #000 !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+#opd-print-area.opdref .opdref-vital-table th {
+  font-weight: 700 !important;
+  height: 8mm !important;
+}
+
+#opd-print-area.opdref .opdref-vital-table td {
+  height: 9mm !important;
+  font-weight: 400 !important;
+}
+
+#opd-print-area.opdref .opdref-vital-table td span {
+  display: inline !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  visibility: visible !important;
+  clip: auto !important;
+  overflow: visible !important;
+  font-weight: 400 !important;
+  color: #000 !important;
+}
+
+#opd-print-area.opdref .opdref-row-nutrition {
+  margin-top: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-title-block {
+  text-align: center !important;
+  margin: 0 0 9mm !important;
+  padding: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-title-lao,
+#opd-print-area.opdref .opdp1-title.opdref-title-lao {
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif !important;
+  font-size: 18pt !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+
+#opd-print-area.opdref .opdref-title-en {
+  font-family: "Times New Roman", serif !important;
+  font-size: 16pt !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  margin: 1mm 0 0 !important;
+  text-align: center !important;
+}
+
+#opd-print-area.opdref .opdref-rule {
+  height: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid #000 !important;
+  margin: 0 0 1.5mm !important;
+  width: 100% !important;
+}
+
+#opd-print-area.opdref .opdref-rule-tight {
+  margin: 2mm 0 0.5mm !important;
+}
+
+#opd-print-area.opdref .opdref-section {
+  display: block !important;
+  margin: 0 0 2.2mm !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.25 !important;
+  font-weight: 700 !important;
+}
+
+#opd-print-area.opdref .opdref-section span,
+#opd-print-area.opdref .opdref-section-plain {
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+
+#opd-print-area.opdref .opdref-section-inline {
+  margin-top: 1mm !important;
+  margin-bottom: 2.2mm !important;
+}
+
+#opd-print-area.opdref .opdref-med-title {
+  margin-top: 2.5mm !important;
+}
+
+#opd-print-area.opdref .opdref-row {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 0 3mm !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
+}
+
+#opd-print-area.opdref .opdref-row-split {
+  margin-bottom: 3mm !important;
+}
+
+#opd-print-area.opdref .opdref-check-row {
+  display: grid !important;
+  grid-template-columns: 45mm 45mm;
+  column-gap: 5mm !important;
+  margin-bottom: 4.5mm !important;
+}
+
+#opd-print-area.opdref .opdref-row-full-line {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 2mm !important;
+  white-space: nowrap !important;
+}
+
+#opd-print-area.opdref .opdref-row-full-line .opdref-fill {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-org-row #popd_org_id {
+  flex: 0 0 28mm !important;
+  width: 28mm !important;
+}
+
+#opd-print-area.opdref .opdref-check {
+  display: inline-block !important;
+}
+
+#opd-print-area.opdref .opdref-fill {
+  display: inline-block !important;
+  min-height: 4.6mm !important;
+  padding: 0 1mm !important;
+  border-bottom: 1.2px dotted #000 !important;
+  vertical-align: baseline !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.1 !important;
+  font-weight: 400 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+#opd-print-area.opdref .opdref-dot::after {
+  content: none !important;
+}
+
+#opd-print-area.opdref .opdref-fill-name { width: 77mm !important; }
+#opd-print-area.opdref .opdref-fill-age { width: 34mm !important; }
+#opd-print-area.opdref .opdref-fill-dob { width: 48mm !important; }
+#opd-print-area.opdref .opdref-fill-nation { width: 45mm !important; }
+#opd-print-area.opdref .opdref-fill-job { width: 75mm !important; }
+#opd-print-area.opdref .opdref-fill-wide { width: 128mm !important; }
+#opd-print-area.opdref .opdref-fill-tel { width: 51mm !important; }
+#opd-print-area.opdref .opdref-fill-rel { width: 58mm !important; }
+#opd-print-area.opdref .opdref-fill-vital { width: 22mm !important; }
+#opd-print-area.opdref .opdref-fill-vital-lg { width: 34mm !important; }
+#opd-print-area.opdref .opdref-fill-other { width: 60mm !important; }
+#opd-print-area.opdref .opdref-fill-full { width: 100% !important; }
+#opd-print-area.opdref .opdref-fill-signature { width: 50mm !important; }
+
+#opd-print-area.opdref .opdref-signature-block {
+  display: block !important;
+  width: 95mm !important;
+  margin: 1mm 0 0 auto !important;
+  text-align: center !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+}
+
+#opd-print-area.opdref .opdref-signature-title {
+  display: block !important;
+  width: 100% !important;
+  font-weight: 700 !important;
+  margin: 0 0 3mm !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+#opd-print-area.opdref .opdref-signature-line {
+  display: block !important;
+  width: 100% !important;
+  height: 7mm !important;
+  text-align: left !important;
+  overflow: visible !important;
+}
+
+#opd-print-area.opdref .opdref-sheet-page2 {
+  width: 180mm !important;
+  max-width: 180mm !important;
+  padding: 4mm 0 2mm !important;
+}
+
+#opd-print-area.opdref .opdref-page2-title {
+  text-align: center !important;
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif !important;
+  font-size: 18pt !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  margin: 0 0 4mm !important;
+  padding: 0 !important;
+  color: #000 !important;
+}
+
+#opd-print-area.opdref .opdref-page2-title-gap {
+  margin-top: 4mm !important;
+  margin-bottom: 4mm !important;
+}
+
+#opd-print-area.opdref .opdref-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: fixed !important;
+  border: 0 !important;
+  border-right: 1px solid #000 !important;
+  border-bottom: 1px solid #000 !important;
+  margin: 0 !important;
+  color: #000 !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+#opd-print-area.opdref .opdref-table th,
+#opd-print-area.opdref .opdref-table td {
+  border: 0 !important;
+  border-left: 1px solid #000 !important;
+  border-top: 1px solid #000 !important;
+  padding: 1mm 2mm !important;
+  color: #000 !important;
+  background: #fff !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.2 !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+}
+
+#opd-print-area.opdref .opdref-table th {
+  text-align: center !important;
+  font-weight: 700 !important;
+  height: 7mm !important;
+  padding: 1mm !important;
+  vertical-align: middle !important;
+}
+
+#opd-print-area.opdref .opdref-col-history { width: 42% !important; }
+#opd-print-area.opdref .opdref-col-treatment { width: 39% !important; }
+#opd-print-area.opdref .opdref-col-other { width: 19% !important; }
+/* Treatment table = ~75% of page 2 sheet (260mm); Nursing = ~22% — fills full page */
+#opd-print-area.opdref .opdref-treatment-body td { height: 168mm !important; }
+#opd-print-area.opdref .opdref-dx-row td {
+  height: 16mm !important;
+  font-weight: 700 !important;
+}
+
+#opd-print-area.opdref .opdref-col-time { width: 11.5% !important; }
+#opd-print-area.opdref .opdref-col-symptom { width: 46.5% !important; }
+#opd-print-area.opdref .opdref-col-procedure { width: 28% !important; }
+#opd-print-area.opdref .opdref-col-recorder { width: 14% !important; }
+#opd-print-area.opdref .opdref-followup-table tbody td {
+  height: 5.5mm !important;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  #opd-print-area.opdref,
+  #opd-print-area.opdref .opd-page,
+  #opd-print-area.opdref .opdref-page {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* html2pdf clones the selected .opd-page outside #opd-print-area, so cloned
+   pages need the same rules without the parent id selector. */
+.opdref-page {
+  width: 186mm !important;
+  min-width: 0 !important;
+  max-width: 186mm !important;
+  height: 277mm !important;
+  min-height: 277mm !important;
+  max-height: 277mm !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  color: #000 !important;
+  box-sizing: border-box !important;
+}
+
+.opdref-page .opdref-sheet {
+  width: 176mm !important;
+  max-width: 176mm !important;
+  height: 277mm !important;
+  max-height: 277mm !important;
+  margin: 0 auto !important;
+  padding: 1.5mm 0 2mm !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.35 !important;
+}
+
+.opdref-page .opdref-header-row {
+  display: grid !important;
+  grid-template-columns: 48mm 1fr 64mm !important;
+  align-items: center !important;
+  gap: 2mm !important;
+  width: 100% !important;
+  margin: 0 0 0.5mm !important;
+  padding: 0 !important;
+}
+
+.opdref-page .opdref-header-left {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.opdref-page .opdref-header-center {
+  text-align: center !important;
+}
+
+.opdref-page .opdref-header-right {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1.5mm !important;
+}
+
+.opdref-page .opdref-logo {
+  display: block !important;
+  width: 44mm !important;
+  max-width: 44mm !important;
+  height: auto !important;
+  max-height: 34mm !important;
+  object-fit: contain !important;
+  visibility: visible !important;
+  position: static !important;
+  overflow: visible !important;
+  clip: auto !important;
+}
+
+.opdref-page .opdref-barcode {
+  display: block !important;
+  width: 62mm !important;
+  max-width: 62mm !important;
+  height: 15mm !important;
+  visibility: visible !important;
+  position: static !important;
+  overflow: visible !important;
+  clip: auto !important;
+}
+
+.opdref-page .opdref-cn-row {
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 15pt !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  width: 62mm !important;
+  line-height: 1.1 !important;
+}
+
+.opdref-page .opdref-cn-value {
+  display: inline !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  visibility: visible !important;
+  clip: auto !important;
+  overflow: visible !important;
+  font-weight: 700 !important;
+  color: #000 !important;
+}
+
+.opdref-page .opdref-hidden,
+.opdref-page span.opdref-hidden,
+.opdref-page #print-opd-header-2,
+.opdref-page #print-opd-footer-1,
+.opdref-page #print-opd-footer-2,
+.opdref-page .opdp1-meta-line,
+.opdref-page .opdp1-hidden-value {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  display: block !important;
+}
+
+.opdref-page .opdref-title-block {
+  text-align: center !important;
+  margin: 0 0 9mm !important;
+  padding: 0 !important;
+}
+
+.opdref-page .opdref-title-lao,
+.opdref-page .opdp1-title.opdref-title-lao {
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif !important;
+  font-size: 18pt !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  margin: 0 !important;
+  text-align: center !important;
+}
+
+.opdref-page .opdref-title-en {
+  font-family: "Times New Roman", serif !important;
+  font-size: 16pt !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  margin: 1mm 0 0 !important;
+  text-align: center !important;
+}
+
+.opdref-page .opdref-rule {
+  height: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid #000 !important;
+  margin: 0 0 1.5mm !important;
+  width: 100% !important;
+}
+
+.opdref-page .opdref-rule-tight {
+  margin: 2mm 0 0.5mm !important;
+}
+
+.opdref-page .opdref-section {
+  display: block !important;
+  margin: 0 0 2.2mm !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.25 !important;
+  font-weight: 700 !important;
+}
+
+.opdref-page .opdref-section span,
+.opdref-page .opdref-section-plain {
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+
+.opdref-page .opdref-section-inline {
+  margin-top: 1mm !important;
+  margin-bottom: 2.2mm !important;
+}
+
+.opdref-page .opdref-med-title {
+  margin-top: 2.5mm !important;
+}
+
+.opdref-page .opdref-row {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 0 4mm !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.25 !important;
+  font-weight: 400 !important;
+}
+
+.opdref-page .opdref-row-split {
+  margin-bottom: 3mm !important;
+}
+
+.opdref-page .opdref-check-row {
+  display: grid !important;
+  grid-template-columns: 45mm 45mm;
+  column-gap: 5mm !important;
+  margin-bottom: 4.5mm !important;
+}
+
+.opdref-page .opdref-row-full-line {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 2mm !important;
+  white-space: nowrap !important;
+}
+
+.opdref-page .opdref-row-full-line .opdref-fill {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+.opdref-page .opdref-org-row #popd_org_id {
+  flex: 0 0 28mm !important;
+  width: 28mm !important;
+}
+
+.opdref-page .opdref-check {
+  display: inline-block !important;
+}
+
+.opdref-page .opdref-fill {
+  display: inline-block !important;
+  min-height: 4.6mm !important;
+  padding: 0 1mm !important;
+  border-bottom: 1.2px dotted #000 !important;
+  vertical-align: baseline !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.1 !important;
+  font-weight: 400 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+.opdref-page .opdref-fill-name { width: 77mm !important; }
+.opdref-page .opdref-fill-age { width: 34mm !important; }
+.opdref-page .opdref-fill-dob { width: 48mm !important; }
+.opdref-page .opdref-fill-nation { width: 45mm !important; }
+.opdref-page .opdref-fill-job { width: 75mm !important; }
+.opdref-page .opdref-fill-wide { width: 128mm !important; }
+.opdref-page .opdref-fill-tel { width: 51mm !important; }
+.opdref-page .opdref-fill-rel { width: 58mm !important; }
+.opdref-page .opdref-fill-vital { width: 22mm !important; }
+.opdref-page .opdref-fill-vital-lg { width: 34mm !important; }
+.opdref-page .opdref-fill-other { width: 60mm !important; }
+.opdref-page .opdref-fill-full { width: 100% !important; }
+.opdref-page .opdref-fill-signature { width: 50mm !important; }
+
+.opdref-page .opdref-signature-block {
+  display: block !important;
+  width: 95mm !important;
+  margin: 4mm 0 0 auto !important;
+  text-align: center !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+}
+
+.opdref-page .opdref-signature-title {
+  display: block !important;
+  width: 100% !important;
+  font-weight: 700 !important;
+  margin: 0 0 3mm !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+.opdref-page .opdref-signature-line {
+  display: block !important;
+  width: 100% !important;
+  height: 7mm !important;
+  text-align: left !important;
+  overflow: visible !important;
+}
+
+.opdref-page .opdref-sheet-page2 {
+  width: 180mm !important;
+  max-width: 180mm !important;
+  padding: 4mm 0 2mm !important;
+}
+
+.opdref-page .opdref-page2-title {
+  text-align: center !important;
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif !important;
+  font-size: 18pt !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  margin: 0 0 6mm !important;
+  padding: 0 !important;
+  color: #000 !important;
+}
+
+.opdref-page .opdref-page2-title-gap {
+  margin-top: 7mm !important;
+  margin-bottom: 6mm !important;
+}
+
+.opdref-page .opdref-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: fixed !important;
+  border: 0 !important;
+  border-right: 1px solid #000 !important;
+  border-bottom: 1px solid #000 !important;
+  margin: 0 !important;
+  color: #000 !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+.opdref-page .opdref-table th,
+.opdref-page .opdref-table td {
+  border: 0 !important;
+  border-left: 1px solid #000 !important;
+  border-top: 1px solid #000 !important;
+  padding: 1mm 2mm !important;
+  color: #000 !important;
+  background: #fff !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 12.5pt !important;
+  line-height: 1.2 !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+}
+
+.opdref-page .opdref-table th {
+  text-align: center !important;
+  font-weight: 700 !important;
+  height: 7mm !important;
+  padding: 1mm !important;
+  vertical-align: middle !important;
+}
+
+.opdref-page .opdref-col-history { width: 42% !important; }
+.opdref-page .opdref-col-treatment { width: 39% !important; }
+.opdref-page .opdref-col-other { width: 19% !important; }
+.opdref-page .opdref-treatment-body td { height: 168mm !important; }
+.opdref-page .opdref-dx-row td {
+  height: 16mm !important;
+  font-weight: 700 !important;
+}
+.opdref-page .opdref-col-time { width: 11.5% !important; }
+.opdref-page .opdref-col-symptom { width: 46.5% !important; }
+.opdref-page .opdref-col-procedure { width: 28% !important; }
+.opdref-page .opdref-col-recorder { width: 14% !important; }
+.opdref-page .opdref-followup-table tbody td { height: 5.5mm !important; }
+
+/* Stable hospital-form OPD print rebuild */
+.opd-page {
+  width: 100%;
+  height: 289mm;
+  min-height: 289mm;
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+  page: opd-print;
+  page-break-after: always;
+  box-sizing: border-box;
+  background: #fff;
+  color: #000;
+  font-family: "Noto Sans Lao", "Phetsarath OT", Arial, sans-serif;
+  font-size: 12pt;
+  line-height: 1.22;
+}
+
+.opd-page,
+.opd-page * {
+  box-sizing: border-box;
+}
+
+.opd-page:last-child {
+  page-break-after: auto;
+}
+
+.opd-card-form,
+.opd-page-two-form {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.opd-form-header {
+  display: grid;
+  grid-template-columns: 60mm 1fr 95mm;
+  align-items: center;
+  gap: 3mm;
+  width: 100%;
+  min-height: 36mm;
+  border-bottom: 1.2px solid #000;
+  padding-bottom: 2mm;
+}
+
+.opd-header-cell {
+  min-width: 0;
+}
+
+.opd-header-logo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.opd-header-center {
+  text-align: center;
+}
+
+.opd-header-barcode {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.opd-header-img {
+  width: 60mm;
+  max-width: 60mm;
+  max-height: 34mm;
+  height: auto;
+  object-fit: contain;
+  display: block !important;
+  visibility: visible !important;
+  page-break-inside: avoid;
+}
+
+.opd-header-title {
+  font-size: 22pt;
+  font-weight: 700;
+  line-height: 1.05;
+  margin: 0;
+  text-align: center;
+}
+
+.opd-sub-title {
+  font-size: 15pt;
+  font-weight: 400;
+  line-height: 1.1;
+  margin-top: 1mm;
+  text-align: center;
+}
+
+.opd-patient-barcode {
+  width: 95mm;
+  max-width: 95mm;
+  height: 30mm;
+  display: block;
+}
+
+.opd-patient-barcode text {
+  font-family: monospace;
+  font-size: 14pt;
+  font-weight: 700;
+}
+
+.opd-info-table,
+.opd-profile-table,
+.opd-vital-table,
+.opd-three-box-table,
+.opd-coverage-table,
+.opd-informant-table,
+.opd-table-stretch {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.opd-info-table {
+  margin-top: 2.2mm;
+}
+
+.opd-info-table th,
+.opd-profile-table th,
+.opd-coverage-table th,
+.opd-informant-table th {
+  width: 24mm;
+  padding: 1mm 1.4mm 0.8mm 0;
+  text-align: left;
+  vertical-align: baseline;
+  font-size: 12pt;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.opd-info-table td,
+.opd-profile-table td,
+.opd-coverage-table td,
+.opd-informant-table td {
+  padding: 1mm 3mm 0.8mm 0;
+  vertical-align: baseline;
+  font-size: 13pt;
+  font-weight: 600;
+}
+
+.opd-value-line {
+  display: inline-block;
+  min-height: 5mm;
+  width: 100%;
+  border-bottom: 1.1px solid #000;
+  line-height: 1.15;
+  padding: 0 1mm 0.5mm;
+  vertical-align: baseline;
+  word-break: break-word;
+}
+
+.opd-profile-table .opd-value-line + .opd-value-line,
+.opd-profile-table td[colspan] .opd-value-line {
+  width: 32%;
+  margin-right: 1%;
+}
+
+.opd-info-table .opd-department-label {
+  width: 30mm;
+  padding-right: 2mm;
+}
+
+.opd-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(34mm, 0.72fr) minmax(0, 1fr);
+  gap: 2mm 7mm;
+  width: 100%;
+}
+
+.opd-profile-field {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12pt;
+  line-height: 1.18;
+}
+
+.opd-profile-field b {
+  flex: 0 0 18mm;
+  font-size: 12pt;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.opd-profile-field .opd-value-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.opd-profile-name .opd-value-line {
+  flex-basis: 0;
+}
+
+.opd-profile-age .opd-value-line {
+  flex: 0 0 14mm;
+  width: 14mm;
+}
+
+.opd-profile-address {
+  grid-column: span 2;
+}
+
+.opd-profile-address .opd-value-line {
+  flex-basis: 0;
+}
+
+.opd-section-title {
+  width: 100%;
+  border-top: 1.2px solid #000;
+  border-bottom: 1.2px solid #000;
+  margin: 2.2mm 0 1.2mm;
+  padding: 1mm 0 0.7mm;
+  font-size: 15pt;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.opd-vital-table {
+  border: 1px solid #000;
+}
+
+.opd-vital-table th,
+.opd-vital-table td {
+  width: 12.5%;
+  border-right: 1px solid #000;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.opd-vital-table th:last-child,
+.opd-vital-table td:last-child {
+  border-right: 0;
+}
+
+.opd-vital-table th {
+  padding: 0.8mm 0.5mm;
+  font-size: 10pt;
+  font-weight: 700;
+  background: #f8fbfd;
+}
+
+.opd-vital-table td {
+  height: 9mm;
+  padding: 0.8mm 0.5mm;
+  font-size: 12pt;
+  font-weight: 600;
+  border-top: 1px solid #000;
+}
+
+.opd-writing-box {
+  width: 100%;
+  border: 1px solid #000;
+  padding: 1.5mm 2mm;
+  font-size: 13pt;
+  font-weight: 600;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.opd-writing-box--chief {
+  height: 33mm;
+}
+
+.opd-three-box-table {
+  margin-top: 2mm;
+  border: 1px solid #000;
+}
+
+.opd-three-box-table th,
+.opd-three-box-table td {
+  width: 33.333%;
+  border-right: 0.8px solid #000;
+  vertical-align: top;
+}
+
+.opd-three-box-table th:last-child,
+.opd-three-box-table td:last-child {
+  border-right: 0;
+}
+
+.opd-three-box-table th {
+  padding: 1.1mm 1.5mm;
+  text-align: left;
+  font-size: 12pt;
+  font-weight: 700;
+}
+
+.opd-three-box-table td {
+  height: 22mm;
+  padding: 1mm 1.5mm;
+  font-size: 13pt;
+  font-weight: 600;
+}
+
+.opd-writing-box--history {
+  height: 33mm;
+}
+
+.opd-bottom-block {
+  margin-top: auto;
+  padding-top: 2mm;
+}
+
+.opd-coverage-table th {
+  width: 24mm;
+}
+
+.opd-coverage-table td {
+  width: calc((100% - 48mm) / 2);
+  padding-right: 8mm;
+}
+
+.opd-informant-title {
+  margin-top: 2mm;
+}
+
+.opd-informant-table th {
+  width: 24mm;
+}
+
+.opd-informant-table td {
+  padding-right: 5mm;
+}
+
+.opd-informant-table .opd-informant-sign {
+  width: 60mm;
+}
+
+.opd-doctor-signature {
+  width: 120mm;
+  margin: 2mm auto 0;
+  text-align: center;
+  font-size: 12pt;
+}
+
+.opd-doctor-signature b {
+  display: block;
+  margin-bottom: 1mm;
+  font-size: 12pt;
+  font-weight: 500;
+}
+
+#popd_doctor.opd-value-line {
+  width: 120mm;
+}
+
+#print-opd-header-2,
+#print-opd-footer-1,
+#print-opd-footer-2 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  overflow: hidden !important;
+  page-break-inside: avoid;
+  pointer-events: none;
+  height: auto;
+}
+
+#print-opd-header-2 {
+  top: 0;
+}
+
+#print-opd-footer-1,
+#print-opd-footer-2 {
+  bottom: 0;
+}
+
+.opd-page.opd-page--has-top-asset {
+  padding-top: 12mm;
+}
+
+.opd-page.opd-page--has-bottom-asset {
+  padding-bottom: 12mm;
+}
+
+.opd-page-two-form {
+  gap: 2mm;
+}
+
+.opd2-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.opd2-treatment-section {
+  flex: 7 1 0;
+  height: auto;
+}
+
+.opd2-nursing-section {
+  flex: 3 1 0;
+  height: auto;
+}
+
+.opd-page-title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.08;
+  margin: 0 0 1.6mm;
+}
+
+.opd-table-stretch {
+  flex: 1 1 auto;
+  border: 0.8px solid #000;
+}
+
+.opd-table-stretch th,
+.opd-table-stretch td {
+  border: 0.8px solid #000;
+  padding: 1mm;
+  font-size: 11.5pt;
+  line-height: 1.15;
+  vertical-align: top;
+}
+
+.opd-table-stretch thead th {
+  background: #EAF4FB !important;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+.opd2-main-table {
+  height: 100%;
+}
+
+.opd2-main-table tbody tr:not(.opd2-dx-row) td {
+  height: 7.6mm;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0.8px solid #000 !important;
+  border-right: 0.8px solid #000 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.opd2-dx-row td {
+  height: 13mm;
+}
+
+.opd2-followup-table {
+  height: 100%;
+}
+
+.opd2-followup-table tbody td {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0.8px solid #000 !important;
+  border-right: 0.8px solid #000 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.opd2-followup-table thead th {
+  border-bottom: 0.8px solid #000 !important;
+}
+
+.opd2-followup-table tbody tr td {
+  height: 8.5mm;
+}
+
+@media print {
+  @page opd-print {
+    size: A4 portrait;
+    margin: 4mm;
+  }
+
+  .opd-page {
+    width: 100%;
+    height: 289mm;
+    min-height: 289mm;
+    max-height: 289mm;
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  .opd-header-img,
+  .opd-table-stretch th,
+  .opd-table-stretch td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Page 1 OPD card sizing/alignment polish */
+.opd-page-one {
+  width: 192mm;
+  max-width: 192mm;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.opd-page-one .opd-card-form {
+  width: 100%;
+  height: 100%;
+  line-height: 1.4;
+}
+
+.opd-page-one .opd-form-header {
+  grid-template-columns: 90px minmax(0, 1fr) 180px;
+  gap: 16px;
+  min-height: 92px;
+  align-items: center;
+  padding-bottom: 8px;
+}
+
+.opd-page-one .opd-header-cell,
+.opd-page-one .opd-header-center,
+.opd-page-one .opd-header-title,
+.opd-page-one .opd-sub-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.opd-page-one .opd-header-img {
+  width: 48px;
+  max-width: 48px;
+  max-height: 60px;
+}
+
+.opd-page-one .opd-header-title {
+  font-size: 22pt;
+  font-weight: 700;
+  line-height: 1.12;
+}
+
+.opd-page-one .opd-sub-title {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.opd-page-one .opd-patient-barcode {
+  width: 260px;
+  max-width: 260px;
+  height: 55px;
+}
+
+.opd-page-one .opd-patient-barcode text {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.opd-page-one .opd-info-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 16mm;
+  margin-top: 8px;
+}
+
+.opd-page-one .opd-info-column {
+  min-width: 0;
+}
+
+.opd-page-one .opd-info-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 3px;
+}
+
+.opd-page-one .opd-profile-field,
+.opd-page-one .opd-coverage-table th,
+.opd-page-one .opd-coverage-table td,
+.opd-page-one .opd-informant-table th,
+.opd-page-one .opd-informant-table td {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.opd-page-one .opd-info-field b {
+  flex: 0 0 30mm;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.opd-page-one .opd-info-field .opd-value-line,
+.opd-page-one .opd-profile-field .opd-value-line,
+.opd-page-one .opd-coverage-table .opd-value-line,
+.opd-page-one .opd-informant-table .opd-value-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 20px;
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.opd-page-one .opd-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 8px 0 5px;
+  padding: 4px 0 3px;
+}
+
+.opd-page-one .opd-profile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+.opd-page-one .opd-profile-row {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.opd-page-one .opd-profile-row-main {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) 76px 112px;
+}
+
+.opd-page-one .opd-profile-row-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.opd-page-one .opd-profile-row-occupation {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.opd-page-one .opd-profile-field {
+  min-width: 0;
+  overflow: hidden;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.opd-page-one .opd-profile-field b {
+  flex: 0 0 64px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.opd-page-one .opd-profile-age .opd-value-line {
+  flex: 0 0 42px;
+  width: 42px;
+}
+
+.opd-page-one .opd-profile-gender .opd-value-line {
+  flex: 0 0 58px;
+  width: 58px;
+}
+
+.opd-page-one .opd-vital-table {
+  border: 1px solid #000;
+  width: 100%;
+}
+
+.opd-page-one .opd-vital-table th,
+.opd-page-one .opd-vital-table td {
+  border-right: 1px solid #000;
+  padding: 5px 4px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.opd-page-one .opd-vital-table th {
+  font-weight: 700;
+}
+
+.opd-page-one .opd-vital-table td {
+  height: 34px;
+  border-top: 1px solid #000;
+  font-weight: 600;
+}
+
+.opd-page-one .opd-writing-box--chief {
+  height: 30mm;
+}
+
+.opd-page-one .opd-three-box-table th {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.opd-page-one .opd-three-box-table td {
+  height: 28mm;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.opd-page-one .opd-writing-box--history {
+  height: 26mm;
+}
+
+.opd-page-one .opd-writing-box {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.opd-page-one .opd-bottom-block {
+  margin-top: 6px;
+  padding-top: 4px;
+}
+
+.opd-page-one .opd-doctor-signature {
+  margin-top: 6px;
+}
+
+/* Fresh Page 1 OPD card structure */
+.opd-page-one {
+  width: 178mm;
+  max-width: 178mm;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.opdp1-card {
+  width: 178mm;
+  max-width: 178mm;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #000;
+  font-family: "Noto Sans Lao", "Phetsarath OT", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.38;
+  padding-top: 17mm;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.opdp1-header {
+  display: grid;
+  grid-template-columns: 36mm minmax(0, 1fr) 70mm;
+  align-items: center;
+  gap: 3mm;
+  min-height: 28mm;
+  border-bottom: 1.2px solid #000;
+  padding-bottom: 3mm;
+}
+
+.opdp1-logo-slot,
+.opdp1-title-slot,
+.opdp1-barcode-slot {
+  min-width: 0;
+}
+
+.opdp1-logo-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.opdp1-logo {
+  width: 34mm;
+  max-width: 36mm;
+  height: auto;
+  object-fit: contain;
+}
+
+.opd-page-one .opdp1-logo {
+  width: 34mm;
+  max-width: 36mm;
+  max-height: none;
+}
+
+.opdp1-title-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  justify-self: center;
+  text-align: center;
+  width: 100%;
+  transform: translateY(7mm);
+}
+
+.opdp1-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.opdp1-subtitle {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.08;
+  margin-top: 0;
+}
+
+.opdp1-barcode-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.opdp1-barcode {
+  width: 70mm;
+  max-width: 70mm;
+  height: 20mm;
+}
+
+.opdp1-barcode text {
+  font-size: 14px !important;
+  font-weight: 700;
+}
+
+.opd-page-one .opdp1-barcode {
+  width: 70mm;
+  max-width: 70mm;
+  height: 20mm;
+}
+
+.opd-page-one .opdp1-barcode text {
+  font-size: 14px !important;
+  font-weight: 700;
+}
+
+.opdp1-patient-info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 12mm;
+  padding: 12px 0 10px;
+  border-bottom: 1.2px solid #000;
+}
+
+.opdp1-info-col {
+  min-width: 0;
+}
+
+.opdp1-field {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  min-width: 0;
+  line-height: 1.42;
+}
+
+.opdp1-patient-info .opdp1-field {
+  margin-bottom: 3px;
+}
+
+.opdp1-field b {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.opdp1-patient-info .opdp1-field b {
+  flex-basis: 30mm;
+}
+
+.opdp1-line {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 20px;
+  border-bottom: 1.2px solid #000;
+  padding: 0 5px 3px;
+  font-size: 14px;
+  line-height: 1.3;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.opdp1-section-title {
+  border-top: 1.2px solid #000;
+  border-bottom: 1.2px solid #000;
+  padding: 5px 0 4px;
+  margin: 9px 0 7px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.22;
+}
+
+.opdp1-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.opdp1-profile-row {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.opdp1-profile-row-main {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.25fr) 86px 142px;
+}
+
+.opdp1-profile-row-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.opdp1-profile-row-full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.opdp1-profile .opdp1-field b {
+  flex-basis: 78px;
+}
+
+.opdp1-age-field .opdp1-line {
+  flex: 0 0 34px !important;
+  width: 34px !important;
+}
+
+.opdp1-age-field b {
+  flex-basis: 34px !important;
+}
+
+.opdp1-gender-field .opdp1-line {
+  flex: 0 0 60px !important;
+  width: 60px !important;
+}
+
+.opdp1-gender-field b {
+  flex-basis: 58px !important;
+}
+
+.opdp1-vitals {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid #000;
+}
+
+.opdp1-vitals th,
+.opdp1-vitals td {
+  width: 12.142%;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1.2px solid #000;
+  padding: 6px 4px;
+  font-size: 14px;
+  line-height: 1.32;
+}
+
+.opdp1-vitals th:first-child,
+.opdp1-vitals td:first-child {
+  width: 15%;
+}
+
+.opdp1-vitals th:last-child,
+.opdp1-vitals td:last-child {
+  border-right: 0;
+}
+
+.opdp1-vitals th {
+  font-weight: 700;
+  background: #f8fbfd;
+}
+
+.opdp1-vitals td {
+  height: 36px;
+  border-top: 1.2px solid #000;
+  font-weight: 700;
+}
+
+.opdp1-box {
+  border: 1.2px solid #000;
+  padding: 7px 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.opdp1-chief {
+  height: 33mm;
+}
+
+.opdp1-three-boxes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1.2px solid #000;
+  border-right: 0;
+  margin-top: 8px;
+}
+
+.opdp1-three-box {
+  height: 30mm;
+  border-right: 1.2px solid #000;
+  padding: 7px 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.opdp1-three-box b {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.opdp1-history {
+  height: 35mm;
+}
+
+.opdp1-bottom {
+  margin-top: auto;
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+
+.opdp1-coverage,
+.opdp1-informant {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12mm;
+}
+
+.opdp1-coverage {
+  margin: 0;
+  padding: 8px 0 7px;
+  border-bottom: 1.2px solid #000;
+}
+
+.opdp1-informant {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12mm;
+  margin-top: 0;
+  padding-top: 8px;
+}
+
+.opdp1-informant-title {
+  margin: 0;
+  border-bottom: 0;
+}
+
+.opdp1-signature-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 12mm;
+  margin-top: 14px;
+}
+
+.opdp1-doctor {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  min-width: 0;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.42;
+}
+
+.opdp1-doctor b {
+  flex: 0 0 auto;
+  display: inline;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.opdp1-doctor .opdp1-line {
+  width: auto;
+}
+
+@media print {
+  .opd-page-one {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 /* Patient QR Card (3 per A4, 65×35mm, info left + barcode right) */
@@ -3809,7 +6781,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 @media print {
   @page {
-    size: A4 landscape;
+    size: A4 portrait;
     margin: 6mm;
   }
 
@@ -4727,18 +7699,175 @@ small,
   border-color: #f59ea3 !important;
 }
 
+.btn-triage-view-official {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 76px;
+  border: 1px solid #b8c7d9 !important;
+  background: #ffffff !important;
+  color: #1f4e79 !important;
+  font-weight: 700;
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.btn-triage-view-official:hover,
+.btn-triage-view-official:focus {
+  background: #eef5fb !important;
+  border-color: #7fa6cb !important;
+  color: #173f66 !important;
+}
+
 .triage-view-popup {
-  border-radius: 6px !important;
+  border-radius: 4px !important;
 }
 
 .triage-view-title {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 800;
-  color: #243046;
+  color: #1f2937;
 }
 
 .triage-view-title i {
   color: var(--primary);
+}
+
+.triage-record-shell {
+  border: 1px solid #cfd8e3;
+  background: #ffffff;
+  padding: 0;
+  color: #253044;
+}
+
+.triage-record-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #cfd8e3;
+  background: #f8fafc;
+}
+
+.triage-record-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.triage-record-id {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.triage-record-header-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.triage-record-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.triage-record-status-done {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.triage-record-status-wait {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.triage-record-info,
+.triage-record-vitals {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.triage-record-info th,
+.triage-record-info td {
+  border-bottom: 1px solid #e3e8ef;
+  padding: 9px 10px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.triage-record-info th {
+  width: 23%;
+  background: #fbfcfe;
+  color: #46556a;
+  font-weight: 800;
+}
+
+.triage-record-info td {
+  color: #111827;
+  font-weight: 700;
+}
+
+.triage-record-section-title {
+  padding: 12px 12px 7px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.triage-record-vitals {
+  margin: 0 12px;
+  width: calc(100% - 24px);
+  border: 1px solid #cfd8e3;
+}
+
+.triage-record-vitals th,
+.triage-record-vitals td {
+  border: 1px solid #cfd8e3;
+  text-align: center;
+  padding: 10px 8px;
+}
+
+.triage-record-vitals th {
+  background: #f3f6f9;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.triage-record-vitals td {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.triage-record-vitals td.triage-stat-ok { color: #166534 !important; }
+.triage-record-vitals td.triage-stat-danger { color: #b42318 !important; }
+.triage-record-vitals td.triage-stat-warn { color: #b45309 !important; }
+
+.triage-record-note {
+  margin: 0 12px 12px;
+  min-height: 46px;
+  border: 1px solid #cfd8e3;
+  padding: 10px 12px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.45;
+  background: #fff;
 }
 
 .triage-view-shell {
@@ -4826,6 +7955,19 @@ small,
 
   .triage-view-stat-value {
     font-size: 20px;
+  }
+
+  .triage-record-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .triage-record-info th,
+  .triage-record-info td,
+  .triage-record-vitals th,
+  .triage-record-vitals td {
+    font-size: 11.5px;
+    padding: 7px 5px;
   }
 }
 
@@ -7942,5 +11084,394 @@ small,
   .opd-toast {
     min-width: 0;
     width: 100%;
+  }
+}
+
+/* ============================================================
+   Official OPD Card print form - matches Form 1 reference PDF
+   (replaces all legacy #opd-print-area rules)
+   ============================================================ */
+
+/* Hide auxiliary system fields not present on the reference (data binding preserved) */
+#opd-print-area .opdref-hidden,
+#opd-print-area span.opdref-hidden {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  pointer-events: none !important;
+}
+
+/* Hide only secondary assets — page-1 logo, page-1 barcode and customer ID
+   are now part of the visible header layout. */
+#opd-print-area #print-opd-header-2,
+#opd-print-area #print-opd-footer-1,
+#opd-print-area #print-opd-footer-2,
+#opd-print-area .opdp1-meta-line,
+#opd-print-area .opdp1-hidden-value {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Asset-driven padding from legacy code is irrelevant now */
+#opd-print-area .opd-page.opd-page--has-top-asset,
+#opd-print-area .opd-page.opd-page--has-bottom-asset {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+#opd-print-area.print-active {
+  background: #fff !important;
+}
+
+/* Page container — exactly the printable A4 area (10mm/12mm margins),
+   with 1mm internal safety so right/bottom table borders never get clipped. */
+#opd-print-area .opd-page,
+#opd-print-area .opdref-page {
+  page: opd-print;
+  width: 186mm;
+  height: 277mm;
+  max-height: 277mm;
+  min-height: 277mm;
+  max-width: 186mm;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff;
+  color: #000;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif;
+  font-size: 13pt;
+  line-height: 1.5;
+  font-weight: 400;
+  box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  overflow: hidden;
+  display: block;
+  position: relative;
+}
+
+#opd-print-area .opd-page:last-child,
+#opd-print-area .opdref-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+#opd-print-area .opdref-page * {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Page 1 — title block */
+#opd-print-area .opdref-title-block {
+  text-align: center;
+  margin: 0 0 2mm;
+  padding: 6mm 0 1mm;
+}
+
+#opd-print-area .opdref-title-lao,
+#opd-print-area .opdp1-title.opdref-title-lao {
+  font-size: 20pt;
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0;
+  text-align: center;
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif;
+}
+
+#opd-print-area .opdref-title-en {
+  font-size: 16pt;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 1mm 0 0;
+  text-align: center;
+  font-family: "Times New Roman", serif;
+}
+
+#opd-print-area .opdref-title-rule {
+  border: 0;
+  border-top: 1px solid #000;
+  margin: 1.5mm 0 3mm;
+  width: 100%;
+  height: 0;
+}
+
+/* Section heading — underlined bold, like the reference */
+#opd-print-area .opdref-section {
+  font-size: 12.5pt;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 2.5mm 0 1mm;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#opd-print-area .opdref-section-text {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+/* Form lines with dotted underlines */
+#opd-print-area .opdref-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 2mm;
+  margin: 1mm 0;
+  padding: 0;
+  font-size: 12.5pt;
+  line-height: 1.35;
+  font-weight: 400;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#opd-print-area .opdref-line-checkboxes {
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+#opd-print-area .opdref-dot {
+  display: inline-block;
+  flex: 1 1 auto;
+  min-width: 20mm;
+  height: 1.05em;
+  margin: 0 1mm;
+  padding: 0;
+  vertical-align: baseline;
+  font-size: 12pt;
+  font-weight: 400;
+  line-height: 1;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  border-bottom: 0;
+  position: relative;
+}
+
+#opd-print-area .opdref-dot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'><circle cx='1.6' cy='3' r='0.65' fill='black'/></svg>");
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 4px 4px;
+}
+
+#opd-print-area .opdref-dot-xs {
+  flex: 0 0 22mm;
+  min-width: 22mm;
+}
+
+#opd-print-area .opdref-dot-md {
+  flex: 0 0 50mm;
+  min-width: 50mm;
+}
+
+#opd-print-area .opdref-dot-half {
+  flex: 0 0 70mm;
+  min-width: 70mm;
+}
+
+#opd-print-area .opdref-dot-vital {
+  flex: 0 0 26mm;
+  min-width: 26mm;
+}
+
+#opd-print-area .opdref-dot-fill {
+  flex: 1 1 auto;
+}
+
+#opd-print-area .opdref-dot-full {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+#opd-print-area .opdref-dot-sig {
+  flex: 0 0 55mm;
+  min-width: 55mm;
+}
+
+/* (Legacy signature block — superseded by .opdref-scoped rules above.
+   Kept disabled here to make the cascade unambiguous: no display:flex,
+   so .opdref-signature-title and .opdref-signature-line stay stacked.) */
+#opd-print-area .opdref-signature-inner {
+  width: 100%;
+  text-align: center;
+}
+
+/* Page 2 ============================================================ */
+#opd-print-area .opdref-page2-title {
+  text-align: center;
+  font-size: 20pt;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 4mm 0 3mm;
+  padding: 0;
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif;
+}
+
+#opd-print-area .opdref-page2-title-gap {
+  margin-top: 5mm;
+}
+
+#opd-print-area .opdref-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid #000;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+#opd-print-area .opdref-table th,
+#opd-print-area .opdref-table td {
+  border: 1px solid #000;
+  padding: 1.5mm 2mm;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif;
+  font-size: 13pt;
+  line-height: 1.3;
+  vertical-align: top;
+  background: #fff;
+  color: #000;
+  box-sizing: border-box;
+}
+
+/* Belt-and-braces: explicitly ensure outer borders on every side */
+#opd-print-area .opdref-table tbody tr:last-child td {
+  border-bottom: 1px solid #000;
+}
+#opd-print-area .opdref-table th:last-child,
+#opd-print-area .opdref-table td:last-child {
+  border-right: 1px solid #000;
+}
+#opd-print-area .opdref-table th:first-child,
+#opd-print-area .opdref-table td:first-child {
+  border-left: 1px solid #000;
+}
+
+#opd-print-area .opdref-table thead th {
+  text-align: center;
+  font-weight: 700;
+  font-size: 12pt;
+  padding: 1.5mm 1mm;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Treatment table column widths match reference proportions */
+#opd-print-area .opdref-col-history    { width: 30%; }
+#opd-print-area .opdref-col-treatment  { width: 50%; }
+#opd-print-area .opdref-col-other      { width: 20%; }
+
+/* (Legacy block kept lower-specificity; rebalanced to match the active
+    .opdref scope above so page 2 fills the full sheet with treatment
+    ≈ 75% and follow-up ≈ 22% of the 260mm sheet content area.) */
+#opd-print-area .opdref-treatment-table .opdref-treatment-body td {
+  height: 168mm;
+  padding: 1mm 2mm;
+}
+
+#opd-print-area .opdref-treatment-table .opdref-dx-row td {
+  height: 16mm;
+  vertical-align: top;
+  font-weight: 700;
+  padding: 1.5mm 2mm;
+}
+
+#opd-print-area .opdref-col-time       { width: 11.5%; }
+#opd-print-area .opdref-col-symptom    { width: 46.5%; }
+#opd-print-area .opdref-col-procedure  { width: 28%; }
+#opd-print-area .opdref-col-recorder   { width: 14%; }
+
+#opd-print-area .opdref-followup-table tbody td {
+  height: 5.5mm;
+}
+
+/* Page 2 fits one A4 page — clamp height, overflow hidden, 1mm safety margin on
+   right + bottom so the table border doesn't sit on the clip edge. */
+#opd-print-area .opd-page-two.opdref-page {
+  height: 277mm;
+  min-height: 277mm;
+  max-height: 277mm;
+  width: 186mm;
+  max-width: 186mm;
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+/* @page rules — exact margins per spec: 10mm top/bottom, 12mm sides */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  @page opd-print {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
+  #opd-print-area.print-active,
+  #opd-print-area.print-active .opd-page,
+  #opd-print-area.print-active .opdref-page,
+  #opd-print-area.print-active .opdref-table th,
+  #opd-print-area.print-active .opdref-table td {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    width: 186mm !important;
+    min-width: 0 !important;
+    max-width: 186mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #opd-print-area,
+  #opd-print-area.print-active {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 186mm !important;
+    min-width: 0 !important;
+    max-width: 186mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  #opd-print-area .opdref-page {
+    width: 186mm !important;
+    min-width: 0 !important;
+    max-width: 186mm !important;
+    height: 277mm !important;
+    min-height: 277mm !important;
+    max-height: 277mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
   }
 }

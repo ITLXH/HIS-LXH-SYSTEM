@@ -24,6 +24,14 @@
           <input type="hidden" id="vPatientIdHidden" name="patientId">
           <div class="row g-3">
             <div class="col-md-6">
+              <label class="form-label fw-bold">ວັນທີຊັກປະຫວັດ</label>
+              <input type="date" class="form-control" id="v_date" name="v_date">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">ເວລາຊັກປະຫວັດ</label>
+              <input type="time" class="form-control" id="v_time" name="v_time">
+            </div>
+            <div class="col-md-6">
               <label class="form-label fw-bold">ຄວາມດັນໂລຫິດ (BP) mmHg</label>
               <input type="text" class="form-control border-2" name="v_bp" placeholder="120/80" autocomplete="off">
               <div class="small text-muted mt-1"><i class="fas fa-info-circle me-1"></i>ຕົວຢ່າງ: 120/80</div>
@@ -45,17 +53,27 @@
               <input type="text" class="form-control bg-light fw-bold" id="v_bmi" name="v_bmi" readonly placeholder="ຄຳນວນອັດຕະໂນມັດ">
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-bold">ຊີບຈອນ (Pulse) bpm</label>
+              <label class="form-label fw-bold">PR / ຊີບຈອນ (Pulse) bpm</label>
               <input type="number" class="form-control" name="v_pulse" min="20" max="300" placeholder="80">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">ອັດຕາຫາຍໃຈ (RR) /min</label>
+              <input type="number" class="form-control" name="v_resp" min="0" max="80" placeholder="20">
             </div>
             <div class="col-md-6">
               <label class="form-label fw-bold">SpO2 %</label>
               <input type="number" class="form-control" name="v_spo2" step="0.1" min="50" max="100" placeholder="98">
             </div>
-            <div class="col-12">
-              <label class="form-label fw-bold">ຫ້ອງກວດ (Department)</label>
-              <select class="form-select dyn-Department" name="v_department">
-                <option value="">-- ເລືອກຫ້ອງກວດ (ຖ້າມີ) --</option>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">ຫ້ອງກວດ (Department) <span class="text-danger">*</span></label>
+              <select class="form-select dyn-Department" name="v_department" required>
+                <option value="">-- ເລືອກຫ້ອງກວດ --</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">ຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ</label>
+              <select class="form-select dyn-Nurse" id="v_recorded_by" name="v_recorded_by">
+                <option value="">-- ເລືອກພະຍາບານ --</option>
               </select>
             </div>
             <div class="col-12">
