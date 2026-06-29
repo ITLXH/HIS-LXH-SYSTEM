@@ -27,9 +27,15 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python deps
-        run: pip install requests
+        # google-* libs are only needed if the user configured Google Drive
+        # credentials; install them unconditionally so the upload step doesn't
+        # have to do its own bootstrap.
+        run: pip install requests google-api-python-client google-auth
 
-      - name: Run Backup
+      - name: Run Backup (Supabase Storage)
+        # Destination 1 — Supabase Storage bucket in the SAME Supabase
+        # project the HIS app talks to. SUPABASE_URL / SERVICE_ROLE_KEY are
+        # the production project's credentials (configured as repo secrets).
         run: |
           mkdir -p output/csv output/sql
           python backup/scripts/backup_rest.py
@@ -38,6 +44,46 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
           OUTPUT_DIR: output
+          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
+
+      - name: Locate ZIP
+        id: zip
+        run: |
+          ZIP=$(find output -name "backup-*.zip" | head -1)
+          if [ -z "$ZIP" ]; then
+            echo "::error::No backup ZIP produced"
+            exit 1
+          fi
+          echo "zip_path=$ZIP" >> $GITHUB_OUTPUT
+          echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
+
+      - name: Upload to Google Drive
+        # Destination 2 — optional. The gdrive_upload.py script itself checks
+        # for GOOGLE_SERVICE_ACCOUNT_JSON and prints a warning + exits 0 if
+        # it isn't configured, so this step always runs but is a no-op
+        # without credentials.
+        id: gdrive
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Drive upload skipped — GOOGLE_SERVICE_ACCOUNT_JSON not set"
+            exit 0
+          fi
+          python backup/scripts/gdrive_upload.py "${{ steps.zip.outputs.zip_path }}" "$GOOGLE_DRIVE_FOLDER_ID"
+
+      - name: Cleanup old Google Drive backups
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Drive cleanup skipped — GOOGLE_SERVICE_ACCOUNT_JSON not set"
+            exit 0
+          fi
+          python backup/scripts/gdrive_cleanup.py "$GOOGLE_DRIVE_FOLDER_ID" || true
 
       - name: Set outputs
         id: outputs
@@ -55,11 +101,8 @@ jobs:
           echo "backup_size=${SIZE}" >> $GITHUB_OUTPUT
           echo "backup_rows=${ROWS}" >> $GITHUB_OUTPUT
           echo "backup_tables=${TABLES}" >> $GITHUB_OUTPUT
-
-          ZIP=$(find output -name "backup-*.zip" | head -1)
-          if [ -n "$ZIP" ]; then
-            echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
-          fi
+          echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
+          echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
 
       - name: Backup summary
         if: always()
@@ -75,8 +118,14 @@ jobs:
           fi
           echo "| Tables | ${{ steps.outputs.outputs.backup_tables || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Zip Name | ${{ steps.outputs.outputs.zip_name || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Size | ${{ steps.outputs.outputs.backup_size || '-' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Backup Destination | Supabase Storage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Destination 1 (Supabase) | ✅ Storage bucket |" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
+            echo "| Destination 2 (Google Drive) | [Open ↗](${{ steps.outputs.outputs.drive_url }}) |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "*No backup files committed to this repository.*" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"

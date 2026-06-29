@@ -70,23 +70,96 @@
     </div>
   </div>
 
+  <!-- Restore Section -->
+  <div class="row mb-3">
+    <div class="col-12">
+      <div class="alert alert-warning d-flex align-items-center py-2 px-3 mb-3">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <span class="small mb-0"><strong>ເຕືອນ:</strong> Restore ຈະ <u>ຂຽນທັບ</u> ຂໍ້ມູນ HIS ໂດຍ match Primary Key. ຄວນສ້າງ backup ໃໝ່ກ່ອນ.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <!-- Supabase Storage source -->
+    <div class="col-md-6 mb-3">
+      <div class="card card-outline card-success h-100">
+        <div class="card-header bg-success text-white d-flex align-items-center justify-content-between">
+          <h6 class="mb-0"><i class="fas fa-cloud me-2"></i>Supabase Storage</h6>
+          <button class="btn btn-sm btn-light border" onclick="window.loadBackupFileList()" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>ໄຟ​ລ໌</th>
+                <th style="width:130px;">ວັນທີ</th>
+                <th style="width:80px;">SIZE</th>
+                <th class="text-end" style="width:140px;">ການກະທຳ</th>
+              </tr>
+            </thead>
+            <tbody id="backupFileListBody">
+              <tr><td colspan="4" class="text-center py-4 text-muted small">
+                <i class="fas fa-cloud-download-alt me-1"></i>ກົດ <i class="fas fa-sync-alt"></i> ເພື່ອໂຫຼດ
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Drive source -->
+    <div class="col-md-6 mb-3">
+      <div class="card card-outline h-100" style="border-color:#4285F4;">
+        <div class="card-header text-white d-flex align-items-center justify-content-between" style="background:#4285F4;">
+          <h6 class="mb-0"><i class="fab fa-google-drive me-2"></i>Google Drive</h6>
+          <button class="btn btn-sm btn-light border" onclick="window.loadGdriveBackupList()" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th>ໄຟ​ລ໌</th>
+                <th style="width:130px;">ວັນທີ</th>
+                <th style="width:80px;">SIZE</th>
+                <th class="text-end" style="width:140px;">ການກະທຳ</th>
+              </tr>
+            </thead>
+            <tbody id="backupGdriveListBody">
+              <tr><td colspan="4" class="text-center py-4 text-muted small">
+                <i class="fab fa-google-drive me-1"></i>ກົດ <i class="fas fa-sync-alt"></i> ເພື່ອໂຫຼດ
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Backup History Table -->
   <div class="row">
     <div class="col-12">
       <div class="card card-outline card-secondary">
-        <div class="card-header bg-secondary text-white">
-          <h5 class="mb-0"><i class="fas fa-history me-2"></i>ປະຫວັດ Backup</h5>
+        <div class="card-header bg-secondary text-white d-flex align-items-center justify-content-between">
+          <h5 class="mb-0"><i class="fas fa-history me-2"></i>ປະຫວັດ Backup (Workflow runs)</h5>
+          <button class="btn btn-sm btn-light border" onclick="window.renderBackupHistory()">
+            <i class="fas fa-sync-alt me-1"></i> Refresh
+          </button>
         </div>
         <div class="card-body p-0">
           <table id="backupHistoryTable" class="table table-hover mb-0">
             <thead class="bg-light">
               <tr>
                 <th style="width:160px;">ວັນທີ/ເວລາ</th>
-                <th style="width:220px;">FILE NAME</th>
-                <th style="width:100px;">SIZE</th>
+                <th style="width:140px;">Run #</th>
                 <th style="width:140px;">STATUS</th>
-                <th style="width:180px;">DESTINATION</th>
-                <th class="text-truncate" style="max-width:200px;">ERROR</th>
+                <th style="width:140px;">TRIGGER</th>
+                <th style="width:120px;">DURATION</th>
+                <th class="text-end">LINK</th>
               </tr>
             </thead>
             <tbody id="backupHistoryBody">

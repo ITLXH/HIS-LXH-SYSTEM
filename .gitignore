@@ -54,3 +54,6 @@ output/
 
 # Local Claude Code settings (may contain API tokens)
 .claude/settings.local.json
+
+# Cloudflare Pages local dev vars (contains secrets)
+.dev.vars

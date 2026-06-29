@@ -4612,7 +4612,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
   let vStart = 0;
   while (true) {
     const { data: chunk, error: vErr } = await supabaseClient.from(dbTable('Visits'))
-      .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Respiration, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
+      .select('Patient_ID, Patient_Name, Date, Status, Department, Visit_Type, Symptoms, Diagnosis, Doctor_Name, Lab_Orders_JSON, Prescription_JSON, Discharge_Status, Visit_ID, BP, Temp, Pulse, Respiratory_Rate, Weight, Height, SpO2, Advice, Follow_Up, Physical_Exam')
       .gte('Date', visitRange.startIso)
       .lte('Date', visitRange.endIso)
       .not('Date', 'is', null)
@@ -12017,10 +12017,16 @@ window.handleExcelUpload = function (e) {
     let jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
 
     let insertData = [];
+    const idStamp = Date.now();
     for (let i = 1; i < jsonData.length; i++) {
       let row = jsonData[i];
       if (row.length < 1 || !row[0]) continue;
-      insertData.push({ Services_List: row[0], Mapped_Specialist: row[1] || '', Revenue_Group: row[2] || '' });
+      insertData.push({
+        ID: 'SRV' + idStamp + '-' + i,
+        Services_List: row[0],
+        Mapped_Specialist: row[1] || '',
+        Revenue_Group: row[2] || ''
+      });
     }
 
     if (insertData.length > 0) {
@@ -12744,6 +12750,8 @@ window.initBackupView = function () {
   }
   window.loadLatestBackupStatus();
   window.renderBackupHistory();
+  window.loadBackupFileList();
+  if (typeof window.loadGdriveBackupList === 'function') window.loadGdriveBackupList();
 };
 
 // ============================================================
@@ -12829,6 +12837,8 @@ window.runManualBackup = async function () {
     _backupPolling = false;
     window.loadLatestBackupStatus();
     window.renderBackupHistory();
+    if (typeof window.loadBackupFileList === 'function') window.loadBackupFileList();
+    if (typeof window.loadGdriveBackupList === 'function') window.loadGdriveBackupList();
   }
 };
 
@@ -13008,45 +13018,26 @@ window.addBackupHistoryEntry = function (entry) {
 
 window.renderBackupHistory = async function () {
   try {
-    const resp = await fetch('/api/backup/status');
-    // In local dev, API returns 404 — skip API part, show localStorage history
+    const resp = await fetch('/api/backup/runs?limit=15');
     if (resp.status === 404) {
-      window._renderBackupHistoryTable(window.getBackupHistory());
+      // In local Vite (no Functions) — show empty
+      window._renderBackupHistoryTable([]);
       return;
     }
     const data = await resp.json();
-
-    if (data.run_id) {
-      const history = window.getBackupHistory();
-      const existing = history.find(function (e) { return e.id === data.run_id; });
-      if (existing) {
-        existing.status = data.conclusion || data.status;
-        existing.error = data.error || null;
-        existing.date = data.updated_at || existing.date;
-      } else {
-        const dateStr = data.updated_at || data.created_at || new Date().toISOString();
-        window.addBackupHistoryEntry({
-          run_id: data.run_id,
-          date: dateStr,
-          filename: 'backup-' + dateStr.substring(0, 10) + (data.trigger === 'workflow_dispatch' ? '-manual' : '') + '.zip',
-          status: data.conclusion || data.status,
-          error: data.error
-        });
-      }
-    }
+    const runs = (data && data.runs) || [];
+    window._renderBackupHistoryTable(runs);
   } catch (err) {
-    console.warn('Failed to fetch status for history:', err);
+    console.warn('Failed to load /api/backup/runs:', err);
+    window._renderBackupHistoryTable([]);
   }
-
-  // Fetch complete — render whatever history we have
-  window._renderBackupHistoryTable(window.getBackupHistory());
 };
 
 // ============================================================
-// Reusable backup history table renderer — called with or without API data
+// History table renderer — uses the rows returned by /api/backup/runs.
 // ============================================================
-window._renderBackupHistoryTable = function (history) {
-  if (!history || history.length === 0) {
+window._renderBackupHistoryTable = function (runs) {
+  if (!runs || runs.length === 0) {
     $('#backupHistoryBody').html('<tr><td colspan="6" class="text-center py-4 text-muted">' +
       '<i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup</td></tr>'
     );
@@ -13054,32 +13045,247 @@ window._renderBackupHistoryTable = function (history) {
   }
 
   var html = '';
-  history.forEach(function (entry) {
-    var statusBadge = entry.status === 'success'
-      ? '<span class="badge bg-success">Success</span>'
-      : entry.status === 'failure' ? '<span class="badge bg-danger">Failed</span>'
-        : '<span class="badge bg-warning">Running</span>';
+  runs.forEach(function (run) {
+    var status = run.status || 'unknown';
+    var statusBadge =
+      status === 'success'   ? '<span class="badge bg-success">Success</span>' :
+      status === 'failure'   ? '<span class="badge bg-danger">Failed</span>'   :
+      status === 'cancelled' ? '<span class="badge bg-secondary">Cancelled</span>' :
+      status === 'in_progress' || status === 'queued' ?
+                               '<span class="badge bg-warning text-dark">' + status + '</span>' :
+                               '<span class="badge bg-light text-dark">' + status + '</span>';
 
-    var dateStr = entry.date
-      ? new Date(entry.date).toLocaleString('lo-LA', {
+    var dateStr = run.updated_at
+      ? new Date(run.updated_at).toLocaleString('lo-LA', {
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit'
         }) : '-';
 
-    var errorCell = entry.error
-      ? '<span class="text-danger text-truncate d-inline-block" style="max-width:180px;">' + entry.error + '</span>' : '-';
+    var trigger = run.trigger === 'schedule' ? 'Auto (cron)' :
+                  run.trigger === 'workflow_dispatch' ? 'Manual' :
+                  (run.trigger || '-');
+
+    var duration = (typeof run.duration_seconds === 'number')
+      ? run.duration_seconds + ' s' : '-';
+
+    var link = run.html_url
+      ? '<a href="' + run.html_url + '" target="_blank" class="btn btn-sm btn-outline-secondary">' +
+        '<i class="fas fa-external-link-alt"></i></a>' : '-';
 
     html += '<tr>' +
       '<td class="text-nowrap">' + dateStr + '</td>' +
-      '<td><code class="small">' + entry.filename + '</code></td>' +
-      '<td>' + entry.size + '</td>' +
+      '<td><code class="small">#' + (run.run_number || '?') + '</code></td>' +
       '<td>' + statusBadge + '</td>' +
-      '<td><small>' + entry.destination + '</small></td>' +
-      '<td>' + errorCell + '</td>' +
+      '<td><small>' + trigger + '</small></td>' +
+      '<td><small class="text-muted">' + duration + '</small></td>' +
+      '<td class="text-end">' + link + '</td>' +
       '</tr>';
   });
 
   $('#backupHistoryBody').html(html);
+};
+
+// ============================================================
+// Restore — list backup ZIPs in Supabase Storage and trigger restore
+// ============================================================
+window.loadBackupFileList = async function () {
+  const tbody = document.getElementById('backupFileListBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
+    '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດລາຍການ backup...</td></tr>';
+  try {
+    const resp = await fetch('/api/backup/list');
+    if (resp.status === 404) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
+        'API ບໍ່ພ້ອມ (local Vite). ໃຊ້ <code>npm run pages:dev</code> ເພື່ອທົດສອບ.</td></tr>';
+      return;
+    }
+    const data = await resp.json();
+    if (!data || data.status === 'error') {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">' +
+        '<i class="fas fa-exclamation-circle me-2"></i>' + (data && data.error ? data.error : 'Unknown error') + '</td></tr>';
+      return;
+    }
+    const files = data.files || [];
+    if (files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
+        '<i class="fas fa-inbox me-2"></i>ບໍ່ມີໄຟລ໌ backup ໃນ bucket <code>' + (data.bucket || '?') + '</code></td></tr>';
+      return;
+    }
+    var rows = '';
+    files.forEach(function (f) {
+      var sizeStr = (typeof f.size === 'number') ? window.formatBytes(f.size) : '-';
+      var dateStr = f.created_at
+        ? new Date(f.created_at).toLocaleString('lo-LA', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+          }) : '-';
+      var safeName = String(f.name).replace(/'/g, "\\'");
+      rows += '<tr>' +
+        '<td><code class="small">' + f.name + '</code></td>' +
+        '<td class="text-nowrap"><small>' + dateStr + '</small></td>' +
+        '<td><small class="text-muted">' + sizeStr + '</small></td>' +
+        '<td class="text-end">' +
+          '<button class="btn btn-sm btn-outline-primary me-1" onclick="window.downloadBackupFile(\'' + safeName + '\')">' +
+            '<i class="fas fa-download me-1"></i>Download</button>' +
+          '<button class="btn btn-sm btn-warning" onclick="window.confirmRestoreBackup(\'' + safeName + '\')">' +
+            '<i class="fas fa-undo-alt me-1"></i>Restore</button>' +
+        '</td>' +
+      '</tr>';
+    });
+    tbody.innerHTML = rows;
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">' +
+      '<i class="fas fa-exclamation-circle me-2"></i>' + (err && err.message ? err.message : 'Network error') + '</td></tr>';
+  }
+};
+
+window.formatBytes = function (bytes) {
+  if (!bytes || bytes < 1024) return (bytes || 0) + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+};
+
+window.downloadBackupFile = async function (name) {
+  try {
+    const resp = await fetch('/api/backup/signed-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: name, expires: 600 })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.status === 'error' || !data.url) {
+      Swal.fire('ບໍ່ສຳເລັດ', data.error || 'ບໍ່ສາມາດສ້າງ download URL ໄດ້', 'error');
+      return;
+    }
+    window.open(data.url, '_blank');
+  } catch (err) {
+    Swal.fire('ບໍ່ສຳເລັດ', err.message || 'Network error', 'error');
+  }
+};
+
+window.confirmRestoreBackup = async function (name, opts) {
+  opts = opts || {};
+  const source = opts.source || 'supabase';
+  const gdriveFileId = opts.gdrive_file_id || '';
+
+  const sourceLabel = source === 'gdrive' ? 'Google Drive' : 'Supabase Storage';
+
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: '⚠️ ຄືນຄ່າຂໍ້ມູນ?',
+    html:
+      '<div class="text-start small">' +
+      '<p>ກຳລັງຈະ <strong>ຂຽນທັບ</strong> ຕາຕະລາງ HIS ດ້ວຍຂໍ້ມູນຈາກ:</p>' +
+      '<p><code>' + name + '</code></p>' +
+      '<p class="text-muted">ແຫຼ່ງ: ' + sourceLabel + '</p>' +
+      '<p>ການກະທຳນີ້ <u>ບໍ່ສາມາດຄືນຄ່າໄດ້</u>. ກະລຸນາພິມຄຳວ່າ <strong>RESTORE</strong> ເພື່ອຢືນຢັນ:</p>' +
+      '</div>',
+    input: 'text',
+    inputAttributes: { autocapitalize: 'characters', autocomplete: 'off' },
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    confirmButtonText: 'ຄືນຄ່າຕອນນີ້',
+    cancelButtonText: 'ຍົກເລີກ',
+    inputValidator: (v) => v === 'RESTORE' ? undefined : 'ກະລຸນາພິມ RESTORE ໃຫ້ຖືກຕ້ອງ'
+  });
+  if (!result.isConfirmed) return;
+
+  Swal.fire({
+    title: 'ກຳລັງສົ່ງຄຳສັ່ງ restore...',
+    didOpen: () => Swal.showLoading(),
+    allowOutsideClick: false
+  });
+
+  const payload = { source, confirm: 'RESTORE', backup_name: name };
+  if (source === 'gdrive') payload.gdrive_file_id = gdriveFileId;
+
+  try {
+    const resp = await fetch('/api/backup/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) {
+      Swal.fire('ບໍ່ສຳເລັດ', data.error || ('HTTP ' + resp.status), 'error');
+      return;
+    }
+    Swal.fire({
+      icon: 'success',
+      title: 'Restore workflow ຖືກສົ່ງ',
+      html: 'GitHub Actions ກຳລັງ restore ຈາກ <code>' + name + '</code> (' + sourceLabel + ').<br>' +
+            'ສະຖານະຈະປາກົດໃນ "ປະຫວັດ Backup" — refresh ໃນ 1-2 ນາທີ.',
+      confirmButtonText: 'ຕົກລົງ'
+    });
+  } catch (err) {
+    Swal.fire('ບໍ່ສຳເລັດ', err.message || 'Network error', 'error');
+  }
+};
+
+// ============================================================
+// Google Drive backup list — paired with /api/backup/gdrive-list
+// ============================================================
+window.loadGdriveBackupList = async function () {
+  const tbody = document.getElementById('backupGdriveListBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
+    '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດຈາກ Google Drive...</td></tr>';
+  try {
+    const resp = await fetch('/api/backup/gdrive-list');
+    if (resp.status === 404) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
+        'API ບໍ່ພ້ອມ (local Vite). ໃຊ້ <code>npm run pages:dev</code>.</td></tr>';
+      return;
+    }
+    const data = await resp.json();
+    if (data && data.status === 'disabled') {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
+        '<i class="fab fa-google-drive me-1"></i>ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ Google Drive (ບໍ່ມີ GOOGLE_SERVICE_ACCOUNT_JSON)' +
+        '</td></tr>';
+      return;
+    }
+    if (data && data.status === 'error') {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger small">' +
+        '<i class="fas fa-exclamation-circle me-2"></i>' + (data.error || 'Unknown error') + '</td></tr>';
+      return;
+    }
+    const files = (data && data.files) || [];
+    if (files.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
+        '<i class="fas fa-inbox me-1"></i>ບໍ່ມີ backup ໃນ Google Drive folder</td></tr>';
+      return;
+    }
+    var rows = '';
+    files.forEach(function (f) {
+      var sizeStr = (typeof f.size === 'number') ? window.formatBytes(f.size) : '-';
+      var dateStr = f.created_at
+        ? new Date(f.created_at).toLocaleString('lo-LA', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+          }) : '-';
+      var safeName = String(f.name).replace(/'/g, "\\'");
+      var safeId = String(f.id).replace(/'/g, "\\'");
+      var openLink = f.web_view_link
+        ? '<a href="' + f.web_view_link + '" target="_blank" class="btn btn-sm btn-outline-secondary me-1" title="Open in Drive"><i class="fas fa-external-link-alt"></i></a>'
+        : '';
+      rows += '<tr>' +
+        '<td><code class="small">' + f.name + '</code></td>' +
+        '<td class="text-nowrap"><small>' + dateStr + '</small></td>' +
+        '<td><small class="text-muted">' + sizeStr + '</small></td>' +
+        '<td class="text-end">' + openLink +
+          '<button class="btn btn-sm btn-warning" onclick="window.confirmRestoreBackup(\'' + safeName +
+            '\', { source: \'gdrive\', gdrive_file_id: \'' + safeId + '\' })">' +
+            '<i class="fas fa-undo-alt"></i></button>' +
+        '</td>' +
+      '</tr>';
+    });
+    tbody.innerHTML = rows;
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger small">' +
+      '<i class="fas fa-exclamation-circle me-2"></i>' + (err && err.message ? err.message : 'Network error') + '</td></tr>';
+  }
 };
 
 // ============================================================

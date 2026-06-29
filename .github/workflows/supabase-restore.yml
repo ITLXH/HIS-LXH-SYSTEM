@@ -1,0 +1,70 @@
+name: Supabase DB Restore
+
+# Triggered ONLY by manual workflow_dispatch (from the in-app Restore button
+# via /api/backup/restore, or by clicking "Run workflow" in GitHub Actions).
+# Never on schedule. Destructive — overwrites rows by primary key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Source of the backup ZIP'
+        required: true
+        default: 'supabase'
+        type: choice
+        options:
+          - supabase
+          - gdrive
+      backup_name:
+        description: 'Supabase: ZIP filename in the Storage bucket (e.g. backup-2026-06-28.zip)'
+        required: false
+      gdrive_file_id:
+        description: 'Google Drive: file ID of the backup ZIP'
+        required: false
+      dry_run:
+        description: 'Dry-run (do not actually write rows)'
+        required: false
+        default: 'false'
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps
+        run: pip install requests google-api-python-client google-auth
+
+      - name: Run Restore
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BACKUP_SOURCE: ${{ github.event.inputs.source }}
+          BACKUP_NAME: ${{ github.event.inputs.backup_name }}
+          BACKUP_GDRIVE_FILE_ID: ${{ github.event.inputs.gdrive_file_id }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: |
+          python backup/scripts/restore_rest.py
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## HIS Database Restore" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Source | ${{ github.event.inputs.source }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Backup name | \`${{ github.event.inputs.backup_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Drive file ID | \`${{ github.event.inputs.gdrive_file_id }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dry-run | ${{ github.event.inputs.dry_run }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"

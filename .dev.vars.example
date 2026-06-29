@@ -1,0 +1,26 @@
+# Cloudflare Pages local dev vars (used by `npm run pages:dev`).
+# Copy to .dev.vars and fill in real values. .dev.vars is git-ignored.
+
+# GitHub fine-grained PAT with: Actions (read+write) + Metadata (read)
+# on the ITLXH/HIS-LXH-SYSTEM repo.
+BACKUP_GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+
+# Repo override (optional — defaults baked into the Functions)
+# BACKUP_GH_OWNER=ITLXH
+# BACKUP_GH_REPO=HIS-LXH-SYSTEM
+# BACKUP_WORKFLOW_FILE=supabase-backup.yml
+# RESTORE_WORKFLOW_FILE=supabase-restore.yml
+
+# Supabase — the SAME Supabase project the JS frontend talks to. Use the
+# SERVICE ROLE key (never expose this in browser code). The storage bucket
+# is where backup ZIPs are uploaded.
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJxxxxxxxxx
+SUPABASE_STORAGE_BUCKET=his-backups
+
+# Google Drive (optional 2nd destination) — set BOTH or neither.
+# The service account email must have at least "Viewer" on the Drive
+# folder; for upload you also need "Editor". Paste the full JSON content
+# of the key file on ONE line (no actual newlines).
+# GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+# GOOGLE_DRIVE_FOLDER_ID=1AbCdEfGhIjKlMnOpQrStUvWxYz

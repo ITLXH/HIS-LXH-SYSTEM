@@ -8,33 +8,26 @@ export async function onRequestPost(ctx) {
   const { request, env } = ctx;
 
   try {
-    // Use hardcoded defaults — env vars are optional overrides
-    const owner = env.BACKUP_GH_OWNER || 'it977';
-    const repo = env.BACKUP_GH_REPO || 'HIS-sys';
+    // Repo is now ITLXH/HIS-LXH-SYSTEM. Env vars still override if needed.
+    const owner = env.BACKUP_GH_OWNER || 'ITLXH';
+    const repo = env.BACKUP_GH_REPO || 'HIS-LXH-SYSTEM';
     const workflowFile = env.BACKUP_WORKFLOW_FILE || 'supabase-backup.yml';
 
-    // Try workflow filename first; if that fails, fallback to workflow ID
-    // (avoids issues with filename changes or renamed workflows)
+    // Parse optional reason from body
+    let reason = 'manual';
     try {
-      await ghRequest(
-        env,
-        'POST',
-        `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
-        { ref: 'main' }
-      );
-    } catch (primaryErr) {
-      // If filename lookup fails, try the numeric workflow ID
-      if (primaryErr.message && primaryErr.message.includes('404')) {
-        await ghRequest(
-          env,
-          'POST',
-          `/repos/${owner}/${repo}/actions/workflows/275980961/dispatches`,
-          { ref: 'main' }
-        );
-      } else {
-        throw primaryErr;
+      const body = await request.json();
+      if (body && typeof body.reason === 'string' && body.reason.trim()) {
+        reason = body.reason.trim().slice(0, 80);
       }
-    }
+    } catch (_) { /* no body or invalid json — keep default */ }
+
+    await ghRequest(
+      env,
+      'POST',
+      `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
+      { ref: 'main', inputs: { reason } }
+    );
 
     return new Response(
       JSON.stringify({ success: true, message: 'Backup started', owner, repo, workflowFile }),
