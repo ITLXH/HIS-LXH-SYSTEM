@@ -311,3 +311,138 @@ Verified at [tmp/pdfs/opd-opd-title-v3-page1.png](../tmp/pdfs/opd-opd-title-v3-p
 row reads "ຄຳນຳໜ້າ/Title: ທ່ານ  ຊື່/Name: ສົມຈິດ  ນາມສະກຸນ/Surname:
 ສຸດສະຫງ່າ  ອາຍຸ/Aged: 42 ປີ" on one line; Org ID cell shows the full
 `CUS-LXH-AMZ-12345`.
+
+## CC multi-line + Nutrition checkboxes + Page 2 follow-up 5-col + QR sticker (2026-06-30)
+
+User comments on the next iteration:
+
+> ສາເຫດເຂົ້າມາໂຮງໝໍຂຶ້ນ ໃຫ້ປະຫຍັດການ … ຈະໃສ່ບໍ່ໄດ້  
+> ໂດຍ Nutrition status ໃຫ້ປ່ຽນເປັນ ໂພຊະນາການ ແລະ ເພີ່ມສະຖານະ ເຊັ່ນ ປົກກະຕີ / ບໍ່ປົກກະຕີ / ອື່ນໆ
+>
+> ໂຕບີ້ໃຫ້ມີແຕ່ 5 ຫົວຂໍ້ ແລ້ວອັ້ງ ໂດຍຕາລາງທາງເທິງໃຫ້ກວ້າງເພີ່ມຂຶ້ນ
+>
+> Sticker ປີ້ນອອກມານ້ອຍເກີນໄປບໍ່ເຕັມໜ້າເຈ້ຍປີ້ນ
+
+### 1. Chief complaint — 2-line writing space
+
+Old layout: `ສາເຫດມາໂຮງໝໍ/Chief complaint:` + a single short `opdref-fill-wide`
+underline. When the symptoms ran long the text truncated mid-word.
+
+Fix in [public/partials/print-areas.html](../public/partials/print-areas.html):
+
+```html
+<div class="opdref-row opdref-row-full-line">
+  <span>ສາເຫດມາໂຮງໝໍ/Chief complaint:</span>
+  <span id="popd_cc" class="opdref-fill opdref-fill-cc"></span>
+</div>
+<div class="opdref-row opdref-row-full-line">
+  <span class="opdref-fill opdref-fill-cc-line"></span>
+</div>
+```
+
+CSS in [src/style.css](../src/style.css):
+- `.opdref-fill-cc { width: 124mm }` (the label takes ~58mm, leaving 124mm
+  on the same row)
+- `.opdref-fill-cc-line { width: 182mm }` (a full-width blank dotted line
+  for handwritten continuation)
+
+`popd_cc` still binds to `v.symptoms` so the printed first line shows what
+the front desk recorded; the nurse uses the second line for elaboration.
+
+### 2. Nutrition status — Lao label + checkbox options
+
+Old layout: `Nutrition status: ____` — just an empty underline, English-only label.
+
+New layout (template):
+
+```html
+<div class="opdref-row opdref-row-nutrition opdref-section-inline">
+  <span>ໂພຊະນາການ/Nutrition status:</span>
+  <span><span id="popd_nutri_normal">□</span> ປົກກະຕີ/Normal</span>
+  <span><span id="popd_nutri_abnormal">□</span> ບໍ່ປົກກະຕີ/Abnormal</span>
+  <span><span id="popd_nutri_other">□</span> ອື່ນໆ/Other:</span>
+  <span id="popd_nutri_other_text" class="opdref-fill opdref-fill-nutri-other"></span>
+</div>
+```
+
+No DB column for nutrition status exists, so the checkboxes stay blank (□)
+on print — the nurse hand-ticks. Reserved IDs `popd_nutri_normal/abnormal/
+other/other_text` so a future migration can wire them up without touching
+the template again.
+
+### 3. Page 2 — wider treatment table + 5-column follow-up
+
+- **Treatment body height** 168mm → **186mm** in
+  [src/style.css](../src/style.css) (`#opd-print-area.opdref .opdref-treatment-body td`
+  and the `.opdref-page` fallback). The Dx / Follow-up row keeps its 16mm.
+- **Follow-up table** gained a fifth column `ໝາຍເຫດ` between Procedure and
+  Recorder. New `<col class="opdref-col-note" />` and `<th>ໝາຍເຫດ</th>`.
+  Column widths rebalanced:
+  - `opdref-col-time` 11.5% → 10%
+  - `opdref-col-symptom` 46.5% → 32%
+  - `opdref-col-procedure` 28% → 22%
+  - `opdref-col-note` (new) → 22%
+  - `opdref-col-recorder` 14% (unchanged)
+- **Body row count** reduced from 8 → 5 (`<tr><td></td><td></td><td></td><td></td><td></td></tr>`)
+  so the follow-up table still fits below the now-larger treatment table
+  on a single A4 portrait page.
+
+Total page 2 budget: title 12mm + treatment header 7mm + treatment body
+186mm + Dx row 16mm + page2-title-gap ≈ 10mm + follow-up header 7mm +
+5×5.5mm = 245.5mm — fits well inside the 277mm inner page height.
+
+### 4. Patient QR sticker — fill the print sheet
+
+Old print-area in [public/partials/print-areas.html:2](../public/partials/print-areas.html#L2)
+printed three 65×35mm cards which barely filled the top third of A4
+portrait (≈105mm out of 297mm, the rest blank).
+
+Card geometry rebuilt in [src/style.css](../src/style.css) (`.patient-card`,
+`.pcard-left`, `.pcard-right`, `.pcard-row`, etc.):
+
+| Property | Old | New |
+|---|---|---|
+| Card size | 65×35mm | **180×85mm** |
+| Card padding | 2px 4px | **6mm 8mm** |
+| Card border | 1.5px | **2px** |
+| Gap between cards | 0 | **6mm** |
+| Grid padding | 0 | **6mm 0** |
+| `.pcard-right` width (QR side) | 24mm | **56mm** |
+| Label font | 7px | **11px** |
+| Value font | 9.5px | **14px** |
+| Name font | 10.5px | **18px** |
+| ID font | 10px | **14px** |
+| QR canvas/img | 30px | **50mm** |
+
+And the QRCode generator in [src/main.js:5982](../src/main.js#L5982):
+
+```js
+new QRCode(el, { text: d.id, width: 200, height: 200, ... });
+```
+
+(was `width: 30, height: 30` — produced a tiny 30px QR that printed at
+fingernail size).
+
+Stack of 3 cards = 3 × 85 + 2 × 6 (gaps) + 2 × 6 (grid padding) = **267mm**,
+fits inside A4 portrait inner height with a small bottom margin.
+
+### Verification
+
+- OPD card PDF rendered via Puppeteer print emulation in
+  [tmp/pdfs/render.cjs](../tmp/pdfs/render.cjs); both pages fit, follow-up
+  table shows 5 columns + 5 rows in full
+  ([tmp/pdfs/opd-opd-cc-nutri-v2-page1.png](../tmp/pdfs/opd-opd-cc-nutri-v2-page1.png),
+  [-page2.png](../tmp/pdfs/opd-opd-cc-nutri-v2-page2.png)).
+- QR sticker preview: print emulation hides the area (the legacy `@media
+  print` rules in `style.css` only show `.print-active`), so a separate
+  screen-mode renderer was added in
+  [tmp/pdfs/render-screen.cjs](../tmp/pdfs/render-screen.cjs). Output at
+  [tmp/pdfs/screen-qr-large.png](../tmp/pdfs/screen-qr-large.png) shows
+  three full-size cards with big QR codes filling the page.
+
+### Cache-buster
+
+Template version bumped to `2026-06-30-opd-cc-nutrition-page2-v3` in both
+[src/main.js](../src/main.js) (`PARTIAL_CACHE_BUST` and `expectedVersion`)
+and [public/partials/print-areas.html](../public/partials/print-areas.html)
+(`data-opd-template-version`).

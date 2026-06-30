@@ -50,7 +50,7 @@
 </div>
 
 <!-- OPD Print Area - one template only, rendered by the existing OPD PDF workflow -->
-<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-30-opd-title-orgid-v2">
+<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-30-opd-cc-nutrition-page2-v3">
   <div class="opd-page opd-page-one opdref-page">
     <div class="opdref-hidden" aria-hidden="true">
       <img id="print-opd-footer-1" alt="" />
@@ -111,8 +111,11 @@
       <div class="opdref-row opdref-row-full-line">
         <span>ສ່ວນຫຼຸດ/Discount:</span><span id="popd_discount" class="opdref-fill opdref-fill-discount-wide"></span>
       </div>
-      <div class="opdref-row">
-        <span>ສາເຫດມາໂຮງໝໍ/Chief complaint:</span><span id="popd_cc" class="opdref-fill opdref-fill-wide"></span>
+      <div class="opdref-row opdref-row-full-line">
+        <span>ສາເຫດມາໂຮງໝໍ/Chief complaint:</span><span id="popd_cc" class="opdref-fill opdref-fill-cc"></span>
+      </div>
+      <div class="opdref-row opdref-row-full-line">
+        <span class="opdref-fill opdref-fill-cc-line"></span>
       </div>
 
       <div class="opdref-rule opdref-rule-tight"></div>
@@ -143,8 +146,12 @@
           </tr>
         </tbody>
       </table>
-      <div class="opdref-row opdref-row-nutrition">
-        <span>Nutrition status:</span><span class="opdref-fill opdref-fill-wide"></span>
+      <div class="opdref-row opdref-row-nutrition opdref-section-inline">
+        <span>ໂພຊະນາການ/Nutrition status:</span>
+        <span><span id="popd_nutri_normal">□</span> ປົກກະຕີ/Normal</span>
+        <span><span id="popd_nutri_abnormal">□</span> ບໍ່ປົກກະຕີ/Abnormal</span>
+        <span><span id="popd_nutri_other">□</span> ອື່ນໆ/Other:</span>
+        <span id="popd_nutri_other_text" class="opdref-fill opdref-fill-nutri-other"></span>
       </div>
 
       <div class="opdref-rule opdref-rule-tight"></div>
@@ -209,6 +216,7 @@
           <col class="opdref-col-time" />
           <col class="opdref-col-symptom" />
           <col class="opdref-col-procedure" />
+          <col class="opdref-col-note" />
           <col class="opdref-col-recorder" />
         </colgroup>
         <thead>
@@ -216,18 +224,16 @@
             <th>Time</th>
             <th>ອາການ</th>
             <th>ຫັດຖະການ</th>
+            <th>ໝາຍເຫດ</th>
             <th>ຜູ້ບັນທຶກ</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr><td></td><td></td><td></td><td></td><td></td></tr>
         </tbody>
       </table>
     </div>

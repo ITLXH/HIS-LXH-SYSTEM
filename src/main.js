@@ -2556,7 +2556,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-06-30-opd-title-orgid-v2';
+  const PARTIAL_CACHE_BUST = '2026-06-30-opd-cc-nutrition-page2-v3';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
@@ -2594,7 +2594,7 @@ async function loadPartials() {
 window.ensureFreshOpdPrintTemplate = async function () {
   const prints = document.getElementById('partial-prints');
   const current = document.getElementById('opd-print-area');
-  const expectedVersion = '2026-06-30-opd-title-orgid-v2';
+  const expectedVersion = '2026-06-30-opd-cc-nutrition-page2-v3';
   if (prints && current && current.dataset.opdTemplateVersion === expectedVersion) return;
 
   const res = await fetch(`/partials/print-areas.html?v=${expectedVersion}-${Date.now()}`, {
@@ -5979,7 +5979,7 @@ window.printQRCard = async function (id) {
     if (el) {
       el.innerHTML = '';
       new QRCode(el, {
-        text: d.id, width: 30, height: 30, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
+        text: d.id, width: 200, height: 200, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
       });
     }
   });
