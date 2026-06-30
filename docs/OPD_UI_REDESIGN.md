@@ -256,3 +256,58 @@ Output: [`tmp/pdfs/opd-opd-fix8b-page1.png`](../tmp/pdfs/opd-opd-fix8b-page1.png
 + [`tmp/pdfs/opd-opd-fix8b-page2.png`](../tmp/pdfs/opd-opd-fix8b-page2.png).
 All 8 user comments resolved; both Village/District/Province and
 Emergency rows fit one line.
+
+## Title prefix + Org ID width (2026-06-30) — Followup
+
+User comments on the next-iteration PDF preview:
+
+### Add a Title prefix before the Name
+
+Until now the Name row started with `ຊື່/Name:` — there was no slot for
+honorifics like `ທ່ານ` / `ນາງ` / `ນາງສາວ` / `ດຣ.` that the Patients form
+already stores in `d.Title`.
+
+Fix:
+
+- Template ([public/partials/print-areas.html](../public/partials/print-areas.html)):
+  prepended `ຄຳນຳໜ້າ/Title: <span id="popd_title" class="opdref-fill opdref-fill-title"></span>`
+  before the Name span on the Name row.
+- [`src/main.js`](../src/main.js) `printOPDCard`: added
+  `safeSetText('popd_title', d.Title || '')` next to the existing
+  `popd_name` / `popd_surname` binds.
+- CSS ([`src/style.css`](../src/style.css)): added
+  `.opdref-fill-title { width: 12mm }` to both the
+  `#opd-print-area.opdref` and the `.opdref-page` blocks.
+
+To keep the 4-cell row (Title + Name + Surname + Aged) on **one line**
+inside the 186mm inner page width, also tightened existing widths:
+- `opdref-fill-name` 36mm → 24mm
+- `opdref-fill-age` 16mm → 10mm
+
+Verified geometry via
+[tmp/pdfs/check-row.cjs](../tmp/pdfs/check-row.cjs): the row content now
+ends at 661 / 665 px (4 px slack), no overflow.
+
+### Show the full Org ID
+
+The org-row used a flex layout where `#popd_org_id` had
+`flex: 0 0 28mm`. Sample data like `CUS-LXH-AMZ-12345` was truncating to
+`CUS-LXH-AM`.
+
+Fix in [`src/style.css`](../src/style.css): bumped the flex-basis to
+**44mm** in both
+- `#opd-print-area.opdref .opdref-org-row #popd_org_id`
+- `.opdref-page .opdref-org-row #popd_org_id`
+
+The Org Name fill (`opdref-fill-org-name-wide`) keeps `flex: 1 1 auto`,
+so it just shrinks by the 16mm we gave to Org ID — no further changes
+needed there.
+
+Template cache-buster bumped to `2026-06-30-opd-title-orgid-v2` in both
+`PARTIAL_CACHE_BUST` / `expectedVersion` (`src/main.js`) and
+`data-opd-template-version` (`print-areas.html`).
+
+Verified at [tmp/pdfs/opd-opd-title-v3-page1.png](../tmp/pdfs/opd-opd-title-v3-page1.png):
+row reads "ຄຳນຳໜ້າ/Title: ທ່ານ  ຊື່/Name: ສົມຈິດ  ນາມສະກຸນ/Surname:
+ສຸດສະຫງ່າ  ອາຍຸ/Aged: 42 ປີ" on one line; Org ID cell shows the full
+`CUS-LXH-AMZ-12345`.

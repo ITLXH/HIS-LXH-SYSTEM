@@ -2556,7 +2556,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-06-30-opd-emer-bmi-gender-v1';
+  const PARTIAL_CACHE_BUST = '2026-06-30-opd-title-orgid-v2';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
@@ -2594,7 +2594,7 @@ async function loadPartials() {
 window.ensureFreshOpdPrintTemplate = async function () {
   const prints = document.getElementById('partial-prints');
   const current = document.getElementById('opd-print-area');
-  const expectedVersion = '2026-06-30-opd-emer-bmi-gender-v1';
+  const expectedVersion = '2026-06-30-opd-title-orgid-v2';
   if (prints && current && current.dataset.opdTemplateVersion === expectedVersion) return;
 
   const res = await fetch(`/partials/print-areas.html?v=${expectedVersion}-${Date.now()}`, {
@@ -9039,6 +9039,7 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_vid', v.visitId || '');
     safeSetText('popd_dept', v.department || '');
     window.renderOpdPatientBarcode(printPatientId);
+    safeSetText('popd_title', d.Title || '');
     safeSetText('popd_name', d.First_Name || '');
     safeSetText('popd_surname', d.Last_Name || '');
     safeSetText('popd_age', d.Age || '');

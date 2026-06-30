@@ -3511,8 +3511,8 @@ h6 {
 }
 
 #opd-print-area.opdref .opdref-org-row #popd_org_id {
-  flex: 0 0 28mm !important;
-  width: 28mm !important;
+  flex: 0 0 44mm !important;
+  width: 44mm !important;
 }
 
 #opd-print-area.opdref .opdref-check {
@@ -3539,8 +3539,9 @@ h6 {
   content: none !important;
 }
 
-#opd-print-area.opdref .opdref-fill-name { width: 44mm !important; }
-#opd-print-area.opdref .opdref-fill-age { width: 16mm !important; }
+#opd-print-area.opdref .opdref-fill-title { width: 12mm !important; }
+#opd-print-area.opdref .opdref-fill-name { width: 24mm !important; }
+#opd-print-area.opdref .opdref-fill-age { width: 10mm !important; }
 #opd-print-area.opdref .opdref-fill-dob { width: 48mm !important; }
 #opd-print-area.opdref .opdref-fill-nation { width: 45mm !important; }
 #opd-print-area.opdref .opdref-fill-job { width: 75mm !important; }
@@ -3909,8 +3910,8 @@ h6 {
 }
 
 .opdref-page .opdref-org-row #popd_org_id {
-  flex: 0 0 28mm !important;
-  width: 28mm !important;
+  flex: 0 0 44mm !important;
+  width: 44mm !important;
 }
 
 .opdref-page .opdref-check {
@@ -3933,8 +3934,9 @@ h6 {
   white-space: nowrap !important;
 }
 
-.opdref-page .opdref-fill-name { width: 44mm !important; }
-.opdref-page .opdref-fill-age { width: 16mm !important; }
+.opdref-page .opdref-fill-title { width: 12mm !important; }
+.opdref-page .opdref-fill-name { width: 24mm !important; }
+.opdref-page .opdref-fill-age { width: 10mm !important; }
 .opdref-page .opdref-fill-dob { width: 48mm !important; }
 .opdref-page .opdref-fill-nation { width: 45mm !important; }
 .opdref-page .opdref-fill-job { width: 75mm !important; }
