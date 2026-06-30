@@ -2556,7 +2556,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-06-28-triage-provider-datetime-v1';
+  const PARTIAL_CACHE_BUST = '2026-06-30-opd-emer-bmi-gender-v1';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
@@ -2594,7 +2594,7 @@ async function loadPartials() {
 window.ensureFreshOpdPrintTemplate = async function () {
   const prints = document.getElementById('partial-prints');
   const current = document.getElementById('opd-print-area');
-  const expectedVersion = '2026-06-28-triage-provider-datetime-v1';
+  const expectedVersion = '2026-06-30-opd-emer-bmi-gender-v1';
   if (prints && current && current.dataset.opdTemplateVersion === expectedVersion) return;
 
   const res = await fetch(`/partials/print-areas.html?v=${expectedVersion}-${Date.now()}`, {
@@ -6103,7 +6103,7 @@ window.submitTriageForm = function (e) {
           if (r.isConfirmed) window.executeTriageSave(fd);
         });
         return;
-      } else if (s <= 90 || d <= 60) {
+      } else if (s < 90 || d < 60) {
         Swal.fire({
           title: 'ແຈ້ງເຕືອນຄວາມດັນ!',
           html: `<h4 class="text-warning fw-bold mb-3">ຄວາມດັນຕ່ຳ (${bp})</h4><p>ບັນທຶກຕໍ່ໄປແທ້ບໍ່?</p>`,
@@ -9044,12 +9044,22 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_age', d.Age || '');
     safeSetText('popd_dob', d.Date_of_Birth || '');
     safeSetText('popd_gender', d.Gender || '');
+    {
+      const g = String(d.Gender || '').trim();
+      const isMale = /^(M|Male|ຊາຍ)$/i.test(g);
+      const isFemale = /^(F|Female|ຍິງ)$/i.test(g);
+      safeSetText('popd_gender_male', isMale ? '☑' : '□');
+      safeSetText('popd_gender_female', isFemale ? '☑' : '□');
+    }
     safeSetText('popd_nation', d.Nationality || '');
     safeSetText('popd_job', d.Occupation || '');
     safeSetText('popd_village', d.Address || '');
     safeSetText('popd_district', d.District || '');
     safeSetText('popd_prov', d.Province || '');
     safeSetText('popd_phone', d.Phone_Number || '');
+    safeSetText('popd_emer_name', d.Emergency_Name || '');
+    safeSetText('popd_emer_phone', d.Emergency_Contact || '');
+    safeSetText('popd_emer_rel', d.Emergency_Relation || '');
     safeSetText('popd_cc', v.symptoms || '');
     safeSetText('popd_temp', v.temp ? v.temp + ' °C' : '');
     safeSetText('popd_bp', v.bp || '');
@@ -9064,7 +9074,7 @@ window.printOPDCard = async function (s, i) {
       let w = parseFloat(v.weight), h = parseFloat(v.height);
       if (w > 0 && h > 0) {
         let bmi = w / Math.pow(h / 100, 2);
-        bmiText = bmi.toFixed(1) + (bmi >= 25 ? " (ຕຸ້ຍ)" : bmi < 18.5 ? " (ຈ່ອຍ)" : " (ປົກກະຕິ)");
+        bmiText = bmi.toFixed(1);
       }
     }
 
@@ -9089,7 +9099,22 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_medicine_no', hasPrintMedicine ? emptyMark : checkedMark);
     safeSetText('popd_regular_medicine', printDiseaseInfo.regularMedicine || '');
     safeSetText('popd_coverage', d.Name_Org || '');
-    safeSetText('popd_discount', d.Discount || '');
+    {
+      let discountText = '';
+      const orgKey = String(d.Organization_ID || '').trim();
+      if (orgKey) {
+        try {
+          const { data: orgRow } = await supabaseClient
+            .from(dbTable('Organizations'))
+            .select('Discount, Org_Name')
+            .or(`Org_ID.eq."${orgKey}",Org_Code.eq."${orgKey}"`)
+            .limit(1);
+          if (orgRow && orgRow[0] && orgRow[0].Discount) discountText = String(orgRow[0].Discount);
+        } catch (e) { console.warn('OPD discount lookup failed', e); }
+      }
+      if (!discountText && d.Discount) discountText = String(d.Discount);
+      safeSetText('popd_discount', discountText || '-');
+    }
     safeSetText('popd_doctor', v.recordedBy || v.nurse || '');
 
     Swal.close();

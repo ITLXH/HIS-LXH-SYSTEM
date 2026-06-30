@@ -3367,9 +3367,9 @@ h6 {
 #opd-print-area.opdref .opdref-vital-table th,
 #opd-print-area.opdref .opdref-vital-table td {
   border: 1px solid #000 !important;
-  padding: 1mm 0.5mm !important;
+  padding: 1mm 0.3mm !important;
   font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
-  font-size: 11.5pt !important;
+  font-size: 10pt !important;
   line-height: 1.2 !important;
   text-align: center !important;
   vertical-align: middle !important;
@@ -3539,14 +3539,20 @@ h6 {
   content: none !important;
 }
 
-#opd-print-area.opdref .opdref-fill-name { width: 77mm !important; }
-#opd-print-area.opdref .opdref-fill-age { width: 34mm !important; }
+#opd-print-area.opdref .opdref-fill-name { width: 44mm !important; }
+#opd-print-area.opdref .opdref-fill-age { width: 16mm !important; }
 #opd-print-area.opdref .opdref-fill-dob { width: 48mm !important; }
 #opd-print-area.opdref .opdref-fill-nation { width: 45mm !important; }
 #opd-print-area.opdref .opdref-fill-job { width: 75mm !important; }
 #opd-print-area.opdref .opdref-fill-wide { width: 128mm !important; }
-#opd-print-area.opdref .opdref-fill-tel { width: 51mm !important; }
-#opd-print-area.opdref .opdref-fill-rel { width: 58mm !important; }
+#opd-print-area.opdref .opdref-fill-tel { width: 140mm !important; }
+#opd-print-area.opdref .opdref-fill-rel { width: 30mm !important; }
+#opd-print-area.opdref .opdref-fill-village { width: 34mm !important; }
+#opd-print-area.opdref .opdref-fill-district { width: 32mm !important; }
+#opd-print-area.opdref .opdref-fill-prov { width: 40mm !important; }
+#opd-print-area.opdref .opdref-fill-emer-name { width: 38mm !important; }
+#opd-print-area.opdref .opdref-fill-emer-phone { width: 30mm !important; }
+#opd-print-area.opdref .opdref-fill-emer-rel { width: 22mm !important; }
 #opd-print-area.opdref .opdref-fill-vital { width: 22mm !important; }
 #opd-print-area.opdref .opdref-fill-vital-lg { width: 34mm !important; }
 #opd-print-area.opdref .opdref-fill-other { width: 60mm !important; }
@@ -3927,14 +3933,20 @@ h6 {
   white-space: nowrap !important;
 }
 
-.opdref-page .opdref-fill-name { width: 77mm !important; }
-.opdref-page .opdref-fill-age { width: 34mm !important; }
+.opdref-page .opdref-fill-name { width: 44mm !important; }
+.opdref-page .opdref-fill-age { width: 16mm !important; }
 .opdref-page .opdref-fill-dob { width: 48mm !important; }
 .opdref-page .opdref-fill-nation { width: 45mm !important; }
 .opdref-page .opdref-fill-job { width: 75mm !important; }
 .opdref-page .opdref-fill-wide { width: 128mm !important; }
-.opdref-page .opdref-fill-tel { width: 51mm !important; }
-.opdref-page .opdref-fill-rel { width: 58mm !important; }
+.opdref-page .opdref-fill-tel { width: 140mm !important; }
+.opdref-page .opdref-fill-rel { width: 30mm !important; }
+.opdref-page .opdref-fill-village { width: 34mm !important; }
+.opdref-page .opdref-fill-district { width: 32mm !important; }
+.opdref-page .opdref-fill-prov { width: 40mm !important; }
+.opdref-page .opdref-fill-emer-name { width: 38mm !important; }
+.opdref-page .opdref-fill-emer-phone { width: 30mm !important; }
+.opdref-page .opdref-fill-emer-rel { width: 22mm !important; }
 .opdref-page .opdref-fill-vital { width: 22mm !important; }
 .opdref-page .opdref-fill-vital-lg { width: 34mm !important; }
 .opdref-page .opdref-fill-other { width: 60mm !important; }

@@ -50,17 +50,13 @@
 </div>
 
 <!-- OPD Print Area - one template only, rendered by the existing OPD PDF workflow -->
-<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-28-triage-provider-datetime-v1">
+<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-30-opd-emer-bmi-gender-v1">
   <div class="opd-page opd-page-one opdref-page">
     <div class="opdref-hidden" aria-hidden="true">
       <img id="print-opd-footer-1" alt="" />
       <span id="popd_datetime"></span>
       <span id="popd_vid"></span>
       <span id="popd_dept"></span>
-      <span id="popd_surname"></span>
-      <span id="popd_district"></span>
-      <span id="popd_prov"></span>
-      <span id="popd_bmi"></span>
       <span id="popd_coverage"></span>
     </div>
 
@@ -81,27 +77,31 @@
       <div class="opdref-rule"></div>
 
       <div class="opdref-section"><span>ຂໍ້ມູນຜູ້ມາຮັບບໍລິການ/Client's Profile</span></div>
-      <div class="opdref-row opdref-row-split">
-        <span>ຊື່ ແລະ ນາມສະກຸນ/Name &amp;</span>
-      </div>
       <div class="opdref-row">
-        <span>Surname:</span><span id="popd_name" class="opdref-fill opdref-fill-name"></span>
+        <span>ຊື່/Name:</span><span id="popd_name" class="opdref-fill opdref-fill-name"></span>
+        <span>ນາມສະກຸນ/Surname:</span><span id="popd_surname" class="opdref-fill opdref-fill-name"></span>
         <span>ອາຍຸ/Aged:</span><span id="popd_age" class="opdref-fill opdref-fill-age"></span><span>ປີ</span>
       </div>
       <div class="opdref-row">
         <span>ເກີດ/D.O.B:</span><span id="popd_dob" class="opdref-fill opdref-fill-dob"></span>
-        <span>ເພດ/Gender:</span><span class="opdref-check">□ ຊາຍ/Male&nbsp;&nbsp;&nbsp;□ ຍິງ/Female</span>
+        <span>ເພດ/Gender:</span><span class="opdref-check"><span id="popd_gender_male">□</span> ຊາຍ/Male&nbsp;&nbsp;&nbsp;<span id="popd_gender_female">□</span> ຍິງ/Female</span>
       </div>
       <div class="opdref-row">
         <span>ສັນຊາດ/Nationality:</span><span id="popd_nation" class="opdref-fill opdref-fill-nation"></span>
         <span>ອາຊີບ/Occupation:</span><span id="popd_job" class="opdref-fill opdref-fill-job"></span>
       </div>
       <div class="opdref-row">
-        <span>ທີ່ຢູ່/Address:</span><span id="popd_village" class="opdref-fill opdref-fill-wide"></span>
+        <span>ບ້ານ/Village:</span><span id="popd_village" class="opdref-fill opdref-fill-village"></span>
+        <span>ເມືອງ/District:</span><span id="popd_district" class="opdref-fill opdref-fill-district"></span>
+        <span>ແຂວງ/Province:</span><span id="popd_prov" class="opdref-fill opdref-fill-prov"></span>
       </div>
       <div class="opdref-row">
         <span>ເບີໂທລະສັບ/Tel:</span><span id="popd_phone" class="opdref-fill opdref-fill-tel"></span>
-        <span>ສາຍພົວພັນ/Relationship:</span><span class="opdref-fill opdref-fill-rel"></span>
+      </div>
+      <div class="opdref-row">
+        <span>ຜູ້ຕິດຕໍ່ສຸກເສີນ/Emergency:</span><span id="popd_emer_name" class="opdref-fill opdref-fill-emer-name"></span>
+        <span>ເບີໂທ/Phone:</span><span id="popd_emer_phone" class="opdref-fill opdref-fill-emer-phone"></span>
+        <span>ສາຍສຳພັນ/Rel:</span><span id="popd_emer_rel" class="opdref-fill opdref-fill-emer-rel"></span>
       </div>
       <div class="opdref-row opdref-row-full-line opdref-org-row">
         <span>Org ID:</span><span id="popd_org_id" class="opdref-fill opdref-fill-org-id"></span>
@@ -126,6 +126,7 @@
             <th>SpO<sub>2</sub> (%)</th>
             <th>Weight (Kg)</th>
             <th>High (Cm)</th>
+            <th>BMI</th>
           </tr>
         </thead>
         <tbody>
@@ -137,6 +138,7 @@
             <td><span id="popd_spo2">&nbsp;</span></td>
             <td><span id="popd_w">&nbsp;</span></td>
             <td><span id="popd_h">&nbsp;</span></td>
+            <td><span id="popd_bmi">&nbsp;</span></td>
           </tr>
         </tbody>
       </table>
