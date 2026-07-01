@@ -5195,79 +5195,60 @@ h6 {
 .patient-card {
   width: 180mm;
   height: 78mm;
-  padding: 5mm 7mm;
+  padding: 3mm 8mm;
   border: 2px solid var(--primary);
   border-radius: 4px;
   background: white;
   display: flex !important;
-  flex-direction: row;
-  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-.pcard-left {
+/* Patient code — first row, huge, fills the card width */
+.pcard-id {
+  font-weight: 900;
+  font-size: 50px;
+  color: #000;
+  text-align: center;
+  line-height: 1.05;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 3px solid #000;
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
+}
+.pcard-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 1mm;
   min-width: 0;
-  padding-right: 6mm;
-  gap: 2mm;
-}
-.pcard-right {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 40mm;
-  border-left: 1px solid #e2e8f0;
-  padding-left: 4mm;
 }
 .pcard-row {
-  line-height: 1.4;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .pcard-label {
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 400;
+  font-size: 18px;
+  color: #475569;
+  font-weight: 500;
 }
 .pcard-value {
-  font-size: 17px;
-  font-weight: 600;
-  color: #334155;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
 }
 .pcard-name {
-  font-size: 23px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 800;
   color: #0284c7;
-}
-.pcard-qr-wrap {
-  margin: 0 auto 2mm auto;
-  padding: 2px;
-  background: #fff;
-  border-radius: 2px;
-  line-height: 0;
-}
-.pcard-qr-wrap canvas,
-.pcard-qr-wrap img {
-  width: 32mm !important;
-  height: 32mm !important;
-}
-.pcard-id {
-  font-weight: 900;
-  font-size: 16px;
-  color: #000;
-  text-align: center;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 2mm;
 }
 
 /* Vaccine Card */

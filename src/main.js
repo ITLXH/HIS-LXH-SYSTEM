@@ -6044,13 +6044,6 @@ window.printQRCard = async function (id) {
     $(`#printAddr3${i}`).text(addrLine3);
     $(`#printPhone${i}`).text(phoneLine);
     $(`#printID${i}`).text(d.id);
-    const el = document.getElementById(`qrcodeDisplay${i}`);
-    if (el) {
-      el.innerHTML = '';
-      new QRCode(el, {
-        text: d.id, width: 200, height: 200, colorDark: '#0f172a', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H
-      });
-    }
   });
   Swal.close();
   window.executePrint('print-area');
