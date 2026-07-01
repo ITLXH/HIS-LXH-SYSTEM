@@ -5545,11 +5545,6 @@ window.initPatientTable = async function () {
         acts += `<button class="btn btn-sm btn-primary shadow-sm" title="${window.t('patients.edit')}" onclick="window.editPatient('${r.Patient_ID}')"><i class="fas fa-edit"></i></button>`;
       }
 
-      // Print QR button
-      if (window.can('patients', 'print_qr')) {
-        acts += `<button class="btn btn-sm btn-dark text-white shadow-sm" title="${window.t('patients.printQr')}" onclick="window.printQRCard('${r.Patient_ID}')"><i class="fas fa-qrcode"></i></button>`;
-      }
-
       // Delete button
       if (window.can('patients', 'delete')) {
         acts += `<button class="btn btn-sm btn-danger shadow-sm" title="${window.t('patients.delete')}" onclick="window.delPatient('${r.Patient_ID}')"><i class="fas fa-trash"></i></button>`;
@@ -6897,7 +6892,10 @@ window.loadTriageQueue = async function () {
       
       btnHtml += `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
                          <button class="btn btn-sm btn-outline-danger shadow-sm me-1" onclick="window.deleteVisitFlow('${r.visitId}', '${r.patientId}')" title="ລຶບ"><i class="fas fa-trash"></i></button>
-                         <button class="btn btn-sm btn-secondary text-white shadow-sm" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
+                         <button class="btn btn-sm btn-secondary text-white shadow-sm me-1" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
+      if (window.can('patients', 'print_qr')) {
+        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printQRCard('${r.patientId}')" title="ພິມ Barcode"><i class="fas fa-qrcode"></i></button>`;
+      }
       h += `<tr class="${isCalling ? 'table-danger' : ''}">
                     <td class="text-muted">${r.date}</td>
                     <td class="fw-bold">${r.time}</td>
