@@ -27,9 +27,14 @@ export async function onRequestPost(ctx) {
 
   const expiresIn = Math.min(Math.max(parseInt(body?.expires || '3600', 10) || 3600, 60), 86400);
 
+  // Encode each path segment but keep the slashes — backups live under
+  // backups/YYYY/MM/backup-*.zip, and encoding the whole path would turn the
+  // separators into %2F so Supabase can't resolve the nested object.
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+
   try {
     const resp = await fetch(
-      `${supabaseUrl}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodeURIComponent(path)}`,
+      `${supabaseUrl}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodedPath}`,
       {
         method: 'POST',
         headers: {
