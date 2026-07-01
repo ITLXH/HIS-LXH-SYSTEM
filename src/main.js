@@ -6561,7 +6561,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Age, Photo_URL, Gender')
+          .select('Patient_ID, Old_Patient_ID, Age, Photo_URL, Gender')
           .in('Patient_ID', chunkIds);
         if (!pError && patients) {
           patients.forEach(p => pMap[p.Patient_ID] = p);
@@ -6669,6 +6669,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           date: r.Date ? dObj.toLocaleDateString('en-GB') : '-',
           time: r.Date ? dObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
           patientId: r.Patient_ID, patientName: r.Patient_Name,
+          oldId: window.normalizePatientCode(p?.Old_Patient_ID || ''),
           status: window.normalizeVisitStatus(r.Status), department: r.Department || 'OPD',
           isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
           // Prefer record data (Visits), fallback to patient profile
@@ -6907,7 +6908,7 @@ window.loadTriageQueue = async function () {
       h += `<tr class="${isCalling ? 'table-danger' : ''}">
                     <td class="text-muted">${r.date}</td>
                     <td class="fw-bold">${r.time}</td>
-                    <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small text-muted">${r.patientId}</div></td>
+                    <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small"><span class="fw-bold text-dark">${r.patientId}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${r.oldId})</span>` : ''}</div></td>
                     <td><span class="badge bg-secondary rounded-pill">${r.age} ປີ</span></td>
                     <td>${sb}</td>
                     <td class="text-center"><div class="d-flex gap-1 justify-content-center">${btnHtml}</div></td>
