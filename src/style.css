@@ -3323,6 +3323,7 @@ h6 {
   text-align: center !important;
   width: 62mm !important;
   line-height: 1.1 !important;
+  color: #dc2626 !important;
 }
 
 #opd-print-area.opdref .opdref-cn-value {
@@ -3334,7 +3335,7 @@ h6 {
   clip: auto !important;
   overflow: visible !important;
   font-weight: 700 !important;
-  color: #000 !important;
+  color: #dc2626 !important;
 }
 
 /* Title block is now inside the center column */
@@ -3545,6 +3546,7 @@ h6 {
 
 #opd-print-area.opdref .opdref-fill-title { width: 12mm !important; }
 #opd-print-area.opdref .opdref-fill-name { width: 24mm !important; }
+#opd-print-area.opdref .opdref-fill-fullname { width: 46mm !important; }
 #opd-print-area.opdref .opdref-fill-age { width: 10mm !important; }
 #opd-print-area.opdref .opdref-fill-dob { width: 48mm !important; }
 #opd-print-area.opdref .opdref-fill-nation { width: 45mm !important; }
@@ -3800,6 +3802,7 @@ h6 {
   text-align: center !important;
   width: 62mm !important;
   line-height: 1.1 !important;
+  color: #dc2626 !important;
 }
 
 .opdref-page .opdref-cn-value {
@@ -3811,7 +3814,7 @@ h6 {
   clip: auto !important;
   overflow: visible !important;
   font-weight: 700 !important;
-  color: #000 !important;
+  color: #dc2626 !important;
 }
 
 .opdref-page .opdref-hidden,
@@ -3965,6 +3968,7 @@ h6 {
 
 .opdref-page .opdref-fill-title { width: 12mm !important; }
 .opdref-page .opdref-fill-name { width: 24mm !important; }
+.opdref-page .opdref-fill-fullname { width: 46mm !important; }
 .opdref-page .opdref-fill-age { width: 10mm !important; }
 .opdref-page .opdref-fill-dob { width: 48mm !important; }
 .opdref-page .opdref-fill-nation { width: 45mm !important; }

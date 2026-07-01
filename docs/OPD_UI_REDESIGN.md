@@ -855,3 +855,37 @@ stray re-render.
 **Verified:** the harness now fires a stray empty-render right after the page-1
 capture; with the freeze flag set it is a no-op and page 2 still captures all
 charts with data (Gender / OPD / Site / Age / Top-5 towns / Top-5 doctors).
+
+---
+
+## 2026-07-01 — OPD Card: patient code moved above barcode + colored red; Name/Surname merged
+
+**User ask (annotated screenshot):** circled the `ID: LXH2025-001548` line and
+asked to move it up and make it red ("ເອົາ ລະຫັດຄົນເຈັບຂື້ນໄປເທີງ ແລ້ວປ່ຽນເປັນສີແດງ"),
+and to drop the separate Surname field, merging it into one
+Name-and-Surname field ("ນາມສະກຸນຕັດອອກ ປ່ຽນເປັນຊື່ ແລະ ນາມສະກຸນຢູ່ລວມກັນ").
+
+**Header-right reorder + color** ([print-areas.html](../public/partials/print-areas.html)):
+swapped the child order inside `.opdref-header-right` so `.opdref-cn-row`
+(`ID: <span id="popd_cn">`) now comes *before* `svg#popd_patient_barcode` —
+since the container is `flex-direction: column`, the ID line renders above the
+barcode instead of below it. `style.css` `.opdref-cn-row` and `.opdref-cn-value`
+(both duplicate blocks: `#opd-print-area.opdref .X` and `.opdref-page .X`) now
+set `color: #dc2626 !important` (the same red used elsewhere in this codebase)
+instead of inheriting black / forcing `#000`.
+
+**Name/Surname merge:** removed the separate
+`ນາມສະກຸນ/Surname:` label + `#popd_surname` field from the profile row.
+`ຊື່/Name:` label became `ຊື່ ແລະ ນາມສະກຸນ/Name and Surname:`, and `#popd_name`
+now carries a new `opdref-fill-fullname` class (46mm, replacing the two
+24mm `opdref-fill-name` fields that used to sit side by side) added to both
+duplicate `style.css` blocks. In `main.js`, the OPD print binding now does
+`safeSetText('popd_name', `${d.First_Name || ''} ${d.Last_Name || ''}`.trim())`
+and the old `safeSetText('popd_surname', ...)` call was removed (`popd_surname`
+is dead — kept out of the DOM entirely rather than left hidden).
+
+**Verified:** standalone preview harness (real `style.css` + a snippet of the
+opd-print-area markup) — computed styles confirmed `.opdref-header-right`
+children order is `[DIV.opdref-cn-row, svg]`, both cn-row/cn-value compute to
+`rgb(220, 38, 38)`, `#popd_name` carries `opdref-fill-fullname` at 173.8px
+(= 46mm), and `#popd_surname` is absent from the DOM.

@@ -6904,12 +6904,12 @@ window.loadTriageQueue = async function () {
                     <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small"><span class="fw-bold text-dark">${r.patientId}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${r.oldId})</span>` : ''}</div></td>
                     <td><span class="badge bg-secondary rounded-pill">${r.age} ປີ</span></td>
                     <td>${sb}</td>
-                    <td class="text-center"><div class="d-flex gap-1 justify-content-center">${btnHtml}</div></td>
+                    <td class="text-center"><div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">${btnHtml}</div></td>
                   </tr>`;
     });
   }
   $('#triageTableBody').html(h);
-  $('#triageTable').DataTable({ responsive: true, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວ Triage" } });
+  $('#triageTable').DataTable({ responsive: true, autoWidth: false, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວ Triage" } });
 };
 
 window.viewTriage = async function (i) {
@@ -9121,8 +9121,7 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_dept', v.department || '');
     window.renderOpdPatientBarcode(printPatientId);
     safeSetText('popd_title', d.Title || '');
-    safeSetText('popd_name', d.First_Name || '');
-    safeSetText('popd_surname', d.Last_Name || '');
+    safeSetText('popd_name', `${d.First_Name || ''} ${d.Last_Name || ''}`.trim());
     safeSetText('popd_age', d.Age || '');
     safeSetText('popd_dob', d.Date_of_Birth || '');
     safeSetText('popd_gender', d.Gender || '');
