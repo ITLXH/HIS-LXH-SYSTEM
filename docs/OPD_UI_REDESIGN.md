@@ -446,3 +446,412 @@ Template version bumped to `2026-06-30-opd-cc-nutrition-page2-v3` in both
 [src/main.js](../src/main.js) (`PARTIAL_CACHE_BUST` and `expectedVersion`)
 and [public/partials/print-areas.html](../public/partials/print-areas.html)
 (`data-opd-template-version`).
+
+## Page 2 — rename + pin nurse table to bottom edge (2026-06-30)
+
+User request:
+
+> ໃບຕິດຕາມອາການ ແລະ ຫັດຖະການ ປ່ຽນເປັນ ໃບບັນທຶກພະຍາບານ ແລະ ຍັບຕາຕະລາງລົງໃຫ້ສຸດຂອບເຈ້ຍ
+> ໃຫ້ຕາຕະລາງດ້ານເທິງສາມາດຂຽນຂໍ້ມູນໄດ້ຫຼາຍຂຶ້ນ
+
+### Rename the bottom-section title
+
+In [public/partials/print-areas.html](../public/partials/print-areas.html):
+
+```html
+<!-- before -->
+<div class="opdref-page2-title opdref-page2-title-gap">ໃບຕິດຕາມອາການ ແລະ ຫັດຖະການ</div>
+<!-- after -->
+<div class="opdref-page2-title opdref-page2-title-gap">ໃບບັນທຶກພະຍາບານ</div>
+```
+
+### Pin the nurse-record table to the bottom edge
+
+Made `.opdref-sheet-page2` a flex column with a fixed minimum height equal
+to the printable A4 area, then used `margin-top: auto` on the bottom
+section's title-gap so it absorbs all remaining vertical space:
+
+```css
+#opd-print-area.opdref .opdref-sheet-page2 {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 277mm !important;
+}
+
+#opd-print-area.opdref .opdref-page2-title-gap {
+  margin-top: auto !important;
+  margin-bottom: 4mm !important;
+}
+```
+
+Same overrides applied to the `.opdref-page` fallback block.
+
+### Grow the upper Treatment table into the freed space
+
+Started at 193mm but the user immediately reported "ເສັ້ນລຸ່ມມັນຫາຍໄປ
+ໜ້ອຍໜື່ງ" — the bottom border of the nurse-record table was clipping
+because total content slightly overflowed the 277mm sheet budget. Tuned
+down to **185mm** to give the layout a small bottom safety margin while
+still delivering noticeably more writing room than the previous 168mm.
+
+```css
+.opdref-treatment-body td { height: 185mm !important; }
+```
+
+### Verification
+
+[tmp/pdfs/opd-nurse-fit-page2.png](../tmp/pdfs/opd-nurse-fit-page2.png)
++ a bottom-only crop at
+[tmp/pdfs/crop-bottom.png](../tmp/pdfs/crop-bottom.png) — nurse-record
+block pinned at the bottom edge, all 5 follow-up rows visible with the
+bottom border fully present.
+
+### Commit status
+
+NOT committed per user request "ບໍ່ຟ້າວ commit". Folded into next batch.
+
+## QR sticker — fix 4-page overflow + OPD bleed (2026-06-30)
+
+User-supplied [Stickler.pdf](../tmp/pdfs/Stickler.pdf) (a real
+`window.print()` output of the patient QR sticker) showed:
+
+- Page 1: 2 stickers (third overflowed)
+- Page 2: 1 sticker
+- **Pages 3 & 4: the OPD card bleeding into the QR print job**
+
+### Root cause #1 — @page margin leftover from OPD redesign
+
+[src/style.css:3679](../src/style.css#L3679) had a leftover
+`@page { size: A4 portrait; margin: 10mm 12mm }` block added during the
+OPD card redesign. OPD doesn't need it any more — OPD's printable margins
+are set by Puppeteer's `pdf({ margin: { top: '10mm', ... } })` parameter
+in [tmp/pdfs/render.cjs](../tmp/pdfs/render.cjs) and the production
+[src/main.js](../src/main.js) `exportOpdCardAsPdf`. The leftover @page
+default was only affecting other prints: QR sticker (`#print-area`) and
+vaccine card (`#vac-print-area`).
+
+It shrank the QR sticker printable area from 289mm tall (4mm default
+@page from line 2603) to 277mm. 3 × 85mm cards + gaps + padding = 279mm
+overflowed by 2mm and pushed the third card to page 2.
+
+Fix: removed the stale `@page` block. The default `@page { margin: 4mm }`
+from line 2603 now applies again to QR sticker + vaccine card prints.
+
+### Root cause #2 — OPD bleed safety net
+
+Tracing the issue: `executePrint('print-area')` already sets inline
+`display: none` on `#opd-print-area`, and the
+`.print-container:not(.print-active) { display: none !important }` rule
+at line 2592 reinforces it during `@media print`. In principle the OPD
+area should not render alongside the sticker.
+
+Not fully reproducible locally — but added a belt-and-suspenders rule in
+the same `@media print` block as a defensive layer:
+
+```css
+@media print {
+  #opd-print-area:not(.print-active),
+  #vac-print-area:not(.print-active),
+  #print-area:not(.print-active) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+```
+
+If anything in the future adds an unintended `display: block` rule to
+`#opd-print-area`, this explicit ID-based rule still wins and the print
+job stays scoped to the intended container.
+
+### Card geometry — tightened for one-page fit with safety slack
+
+| Property | Old (1-page failed) | New (1-page comfortably) |
+|---|---|---|
+| Card height | 85mm | **78mm** |
+| Card padding | 6mm 8mm | **5mm 7mm** |
+| `.pcard-right` (QR side) width | 56mm | **50mm** |
+| QR canvas / img | 50mm | **45mm** |
+| Grid gap between cards | 6mm | **4mm** |
+| Grid padding | 6mm 0 | **2mm 0** |
+
+New vertical budget: 3 × 78mm + 2 × 4mm + 4mm = 246mm.
+277mm available − 246mm content = 31mm slack to absorb the browser's
+default print header / footer (~25mm) without overflowing.
+
+### Verification
+
+[tmp/pdfs/qr-harness.html](../tmp/pdfs/qr-harness.html) updated to mimic
+`executePrint()` precisely: add `.print-active` to `#print-area` and
+remove the other `.print-container` elements before Puppeteer enters
+print emulation. Output [tmp/pdfs/opd-qr-tight.pdf](../tmp/pdfs/opd-qr-tight.pdf)
+is **1 page**, contains all 3 stickers, no OPD bleed. Verified via raw
+PDF page count:
+
+```
+$ node pages-count.cjs opd-qr-tight.pdf
+pages: 1
+```
+
+### Commit status
+
+NOT committed per user's earlier instruction "ບໍ່ຟ້າວ commit". Will be
+folded into the next batch with the page-2 layout work.
+
+---
+
+## 2026-06-30 — Org ID field widened to match Org Name
+
+**Change:** In the `opdref-org-row`, both `#popd_org_id` (Org ID fill) and
+`#popd_orgname` (Org Name fill) are now set to `flex: 1 1 auto` so they
+share the remaining row width equally, instead of the previous fixed
+`44 mm` for Org ID vs `100 mm` for Org Name.
+
+**Files:** `src/style.css` — two selector blocks updated:
+- `#opd-print-area.opdref .opdref-org-row #popd_org_id / #popd_orgname`
+- `.opdref-page .opdref-org-row #popd_org_id / #popd_orgname`
+
+---
+
+## 2026-06-30 — Remove Drug/Food checkboxes; show specific allergy text only
+
+**Change:** Removed the `□ ຢາ/Drugs  □ ອາຫານ/Foods` checkbox row from the
+Allergy section of the OPD print card.  When the patient has allergies
+(`hasPrintAllergy = true`) the `ລະບຸສິ່ງທີ່ແພ້:` line already contains the
+formatted summary (e.g. "ຢາ: amoxicillin / ອາຫານ: shrimp") produced by
+`parsePatientAllergyInfo()`, so the generic category checkboxes were
+redundant.  When allergy = No the field is left blank.
+
+**Files changed:**
+- `public/partials/print-areas.html` — deleted `opdref-check-row` div
+- `src/main.js` (line ~9092) — removed two `safeSetText` calls for
+  `popd_allergy_drug_check` / `popd_allergy_food_check`; the
+  `popd_allergy` set now gates on `hasPrintAllergy`
+
+---
+
+## 2026-06-30 — Tighten page-1 spacing so recorder block survives long Discount
+
+**Problem:** When `ສ່ວນຫຼຸດ/Discount` contained many bullet lines the
+`ຜູ້ບັນທຶກຂໍ້ມູນ` signature block at the bottom of page 1 was pushed past
+the 277 mm `overflow:hidden` boundary and disappeared in the PDF.
+
+**Fix:** Reduced vertical spacing in `src/style.css` for both
+`#opd-print-area.opdref` and `.opdref-page` contexts:
+
+| Property | Before | After |
+|---|---|---|
+| `opdref-sheet` padding-top | 1.5 mm | 0 |
+| `opdref-sheet` padding-bottom | 2 mm | 1 mm |
+| `opdref-rule-tight` top margin | 2 mm | 1.5 mm |
+| `opdref-section` bottom margin | 2.2 mm | 1.5 mm |
+| `opdref-section-inline` top/bottom | 1/2.2 mm | 0.5/1.5 mm |
+| `opdref-row` bottom margin | 3–4 mm | 2 mm |
+| `opdref-row-split` bottom margin | 3 mm | 2 mm |
+
+Total recovered ≈ 10–15 mm, enough to absorb 7–8 extra discount lines.
+
+---
+
+## 2026-06-30 — Move Site + Type from Doctor EMR to Triage (ຊັກປະຫວັດ)
+
+**Rationale:** Stage 1 workflow ends at Triage. Site and Type are booking
+information that should be captured at check-in, not by the doctor.
+
+**Changes:**
+
+| File | Action |
+|---|---|
+| `public/partials/modals/triage-modal.html` | Add `#v_site` + `#v_type` selects between Department and Nurse fields |
+| `public/partials/modals/emr-modals.html` | Remove `emrSite` + `emrDeptType` rows |
+| `src/main.js` — `handleTriageSiteChange()` | New function mirroring `handleSiteChange()` for triage selects |
+| `src/main.js` — `openTriage()` | Populate `#v_site` from `masterDataStore['Site']`, call `handleTriageSiteChange()`, restore saved type |
+| `src/main.js` — `executeTriageSave()` | Add `Site` + `Visit_Type` to both update payloads |
+| `src/main.js` — `openEMR()` | Remove dead `#emrSite` / `#emrDeptType` init code |
+| `src/main.js` — EMR save | Remove `Visit_Type`/`Site` from update payload (set at triage, not overwritten by doctor) |
+
+**Dashboard:** no change needed — `fetchDashboardData` already does
+`select('*')` from Visits, so `Site` and `Visit_Type` are read automatically.
+
+---
+
+## 2026-06-30 — Fix dashboard chartDept hardcoded to 'OPD'
+
+**Bug:** `renderDashboardCharts` always incremented `deptType['OPD']` regardless
+of the visit's actual `Visit_Type` (line ~4323). IPD visits appeared as OPD.
+
+**Fix:** `src/main.js` line ~4322 — use the actual `visitType` value as the
+map key, defaulting to `'OPD'` only when the field is empty.
+
+```js
+// Before (broken)
+if (dept) deptType['OPD'] = (deptType['OPD'] || 0) + 1;
+
+// After
+let dept = (visitType || 'OPD').toString().trim() || 'OPD';
+deptType[dept] = (deptType[dept] || 0) + 1;
+```
+
+---
+
+## 2026-06-30 — Fix Dashboard PDF export (garbled output)
+
+**Problem:** `exportDashboardPDF` used `html2pdf().toCanvas()` which clones
+the source element into its own off-screen container, producing garbled /
+half-rendered pages in the output PDF.
+
+**Fix:** Rewrote the function in `src/main.js` to use `html2canvas + jsPDF`
+directly — the same pattern as `exportOpdCardAsPdf`.
+
+Key changes:
+- Removed all `html2pdf` usage from the dashboard export path
+- Apply `dashboard-export-mode` class first (forces 297mm × 210mm per page)
+- Snapshot and restore each page's inline style after capture
+- Wait 300 ms + font-ready + two rAF frames before rendering
+- Call `html2canvas(page, { scale:2, width: PAGE_W_PX, height: PAGE_H_PX, … })`
+  per page, then `pdf.addImage(…)` into a landscape jsPDF document
+- Output opened via `URL.createObjectURL` blob (same as OPD card)
+- Filename now includes today's date: `HIS_Dashboard_YYYYMMDD.pdf`
+
+---
+
+## 2026-06-30 — Dashboard: remove duplicate top KPI row + flatten AI-looking UI
+
+**User feedback:** the top operational KPI row duplicated the report KPI row,
+and the dashboard looked "too AI" (gradients, floating shadows, multi-colour
+card accents). Per [[feedback_no_ai_looking_ui]] the HIS must use a flat
+clinical look: solid colours, one accent blue, 3–4 px radii, no gradients.
+
+**Changes:**
+
+| File | Action |
+|---|---|
+| `public/partials/views/dashboard.html` | Removed the `obs-kpi-grid dashboard-ops-grid` block (OPD Today / Observation / Active IPD / Bed Occupancy nav cards) — duplicated the in-report KPI tiles |
+| `src/main.js` — `fetchDashboardData` | Removed the `#dashOpdToday…` spinner-init line and the now-orphaned `updateDashboardOperationalStats(...)` call (avoids wasted Supabase bed/admission/observation queries). Function definition left in place, uncalled. |
+| `src/style.css` — KPI tile (on-screen spread) | Replaced `radial-gradient + linear-gradient` background with solid `#ffffff`; radius 6px → 4px |
+| `src/style.css` — report panel / split-card (on-screen spread) | `box-shadow: 0 10px 22px …` → `none`; radius 6px → 4px; border `rgba(27,107,176,.14)` → `#e2e8f0` |
+
+Nav to OPD queue / Observation / IPD / beds remains available via the sidebar.
+
+---
+
+## 2026-06-30 — Dashboard PDF now mirrors the on-screen layout
+
+**Problem (from rendered PDF):** the exported PDF did NOT look like the live
+dashboard — the 12-column grid (Top 8 + Time Slot side-by-side, etc.) collapsed
+into a single stacked column, and the KPI tiles showed spinner icons instead of
+numbers.
+
+**Root cause:**
+1. **Layout collapse** — `exportDashboardPDF` added the `dashboard-export-mode`
+   class and captured at `windowWidth: 1122px`. The on-screen 12-column grid is
+   defined only on `#dashboardPrintArea…:not(.dashboard-export-mode)`
+   ([style.css](../src/style.css) ~6615), so the class dropped it; and 1122px is
+   below the `@media (max-width: 1199px)` breakpoint (~6696 / 6736) which
+   collapses the grid anyway. Result: stacked full-width panels.
+2. **Spinners** — capture could happen during the 120 s auto-refresh, when the
+   KPI values are momentarily `<i class="fa-spinner">`.
+
+**Fix (`src/main.js` `exportDashboardPDF`):**
+- No longer toggles `dashboard-export-mode` — captures the page exactly as
+  shown on screen.
+- Captures with `windowWidth: 1485` (> the 1199 breakpoint) so the desktop
+  12-column grid is preserved; output canvas still cropped to 297 mm × 210 mm
+  (1122 × 794 px) for true A4-landscape proportions.
+- Added a pre-capture guard that waits (≤ 4 s) for `.fa-spinner` to disappear
+  from `#dashboardPrintArea`, so KPI numbers are always captured, never spinners.
+
+The `.dashboard-export-mode` / `.dashboard-export-sheet` CSS blocks are now dead
+(left in place; the `:not(.dashboard-export-mode)` selectors are still required).
+
+---
+
+## 2026-07-01 — Dashboard PDF: KPI numbers, date header, bigger fonts, no Page-2 caption
+
+Four follow-up fixes from the rendered PDF:
+
+1. **KPI tiles showed spinners instead of numbers.** Cause: the 120 s
+   auto-refresh (`dashRefreshInterval`) could fire during the multi-page
+   capture, re-showing `<i class="fa-spinner">`. Fix in `exportDashboardPDF`
+   ([src/main.js](../src/main.js)): `clearInterval(dashRefreshInterval)` before
+   capture (restarted in `finally`); if a `.fa-spinner` is still present, `await
+   window.fetchDashboardData()` first, then poll up to 5 s for the spinner to
+   clear before rendering.
+2. **Added a date header.** A temporary `.dash-pdf-header` is injected at the top
+   of each page right before capture (removed in `finally`): left = "Clinic
+   Snapshot Board" + per-page subtitle (`ສະຫຼຸບການໃຫ້ບໍລິການ` / `ຂໍ້ມູນປະຊາກອນ ແລະ
+   ຊຸມຊົນ`), right = `ວັນທີ່ລາຍງານ: <range>` and `ພິມເມື່ອ: <dd/mm/yyyy hh:mm>`.
+   Range comes from `#dashStartDate` / `#dashEndDate`. New `.dash-pdf-header*`
+   CSS in [src/style.css](../src/style.css) (flat: 2px bottom rule, accent
+   #0E3B5F, no shadow).
+3. **Bigger KPI text** (was too small in the 297 mm capture). On-screen spread
+   KPI overrides bumped: value `2rem → 3.1rem`, title `→ 13px/800`, note
+   `→ 12.5px`, tile min-height `110 → 128px`.
+4. **Removed the Page-2 caption** ("PAGE 2 / Demographic & Community Snapshot /
+   ເພີ່ມພື້ນທີ່…") from [dashboard.html](../public/partials/views/dashboard.html).
+
+Verified with a Puppeteer harness ([tmp/pdfs/dash-harness.html](../tmp/pdfs/dash-harness.html)
++ [tmp/pdfs/dash-shot.cjs](../tmp/pdfs/dash-shot.cjs), served from repo root,
+captured at `windowWidth 1485 / 297×210 mm`): both pages keep the 12-column grid,
+KPI numbers 6/5/1/1 render large, date header present, no Page-2 caption.
+
+**Build note:** the app is Vite (`index.html` → `/src/main.js`). When serving the
+built `dist/` (`wrangler pages dev dist`), run `npm run build` to pick up these
+changes — otherwise the old bundle (filename `HIS_Dashboard_Landscape_Report.pdf`)
+keeps serving. The new code names the file `HIS_Dashboard_YYYYMMDD.pdf`.
+
+---
+
+## 2026-07-01 — Dashboard PDF: bulletproof KPI numbers + drop "Clinic Snapshot Board"
+
+**Problem:** Rendered PDF showed charts WITH data but KPI tiles still showing
+spinners. Because `renderDashboardCharts` sets the KPI numbers *before* drawing
+the charts in the same call, that combination can only occur when a *new*
+`fetchDashboardData` reset the KPIs to spinners (line ~3937) and html2canvas
+captured before that call's own chart re-render finished — a race the earlier
+`.fa-spinner` wait-loop didn't fully close.
+
+**Fix (timing-proof):**
+- `renderDashboardCharts` ([src/main.js](../src/main.js)) now caches the values:
+  `window.__dashKpiCache = { total, newPatients, oldPatients, insCorp }`.
+- `exportDashboardPDF`, right before capture (after the spinner wait), restores
+  any tile still showing a spinner from that cache:
+  `if (el.querySelector('.fa-spinner') && cache[key] != null) el.textContent = cache[key]`.
+  So the PDF can never capture a spinner once data has loaded at least once.
+
+**Also:** removed the "Clinic Snapshot Board" text from the injected
+`.dash-pdf-header`; the per-page Lao subtitle (`ສະຫຼຸບການໃຫ້ບໍລິການ` /
+`ຂໍ້ມູນປະຊາກອນ ແລະ ຊຸມຊົນ`) is now the header title, with the date meta on the right.
+
+Verified with the Puppeteer harness ([tmp/pdfs/dash-harness.html](../tmp/pdfs/dash-harness.html))
+by injecting a spinner into the Total-Visits tile with a cached value of 6 — the
+restore logic replaced it with "6" in the capture, and the header no longer shows
+"Clinic Snapshot Board".
+
+---
+
+## 2026-07-01 — Dashboard PDF: page 2 charts empty (freeze re-renders during capture)
+
+**Problem:** PDF page 1 charts had data but page 2 charts all showed the
+on-canvas "ບໍ່ພົບຂໍ້ມູນ" empty state. Since all 10 charts come from one
+`renderDashboardCharts` call, page-1-with-data + page-2-empty can only mean a
+*second* render with empty/in-flight data ran **between** the two `html2canvas`
+captures (a fetch from the user's range click / a late async resolve), clobbering
+the charts after page 1 was already captured.
+
+**Diagnosis:** Built a faithful Puppeteer harness with real Chart.js + the exact
+two-pass capture ([tmp/pdfs/dash-capture-harness.html](../tmp/pdfs/dash-capture-harness.html)
++ [tmp/pdfs/dash-capture-shot.cjs](../tmp/pdfs/dash-capture-shot.cjs)). With stable
+data, page 2 captured perfectly — so the capture mechanism is fine; the cause is a
+stray re-render.
+
+**Fix:** Freeze re-renders during the capture window.
+- `renderDashboardCharts` ([src/main.js](../src/main.js)) now early-returns when
+  `window.__dashExporting` is set.
+- `exportDashboardPDF` sets `window.__dashExporting = true` after the data is
+  loaded/KPIs restored (i.e. after its own render) and before sizing/capturing;
+  the `finally` clears it, then calls `fetchDashboardData()` once so the live
+  dashboard reflects any data that arrived while frozen.
+
+**Verified:** the harness now fires a stray empty-render right after the page-1
+capture; with the freeze flag set it is a no-op and page 2 still captures all
+charts with data (Gender / OPD / Site / Age / Top-5 towns / Top-5 doctors).

@@ -128,3 +128,30 @@ HIS runs on Cloudflare Pages (static site). No changes needed — backup UI work
 | Supabase Storage 401 | Verify `SUPABASE_SERVICE_ROLE_KEY` is correct (not anon key) |
 | Backup not uploading | Check workflow step `continue-on-error: true` — verify step logs |
 | Workflow won't trigger | Ensure workflow file is on `main` branch |
+| Backup page shows red "Failed to fetch" in local dev | Expected — see "Local dev behaviour" below. The `/api/backup/*` Functions only exist when deployed or under `npm run pages:dev`. As of 2026-07-01 the UI degrades gracefully instead of erroring. |
+
+---
+
+## Local dev behaviour (2026-07-01)
+
+The Backup view (`/backup`) talks to **Cloudflare Pages Functions** at `/api/backup/*`
+(`status`, `runs`, `list`, `gdrive-list`, `run`, `signed-url`, `restore`). These routes
+**do not exist under plain `vite dev`** (port 5174) — only when the app is deployed to
+Cloudflare Pages, or when running `npm run build && npm run pages:dev` locally.
+
+Previously each panel did a bare `fetch()` and, when the route was missing, surfaced a
+`TypeError: Failed to fetch` (or choked on Vite's HTML SPA fallback breaking `resp.json()`),
+showing scary red errors on every panel even though nothing was actually broken.
+
+**Fix:** all backup fetches now go through one resilient helper:
+
+- `window._backupApiFetch(url, opts)` → returns `{ unavailable: true }` for any network
+  failure / `404` / non-JSON response, otherwise `{ ok, status, data }`.
+- `window._backupUnavailableRow(colspan)` → a single clean "API ໃຊ້ໄດ້ສະເພາະຕອນ deploy
+  ຫຼື `npm run pages:dev`" table row.
+
+Rewired callers: `loadLatestBackupStatus`, `renderBackupHistory`, `loadBackupFileList`,
+`loadGdriveBackupList`, `runManualBackup`. **No behaviour change in production** — when the
+Functions respond normally the helper just passes their JSON through. Backup remains a
+deploy-only feature (requires GH token + Supabase service-role key + optional Google service
+account); local dev now shows a clear, non-alarming message instead of looking broken.

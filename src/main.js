@@ -3935,7 +3935,6 @@ window.fetchDashboardData = async function (rangeType) {
   let d = new Date();
   $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   $('#dash-total, #dash-new, #dash-old, #dash-inscorp').html('<i class="fas fa-spinner fa-spin"></i>');
-  $('#dashOpdToday, #dashObservationPatients, #dashActiveIpd, #dashBedOccupancy').html('<i class="fas fa-spinner fa-spin"></i>');
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -4058,7 +4057,6 @@ window.fetchDashboardData = async function (rangeType) {
     });
 
     window.renderDashboardCharts(visitsWithDetails);
-    window.updateDashboardOperationalStats(sDate, eDate, data);
 
   } catch (err) {
     console.error(' Dashboard Error:', err);
@@ -4220,6 +4218,9 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
 
 window.renderDashboardCharts = function (visits) {
   if (!visits) return;
+  // Freeze re-renders during PDF export so a stray in-flight fetch can't
+  // clobber the charts (and capture them empty) between page captures.
+  if (window.__dashExporting) return;
 
   // 1. Stats
   let total = visits.length;
@@ -4245,6 +4246,9 @@ window.renderDashboardCharts = function (visits) {
   $('#dash-new').text(newPatients);
   $('#dash-old').text(oldPatients);
   $('#dash-inscorp').text(insCorp);
+  // Cache last-known KPI values so the PDF export can restore them even if a
+  // refresh momentarily re-shows the loading spinners during capture.
+  window.__dashKpiCache = { total, newPatients, oldPatients, insCorp };
 
   // 2. Helper with Grouping
   const getTopNWithOthers = (map, n = 5, minPercent = 0.01) => {
@@ -4319,9 +4323,8 @@ window.renderDashboardCharts = function (visits) {
     let dist = p.District || p.district || "";
     if (dist) district[dist] = (district[dist] || 0) + 1;
 
-    // Simplified Dept Type: OPD only
-    let dept = (visitType || "").toString().toUpperCase();
-    if (dept) deptType['OPD'] = (deptType['OPD'] || 0) + 1;
+    let dept = (visitType || 'OPD').toString().trim() || 'OPD';
+    deptType[dept] = (deptType[dept] || 0) + 1;
 
     // Simplified Site: In-site vs Out-site
     let sValue = (v.Site || "In-site").toString().toLowerCase();
@@ -4357,7 +4360,7 @@ window.renderDashboardCharts = function (visits) {
   window.refreshDashboardChartLayout();
 };
 
-window.exportDashboardPDF = function () {
+window.exportDashboardPDF = async function () {
   const source = document.getElementById('dashboardPrintArea');
   const pages = source ? Array.from(source.querySelectorAll('.dashboard-report-page--spread')) : [];
 
@@ -4365,84 +4368,150 @@ window.exportDashboardPDF = function () {
     return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບ dashboard ສຳລັບ export', 'error');
   }
 
-  if (typeof html2pdf === 'undefined') {
-    return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຕົວຊ່ວຍສ້າງ PDF', 'error');
+  const html2canvas = window.html2canvas;
+  const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (typeof html2canvas !== 'function' || typeof jsPDF !== 'function') {
+    return Swal.fire('PDF Error', 'PDF libraries (html2canvas/jsPDF) are not loaded', 'error');
   }
 
-  const opt = {
-    margin: 0,
-    filename: 'HIS_Dashboard_Landscape_Report.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      windowWidth: source.scrollWidth,
-      windowHeight: source.scrollHeight
-    },
-    pagebreak: { mode: ['css', 'legacy'] },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-  };
+  // A4 landscape: 297mm × 210mm. Capture at a desktop window width (> the
+  // 1199px responsive breakpoint) so the on-screen 12-column grid is kept —
+  // the PDF then mirrors the live dashboard exactly. We deliberately do NOT
+  // toggle `dashboard-export-mode`, because that class drops the 12-col grid.
+  const PAGE_W_MM = 297, PAGE_H_MM = 210;
+  const CSS_PX_PER_MM = 96 / 25.4;
+  const PAGE_W_PX = Math.round(PAGE_W_MM * CSS_PX_PER_MM); // ≈ 1122
+  const PAGE_H_PX = Math.round(PAGE_H_MM * CSS_PX_PER_MM); // ≈ 794
+  const DESKTOP_WINDOW_PX = 1485; // > 1199 so the collapse media queries stay off
 
-  Swal.fire({ title: 'ກຳລັງສ້າງ PDF...', didOpen: () => { Swal.showLoading() } });
+  Swal.fire({ title: 'ກຳລັງສ້າງ PDF...', didOpen: () => Swal.showLoading() });
 
-  const runExport = async () => {
-    try {
-      source.classList.add('dashboard-export-mode');
+  // Pause the 120s auto-refresh so it can't re-show KPI spinners mid-capture.
+  clearInterval(dashRefreshInterval);
 
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+  // If the KPI tiles are still showing loading spinners (data not yet loaded),
+  // load the data now and wait for the numbers before capturing.
+  if (source.querySelector('.fa-spinner')) {
+    try { await window.fetchDashboardData(); } catch (_) { /* ignore */ }
+  }
+  for (let tries = 0; tries < 50; tries++) {
+    if (!source.querySelector('.fa-spinner')) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
 
-      const seedNode = document.createElement('div');
-      seedNode.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
-      document.body.appendChild(seedNode);
+  // Wait for charts to settle + fonts to load
+  await new Promise(r => setTimeout(r, 200));
+  if (document.fonts?.ready) {
+    try { await document.fonts.ready; } catch (_) { /* ignore */ }
+  }
+  await new Promise(r => requestAnimationFrame(r));
+  await new Promise(r => requestAnimationFrame(r));
 
-      const seedWorker = html2pdf().set(opt).from(seedNode).toPdf();
-      await seedWorker;
-      const pdf = await seedWorker.get('pdf');
-      seedNode.remove();
-
-      for (let index = 0; index < pages.length; index += 1) {
-        const canvasWorker = html2pdf().set(opt).from(pages[index]).toCanvas();
-        await canvasWorker;
-        const canvas = await canvasWorker.get('canvas');
-
-        if (!canvas || !canvas.width || !canvas.height) {
-          throw new Error(`Dashboard page ${index + 1} could not be rendered for PDF export`);
-        }
-
-        if (index > 0) {
-          pdf.addPage('a4', 'landscape');
-        }
-        if (typeof pdf.setPage === 'function') {
-          pdf.setPage(index + 1);
-        }
-        pdf.addImage(
-          canvas.toDataURL('image/jpeg', 0.98),
-          'JPEG',
-          0,
-          0,
-          297,
-          210,
-          `dashboard-page-${index + 1}`,
-          'FAST'
-        );
-      }
-
-      pdf.save(opt.filename);
-    } catch (err) {
-      console.error('Dashboard PDF Error:', err);
-      Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດສ້າງ PDF ໄດ້', 'error');
-    } finally {
-      source.classList.remove('dashboard-export-mode');
-      Swal.close();
+  // Bulletproof KPI numbers: if a refresh left a spinner in any tile, restore
+  // the last-known value from cache so the PDF never captures a spinner.
+  const kpiCache = window.__dashKpiCache || {};
+  const kpiKeyById = { 'dash-total': 'total', 'dash-new': 'newPatients', 'dash-old': 'oldPatients', 'dash-inscorp': 'insCorp' };
+  Object.entries(kpiKeyById).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el && el.querySelector('.fa-spinner') && kpiCache[key] != null) {
+      el.textContent = kpiCache[key];
     }
-  };
+  });
 
-  runExport();
+  // Freeze chart re-renders for the rest of the capture (see renderDashboardCharts)
+  window.__dashExporting = true;
+
+  // Build the date line shown in the PDF header (selected range + print time)
+  const sDate = $('#dashStartDate').val() || '';
+  const eDate = $('#dashEndDate').val() || '';
+  const rangeText = sDate && eDate ? (sDate === eDate ? sDate : `${sDate} — ${eDate}`) : (sDate || eDate || '-');
+  const now = new Date();
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const printedAt = `${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+
+  // Snapshot each page's inline style so we can restore afterwards
+  const prevStyles = pages.map(p => ({ el: p, cssText: p.style.cssText }));
+  pages.forEach(p => {
+    Object.assign(p.style, {
+      width: PAGE_W_MM + 'mm',
+      minWidth: PAGE_W_MM + 'mm',
+      maxWidth: PAGE_W_MM + 'mm',
+      height: PAGE_H_MM + 'mm',
+      minHeight: PAGE_H_MM + 'mm',
+      maxHeight: PAGE_H_MM + 'mm',
+      overflow: 'hidden',
+      boxSizing: 'border-box'
+    });
+  });
+
+  // Inject a temporary date/title header at the top of each page (removed after)
+  const injectedHeaders = [];
+  pages.forEach((p, idx) => {
+    const header = document.createElement('div');
+    header.className = 'dash-pdf-header';
+    header.innerHTML =
+      `<div class="dash-pdf-header-title">${idx === 0 ? 'ສະຫຼຸບການໃຫ້ບໍລິການ' : 'ຂໍ້ມູນປະຊາກອນ ແລະ ຊຸມຊົນ'}</div>` +
+      `<div class="dash-pdf-header-meta"><span>ວັນທີ່ລາຍງານ: <b>${rangeText}</b></span>` +
+      `<span>ພິມເມື່ອ: ${printedAt}</span></div>`;
+    p.insertBefore(header, p.firstChild);
+    injectedHeaders.push({ p, header });
+  });
+
+  let blobUrl = null;
+  try {
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true });
+
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: DESKTOP_WINDOW_PX,
+        windowHeight: PAGE_H_PX,
+        width: PAGE_W_PX,
+        height: PAGE_H_PX,
+        scrollX: 0,
+        scrollY: -window.scrollY
+      });
+
+      if (!canvas || !canvas.width || !canvas.height) {
+        throw new Error(`Dashboard page ${i + 1} rendered empty`);
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.97);
+      if (i > 0) pdf.addPage('a4', 'landscape');
+      pdf.addImage(imgData, 'JPEG', 0, 0, PAGE_W_MM, PAGE_H_MM, `dash-${i}`, 'FAST');
+    }
+
+    const today = new Date();
+    const stamp = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+    const filename = `HIS_Dashboard_${stamp}.pdf`;
+
+    const blob = pdf.output('blob');
+    blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+  } catch (err) {
+    console.error('Dashboard PDF Error:', err);
+    Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດສ້າງ PDF ໄດ້: ' + err.message, 'error');
+  } finally {
+    window.__dashExporting = false;
+    injectedHeaders.forEach(({ header }) => header.remove());
+    prevStyles.forEach(({ el, cssText }) => { el.style.cssText = cssText; });
+    // Resume the dashboard auto-refresh we paused for the capture, and refresh
+    // once so the charts reflect any data that arrived while frozen.
+    clearInterval(dashRefreshInterval);
+    dashRefreshInterval = setInterval(() => { window.fetchDashboardData(); window.checkAlerts(); }, 120000);
+    window.fetchDashboardData();
+    Swal.close();
+    if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  }
 };
 
 window.setReportRange = function (type) {
@@ -6175,6 +6244,7 @@ window.executeTriageSave = async function (fd) {
     BP_Systolic: parsedBp.systolic, BP_Diastolic: parsedBp.diastolic,
     Respiratory_Rate: fd.v_resp, O2_Saturation: fd.v_spo2,
     Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
     Recorded_By: recordedBy
   };
   const visitUpdateFallback = {
@@ -6182,6 +6252,7 @@ window.executeTriageSave = async function (fd) {
     Weight: fd.v_weight, Height: fd.v_height,
     BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
     Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
     Recorded_By: recordedBy
   };
 
@@ -6991,6 +7062,20 @@ window.openTriage = async function (i) {
   $('input[name="v_spo2"]').val(r.spo2 || '');
   $('textarea[name="v_symptoms"]').val(r.symptoms || '');
   $('select[name="v_department"]').val(r.department || '');
+
+  // Populate Site dropdown from masterData then restore saved value
+  let siteOptions = masterDataStore['Site'] ? masterDataStore['Site'].map(x => x.value) : ['In-site', 'Onsite'];
+  let siteHtml = '';
+  siteOptions.forEach(x => siteHtml += `<option value="${x}">${x}</option>`);
+  $('#v_site').html(siteHtml).val(r.site || 'In-site');
+  window.handleTriageSiteChange();
+  if (r.type) {
+    if (!Array.from($('#v_type')[0].options).some(o => o.value === r.type)) {
+      $('#v_type').append(`<option value="${r.type}">${r.type}</option>`);
+    }
+    $('#v_type').val(r.type);
+  }
+
   const recordedBy = String(r.recordedBy || '').trim();
   const $recordedBy = $('#v_recorded_by');
   if (recordedBy && !$recordedBy.find(`option[value="${recordedBy.replace(/"/g, '\\"')}"]`).length) {
@@ -8615,6 +8700,22 @@ window.handleSiteChange = function () {
   typeSelect.html(h);
 };
 
+window.handleTriageSiteChange = function () {
+  let site = $('#v_site').val();
+  if (!site) site = 'In-site';
+  let typeSelect = $('#v_type');
+  typeSelect.empty();
+  let options = [];
+  if (site === 'In-site' || site === 'In-Site') {
+    options = (masterDataStore['PatientType_InSite'] && masterDataStore['PatientType_InSite'].length > 0) ? masterDataStore['PatientType_InSite'].map(x => x.value) : ['OPD'];
+  } else {
+    options = (masterDataStore['PatientType_Onsite'] && masterDataStore['PatientType_Onsite'].length > 0) ? masterDataStore['PatientType_Onsite'].map(x => x.value) : ['Checkup Corporation', 'Individual First Aid', 'Corporation First Aid', 'HomeCare'];
+  }
+  let h = '';
+  options.forEach(opt => h += `<option value="${opt}">${opt}</option>`);
+  typeSelect.html(h);
+};
+
 window.handleServiceSelectionChange = function () {
   let selectedServices = $('#emrService').val() || [];
   let specialists = new Set();
@@ -8774,19 +8875,6 @@ window.openEMR = function (i) {
   window.setEMRDischargeStatusValue(q.dischargeStatus || '');
   $('#emrDoctor').val(q.doctor || (currentUser ? currentUser.name : ''));
 
-  let os = '';
-  let siteOptions = masterDataStore['Site'] ? masterDataStore['Site'].map(x => x.value) : ['In-site', 'Onsite'];
-  siteOptions.forEach(x => os += `<option value="${x}">${x}</option>`);
-  $('#emrSite').html(os).val(q.site || "In-site");
-  window.handleSiteChange();
-
-  if (q.type) {
-    if (!Array.from($('#emrDeptType')[0].options).some(o => o.value === q.type)) {
-      $('#emrDeptType').append(`<option value="${q.type}">${q.type}</option>`);
-    }
-    $('#emrDeptType').val(q.type);
-  }
-
   $('#emrService').val(q.services ? q.services.split(',').map(x => x.trim()) : null).trigger('change');
 
   try { currentEMRLabs = q.labOrdersStr ? JSON.parse(q.labOrdersStr) : []; } catch (e) { currentEMRLabs = []; }
@@ -8829,7 +8917,6 @@ window.submitEMRForm = async function (e) {
   const { error: updateError } = await supabaseClient.from(dbTable('Visits')).update({
     Status: mainStatus, Symptoms: $('#emrCC').text(), Diagnosis: dx,
     Prescription_JSON: presJson, Doctor_Name: docName,
-    Visit_Type: $('#emrDeptType').val() || 'OPD', Site: $('#emrSite').val() || 'In-site',
     Physical_Exam: $('#emrPE').val() || '', Advice: $('#emrAdvice').val() || '', Follow_Up: $('#emrFollowup').val() || '',
     Services_List: $('#emrService').val() ? $('#emrService').val().join(', ') : '',
     Mapped_Specialist: $('#emrSpecialist').val() || '', Revenue_Group: $('#emrRevenue').val() || '',
@@ -9089,9 +9176,7 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_bmi', bmiText);
     safeSetText('popd_allergy_yes', hasPrintAllergy ? checkedMark : emptyMark);
     safeSetText('popd_allergy_no', hasPrintAllergy ? emptyMark : checkedMark);
-    safeSetText('popd_allergy_drug_check', printAllergyInfo.hasDrug ? checkedMark : emptyMark);
-    safeSetText('popd_allergy_food_check', printAllergyInfo.hasFood ? checkedMark : emptyMark);
-    safeSetText('popd_allergy', printAllergyInfo.allergy || '');
+    safeSetText('popd_allergy', hasPrintAllergy ? (printAllergyInfo.allergy || '') : '');
     safeSetText('popd_symptoms', printAllergyInfo.symptoms || '');
     safeSetText('popd_disease_yes', hasPrintDisease ? checkedMark : emptyMark);
     safeSetText('popd_disease_no', hasPrintDisease ? emptyMark : checkedMark);
@@ -12418,7 +12503,12 @@ window.loadActivityLog = async function () {
               </tr>`;
     });
 
-    if (rows.length === 0) h = '<tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2"></i>ບໍ່ມີ Log ໃນຊ່ວງວັນທີນີ້</td></tr>';
+    // No rows: show a colspan placeholder but DO NOT init DataTables —
+    // a single colspan cell vs 5 headers throws "Incorrect column count".
+    if (rows.length === 0) {
+      $('#activityLogTableBody').html('<tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2"></i>ບໍ່ມີ Log ໃນຊ່ວງວັນທີນີ້</td></tr>');
+      return;
+    }
     $('#activityLogTableBody').html(h);
     $('#activityLogTable').DataTable({
       responsive: true, pageLength: 25,
@@ -12768,6 +12858,43 @@ window.showPatientTimeline = async function (patientId) {
 // ============================================================
 // Init backup view — load status & history on page show
 // ============================================================
+// ------------------------------------------------------------
+// Resilient backup API fetch. The /api/backup/* endpoints are
+// Cloudflare Pages Functions — they only exist when deployed or
+// when running `npm run pages:dev`. Under plain `vite dev` the
+// request either 404s or throws `TypeError: Failed to fetch`, and
+// Vite may answer with HTML (SPA fallback) that breaks resp.json().
+// This helper collapses all of those into a single sentinel so the
+// UI can show one clean "local dev" message instead of red errors.
+//   returns { unavailable: true }            -> API not reachable (local dev)
+//   returns { ok, status, data }             -> parsed JSON response
+// ------------------------------------------------------------
+window._backupApiFetch = async function (url, options) {
+  let resp;
+  try {
+    resp = await fetch(url, options);
+  } catch (e) {
+    // Network error / connection refused / blocked => not available locally
+    return { unavailable: true };
+  }
+  if (resp.status === 404) return { unavailable: true };
+  let data = null;
+  try {
+    data = await resp.json();
+  } catch (e) {
+    // Non-JSON (e.g. Vite served index.html) => treat as unavailable
+    return { unavailable: true };
+  }
+  return { ok: resp.ok, status: resp.status, data };
+};
+
+// Standard "API only works when deployed" cell used by every backup panel.
+window._backupUnavailableRow = function (colspan) {
+  return '<tr><td colspan="' + colspan + '" class="text-center py-4 text-muted small">' +
+    '<i class="fas fa-plug me-1"></i>API ໃຊ້ໄດ້ສະເພາະຕອນ deploy (Cloudflare Pages) ຫຼື run ' +
+    '<code>npm run pages:dev</code> — ບໍ່ມີຜົນຕໍ່ການເຮັດວຽກ local.</td></tr>';
+};
+
 window.initBackupView = function () {
   if (!currentUser || currentUser.role !== 'admin') {
     Swal.fire('ເຂົ້າບໍ່ໄດ້', 'ທ່ານບໍ່ມີສິດເຂົ້າໃຊ້. ສຳຮອງຂໍ້ມູນສຳລັບ admin ເທົ່ານັ້ນ.', 'error');
@@ -12820,12 +12947,12 @@ window.runManualBackup = async function () {
 
   try {
     // Step 2: Trigger the backup via API
-    const resp = await fetch('/api/backup/run', {
+    const res = await window._backupApiFetch('/api/backup/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
 
-    if (resp.status === 404) {
+    if (res.unavailable) {
       _closeLoadingAlert();
       Swal.fire({
         icon: 'warning',
@@ -12838,7 +12965,7 @@ window.runManualBackup = async function () {
       return;
     }
 
-    const data = await resp.json();
+    const data = res.data || {};
     if (!data.success) {
       throw new Error(data.error || 'Unknown error');
     }
@@ -12972,10 +13099,10 @@ async function _pollForNewBackup(knownRunId) {
 // ============================================================
 window.loadLatestBackupStatus = async function () {
   try {
-    const resp = await fetch('/api/backup/status');
-    // In local dev, API returns 404 — just skip
-    if (resp.status === 404) return;
-    const data = await resp.json();
+    const res = await window._backupApiFetch('/api/backup/status');
+    // In local dev, API not reachable — leave the default placeholder
+    if (res.unavailable) return;
+    const data = res.data || {};
 
     const actualStatus = data.conclusion || data.status;
 
@@ -13043,20 +13170,14 @@ window.addBackupHistoryEntry = function (entry) {
 };
 
 window.renderBackupHistory = async function () {
-  try {
-    const resp = await fetch('/api/backup/runs?limit=15');
-    if (resp.status === 404) {
-      // In local Vite (no Functions) — show empty
-      window._renderBackupHistoryTable([]);
-      return;
-    }
-    const data = await resp.json();
-    const runs = (data && data.runs) || [];
-    window._renderBackupHistoryTable(runs);
-  } catch (err) {
-    console.warn('Failed to load /api/backup/runs:', err);
-    window._renderBackupHistoryTable([]);
+  const res = await window._backupApiFetch('/api/backup/runs?limit=15');
+  if (res.unavailable) {
+    // In local Vite (no Functions) — show a clear local-dev message
+    $('#backupHistoryBody').html(window._backupUnavailableRow(6));
+    return;
   }
+  const runs = (res.data && res.data.runs) || [];
+  window._renderBackupHistoryTable(runs);
 };
 
 // ============================================================
@@ -13120,13 +13241,12 @@ window.loadBackupFileList = async function () {
   tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
     '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດລາຍການ backup...</td></tr>';
   try {
-    const resp = await fetch('/api/backup/list');
-    if (resp.status === 404) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
-        'API ບໍ່ພ້ອມ (local Vite). ໃຊ້ <code>npm run pages:dev</code> ເພື່ອທົດສອບ.</td></tr>';
+    const res = await window._backupApiFetch('/api/backup/list');
+    if (res.unavailable) {
+      tbody.innerHTML = window._backupUnavailableRow(4);
       return;
     }
-    const data = await resp.json();
+    const data = res.data || {};
     if (!data || data.status === 'error') {
       tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger">' +
         '<i class="fas fa-exclamation-circle me-2"></i>' + (data && data.error ? data.error : 'Unknown error') + '</td></tr>';
@@ -13259,13 +13379,12 @@ window.loadGdriveBackupList = async function () {
   tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
     '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດຈາກ Google Drive...</td></tr>';
   try {
-    const resp = await fetch('/api/backup/gdrive-list');
-    if (resp.status === 404) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
-        'API ບໍ່ພ້ອມ (local Vite). ໃຊ້ <code>npm run pages:dev</code>.</td></tr>';
+    const res = await window._backupApiFetch('/api/backup/gdrive-list');
+    if (res.unavailable) {
+      tbody.innerHTML = window._backupUnavailableRow(4);
       return;
     }
-    const data = await resp.json();
+    const data = res.data || {};
     if (data && data.status === 'disabled') {
       tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
         '<i class="fab fa-google-drive me-1"></i>ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ Google Drive (ບໍ່ມີ GOOGLE_SERVICE_ACCOUNT_JSON)' +
