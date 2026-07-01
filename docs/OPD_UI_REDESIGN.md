@@ -918,3 +918,50 @@ ignored and the label rendered at the *top*. Fixed by qualifying the selector as
 **Verified** via the page-2 preview harness: computed `vertical-align: bottom`,
 label's bottom edge sits 4px (= the 2mm padding) above the cell's bottom edge,
 directly above the Dx/Follow up divider — matching the circled position.
+
+---
+
+## 2026-07-01 — OPD Card: show date + time under the barcode
+
+**User ask:** "OPD Card ເພີ່ມວັນທີ ກັບ ເວລາໃສ່ກ້ອງ barcode" — show the visit
+date and time below the header-right barcode.
+
+**Change** ([print-areas.html](../public/partials/print-areas.html)): the
+`#popd_datetime` span already existed but was buried inside the page-1
+`.opdref-hidden` block (write-only metadata). Moved it out to become a visible
+`<div class="opdref-datetime-row" id="popd_datetime">` appended after
+`svg#popd_patient_barcode` inside `.opdref-header-right`. Since the container is
+`flex-direction: column`, it renders directly under the barcode. No JS change —
+`main.js` still does the single `safeSetText('popd_datetime', "<date> <time>")`
+([main.js:9117](../src/main.js#L9117)); the id/text binding is unchanged, only
+the element's location and visibility. Confirmed `popd_datetime` is write-only
+(no `getElementById`/read of it anywhere), so relocating it is safe.
+
+**CSS** ([style.css](../src/style.css), both duplicate blocks
+`#opd-print-area.opdref` and `.opdref-page`): new `.opdref-datetime-row` mirrors
+`.opdref-cn-row` (Times/Phetsarath serif, centered, `width: 62mm` to match the
+barcode, nowrap) but smaller and black — `font-size: 11pt`, `font-weight: 600`,
+`color: #000` — so it reads as a subordinate caption under the red ID + barcode.
+
+---
+
+## 2026-07-01 — OPD Card: widen Title field + move Aged onto the D.O.B row
+
+**User ask (annotated screenshot):** the `ຄຳນຳໜ້າ/Title` field was too narrow
+(honorifics like `ທ່ານນາງ` were cramped), and `ອາຍຸ/Aged` sat at the far right of
+the Name row — asked to widen Title and drop Aged down onto the `ເກີດ/D.O.B` row
+("ຂະຫຍາຍຊ່ອງຄຳນຳໜ້າ, ເອົາອາຍຸລົງມາຕໍ່ແຖວວັນເກີດ").
+
+**Change** ([print-areas.html](../public/partials/print-areas.html)): moved the
+`ອາຍຸ/Aged:` label + `#popd_age` fill + `ປີ` group out of the first profile row
+(now just `Title` + `Name and Surname`) and into the second row, before
+`ເພດ/Gender`. Row 2 order is now `ເກີດ/D.O.B ___  ອາຍຸ/Aged ___ ປີ  ເພດ/Gender ☐/☑`.
+
+**CSS** ([style.css](../src/style.css), both duplicate blocks): `.opdref-fill-title`
+width `12mm → 24mm`. No other field widths changed — removing Aged from row 1
+freed the space for the wider Title, and row 2 still had ample room for the
+Aged group next to D.O.B + Gender.
+
+**Verified** via the OPD harness (fill=1): both rows fit with no overflow — row 1
+content ends ~162mm and row 2 ~172mm inside the sheet, Title fill computes to
+24mm holding the honorific, Aged (`42 ປີ`) renders between D.O.B and Gender.

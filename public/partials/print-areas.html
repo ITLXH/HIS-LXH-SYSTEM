@@ -7,10 +7,8 @@
         <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate1"></span></div>
         <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName1"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob1"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr11"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr21"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr31"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printPhone1"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr11"></span><span class="pcard-value pcard-value-2nd" id="printAddr21"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr31"></span><span class="pcard-value pcard-value-2nd" id="printPhone1"></span></div>
       </div>
     </div>
     <div class="patient-card" id="pcard2">
@@ -19,10 +17,8 @@
         <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate2"></span></div>
         <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName2"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob2"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr12"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr22"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr32"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printPhone2"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr12"></span><span class="pcard-value pcard-value-2nd" id="printAddr22"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr32"></span><span class="pcard-value pcard-value-2nd" id="printPhone2"></span></div>
       </div>
     </div>
     <div class="patient-card" id="pcard3">
@@ -31,10 +27,8 @@
         <div class="pcard-row"><span class="pcard-label">ວັນທີມາກວດ:</span> <span class="pcard-value" id="printDate3"></span></div>
         <div class="pcard-row"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName3"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob3"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr13"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr23"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printAddr33"></span></div>
-        <div class="pcard-row"><span class="pcard-value" id="printPhone3"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr13"></span><span class="pcard-value pcard-value-2nd" id="printAddr23"></span></div>
+        <div class="pcard-row"><span class="pcard-value" id="printAddr33"></span><span class="pcard-value pcard-value-2nd" id="printPhone3"></span></div>
       </div>
     </div>
   </div>
@@ -45,7 +39,6 @@
   <div class="opd-page opd-page-one opdref-page">
     <div class="opdref-hidden" aria-hidden="true">
       <img id="print-opd-footer-1" alt="" />
-      <span id="popd_datetime"></span>
       <span id="popd_vid"></span>
       <span id="popd_dept"></span>
       <span id="popd_coverage"></span>
@@ -63,6 +56,7 @@
         <div class="opdref-header-right">
           <div class="opdref-cn-row">ID: <span id="popd_cn" class="opdref-cn-value"></span></div>
           <svg id="popd_patient_barcode" class="opdref-barcode" aria-label="Patient barcode"></svg>
+          <div class="opdref-datetime-row" id="popd_datetime"></div>
         </div>
       </header>
       <div class="opdref-rule"></div>
@@ -71,10 +65,10 @@
       <div class="opdref-row">
         <span>ຄຳນຳໜ້າ/Title:</span><span id="popd_title" class="opdref-fill opdref-fill-title"></span>
         <span>ຊື່ ແລະ ນາມສະກຸນ/Name and Surname:</span><span id="popd_name" class="opdref-fill opdref-fill-fullname"></span>
-        <span>ອາຍຸ/Aged:</span><span id="popd_age" class="opdref-fill opdref-fill-age"></span><span>ປີ</span>
       </div>
       <div class="opdref-row">
         <span>ເກີດ/D.O.B:</span><span id="popd_dob" class="opdref-fill opdref-fill-dob"></span>
+        <span>ອາຍຸ/Aged:</span><span id="popd_age" class="opdref-fill opdref-fill-age"></span><span>ປີ</span>
         <span>ເພດ/Gender:</span><span class="opdref-check"><span id="popd_gender_male">□</span> ຊາຍ/Male&nbsp;&nbsp;&nbsp;<span id="popd_gender_female">□</span> ຍິງ/Female</span>
       </div>
       <div class="opdref-row">

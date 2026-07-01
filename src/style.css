@@ -3326,6 +3326,19 @@ h6 {
   color: #dc2626 !important;
 }
 
+#opd-print-area.opdref .opdref-datetime-row {
+  display: block !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 11pt !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  width: 62mm !important;
+  line-height: 1.1 !important;
+  color: #000 !important;
+}
+
 #opd-print-area.opdref .opdref-cn-value {
   display: inline !important;
   position: static !important;
@@ -3544,7 +3557,7 @@ h6 {
   content: none !important;
 }
 
-#opd-print-area.opdref .opdref-fill-title { width: 12mm !important; }
+#opd-print-area.opdref .opdref-fill-title { width: 24mm !important; }
 #opd-print-area.opdref .opdref-fill-name { width: 24mm !important; }
 #opd-print-area.opdref .opdref-fill-fullname { width: 46mm !important; }
 #opd-print-area.opdref .opdref-fill-age { width: 10mm !important; }
@@ -3812,6 +3825,19 @@ h6 {
   color: #dc2626 !important;
 }
 
+.opdref-page .opdref-datetime-row {
+  display: block !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 11pt !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  width: 62mm !important;
+  line-height: 1.1 !important;
+  color: #000 !important;
+}
+
 .opdref-page .opdref-cn-value {
   display: inline !important;
   position: static !important;
@@ -3973,7 +3999,7 @@ h6 {
   white-space: nowrap !important;
 }
 
-.opdref-page .opdref-fill-title { width: 12mm !important; }
+.opdref-page .opdref-fill-title { width: 24mm !important; }
 .opdref-page .opdref-fill-name { width: 24mm !important; }
 .opdref-page .opdref-fill-fullname { width: 46mm !important; }
 .opdref-page .opdref-fill-age { width: 10mm !important; }
@@ -5199,21 +5225,23 @@ h6 {
   }
 }
 
-/* Patient QR Card (3 per A4 portrait, 180×78mm, fills the printed sheet without overflowing) */
+/* Patient QR Card (3 per A4 portrait). Card 91mm tall so 3 cards + 2 gaps fit
+   inside the ~289mm A4 usable height (3×91 + 2×3 = 279mm) without spilling to a
+   2nd page; top padding removed so the stack hugs the top edge. */
 .print-card-grid {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4mm;
-  padding: 2mm 0;
+  gap: 3mm;
+  padding: 0;
 }
 .pcard-divider {
   display: none;
 }
 .patient-card {
   width: 180mm;
-  height: 85mm;
-  padding: 5mm 8mm;
+  height: 89mm;
+  padding: 4mm 8mm 5mm;
   border: 2px solid var(--primary);
   border-radius: 4px;
   background: white;
@@ -5236,39 +5264,43 @@ h6 {
   font-size: 44px;
   color: #000;
   text-align: center;
-  line-height: 1.5;
+  line-height: 1.15;
   letter-spacing: 1px;
   white-space: nowrap;
-  padding: 2mm 0 3mm;
+  padding: 0 0 2mm;
   border-bottom: 3px solid #000;
-  margin-bottom: 3mm;
+  margin-bottom: 2mm;
 }
 .pcard-info {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 2mm;
+  justify-content: flex-start;
+  gap: 3mm;
   min-width: 0;
 }
 .pcard-row {
-  line-height: 1.35;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .pcard-label {
-  font-size: 18px;
+  font-size: 26px;
   color: #475569;
   font-weight: 500;
 }
 .pcard-value {
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 700;
   color: #1e293b;
 }
+/* Second value on a shared row (ເມືອງ next to ບ້ານ, ເບີໂທ next to ແຂວງ) */
+.pcard-value-2nd {
+  margin-left: 5mm;
+}
 .pcard-name {
-  font-size: 28px;
+  font-size: 38px;
   font-weight: 800;
   color: #0284c7;
 }
