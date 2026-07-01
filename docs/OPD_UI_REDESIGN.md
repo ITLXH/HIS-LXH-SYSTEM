@@ -889,3 +889,32 @@ opd-print-area markup) — computed styles confirmed `.opdref-header-right`
 children order is `[DIV.opdref-cn-row, svg]`, both cn-row/cn-value compute to
 `rgb(220, 38, 38)`, `#popd_name` carries `opdref-fill-fullname` at 173.8px
 (= 46mm), and `#popd_surname` is absent from the DOM.
+
+---
+
+## 2026-07-01 — OPD Card page 2: add "ລາຍເຊັນທ່ານໝໍ" (doctor's signature) label
+
+**User ask (annotated page-2 screenshot):** circled the empty bottom of the
+"other" column in the treatment table (just above the Dx / Follow up divider
+row) and asked to add a doctor's-signature label there ("ເພີ່ມໃສ່ວ່າ ລາຍເຊັນທ່ານໝໍ").
+
+**Change** ([print-areas.html](../public/partials/print-areas.html)): the third
+`<td>` of the `.opdref-treatment-body` row (the tall 185mm writing area) now
+carries class `opdref-doctor-sign-cell` and holds
+`<div class="opdref-doctor-sign">ລາຍເຊັນທ່ານໝໍ</div>`.
+
+**CSS** ([style.css](../src/style.css), both duplicate blocks
+`#opd-print-area.opdref` and `.opdref-page`): `.opdref-doctor-sign` = centered,
+bold, `padding: 0 1mm 2mm`, nowrap. The cell is bottom-aligned so the label
+sits at the very bottom of the column, right above the Dx/Follow up row.
+
+**Specificity gotcha:** the base rule `#opd-print-area.opdref .opdref-table td`
+(and `.opdref-page .opdref-table td`) sets `vertical-align: top !important`, and
+its trailing `td` element selector gives it higher specificity than a plain
+`.opdref-doctor-sign-cell` class selector — so `vertical-align: bottom` was
+ignored and the label rendered at the *top*. Fixed by qualifying the selector as
+`td.opdref-doctor-sign-cell` (matching specificity, later in the cascade → wins).
+
+**Verified** via the page-2 preview harness: computed `vertical-align: bottom`,
+label's bottom edge sits 4px (= the 2mm padding) above the cell's bottom edge,
+directly above the Dx/Follow up divider — matching the circled position.

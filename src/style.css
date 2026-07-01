@@ -3667,6 +3667,13 @@ h6 {
 #opd-print-area.opdref .opdref-col-other { width: 19% !important; }
 /* Treatment table enlarged from 168mm → 185mm to give doctor maximum writing room; follow-up sits at the page bottom via margin-top:auto */
 #opd-print-area.opdref .opdref-treatment-body td { height: 185mm !important; }
+#opd-print-area.opdref td.opdref-doctor-sign-cell { vertical-align: bottom !important; }
+#opd-print-area.opdref .opdref-doctor-sign {
+  text-align: center !important;
+  font-weight: 700 !important;
+  padding: 0 1mm 2mm !important;
+  white-space: nowrap !important;
+}
 #opd-print-area.opdref .opdref-dx-row td {
   height: 16mm !important;
   font-weight: 700 !important;
@@ -4088,6 +4095,13 @@ h6 {
 .opdref-page .opdref-col-treatment { width: 39% !important; }
 .opdref-page .opdref-col-other { width: 19% !important; }
 .opdref-page .opdref-treatment-body td { height: 185mm !important; }
+.opdref-page td.opdref-doctor-sign-cell { vertical-align: bottom !important; }
+.opdref-page .opdref-doctor-sign {
+  text-align: center !important;
+  font-weight: 700 !important;
+  padding: 0 1mm 2mm !important;
+  white-space: nowrap !important;
+}
 .opdref-page .opdref-dx-row td {
   height: 16mm !important;
   font-weight: 700 !important;
