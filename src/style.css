@@ -5194,8 +5194,8 @@ h6 {
 }
 .patient-card {
   width: 180mm;
-  height: 78mm;
-  padding: 3mm 8mm;
+  height: 85mm;
+  padding: 5mm 8mm;
   border: 2px solid var(--primary);
   border-radius: 4px;
   background: white;
@@ -5206,27 +5206,31 @@ h6 {
   overflow: hidden;
 }
 
-/* Patient code — first row, huge, fills the card width */
+/* Patient code — first row, huge, fills the card width.
+   No overflow:hidden here — it clips tall glyphs vertically when line-height
+   is tight; the code is fixed-length and fits the width, so let it render.
+   Font forced to a Latin face (not Noto Sans Lao) and weight 700 (not 900):
+   the Lao webfont has no 900 cut, so the browser synthesized a fake-bold
+   that bled outside the line box in print and overlapped the rule below. */
 .pcard-id {
-  font-weight: 900;
-  font-size: 50px;
+  font-family: "Consolas", "Arial", sans-serif;
+  font-weight: 700;
+  font-size: 44px;
   color: #000;
   text-align: center;
-  line-height: 1.05;
+  line-height: 1.5;
   letter-spacing: 1px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 2mm 0 3mm;
   border-bottom: 3px solid #000;
-  padding-bottom: 1.5mm;
-  margin-bottom: 2mm;
+  margin-bottom: 3mm;
 }
 .pcard-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1mm;
+  gap: 2mm;
   min-width: 0;
 }
 .pcard-row {
