@@ -2556,7 +2556,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-06-30-opd-cc-nutrition-page2-v3';
+  const PARTIAL_CACHE_BUST = '2026-07-03-opd-page2-followup-log-v8';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
@@ -2594,7 +2594,7 @@ async function loadPartials() {
 window.ensureFreshOpdPrintTemplate = async function () {
   const prints = document.getElementById('partial-prints');
   const current = document.getElementById('opd-print-area');
-  const expectedVersion = '2026-06-30-opd-cc-nutrition-page2-v3';
+  const expectedVersion = '2026-07-03-opd-page2-followup-log-v8';
   if (prints && current && current.dataset.opdTemplateVersion === expectedVersion) return;
 
   const res = await fetch(`/partials/print-areas.html?v=${expectedVersion}-${Date.now()}`, {
@@ -4235,8 +4235,19 @@ window.renderDashboardCharts = function (visits) {
     else oldPatients++;
   });
 
-  // Robust comparison for Insurance/Corporate
+  // Insurance / Corporate is a property of the PATIENT (Insurance_Company or an
+  // Organization affiliation), attached here as v.Patients. The old visit-level
+  // Revenue_Group/Visit_Type check never matched (Visits carries no such column),
+  // so this KPI was stuck at 0. Keep that check only as a legacy fallback.
+  const insCorpNone = new Set(['', '-', 'ບໍ່ມີ', 'none', 'n/a', 'self pay', 'self-pay', 'ຈ່າຍເອງ']);
+  const insCorpHas = val => {
+    const s = (val == null ? '' : val).toString().trim();
+    return s !== '' && !insCorpNone.has(s.toLowerCase());
+  };
   let insCorp = visits.filter(v => {
+    const p = v.Patients || {};
+    if (insCorpHas(p.Insurance_Company) || insCorpHas(p.Organization_ID) || insCorpHas(p.Name_Org)) return true;
+    // Legacy visit-level fallback
     let rg = (v.Revenue_Group || v.RevenueGroup || v["Revenue Group"] || "").toString();
     let vt = (v.Visit_Type || v.VisitType || "").toString();
     return (rg && rg !== 'General Cash') || vt.toLowerCase().includes('package');
@@ -5779,8 +5790,8 @@ window.handleOpdPrintImageUpload = async function (settingKey, input) {
   }
 };
 
-window.renderOpdPatientBarcode = function (patientId) {
-  const svg = document.getElementById('popd_patient_barcode');
+window.renderOpdPatientBarcode = function (patientId, svgId) {
+  const svg = document.getElementById(svgId || 'popd_patient_barcode');
   if (!svg) return;
 
   const value = String(patientId || '').trim();
@@ -9194,6 +9205,38 @@ window.printOPDCard = async function (s, i) {
     }
     safeSetText('popd_doctor', v.recordedBy || v.nurse || '');
 
+    // Page 2 (ໃບຕິດຕາມອາການປິ່ນປົວ) repeats the patient header at the top of the
+    // follow-up log so the printed sheet is usable stand-alone.
+    // Title is merged into the name field on Page 2 (per head request).
+    safeSetText('popd2_name', `${d.Title || ''} ${d.First_Name || ''} ${d.Last_Name || ''}`.replace(/\s+/g, ' ').trim());
+    safeSetText('popd2_dob', d.Date_of_Birth || '');
+    safeSetText('popd2_age', d.Age || '');
+    {
+      const g2 = String(d.Gender || '').trim();
+      safeSetText('popd2_gender_male', /^(M|Male|ຊາຍ)$/i.test(g2) ? '☑' : '□');
+      safeSetText('popd2_gender_female', /^(F|Female|ຍິງ)$/i.test(g2) ? '☑' : '□');
+    }
+    safeSetText('popd2_village', d.Address || '');
+    safeSetText('popd2_district', d.District || '');
+    safeSetText('popd2_prov', d.Province || '');
+    safeSetText('popd2_phone', d.Phone_Number || '');
+    // Page 2 vital-sign table mirrors the Page-1 layout/format (units in cells).
+    safeSetText('popd2_temp', v.temp ? v.temp + ' °C' : '');
+    safeSetText('popd2_bp', v.bp || '');
+    safeSetText('popd2_pr', v.pulse || '');
+    safeSetText('popd2_rr', v.rr || v.Respiration || v.resp || '');
+    safeSetText('popd2_spo2', v.spo2 || v.SpO2 || '');
+    safeSetText('popd2_w', v.weight ? v.weight + ' kg' : '');
+    safeSetText('popd2_h', v.height ? v.height + ' cm' : '');
+    safeSetText('popd2_bmi', bmiText && bmiText !== '-' ? bmiText : '');
+
+    // Page 2 header assets (logo + red ID + barcode + date) — mirror Page 1.
+    const p2logo = document.getElementById('print-opd-p2-logo');
+    if (p2logo) bindOpdLogo(p2logo, page1HeaderSrc);
+    safeSetText('popd2_cn', printPatientId);
+    safeSetText('popd2_datetime', ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || '')).trim());
+    window.renderOpdPatientBarcode(printPatientId, 'popd2_barcode');
+
     Swal.close();
     // OPD card uses programmatic PDF export (Option B) instead of window.print().
     // This avoids Chrome's browser-injected date/URL/page-number headers, which
@@ -9253,39 +9296,50 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
   const safeStamp = String(filenameSuffix || '').replace(/[^a-zA-Z0-9_-]/g, '') || Date.now();
   const filename = `OPD-Card-${safeStamp}.pdf`;
 
-  // A4 portrait, with 10mm top/bottom and 12mm side margins
+  // A4 portrait. Page 1 (registration) keeps the standard 12mm side / 10mm top
+  // margins. Page 2 (follow-up log "ໃບຕິດຕາມອາການປິ່ນປົວ") uses tighter 6mm
+  // margins so the table fills more of the sheet and sits higher — per the
+  // head-of-department request (2026-07-03). Page 1 is intentionally untouched.
   const PAGE_W_MM = 210, PAGE_H_MM = 297;
-  const MARGIN_X_MM = 12, MARGIN_Y_MM = 10;
-  const INNER_W_MM = PAGE_W_MM - 2 * MARGIN_X_MM; // 186
-  const INNER_H_MM = PAGE_H_MM - 2 * MARGIN_Y_MM; // 277
-  // 96 dpi → 1mm = 3.7795 px
-  const CSS_PX_PER_MM = 96 / 25.4;
-  const INNER_W_PX = Math.round(INNER_W_MM * CSS_PX_PER_MM); // ≈ 703
-  const INNER_H_PX = Math.round(INNER_H_MM * CSS_PX_PER_MM); // ≈ 1047
+  const CSS_PX_PER_MM = 96 / 25.4; // 96 dpi → 1mm = 3.7795 px
+  const PAGE_MARGINS = [
+    { x: 12, y: 10 }, // Page 1 — registration form
+    { x: 6, y: 6 }    // Page 2 — follow-up log
+  ];
+  const pageGeom = i => {
+    const m = PAGE_MARGINS[i] || PAGE_MARGINS[0];
+    const wMm = PAGE_W_MM - 2 * m.x;
+    const hMm = PAGE_H_MM - 2 * m.y;
+    return { mx: m.x, my: m.y, wMm, hMm, wPx: Math.round(wMm * CSS_PX_PER_MM), hPx: Math.round(hMm * CSS_PX_PER_MM) };
+  };
 
   const pages = Array.from(target.querySelectorAll('.opd-page')).slice(0, 2);
 
-  // Force each .opd-page to the exact printable size so html2canvas captures the
-  // full sheet at the same width jsPDF will place it (no scaling surprises).
-  const prevPageStyles = pages.map(page => ({
-    page,
-    cssText: page.style.cssText
-  }));
-  pages.forEach(page => {
-    Object.assign(page.style, {
-      width: INNER_W_MM + 'mm',
-      minWidth: INNER_W_MM + 'mm',
-      maxWidth: INNER_W_MM + 'mm',
-      height: INNER_H_MM + 'mm',
-      minHeight: INNER_H_MM + 'mm',
-      maxHeight: INNER_H_MM + 'mm',
-      margin: '0',
-      padding: '0',
-      overflow: 'hidden',
-      background: '#fff',
-      boxSizing: 'border-box'
-    });
+  // Force each .opd-page to its per-page printable size so html2canvas captures
+  // the full sheet at exactly the width jsPDF will place it (no scaling
+  // surprises). Page 2's sheet is locked to 186mm via !important CSS, so its
+  // width is overridden with an important inline style below.
+  const prevPageStyles = pages.map(page => ({ page, cssText: page.style.cssText }));
+  const p2sheet = pages[1] ? pages[1].querySelector('.opdref-sheet-page2') : null;
+  const prevSheetCss = p2sheet ? p2sheet.style.cssText : null;
+  pages.forEach((page, i) => {
+    const g = pageGeom(i);
+    page.style.setProperty('width', g.wMm + 'mm', 'important');
+    page.style.setProperty('min-width', g.wMm + 'mm', 'important');
+    page.style.setProperty('max-width', g.wMm + 'mm', 'important');
+    page.style.setProperty('height', g.hMm + 'mm', 'important');
+    page.style.setProperty('min-height', g.hMm + 'mm', 'important');
+    page.style.setProperty('max-height', g.hMm + 'mm', 'important');
+    Object.assign(page.style, { margin: '0', padding: '0', overflow: 'hidden', background: '#fff', boxSizing: 'border-box' });
   });
+  if (p2sheet) {
+    // Beat the !important width from .opdref-sheet-page2 so the sheet grows to
+    // fill the wider page-2 printable area (height stays governed by the sheet's
+    // own min-height, leaving the signatures near the bottom edge).
+    const g2 = pageGeom(1);
+    p2sheet.style.setProperty('width', g2.wMm + 'mm', 'important');
+    p2sheet.style.setProperty('max-width', g2.wMm + 'mm', 'important');
+  }
 
   let blobUrl = null;
   try {
@@ -9296,16 +9350,17 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
 
     for (let i = 0; i < pages.length; i++) {
+      const g = pageGeom(i);
       const canvas = await html2canvas(pages[i], {
         scale: 2,
         useCORS: true,
         letterRendering: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: INNER_W_PX,
-        windowHeight: INNER_H_PX,
-        width: INNER_W_PX,
-        height: INNER_H_PX,
+        windowWidth: g.wPx,
+        windowHeight: g.hPx,
+        width: g.wPx,
+        height: g.hPx,
         scrollX: 0,
         scrollY: -window.scrollY
       });
@@ -9315,10 +9370,10 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
       pdf.addImage(
         imgData,
         'JPEG',
-        MARGIN_X_MM,
-        MARGIN_Y_MM,
-        INNER_W_MM,
-        INNER_H_MM,
+        g.mx,
+        g.my,
+        g.wMm,
+        g.hMm,
         `opd-page-${i + 1}`,
         'FAST'
       );
@@ -9340,6 +9395,7 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
     Swal.fire('PDF Error', 'Could not create OPD PDF', 'error');
   } finally {
     prevPageStyles.forEach(({ page, cssText }) => { page.style.cssText = cssText; });
+    if (p2sheet) p2sheet.style.cssText = prevSheetCss || '';
     target.classList.remove('print-active');
     prevContainerState.forEach(({ el, display, active }) => {
       el.style.display = display || '';

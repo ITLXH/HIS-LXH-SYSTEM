@@ -965,3 +965,253 @@ Aged group next to D.O.B + Gender.
 **Verified** via the OPD harness (fill=1): both rows fit with no overflow — row 1
 content ends ~162mm and row 2 ~172mm inside the sheet, Title fill computes to
 24mm holding the honorific, Aged (`42 ປີ`) renders between D.O.B and Gender.
+
+---
+
+## 2026-07-02 — Dashboard INS/CORP KPI stuck at 0
+
+**Symptom** (user): the `INS / CORP` tile on the Clinic Snapshot Board
+("ລູກຄ້າອົງກອນປະກັນໄພ ຈະບໍ່ສະແດງໂຕເລກຂື້ນ") always displayed `0`, even with
+insurance/corporate patients in range.
+
+**Root cause** ([src/main.js](../src/main.js), `renderDashboardCharts`): the
+count filtered on **visit-level** fields `v.Revenue_Group` / `v.Visit_Type`.
+`HIS_One_Visits` has no such column, so the filter matched nothing → always 0.
+Insurance/corporate status actually lives on the **patient** record
+(`Insurance_Company`, `Organization_ID`, `Name_Org`), which the dashboard already
+attaches to every visit as `v.Patients` (`pMap[v.Patient_ID]`).
+
+**Fix**: added `insCorpHas(val)` + an `insCorpNone` set that treats
+`'' / - / ບໍ່ມີ / none / n/a / self pay / self-pay / ຈ່າຍເອງ` as non-insurance
+(case-insensitive), and rewrote the filter to count a visit when the patient has
+a real `Insurance_Company` OR `Organization_ID` OR `Name_Org`. The old
+Revenue_Group/Visit_Type test is retained only as a legacy fallback.
+
+**Verified**: Vite dev server (port 5176) reloads the edited `main.js` with no
+console or build error; a standalone node unit test of the filter logic counted
+4/4 sample cases correctly — insurance-company, corporate (Organization_ID),
+org-name-only, and legacy "Package" visits are counted; self-pay (`ບໍ່ມີ`),
+dash, and empty patients are excluded.
+
+**NOT committed** — per user "ກວດສອບໃນ local ກ່ອນບໍ່ຟ້າວ commit"; awaiting the
+user's check against live data before it is folded into the next commit.
+
+---
+
+## 2026-07-03 — OPD Card Page 2 rebuilt as "ໃບຕິດຕາມອາການປິ່ນປົວ"
+
+**Request** (head of department): change Page 2 of the OPD Card to match the
+supplied paper reference form.
+
+**Old Page 2** (removed): title `ໃບບັນທຶກອາການ ແລະ ການປິ່ນປົວ`, a 3-column
+`History / Treatment / other` table + a `Dx: / Follow up:` row, then a separate
+`ໃບບັນທຶກພະຍາບານ` section with a 5-column `Time/ອາການ/ຫັດຖະການ/ໝາຍເຫດ/ຜູ້ບັນທຶກ`
+table pinned to the page bottom.
+
+**New Page 2** ([print-areas.html](../public/partials/print-areas.html)):
+- Title **ໃບຕິດຕາມອາການປິ່ນປົວ**
+- Patient header, 3 lines:
+  - `ຊື່ ນາມສະກຸນ/Name` · `ວ/ດ/ປ/D.O.B` · `ອາຍຸ/Age … ປີ`
+  - `ທີ່ຢູ່/Address` · `ເມືອງ/Dist` · `ແຂວງ/Prov` · `ໂທ/Tel`
+  - `Diagnosis/ມະຕິແພດ` (full-width line)
+- One open **4-column log table**: `ວັນເດືອນປີ | ອາການ | ປິ່ນປົວ | ໝາຍເຫດ`
+  (single tall body cell, 214mm, fills the page).
+- Signature row: `ລາຍເຊັນພະຍາບານຮັບຜິດຊອບ` (left) / `ລາຍເຊັນທ່ານໝໍ` (right).
+
+**Data binding** ([main.js](../src/main.js), `printOPDCard`): new IDs
+`popd2_name / popd2_dob / popd2_age / popd2_village / popd2_district /
+popd2_prov / popd2_phone / popd2_dx` written right after `popd_doctor`, so the
+follow-up sheet carries the patient header stand-alone.
+
+**CSS** ([style.css](../src/style.css), both `#opd-print-area.opdref` and the
+`.opdref-page` fallback): old page-2 selectors replaced with
+`opdref-p2-header / p2-line / fill-p2-* / col-fl-* / followlog-body /
+p2-sign-row`.
+
+**Fit tuning**: the four bilingual header labels first overflowed the 180mm row
+(row 1 by 30.2mm, row 2 by 28.8mm — measured with the new
+[tmp/pdfs/measure-p2.cjs](../tmp/pdfs/measure-p2.cjs)). Fixed by abbreviating the
+labels (`Name Surname→Name`, `ວັນ/ເດືອນ/ປີ→ວ/ດ/ປ`, `District→Dist`,
+`Province→Prov`, `ເບີໂທ→ໂທ`) and sizing fills — name 46 / dob 28 / age 10 (row 1)
+and addr 26 / dist 22 / prov 26 / tel 28 (row 2). Final measured overflow = 0 on
+all three lines.
+
+**Cache-buster** bumped `2026-06-30-opd-cc-nutrition-page2-v3` →
+`2026-07-03-opd-page2-followup-log-v4` in three spots: the
+`data-opd-template-version` attribute, `PARTIAL_CACHE_BUST`, and
+`expectedVersion` (`ensureFreshOpdPrintTemplate`).
+
+**Verified** via the Puppeteer harness (`opd-harness.html?fill=1` → render.cjs →
+pdf2pages.cjs, [tmp/pdfs/p2v5-page2.png](../tmp/pdfs/p2v5-page2.png)): output is
+exactly 2 pages, every header field renders without clipping, the log table fills
+the sheet, and the two signature labels sit near the bottom edge.
+
+**NOT committed** — per user "ກວດສອບໃນ local ກ່ອນບໍ່ຟ້າວ commit"; awaiting the
+user's local check before the next commit.
+
+### 2026-07-03 (follow-up) — Page 2 widened + pulled up
+
+Head's mark-up on the live export: "ຍັບອອກເທີງ ແລະ ຊ້າຍ ຂວາ ຂະຫຍາຍຕື່ມ" (move up,
+expand left/right). The Page-2 sheet was 180mm centered inside the 186mm
+printable area (3mm gap each side) with 4mm top padding.
+
+**Change** ([style.css](../src/style.css), both `.opdref` and fallback blocks):
+`.opdref-sheet-page2` width `180mm → 186mm`, `margin: 0`, top padding
+`4mm → 0.5mm`. Freed 6mm of row width reallocated to the tightest fills — name
+46→50, dob 28→30, prov 26→29, tel 28→31mm. Header rows re-measured at 0 overflow;
+render still exactly 2 pages ([tmp/pdfs/p2v6-page2.png](../tmp/pdfs/p2v6-page2.png)).
+
+This fills the full printable width at the standard 12mm side / 10mm top export
+margins (`exportOpdCardAsPdf`). Going wider/higher than this would mean reducing
+those export margins, which also affects Page 1 — left as a separate decision.
+
+### 2026-07-03 (follow-up 2) — Page 2 tighter print margins (Page 1 untouched)
+
+Head wanted Page 2 wider/higher than the standard print margins allowed, without
+changing the approved Page 1. `exportOpdCardAsPdf` ([main.js](../src/main.js)) now
+uses **per-page** margins instead of one shared 12mm/10mm value:
+
+- `PAGE_MARGINS = [ {x:12,y:10}, {x:6,y:6} ]` — Page 1 registration form keeps
+  12mm side / 10mm top; Page 2 follow-up log drops to 6mm all round.
+- A `pageGeom(i)` helper derives inner width/height (px + mm) per page; the
+  capture (`html2canvas` width/height/windowWidth) and placement
+  (`pdf.addImage` x/y/w/h) both read it, so Page 2 is captured at 198×285mm and
+  placed at (6,6) while Page 1 stays 186×277 at (12,10).
+- Page 2's sheet is locked to 186mm by `!important` CSS, so the export sets an
+  **important inline** width (`p2sheet.style.setProperty('width','198mm','important')`)
+  during capture and restores it in `finally` (saved `prevSheetCss`). The
+  `.opd-page` element sizing likewise switched from `Object.assign` (non-important,
+  which the `.opdref-page { width:186mm !important }` rule was silently
+  overriding for Page 2) to `setProperty(..., 'important')`.
+
+**Verified** by running the actual export path headlessly (new
+[tmp/pdfs/export-verify.cjs](../tmp/pdfs/export-verify.cjs): loads the harness,
+injects the real html2canvas 1.4.1 + jsPDF 2.5.1 from CDN, runs the same per-page
+geometry, writes [tmp/pdfs/opd-export-verify.pdf](../tmp/pdfs/opd-export-verify.pdf)).
+Output = exactly 2 pages; [exp-page2.png](../tmp/pdfs/exp-page2.png) shows the log
+table reaching ~6mm from every edge, all header fields intact;
+[exp-page1.png](../tmp/pdfs/exp-page1.png) confirms Page 1 is unchanged.
+
+### 2026-07-03 (follow-up 3) — Page 2 header fields reworked
+
+Head's comments on the live Page 2: merge Title into the Name field, add Gender,
+keep Address/District/Province on one row, and move Tel down onto the Diagnosis
+row. New header layout ([print-areas.html](../public/partials/print-areas.html)):
+
+- Row 1: `ຊື່/Name` (now `Title + First + Last`) · `ວ/ດ/ປ/D.O.B` · `ອາຍຸ/Age ປີ`
+  · `ເພດ/Gender ☑ຊາຍ ☐ຍິງ`
+- Row 2: `ທີ່ຢູ່/Address` · `ເມືອງ/Dist` · `ແຂວງ/Prov`
+- Row 3: `ໂທ/Tel` · `Diagnosis/ມະຕິແພດ` (full-line; Tel fixed 34mm, Diagnosis fills the rest)
+
+Bindings ([main.js](../src/main.js), `printOPDCard`): `popd2_name` now prefixes
+`d.Title`; new `popd2_gender_male/female` tick spans reuse the Page-1 M/F regex.
+CSS: name label shortened to `ຊື່/Name:` to make room for Gender (row 1 was 16.4mm
+over); fills re-tuned (name 42 / dob 24 / age 7; addr 40 / dist 34 / prov 42);
+`#popd2_phone` pinned to `flex: 0 0 34mm` inside the full-line row so Diagnosis
+takes the remainder. Cache-buster → `2026-07-03-opd-page2-followup-log-v5`.
+
+Verified via the real export path ([tmp/pdfs/export-verify.cjs](../tmp/pdfs/export-verify.cjs)
+→ [exp2-page2.png](../tmp/pdfs/exp2-page2.png)): all three header rows fit with 0
+overflow, Title shows in the name, Gender ticks render, Tel+Diagnosis share row 3,
+still exactly 2 pages, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 4) — Widen Page 2 name field + shift left
+
+Head: the name kept clipping ("ຂະຫຍາຍ ຊື່ແລະນາມສະກຸນອອກກວ້າງໆ ຍັບອອກເບຶ້ອງຊາຍອີກ").
+Measured row 1 — labels alone ate ~78mm, leaving the name fill at only 42mm.
+Shortened the row-1 labels to Lao-primary short forms so the value gets room and
+starts further left: `ຊື່/Name:` → `ຊື່:` (label 15.6mm → 3.8mm, so the name field
+shifts ~12mm left), `ວ/ດ/ປ/D.O.B:` → `ວ.ດ.ປ:`, `ອາຍຸ/Age:` → `ອາຍຸ:`,
+`ເພດ/Gender:` → `ເພດ:`. Name fill `42mm → 78mm` (nearly doubled). Rows 2/3 keep
+their bilingual labels. Re-measured: all 3 header rows 0 overflow; export path
+render [exp3-page2.png](../tmp/pdfs/exp3-page2.png) shows the full `ທ່ານ ສົມຈິດ
+ສຸດສະຫງ່າ` on a long line with slack, 2 pages, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 5) — Page 2: replace Diagnosis with full vital signs
+
+Head: "ມະຕິແພດ ປ່ຽນເປັນເອົາ ອາການຊີວິດທັງໝົດມາໃສ່" — drop the Diagnosis field on
+row 3 and show all vital signs instead. Row 3 is now `ໂທ:` + phone + a
+`ອາການຊີວິດ/Vital:` inline summary of all 8 vitals (BT / BP / PR / RR / SpO₂ /
+W / H / BMI) as compact `.opdref-p2-vital` chips ([print-areas.html](../public/partials/print-areas.html)).
+New IDs `popd2_temp/bp/pr/rr/spo2/w/h/bmi` bound in `printOPDCard`
+([main.js](../src/main.js)) — bare numeric values (labels carry the units), BMI
+reuses the page-1 `bmiText`. `popd2_dx` removed. CSS: `.opdref-p2-vital-line`
+font 11pt, chips `margin-right: 1.5mm`, Tel fill trimmed to 28mm so all 8 vitals
++ Tel fit one line (row was 11mm over before tuning). Cache-buster → v6.
+Verified via export-verify.cjs ([exp5-page2.png](../tmp/pdfs/exp5-page2.png)):
+row 3 shows Tel + all 8 vitals, 0 overflow, 2 pages, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 6) — Page 2: one-line address+Tel, vitals as Page-1 table
+
+Head: put ບ້ານ/ເມືອງ/ແຂວງ/ໂທ on one row, and use the same vital-sign TABLE as
+Page 1 (not the inline chips). Changes ([print-areas.html](../public/partials/print-areas.html)):
+
+- Header row 2 now holds all four: `ບ້ານ` · `ເມືອງ` · `ແຂວງ` · `ໂທ` (Lao-only
+  labels, fills addr 40 / dist 34 / prov 42 / tel 28mm — measured 0 overflow).
+  The separate row-3 line was removed.
+- Vital signs: replaced the inline `.opdref-p2-vital` chips with a copy of the
+  Page-1 8-column `.opdref-vital-table` (BT/BP/PR/RR/SpO₂/Weight/High/BMI) plus
+  the `ອາການຊີວິດ/Vital sign:` section label, reusing `popd2_temp/bp/pr/rr/spo2/
+  w/h/bmi`. Bindings updated to match Page-1 formatting (units in cells:
+  `37.8 °C`, `49.8 kg`, `156 cm`).
+- Log-table body height reduced `214mm → 196mm` (both CSS blocks) to make room
+  for the vital table while staying 2 pages. Dead `.opdref-p2-vital*` CSS removed;
+  new `.opdref-p2-vital-title { margin:0 0 1.5mm }`. Cache-buster → v7.
+
+Verified via export-verify.cjs ([exp6-page2.png](../tmp/pdfs/exp6-page2.png)):
+address+Tel on one row, 8-column vital table identical to Page 1, log table fills
+the page, 2 pages, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 7) — Tighten Page 2 header, enlarge log table
+
+Head: pull the vital table up (tighten the header gaps) so the lower log table
+gets more writing room. Reduced Page-2 vertical spacing ([style.css](../src/style.css),
+both blocks): title margin-bottom `4mm → 2mm`, `.opdref-p2-header` `3mm → 1mm`,
+`.opdref-p2-line` `2.5mm → 1.2mm`, `.opdref-p2-vital-title` `1.5mm → 1mm`; and
+raised the follow-up log body `196mm → 210mm`. Verified via export-verify.cjs
+([exp7-page2.png](../tmp/pdfs/exp7-page2.png)): header block is compact, vital
+table sits directly under the address row, log table is noticeably taller, still
+exactly 2 pages, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 8) — Add logo + ID/barcode + date header to Page 2
+
+Head: put the logo, code (ID+barcode) and date on Page 2 too. Replaced the plain
+`.opdref-page2-title` with a Page-1-style `opdref-header-row`
+([print-areas.html](../public/partials/print-areas.html)): logo left
+(`#print-opd-p2-logo`), title center, and red `ID` (`#popd2_cn`) + barcode
+(`#popd2_barcode`) + date (`#popd2_datetime`) right. `renderOpdPatientBarcode`
+generalised to take an optional element id (`window.renderOpdPatientBarcode(id,
+'popd2_barcode')`); new bindings in `printOPDCard` set the logo (same
+`page1HeaderSrc`), ID, date and render the barcode ([main.js](../src/main.js)).
+Compact `.opdref-p2-header-row` CSS (logo 36×16mm, barcode 54×10mm, ID 12pt, date
+9pt, title 16pt) keeps the header small; log body trimmed `210mm → 194mm` so the
+sheet content measures 277.3mm (fits the 285mm Page-2 export area with ~8mm
+slack). Verified via export-verify.cjs — barcodes rendered with real JsBarcode
+3.11.6 — [exp9-page2.png](../tmp/pdfs/exp9-page2.png): full header present,
+signatures fully visible, 2 pages, Page 1 unchanged. (Page-1 barcode call
+unchanged — the new 2nd arg defaults to `popd_patient_barcode`.)
+
+### 2026-07-03 (follow-up 9) — Page 2 logo top-aligned + enlarged
+
+Head: "ປັບໂລໂກ້ໃຫ້ຢູ່ສູງຂື້ນແລະງາມ". The Page-2 header logo was vertically
+centered (sat lower than the right-column ID). CSS ([style.css](../src/style.css),
+both blocks): `.opdref-p2-header-row` set `align-items: start`; the logo cell
+`.opdref-header-left` → `align-items: flex-start` (top) with `padding-top: 0.5mm`;
+title cell kept `align-self: center`; logo enlarged `36×16mm → 42×20mm` and the
+first grid column `40mm → 44mm`. CSS-only, no template/version change. Verified
+via export-verify.cjs with the real [luckxay-logo.jpg](../public/luckxay-logo.jpg)
+— [expB-page2.png](../tmp/pdfs/expB-page2.png): logo top edge level with the ID,
+larger and clean, 2 pages, signatures visible, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 10) — Page 2 logo enlarged to Page-1 size
+
+Head: "Logo ຍັງບໍ່ງາມ" → chose "bigger (same as Page 1)". Root cause: the logo
+is nearly square (luckxay-logo.jpg 444×416, aspect 1.07) but the Page-2 header
+capped it at `max-height: 20mm`, squashing it into a small square with side
+whitespace. Fix ([style.css](../src/style.css), both blocks): logo
+`max-height 20mm → 32mm`, width `42mm → 44mm`, first grid column `44mm → 46mm`
+(matches Page-1's 44mm/34mm feel). Offset by trimming the log body `194mm →
+184mm` — sheet content measures 278.6mm, within the 285mm Page-2 export area.
+Verified [expC-page2.png](../tmp/pdfs/expC-page2.png): full Luckxay logo (icon +
+bilingual name) at Page-1 size, top-aligned with the ID, 2 pages, signatures
+visible, Page 1 unchanged.

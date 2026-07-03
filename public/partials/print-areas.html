@@ -35,7 +35,7 @@
 </div>
 
 <!-- OPD Print Area - one template only, rendered by the existing OPD PDF workflow -->
-<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-06-30-opd-cc-nutrition-page2-v3">
+<div id="opd-print-area" class="print-container opdref" data-opd-template-version="2026-07-03-opd-page2-followup-log-v8">
   <div class="opd-page opd-page-one opdref-page">
     <div class="opdref-hidden" aria-hidden="true">
       <img id="print-opd-footer-1" alt="" />
@@ -167,56 +167,87 @@
       <img id="print-opd-footer-2" alt="" />
     </div>
     <div class="opdref-sheet opdref-sheet-page2">
-      <div class="opdref-page2-title">ໃບບັນທຶກອາການ ແລະ ການປິ່ນປົວ</div>
-      <table class="opdref-table opdref-treatment-table">
-        <colgroup>
-          <col class="opdref-col-history" />
-          <col class="opdref-col-treatment" />
-          <col class="opdref-col-other" />
-        </colgroup>
+      <header class="opdref-header-row opdref-p2-header-row">
+        <div class="opdref-header-left">
+          <img id="print-opd-p2-logo" class="opdref-logo" alt="Logo" />
+        </div>
+        <div class="opdref-header-center">
+          <div class="opdref-page2-title">ໃບຕິດຕາມອາການປິ່ນປົວ</div>
+        </div>
+        <div class="opdref-header-right">
+          <div class="opdref-cn-row">ID: <span id="popd2_cn" class="opdref-cn-value"></span></div>
+          <svg id="popd2_barcode" class="opdref-barcode" aria-label="Patient barcode"></svg>
+          <div class="opdref-datetime-row" id="popd2_datetime"></div>
+        </div>
+      </header>
+
+      <div class="opdref-p2-header">
+        <div class="opdref-row opdref-p2-line">
+          <span>ຊື່:</span><span id="popd2_name" class="opdref-fill opdref-fill-p2-name"></span>
+          <span>ວ.ດ.ປ:</span><span id="popd2_dob" class="opdref-fill opdref-fill-p2-dob"></span>
+          <span>ອາຍຸ:</span><span id="popd2_age" class="opdref-fill opdref-fill-p2-age"></span><span>ປີ</span>
+          <span>ເພດ:</span><span class="opdref-check"><span id="popd2_gender_male">□</span> ຊາຍ&nbsp;&nbsp;<span id="popd2_gender_female">□</span> ຍິງ</span>
+        </div>
+        <div class="opdref-row opdref-p2-line">
+          <span>ບ້ານ:</span><span id="popd2_village" class="opdref-fill opdref-fill-p2-addr"></span>
+          <span>ເມືອງ:</span><span id="popd2_district" class="opdref-fill opdref-fill-p2-district"></span>
+          <span>ແຂວງ:</span><span id="popd2_prov" class="opdref-fill opdref-fill-p2-prov"></span>
+          <span>ໂທ:</span><span id="popd2_phone" class="opdref-fill opdref-fill-p2-tel"></span>
+        </div>
+      </div>
+
+      <div class="opdref-section opdref-section-plain opdref-p2-vital-title">ອາການຊີວິດ/Vital sign:</div>
+      <table class="opdref-vital-table opdref-p2-vital-table">
         <thead>
           <tr>
-            <th>History and physical exam</th>
-            <th>Treatment</th>
-            <th>other</th>
+            <th>BT (°C)</th>
+            <th>BP (mmHg)</th>
+            <th>PR (bpm)</th>
+            <th>RR (bpm)</th>
+            <th>SpO<sub>2</sub> (%)</th>
+            <th>Weight (Kg)</th>
+            <th>High (Cm)</th>
+            <th>BMI</th>
           </tr>
         </thead>
         <tbody>
-          <tr class="opdref-treatment-body"><td></td><td></td><td class="opdref-doctor-sign-cell"><div class="opdref-doctor-sign">ລາຍເຊັນທ່ານໝໍ</div></td></tr>
-          <tr class="opdref-dx-row">
-            <td><b>Dx:</b></td>
-            <td><b>Follow up:</b></td>
-            <td></td>
+          <tr>
+            <td><span id="popd2_temp">&nbsp;</span></td>
+            <td><span id="popd2_bp">&nbsp;</span></td>
+            <td><span id="popd2_pr">&nbsp;</span></td>
+            <td><span id="popd2_rr">&nbsp;</span></td>
+            <td><span id="popd2_spo2">&nbsp;</span></td>
+            <td><span id="popd2_w">&nbsp;</span></td>
+            <td><span id="popd2_h">&nbsp;</span></td>
+            <td><span id="popd2_bmi">&nbsp;</span></td>
           </tr>
         </tbody>
       </table>
 
-      <div class="opdref-page2-title opdref-page2-title-gap">ໃບບັນທຶກພະຍາບານ</div>
-      <table class="opdref-table opdref-followup-table">
+      <table class="opdref-table opdref-followlog-table">
         <colgroup>
-          <col class="opdref-col-time" />
-          <col class="opdref-col-symptom" />
-          <col class="opdref-col-procedure" />
-          <col class="opdref-col-note" />
-          <col class="opdref-col-recorder" />
+          <col class="opdref-col-fl-date" />
+          <col class="opdref-col-fl-symptom" />
+          <col class="opdref-col-fl-treat" />
+          <col class="opdref-col-fl-note" />
         </colgroup>
         <thead>
           <tr>
-            <th>Time</th>
+            <th>ວັນເດືອນປີ</th>
             <th>ອາການ</th>
-            <th>ຫັດຖະການ</th>
+            <th>ປິ່ນປົວ</th>
             <th>ໝາຍເຫດ</th>
-            <th>ຜູ້ບັນທຶກ</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td></td><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td><td></td></tr>
-          <tr><td></td><td></td><td></td><td></td><td></td></tr>
+          <tr class="opdref-followlog-body"><td></td><td></td><td></td><td></td></tr>
         </tbody>
       </table>
+
+      <div class="opdref-p2-sign-row">
+        <div class="opdref-p2-sign-left">ລາຍເຊັນພະຍາບານຮັບຜິດຊອບ</div>
+        <div class="opdref-p2-sign-right">ລາຍເຊັນທ່ານໝໍ</div>
+      </div>
     </div>
   </div>
 </div>
