@@ -1215,3 +1215,45 @@ whitespace. Fix ([style.css](../src/style.css), both blocks): logo
 Verified [expC-page2.png](../tmp/pdfs/expC-page2.png): full Luckxay logo (icon +
 bilingual name) at Page-1 size, top-aligned with the ID, 2 pages, signatures
 visible, Page 1 unchanged.
+
+### 2026-07-03 (follow-up 11) — Page 2 header fills bleed to paper edge + date column removed
+
+Head annotated the paper form: "ຂະຫຍາຍດ້ານຂ້າງ ຊ້າຍຂວາອອກໃຫ້ສຸດໜ້າ ບ້ານ ເມືອງ
+ແຂວງ ເບີ ໃຫ້ພໍ ດີ ຕິດຂອບເຈ້ຍ / ລົບຕາຕະລາງວັນເດືອນປີອອກ ຂະຫຍາຍອອກຊ້າຍຂວາໃຫ້ຊີດ
+ຂອບເຈ້ຍ ຂະໜາດ A4". Two asks: (1) the two patient-header lines should stretch
+left→right to the sheet edge (they left whitespace at the right margin because the
+dotted fills were fixed mm widths); (2) drop the leftmost ວັນເດືອນປີ (date) column
+from the follow-up log and let the remaining columns fill the width.
+
+**[print-areas.html](../public/partials/print-areas.html)** — `.opdref-followlog-table`
+is now a 3-column table: removed `<col class="opdref-col-fl-date">`, the
+`<th>ວັນເດືອນປີ</th>`, and the first `<td>` of `.opdref-followlog-body`. Headers
+are now ອາການ / ປິ່ນປົວ / ໝາຍເຫດ.
+
+**[style.css](../src/style.css)** (both `#opd-print-area.opdref` and `.opdref-page`
+blocks):
+- `.opdref-p2-line` switched from `display:block` (with `white-space:nowrap` +
+  fixed-mm inline-block fills) to `display:flex; align-items:baseline; gap:1.5mm`.
+  This is the key change — flex items grow, so the dotted fill lines now consume
+  all remaining row width and the last field's right edge lands on the sheet edge.
+- Per-field widths replaced with flex: `.opdref-fill-p2-name` `flex:1 1 auto`
+  (grows to fill the name line), `.opdref-fill-p2-dob` `flex:0 0 27mm` and
+  `.opdref-fill-p2-age` `flex:0 0 9mm` (fixed — dates/ages are fixed length), and
+  the four address fills `.opdref-fill-p2-addr` / `-district` / `-prov` / `-tel`
+  all `flex:1 1 0` (equal quarters across the full width; phone reaches the edge).
+  Each also gets `width:auto` (+`min-width:0` on the growing ones) so the old
+  fixed `width` no longer constrains them.
+- Follow-up column widths retargeted 14/38/36/12% → 43/43/14%
+  (`.opdref-col-fl-symptom` / `-treat` / `-note`); the `.opdref-col-fl-date` rules
+  were deleted.
+
+The Page-2 sheet already renders at the full 198mm printable width (6mm export
+margins in `exportOpdCardAsPdf`), so the flex fills bleed edge-to-edge with no
+geometry change needed.
+
+Verified in a standalone page-2 harness loading the real `src/style.css` with the
+sheet forced to the 198mm export width and sample data (ສົມນຶ ສີວົງອິຈິດ /
+Naxaithong District / Vientiane Capital / 2078999656): the four address fills
+measured equal (145px each), the phone field's right edge equalled the sheet's
+right edge (0px gap), the name line grew to fill, and the follow-up table reported
+exactly 3 header cells and 3 body cells. Page 1 untouched.
