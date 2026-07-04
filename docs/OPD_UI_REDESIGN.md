@@ -1257,3 +1257,88 @@ Naxaithong District / Vientiane Capital / 2078999656): the four address fills
 measured equal (145px each), the phone field's right edge equalled the sheet's
 right edge (0px gap), the name line grew to fill, and the follow-up table reported
 exactly 3 header cells and 3 body cells. Page 1 untouched.
+
+### QR sticker — surname clipped on long Lao names (2026-07-04)
+
+User photo of a printed sticker showed the last word of the ນາມສະກຸນ line
+(`ເດັກຍິງ ນາງ ວັນນິດາ ປະພັດສະດາ`) running past the right edge of the label
+and getting sliced off. Root cause: [src/style.css:5316](../src/style.css#L5316)
+`.pcard-row` forces `white-space: nowrap; overflow: hidden; text-overflow:
+ellipsis` on every row for compact single-line layout, but the ຊື່ ແລະ ນາມສະກຸນ
+row combines `Title + First + Last`, which can exceed the 180mm card width for
+Lao name compounds (child prefix + given + family).
+
+Fix — targeted, keeps other rows single-line:
+
+1. [public/partials/print-areas.html](../public/partials/print-areas.html):
+   added a modifier class `pcard-row-name` to the ຊື່ຊື່ row for all three
+   card templates (`pcard1/2/3`).
+2. [src/style.css:5336](../src/style.css#L5336) `.pcard-name`:
+   font-size `38px → 32px` + `word-break: break-word; overflow-wrap: anywhere`
+   so long compounds break at any glyph instead of running past the edge.
+3. New `.pcard-row-name` rule immediately below: `white-space: normal
+   !important; overflow: visible !important; line-height: 1.15` — lets ONLY
+   the name row wrap onto a 2nd line (Vital Sign / DOB / phone rows stay
+   nowrap-truncated).
+
+The card height (89mm) already has slack — even the 2-line worst case fits
+above the address rows without spilling past the 3-cards-per-A4 vertical
+budget (see original QR-sticker section above).
+
+
+### Dashboard — Revenue Groups → 10 Services, Ins/Corp split, Occupation added, sidebar label (2026-07-04)
+
+Head-of-department requested four dashboard tweaks in one round:
+
+1. **Rename `Revenue Groups` → `10 Services`.** Panel header only —
+   the underlying chart is still fed from `v.Revenue_Group` (top-8 with
+   "Other" bucket). The old label was misleading because clinicians
+   read revenue groups as service categories anyway. Location:
+   [public/partials/views/dashboard.html:79](../public/partials/views/dashboard.html#L79),
+   subtitle updated to `ບໍລິການທັງໝົດ 10 ອັນດັບ`.
+2. **Split "ກຸ່ມປະກັນໄພ ແລະ ອົງກອນ" into two separate charts.** The
+   combined `Ins / Corp` KPI tile on page 1 stays, but page 2 now
+   carries two independent breakdowns:
+   - `<h6>Insurance</h6>` → `chartInsurance` — top 5 `p.Insurance_Company`
+   - `<h6>Organization</h6>` → `chartOrganization` — top 5 `p.Name_Org`
+3. **Add Occupation chart.** New span-2 compact panel on page 2:
+   `<h6>Occupation</h6>` → `chartOccupation` — top 8 `p.Occupation`.
+4. **Sidebar label rename.** `nav.dashboard` translation
+   `ແຜງຄວບຄຸມ → Dashboard` in [src/main.js:147](../src/main.js#L147).
+   `nav.ipdDashboard` (`ແຜງຄວບຄຸມ IPD`) left alone — the user only
+   asked about the main entry.
+
+**Data plumbing.** `renderDashboardCharts` in
+[src/main.js:4219](../src/main.js#L4219) grows three new
+accumulators — `insurance / organization / occupation` — plus an
+`insOrgOccSeen` Set that dedups by `Patient_ID`. Rationale: returning
+patients would otherwise be counted N times per breakdown (one per
+visit), so a single insured patient with 12 visits would beat 11
+one-shot self-pay patients. Visit-scoped tallies (services /
+specialist / timeSlot / district / doctors) keep the per-visit tally
+they've always had — only patient-attribute breakdowns switch to
+patient-level counting. Blank / self-pay entries are filtered via the
+existing `insCorpHas()` helper (rejects ``, `-`, `ບໍ່ມີ`, `none`,
+`n/a`, `self pay`, `ຈ່າຍເອງ`) so they don't pollute the top-N.
+
+The three new chart IDs are added to both `window.dashboardChartIds`
+(so the resize/relayout loop sizes them on grid changes) and the
+`compactDashboardCharts` Set (so their legend / tick / data-label
+fonts match the neighbouring page-2 compact charts).
+
+**Layout.** Page 2 grid unchanged at 4 columns. New row inserted
+between Age Group and Community Snapshot:
+
+- Insurance (span-1) · Organization (span-1) · Occupation (span-2)
+
+The A4-landscape height budget still holds — the added row is one
+compact-panel tall (~182px on screen) and Community Snapshot pushes
+down accordingly without breaking the second page.
+
+**Verification.** `node --check src/main.js` passes. Vite dev server
+(port 5173) starts with no console errors. HTML structure verified
+headlessly via [tmp/pdfs/dash-changes-check.cjs](../tmp/pdfs/dash-changes-check.cjs)
+(new title, no old title, three new canvases, three new h6 headings,
+Community Snapshot preserved). Live-data verification pending user
+acceptance test with real Supabase data (dashboard needs auth).
+

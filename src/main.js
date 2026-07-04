@@ -144,7 +144,7 @@ const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 window.appTranslations = {
   lo: {
-    'nav.dashboard': 'ແຜງຄວບຄຸມ',
+    'nav.dashboard': 'Dashboard',
     'nav.report': 'ຄິວຄົນເຈັບ',
     'nav.visitHistory': 'ປະຫວັດການກວດ',
     'nav.patients': 'ຄົນເຈັບ',
@@ -4087,7 +4087,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince'];
+window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartInsurance', 'chartOrganization', 'chartOccupation'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4121,7 +4121,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartMarketing']);
+  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
   const legendFontSize = isCompactDashboardChart ? 8 : 10;
   const tickFontSize = isCompactDashboardChart ? 8 : 10;
@@ -4300,7 +4300,14 @@ window.renderDashboardCharts = function (visits) {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
-  }, ageGroup = {}, district = {}, doctors = {};
+  }, ageGroup = {}, district = {}, doctors = {}, insurance = {}, organization = {}, occupation = {};
+
+  // Count each unique PATIENT once per breakdown that comes off the patient
+  // record (Insurance / Organization / Occupation) — otherwise a returning
+  // patient's insurer/org/job is counted N times, one per visit, and dwarfs
+  // one-shot patients. Visit-scoped fields (services/specialist/etc.) keep the
+  // per-visit tally below.
+  const insOrgOccSeen = new Set();
 
   visits.forEach(v => {
     let p = v.Patients || {};
@@ -4347,6 +4354,18 @@ window.renderDashboardCharts = function (visits) {
       const slot = dashShiftSlotLabels[shiftKey];
       timeSlot[slot] = (timeSlot[slot] || 0) + 1;
     }
+
+    // Patient-level breakdowns (dedup by Patient_ID within this dataset).
+    const pid = v.Patient_ID || p.Patient_ID;
+    if (pid && !insOrgOccSeen.has(pid)) {
+      insOrgOccSeen.add(pid);
+      const ins = (p.Insurance_Company || '').toString().trim();
+      if (insCorpHas(ins)) insurance[ins] = (insurance[ins] || 0) + 1;
+      const org = (p.Name_Org || '').toString().trim();
+      if (insCorpHas(org)) organization[org] = (organization[org] || 0) + 1;
+      const occ = (p.Occupation || '').toString().trim();
+      if (occ) occupation[occ] = (occupation[occ] || 0) + 1;
+    }
   });
 
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
@@ -4368,6 +4387,14 @@ window.renderDashboardCharts = function (visits) {
   window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
   window.createChart('chartAge', 'bar', ["0-14", "15-34", "35-59", "60+"], ["0-14", "15-34", "35-59", "60+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
   window.createChart('chartProvince', 'bar', topDist.labels, topDist.data, palette, true);
+
+  const topIns = getTopNWithOthers(insurance, 5, 0.001);
+  const topOrg = getTopNWithOthers(organization, 5, 0.001);
+  const topOcc = getTopNWithOthers(occupation, 8, 0.001);
+  window.createChart('chartInsurance', 'bar', topIns.labels, topIns.data, palette, true);
+  window.createChart('chartOrganization', 'bar', topOrg.labels, topOrg.data, palette, true);
+  window.createChart('chartOccupation', 'bar', topOcc.labels, topOcc.data, palette, true);
+
   window.refreshDashboardChartLayout();
 };
 

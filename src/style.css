@@ -5334,9 +5334,18 @@ h6 {
   margin-left: 5mm;
 }
 .pcard-name {
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 800;
   color: #0284c7;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Long Lao names (Title + First + Surname) can exceed the 180mm card width.
+   Let this row wrap onto a second line instead of clipping the surname. */
+.pcard-row-name {
+  white-space: normal !important;
+  overflow: visible !important;
+  line-height: 1.15;
 }
 
 /* Vaccine Card */
