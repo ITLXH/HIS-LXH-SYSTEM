@@ -2982,13 +2982,23 @@ window.formatDobInput = function (input) {
   input.value = v;
 };
 
+window.ageFromDob = function (dob) {
+  if (!dob) return null;
+  const d0 = (dob instanceof Date) ? dob : new Date(dob);
+  if (isNaN(d0.getTime())) return null;
+  const now = new Date();
+  let years = now.getFullYear() - d0.getFullYear();
+  const m = now.getMonth() - d0.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d0.getDate())) years--;
+  return years >= 0 ? years : null;
+};
+
 window.calculateAgeForm = function () {
   const ui = $('#dobInput').val();
   const iso = window.dobUiToIso(ui);
   if (!iso) return;
-  const dob = new Date(iso);
-  const age = Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970);
-  $('#ageInput').val(age);
+  const age = window.ageFromDob(iso);
+  if (age != null) $('#ageInput').val(age);
 };
 
 // --- Allergy toggle (drug / food detail textboxes) ---
@@ -3344,11 +3354,11 @@ window.initApp = async function () {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillStyle = '#475569';
-          ctx.font = '600 13px "Noto Sans Lao", sans-serif';
-          ctx.fillText(pluginOptions.message || 'ບໍ່ພົບຂໍ້ມູນ', centerX, centerY - 8);
+          ctx.font = '600 15px "Noto Sans Lao", sans-serif';
+          ctx.fillText(pluginOptions.message || 'ບໍ່ພົບຂໍ້ມູນ', centerX, centerY - 10);
           ctx.fillStyle = '#94a3b8';
-          ctx.font = '11px "Noto Sans Lao", sans-serif';
-          ctx.fillText(pluginOptions.submessage || 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ', centerX, centerY + 12);
+          ctx.font = '13px "Noto Sans Lao", sans-serif';
+          ctx.fillText(pluginOptions.submessage || 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ', centerX, centerY + 14);
           ctx.restore();
         }
       });
@@ -3385,6 +3395,7 @@ window.initApp = async function () {
         if (typeof jQuery !== 'undefined') $('#p_district').html(o);
       }),
       window.refreshPatientOrgDropdown(),
+      window.refreshDoctorUserList(),
       new Promise((resolve) => { window.preloadDropdownDataCallback(resolve); })
     ]);
 
@@ -3585,46 +3596,8 @@ window.loadView = function (v, options = {}) {
   if (v === 'backup') _runLoad(() => window.initBackupView());
 
   if (v === 'settings') {
-    supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
-      let s = {
-        hospitalName: 'HIS HOSPITAL',
-        logoUrl: '',
-        opdHeaderUrl: '',
-        opdFooterUrl: '',
-        opdPrintPage1HeaderImage: '',
-        opdPrintPage2HeaderImage: '',
-        opdPrintPage1FooterImage: '',
-        opdPrintPage2FooterImage: '',
-        rememberLastModule: false
-      };
-      (data || []).forEach(r => {
-        if (r.Key === 'HospitalName') s.hospitalName = r.Value || s.hospitalName;
-        if (r.Key === 'LogoUrl') s.logoUrl = r.Value || '';
-        if (r.Key === 'OpdHeaderUrl') s.opdHeaderUrl = r.Value || '';
-        if (r.Key === 'OpdFooterUrl') s.opdFooterUrl = r.Value || '';
-        if (r.Key === 'opd_print_page1_header_image') s.opdPrintPage1HeaderImage = r.Value || '';
-        if (r.Key === 'opd_print_page2_header_image') s.opdPrintPage2HeaderImage = r.Value || '';
-        if (r.Key === 'opd_print_page1_footer_image') s.opdPrintPage1FooterImage = r.Value || '';
-        if (r.Key === 'opd_print_page2_footer_image') s.opdPrintPage2FooterImage = r.Value || '';
-        if (r.Key === 'RememberLastModule') s.rememberLastModule = window.normalizeBooleanSetting(r.Value);
-      });
-      systemSettings = s;
-      $('#setHospitalName').val(s.hospitalName);
-      $('#setLogoUrl').val(s.logoUrl);
-      $('#setOpdHeaderUrl').val(s.opdHeaderUrl);
-      $('#setOpdFooterUrl').val(s.opdFooterUrl);
-      $('#setRememberLastModule').prop('checked', !!s.rememberLastModule);
-      $('#opd_print_page1_header_image').val(s.opdPrintPage1HeaderImage || '');
-      $('#opd_print_page2_header_image').val(s.opdPrintPage2HeaderImage || '');
-      $('#opd_print_page1_footer_image').val(s.opdPrintPage1FooterImage || '');
-      $('#opd_print_page2_footer_image').val(s.opdPrintPage2FooterImage || '');
-      window.renderOpdPrintImagePreview('opd_print_page1_header_image', s.opdPrintPage1HeaderImage || '');
-      window.renderOpdPrintImagePreview('opd_print_page2_header_image', s.opdPrintPage2HeaderImage || '');
-      window.renderOpdPrintImagePreview('opd_print_page1_footer_image', s.opdPrintPage1FooterImage || '');
-      window.renderOpdPrintImagePreview('opd_print_page2_footer_image', s.opdPrintPage2FooterImage || '');
-      if (typeof window.renderMasterCategoryUI === 'function') window.renderMasterCategoryUI();
-      window.loadMasterList();
-    });
+    if (typeof window.renderMasterCategoryUI === 'function') window.renderMasterCategoryUI();
+    window.loadMasterList();
   }
 
   if (!systemSettings.hospitalName) {
@@ -4087,7 +4060,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartInsurance', 'chartOrganization', 'chartOccupation'];
+window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4121,12 +4094,12 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartProvince', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation']);
+  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
-  const legendFontSize = isCompactDashboardChart ? 8 : 10;
-  const tickFontSize = isCompactDashboardChart ? 8 : 10;
-  const yTickFontSize = isCompactDashboardChart ? 9 : 11;
-  const dataLabelSize = isCompactDashboardChart ? 8 : 10;
+  const legendFontSize = isCompactDashboardChart ? 11 : 12;
+  const tickFontSize = isCompactDashboardChart ? 11 : 12;
+  const yTickFontSize = isCompactDashboardChart ? 12 : 13;
+  const dataLabelSize = isCompactDashboardChart ? 11 : 12;
   const layoutPadding = isCompactDashboardChart
     ? { right: isHorizontal ? 30 : 8, top: isHorizontal ? 6 : 16, left: 4, bottom: 4 }
     : { right: isHorizontal ? 60 : 15, top: isHorizontal ? 10 : 35, left: 10, bottom: 10 };
@@ -4154,7 +4127,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
           if (!hasUsableData) return false;
           const value = ctx.dataset.data[ctx.dataIndex];
           if (!(value > 0)) return false;
-          if (isCompactDashboardChart) return safeData.length <= (isHorizontal ? 6 : 5);
+          if (isCompactDashboardChart) return safeData.length <= (isHorizontal ? 12 : 8);
           return true;
         },
         color: (type === 'bar' || isHorizontal) ? '#334155' : '#ffffff',
@@ -4323,8 +4296,9 @@ window.renderDashboardCharts = function (visits) {
     if (revenueVal) revenueVal.split(',').forEach(r => { let n = r.trim(); if(n) revenue[n] = (revenue[n] || 0) + 1; });
     if (specialistVal) specialistVal.split(',').forEach(s => { let n = s.trim(); if(n) specialist[n] = (specialist[n] || 0) + 1; });
     
-    // Heuristic: only count doctors if they have a specialist assigned (to filter out nurses)
-    if (docName && docName !== "ບໍ່ລະບຸຊື່ແພດ" && specialistVal && specialistVal !== "-") {
+    // Doctor_Name is now sourced from the MasterData "Doctor" dropdown at Triage time,
+    // so any non-empty, non-placeholder value counts — no need to gate on specialist.
+    if (docName && docName !== "ບໍ່ລະບຸຊື່ແພດ") {
       doctors[docName] = (doctors[docName] || 0) + 1;
     }
 
@@ -4373,7 +4347,6 @@ window.renderDashboardCharts = function (visits) {
   let topSvc = getTopNWithOthers(services, 10, 0.001);
   let topRev = getTopNWithOthers(revenue, 8, 0.005);
   let topSpec = getTopNWithOthers(specialist, 8, 0.005);
-  let topDist = getTopNWithOthers(district, 5, 0.001);
   let topDocs = getTopNWithOthers(doctors, 5, 0.0001);
 
   window.createChart('chartTopServices', 'bar', topSvc.labels, topSvc.data, palette, true);
@@ -4386,7 +4359,6 @@ window.renderDashboardCharts = function (visits) {
   
   window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
   window.createChart('chartAge', 'bar', ["0-14", "15-34", "35-59", "60+"], ["0-14", "15-34", "35-59", "60+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
-  window.createChart('chartProvince', 'bar', topDist.labels, topDist.data, palette, true);
 
   const topIns = getTopNWithOthers(insurance, 5, 0.001);
   const topOrg = getTopNWithOthers(organization, 5, 0.001);
@@ -4395,7 +4367,59 @@ window.renderDashboardCharts = function (visits) {
   window.createChart('chartOrganization', 'bar', topOrg.labels, topOrg.data, palette, true);
   window.createChart('chartOccupation', 'bar', topOcc.labels, topOcc.data, palette, true);
 
+  window.renderProvinceDistrictTables(visits);
+
   window.refreshDashboardChartLayout();
+};
+
+// Fixed-bucket breakdown of Province + District (patient-level dedup).
+// Bucket a patient's Province/District into named rows if any alias matches
+// (case-insensitive substring), otherwise into "ອື່ນໆ" / "others".
+window.renderProvinceDistrictTables = function (visits) {
+  const provinceBuckets = [
+    { label: 'ວຽງຈັນ', aliases: ['ວຽງຈັນ', 'vientiane', 'ນະຄອນຫຼວງ', 'nakhon luang', 'nakhonluang'] },
+    { label: 'ບໍລິຄຳໄຊ', aliases: ['ບໍລິຄຳໄຊ', 'bolikhamxay', 'borikhamxay', 'bolikhamsai', 'borikhamsai'] }
+  ];
+  const districtBuckets = [
+    { label: 'Xaythany', aliases: ['xaythany', 'ໄຊທານີ'] },
+    { label: 'Xaysettha', aliases: ['xaysettha', 'ໄຊເສດຖາ'] },
+    { label: 'Chanthabuly', aliases: ['chanthabuly', 'chanthabouli', 'chanthabury', 'ຈັນທະບູລີ'] },
+    { label: 'Naxaithong', aliases: ['naxaithong', 'nasaithong', 'ນາຊາຍທອງ'] },
+    { label: 'Sikhottabong', aliases: ['sikhottabong', 'sikhottaboun', 'ສີໂຄດຕະບອງ'] }
+  ];
+
+  const provinceCount = { 'ວຽງຈັນ': 0, 'ບໍລິຄຳໄຊ': 0, 'ອື່ນໆ': 0 };
+  const districtCount = { 'Xaythany': 0, 'Xaysettha': 0, 'Chanthabuly': 0, 'Naxaithong': 0, 'Sikhottabong': 0, 'others': 0 };
+
+  const seen = new Set();
+  (visits || []).forEach(v => {
+    const p = v.Patients || {};
+    const pid = v.Patient_ID || p.Patient_ID;
+    if (!pid || seen.has(pid)) return;
+    seen.add(pid);
+    const prov = String(p.Province || '').trim().toLowerCase();
+    if (prov) {
+      const hit = provinceBuckets.find(b => b.aliases.some(a => prov.includes(a.toLowerCase())));
+      provinceCount[hit ? hit.label : 'ອື່ນໆ']++;
+    }
+    const dist = String(p.District || p.district || '').trim().toLowerCase();
+    if (dist) {
+      const hit = districtBuckets.find(b => b.aliases.some(a => dist.includes(a.toLowerCase())));
+      districtCount[hit ? hit.label : 'others']++;
+    }
+  });
+
+  const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
+  const draw = (canvasId, totalId, data) => {
+    const entries = Object.entries(data);
+    const total = entries.reduce((acc, [, n]) => acc + (n || 0), 0);
+    const tot = document.getElementById(totalId);
+    if (tot) tot.textContent = total.toLocaleString();
+    if (!document.getElementById(canvasId)) return;
+    window.createChart(canvasId, 'bar', entries.map(e => e[0]), entries.map(e => e[1] || 0), palette, true);
+  };
+  draw('chartProvinceBreakdown', 'tblProvinceTotal', provinceCount);
+  draw('chartDistrictBreakdown', 'tblDistrictTotal', districtCount);
 };
 
 window.exportDashboardPDF = async function () {
@@ -4791,7 +4815,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       name: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || p.Patient_ID,
       displayName: `${p.Title || ''} ${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || p.Patient_ID,
       gender: p.Gender || '-',
-      age: p.Age || '-',
+      age: window.ageFromDob(p.Date_of_Birth) ?? (p.Age || '-'),
       status: visit ? (totalVisitCount > 1 ? 'ເກົ່າ' : 'ໃໝ່') : '-',
       visitCount: totalVisitCount,
       rangeVisitCount: rangeVisitCountMap[p.Patient_ID] || 0,
@@ -5317,6 +5341,55 @@ window.generateNextMasterID = async function (tableName, idColumn, prefix, paddi
   return id;
 };
 
+window.doctorUsersCache = [];
+window.refreshDoctorUserList = async function () {
+  try {
+    const { data, error } = await supabaseClient
+      .from(dbTable('Users'))
+      .select('Name, Role, Status')
+      .eq('Role', 'doctor');
+    if (error) {
+      console.warn('refreshDoctorUserList: falling back to MasterData Doctor', error);
+      window.doctorUsersCache = [];
+      return;
+    }
+    window.doctorUsersCache = (data || [])
+      .filter(u => (u.Status || 'active').toString().toLowerCase() !== 'inactive')
+      .map(u => String(u.Name || '').trim())
+      .filter(Boolean);
+    window.applyDoctorUserSelects();
+  } catch (err) {
+    console.warn('refreshDoctorUserList error:', err);
+    window.doctorUsersCache = [];
+  }
+};
+
+window.applyDoctorUserSelects = function () {
+  let list = window.doctorUsersCache || [];
+  let source = 'users';
+  if (!list.length) {
+    // Fallback: MasterData["Doctor"] when no users have role=doctor yet.
+    const md = (typeof masterDataStore !== 'undefined' && masterDataStore && masterDataStore['Doctor']) || [];
+    list = md.map(x => String(x.value || '').trim()).filter(Boolean);
+    source = 'masterdata';
+  }
+  if (!list.length) return;
+  document.querySelectorAll('.doctor-users-select').forEach(sel => {
+    const prev = sel.value;
+    let html = '<option value="">-- ເລືອກແພດ --</option>';
+    list.forEach(name => { html += `<option value="${name}">${name}</option>`; });
+    sel.innerHTML = html;
+    if (prev && !list.includes(prev)) {
+      const opt = document.createElement('option');
+      opt.value = prev; opt.textContent = prev; opt.selected = true;
+      sel.appendChild(opt);
+    } else if (prev) {
+      sel.value = prev;
+    }
+    sel.dataset.doctorSource = source;
+  });
+};
+
 window.refreshPatientOrgDropdown = async function () {
   try {
     const { data, error } = await supabaseClient
@@ -5718,105 +5791,6 @@ window.uploadPatientPhoto = async function (pId) {
   }
 };
 
-window.getOpdPrintImageFieldIds = function (settingKey) {
-  return {
-    hidden: settingKey,
-    input: `${settingKey}_input`,
-    preview: `${settingKey}_preview`,
-    placeholder: `${settingKey}_placeholder`
-  };
-};
-
-window.renderOpdPrintImagePreview = function (settingKey, url) {
-  const ids = window.getOpdPrintImageFieldIds(settingKey);
-  const preview = document.getElementById(ids.preview);
-  const placeholder = document.getElementById(ids.placeholder);
-  if (preview) {
-    if (url) {
-      preview.src = url;
-      preview.style.display = 'block';
-    } else {
-      preview.src = '';
-      preview.style.display = 'none';
-    }
-  }
-  if (placeholder) {
-    placeholder.style.display = url ? 'none' : 'block';
-  }
-};
-
-window.clearOpdPrintImage = function (settingKey) {
-  const ids = window.getOpdPrintImageFieldIds(settingKey);
-  const hidden = document.getElementById(ids.hidden);
-  const input = document.getElementById(ids.input);
-  if (hidden) hidden.value = '';
-  if (input) input.value = '';
-  window.renderOpdPrintImagePreview(settingKey, '');
-};
-
-window.uploadOpdPrintImage = async function (file, settingKey) {
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const supportedTypes = ['png', 'jpg', 'jpeg', 'webp'];
-  if (!supportedTypes.includes(ext)) throw new Error('Unsupported image type');
-
-  const contentType = file.type || ({
-    png: 'image/png',
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    webp: 'image/webp'
-  }[ext] || 'application/octet-stream');
-
-  const cleanName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const fileName = `opd-print-settings/${settingKey}/${Date.now()}_${cleanName}`;
-  const { error } = await supabaseClient.storage
-    .from('patient-photos')
-    .upload(fileName, file, { contentType, upsert: true });
-
-  if (error) throw error;
-
-  const { data: urlData } = supabaseClient.storage
-    .from('patient-photos')
-    .getPublicUrl(fileName);
-
-  return urlData.publicUrl;
-};
-
-window.handleOpdPrintImageUpload = async function (settingKey, input) {
-  const file = input && input.files ? input.files[0] : null;
-  if (!file) return;
-
-  const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
-    Swal.fire('ຜິດພາດ', 'ກະລຸນາເລືອກ PNG, JPG, JPEG ຫຼື WEBP', 'warning');
-    input.value = '';
-    return;
-  }
-
-  const ids = window.getOpdPrintImageFieldIds(settingKey);
-  const hidden = document.getElementById(ids.hidden);
-  const previousUrl = hidden ? hidden.value : '';
-  const localUrl = URL.createObjectURL(file);
-
-  window.renderOpdPrintImagePreview(settingKey, localUrl);
-  Swal.fire({ title: 'ກຳລັງອັບໂຫຼດ...', didOpen: () => Swal.showLoading() });
-
-  try {
-    const publicUrl = await window.uploadOpdPrintImage(file, settingKey);
-    if (hidden) hidden.value = publicUrl;
-    window.renderOpdPrintImagePreview(settingKey, publicUrl);
-    Swal.close();
-  } catch (err) {
-    console.error('OPD print image upload error:', err);
-    if (hidden) hidden.value = previousUrl;
-    window.renderOpdPrintImagePreview(settingKey, previousUrl);
-    Swal.close();
-    Swal.fire('ຜິດພາດ', err.message || 'Upload failed', 'error');
-  } finally {
-    URL.revokeObjectURL(localUrl);
-    input.value = '';
-  }
-};
-
 window.renderOpdPatientBarcode = function (patientId, svgId) {
   const svg = document.getElementById(svgId || 'popd_patient_barcode');
   if (!svg) return;
@@ -6178,6 +6152,18 @@ window.submitTriageForm = function (e) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
   }
+  if (!String(fd.v_type || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກປະເພດ (Type)', 'warning');
+    return;
+  }
+  if (!String(fd.v_recorded_by || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ', 'warning');
+    return;
+  }
+  if (!String(fd.v_doctor || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກແພດຜູ້ກວດ', 'warning');
+    return;
+  }
 
   // BP and Height are optional.
   let bp = fd.v_bp || "";
@@ -6263,6 +6249,7 @@ window.executeTriageSave = async function (fd) {
   }
   if (vitalRes.error) console.warn('OPD vital signs table is not available yet. Apply IPD clinical migration.', vitalRes.error);
 
+  const doctorName = String(fd.v_doctor || '').trim();
   const visitUpdatePayload = {
     Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
     Weight: fd.v_weight, Height: fd.v_height,
@@ -6271,7 +6258,8 @@ window.executeTriageSave = async function (fd) {
     Respiratory_Rate: fd.v_resp, O2_Saturation: fd.v_spo2,
     Department: fd.v_department, Symptoms: fd.v_symptoms,
     Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
-    Recorded_By: recordedBy
+    Recorded_By: recordedBy,
+    Doctor_Name: doctorName || null
   };
   const visitUpdateFallback = {
     Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
@@ -6279,7 +6267,8 @@ window.executeTriageSave = async function (fd) {
     BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
     Department: fd.v_department, Symptoms: fd.v_symptoms,
     Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
-    Recorded_By: recordedBy
+    Recorded_By: recordedBy,
+    Doctor_Name: doctorName || null
   };
 
   // Use both Visit_ID and Patient_ID to ensure we update the correct record
@@ -6324,7 +6313,8 @@ window.executeTriageSave = async function (fd) {
       spo2: fd.v_spo2 || '',
       symptoms: fd.v_symptoms || '',
       department: fd.v_department || '',
-      recordedBy
+      recordedBy,
+      doctor: doctorName || ''
     };
     const savedIdx = currentTriageData.findIndex(row => String(row.visitId || row.rowIdx || '') === String(fd.visitId || ''));
     if (savedIdx >= 0) currentTriageData[savedIdx] = { ...currentTriageData[savedIdx], ...savedVitals };
@@ -6587,7 +6577,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Old_Patient_ID, Age, Photo_URL, Gender')
+          .select('Patient_ID, Old_Patient_ID, Age, Date_of_Birth, Photo_URL, Gender')
           .in('Patient_ID', chunkIds);
         if (!pError && patients) {
           patients.forEach(p => pMap[p.Patient_ID] = p);
@@ -6698,10 +6688,11 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           oldId: window.normalizePatientCode(p?.Old_Patient_ID || ''),
           status: window.normalizeVisitStatus(r.Status), department: r.Department || 'OPD',
           isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
-          // Prefer record data (Visits), fallback to patient profile
-          age: r.Age || p?.Age || 0,
+          // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
+          age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
           gender: r.Gender || p?.Gender || '',
           photoUrl: p?.Photo_URL || '',
+          doctor: r.Doctor_Name || '',
           bp: vital.bp, temp: vital.temp, weight: vital.weight, height: vital.height,
           bmi: vital.bmi, pulse: vital.pulse, rr: vital.rr, spo2: vital.spo2, symptoms: vital.symptoms,
           recordedBy: vital.recordedBy
@@ -6800,7 +6791,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Age, Photo_URL, Gender, Drug_Allergy, Underlying_Disease')
+          .select('Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Drug_Allergy, Underlying_Disease')
           .in('Patient_ID', chunkIds);
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
@@ -6877,8 +6868,8 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         patientId: r.Patient_ID, patientName: r.Patient_Name,
         status: window.normalizeVisitStatus(r.Status), department: r.Department || 'OPD',
         isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
-        // Prefer record data (Visits), fallback to patient profile
-        age: r.Age || p?.Age || 0,
+        // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
+        age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
         gender: r.Gender || p?.Gender || '',
         photoUrl: p?.Photo_URL || '',
         allergy: window.parsePatientAllergyInfo?.(p?.Drug_Allergy || '')?.allergy || p?.Drug_Allergy || '',
@@ -7112,6 +7103,15 @@ window.openTriage = async function (i) {
     $recordedBy.append(new Option(recordedBy, recordedBy, true, true));
   }
   $recordedBy.val(recordedBy);
+
+  if (typeof window.applyDoctorUserSelects === 'function') window.applyDoctorUserSelects();
+  const doctorName = String(r.doctor || '').trim();
+  const $doctor = $('#v_doctor');
+  if (doctorName && !$doctor.find(`option[value="${doctorName.replace(/"/g, '\\"')}"]`).length) {
+    $doctor.append(new Option(doctorName, doctorName, true, true));
+  }
+  $doctor.val(doctorName);
+
   window.calculateBMI();
 
   // Clear "Calling" status if opening
@@ -9148,6 +9148,9 @@ window.printOPDCard = async function (s, i) {
       if (el) el.innerText = text;
     };
 
+    const liveAge = window.ageFromDob(d.Date_of_Birth);
+    const printAge = liveAge != null ? String(liveAge) : (d.Age != null ? String(d.Age) : '');
+
     const printPatientId = d.Patient_ID || '';
     safeSetText('popd_cn', printPatientId);
     safeSetText('popd_org_id', d.Organization_ID || '');
@@ -9158,7 +9161,7 @@ window.printOPDCard = async function (s, i) {
     window.renderOpdPatientBarcode(printPatientId);
     safeSetText('popd_title', d.Title || '');
     safeSetText('popd_name', `${d.First_Name || ''} ${d.Last_Name || ''}`.trim());
-    safeSetText('popd_age', d.Age || '');
+    safeSetText('popd_age', printAge);
     safeSetText('popd_dob', d.Date_of_Birth || '');
     safeSetText('popd_gender', d.Gender || '');
     {
@@ -9237,7 +9240,7 @@ window.printOPDCard = async function (s, i) {
     // Title is merged into the name field on Page 2 (per head request).
     safeSetText('popd2_name', `${d.Title || ''} ${d.First_Name || ''} ${d.Last_Name || ''}`.replace(/\s+/g, ' ').trim());
     safeSetText('popd2_dob', d.Date_of_Birth || '');
-    safeSetText('popd2_age', d.Age || '');
+    safeSetText('popd2_age', printAge);
     {
       const g2 = String(d.Gender || '').trim();
       safeSetText('popd2_gender_male', /^(M|Male|ຊາຍ)$/i.test(g2) ? '☑' : '□');
@@ -10070,6 +10073,7 @@ window.loadUsers = async function () {
   if ($.fn.DataTable.isDataTable('#userTable')) $('#userTable').DataTable().destroy();
   $('#userTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-dark spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
+  window.refreshDoctorUserList?.();
   try {
     const { data: u, error } = await supabaseClient.from(dbTable('Users')).select('*');
 
@@ -10645,6 +10649,7 @@ window.loadMasterDataGlobalCallback = function (data) {
     console.warn('ກວດສອບ RLS Policy ຂອງ table MasterData ໃນ Supabase Dashboard');
   }
   if (document.getElementById('masterCategory')) window.loadMasterList();
+  if (typeof window.applyDoctorUserSelects === 'function') window.applyDoctorUserSelects();
 };
 
 window.seedMasterDefaults = async function () {
@@ -11002,13 +11007,25 @@ window.loadOrgs = async function () {
   $('#orgTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
-    const { data: orgs, error } = await supabaseClient.from(dbTable('Organizations')).select('*').limit(9999);
-
-    // 🚨 ດັກຈັບ Error ຕາມ Antigravity
-    if (error) {
-      console.error('Error:', error);
-      Swal.fire('Error', error.message, 'error');
-      return;
+    // Supabase PostgREST caps a single response at ~1000 rows regardless of .limit(),
+    // so page through .range() until the server returns fewer rows than the page size.
+    const PAGE = 1000;
+    const orgs = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabaseClient
+        .from(dbTable('Organizations'))
+        .select('*')
+        .order('Org_Code', { ascending: true })
+        .order('Cus_ID_Ex', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error('Error:', error);
+        Swal.fire('Error', error.message, 'error');
+        return;
+      }
+      if (!data || data.length === 0) break;
+      orgs.push(...data);
+      if (data.length < PAGE) break;
     }
 
     if ($.fn.DataTable.isDataTable('#orgTable')) $('#orgTable').DataTable().destroy();
@@ -11096,147 +11113,6 @@ window.editOrg = function (r, c, n, on, oc, d) {
   $('#o_orgCode').val(oc);
   $('#o_discount').val(d);
   $('#orgModal').modal('show');
-};
-
-window.submitSettingsForm = async function (e) {
-  if (e) e.preventDefault();
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-
-  // ດຶງຄ່າຈາກຟອມໜ້າເວັບ
-  let ns = {
-    HospitalName: $('#setHospitalName').val(),
-    LogoUrl: $('#setLogoUrl').val(),
-    OpdHeaderUrl: $('#setOpdHeaderUrl').val(),
-    OpdFooterUrl: $('#setOpdFooterUrl').val(),
-    RememberLastModule: $('#setRememberLastModule').length ? String($('#setRememberLastModule').is(':checked')) : String(systemSettings.rememberLastModule || false)
-  };
-
-  // ປ່ຽນຮູບແບບໃຫ້ກາຍເປັນ Array ເພື່ອໃຊ້ບັນທຶກລົງ Table ແບບ Upsert
-  let updates = Object.keys(ns).map(k => ({
-    Key: k,
-    Value: ns[k]
-  }));
-
-  try {
-    const { error } = await supabaseClient
-      .from(dbTable('Settings'))
-      .upsert(updates, { onConflict: 'Key' });
-
-    // 🚨 ເພີ່ມລະບົບແຈ້ງເຕືອນ Error ຕາມທີ່ Antigravity ແນະນຳ
-    if (error) {
-      console.error('Error:', error);
-      Swal.fire('Error', error.message, 'error');
-      return;
-    }
-
-    // ອັບເດດຄ່າໃນລະບົບ
-    systemSettings = {
-      ...systemSettings,
-      hospitalName: ns.HospitalName,
-      logoUrl: ns.LogoUrl,
-      opdHeaderUrl: ns.OpdHeaderUrl,
-      opdFooterUrl: ns.OpdFooterUrl,
-      rememberLastModule: window.normalizeBooleanSetting(ns.RememberLastModule)
-    };
-    $('#sidebarBrandName').text(ns.HospitalName);
-    window.logAction('Save', 'System Settings saved: ' + ns.HospitalName, 'Settings');
-
-    Swal.fire('ສຳເລັດ!', 'ບັນທຶກການຕັ້ງຄ່າແລ້ວ', 'success');
-
-  } catch (err) {
-    console.error('System Error:', err);
-    Swal.fire('Error', err.message, 'error');
-  }
-};
-
-window.submitOpdPrintSettingsForm = async function (e) {
-  if (e) e.preventDefault();
-  Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
-
-  const settings = [
-    { Key: 'opd_print_page1_header_image', Value: $('#opd_print_page1_header_image').val() || '' },
-    { Key: 'opd_print_page2_header_image', Value: $('#opd_print_page2_header_image').val() || '' },
-    { Key: 'opd_print_page1_footer_image', Value: $('#opd_print_page1_footer_image').val() || '' },
-    { Key: 'opd_print_page2_footer_image', Value: $('#opd_print_page2_footer_image').val() || '' }
-  ];
-
-  try {
-    const { error } = await supabaseClient.from(dbTable('Settings')).upsert(settings, { onConflict: 'Key' });
-    if (error) {
-      console.error('OPD print settings save error:', error);
-      Swal.fire('Error', error.message, 'error');
-      return;
-    }
-
-    systemSettings = {
-      ...systemSettings,
-      opdPrintPage1HeaderImage: settings[0].Value,
-      opdPrintPage2HeaderImage: settings[1].Value,
-      opdPrintPage1FooterImage: settings[2].Value,
-      opdPrintPage2FooterImage: settings[3].Value
-    };
-
-    Swal.fire('ສຳເລັດ!', 'ບັນທຶກຄ່າຮູບພາບ OPD print ແລ້ວ', 'success');
-  } catch (err) {
-    console.error('OPD print settings save exception:', err);
-    Swal.fire('Error', err.message, 'error');
-  }
-};
-
-// ຟັງຊັນສຳລັບດຶງຄ່າຕັ້ງຄ່າມາສະແດງ
-window.loadSettingsData = async function () {
-  try {
-    const { data, error } = await supabaseClient.from(dbTable('Settings')).select('*');
-    if (error) {
-      console.error('Error:', error);
-      Swal.fire('Error', error.message, 'error');
-      return;
-    }
-
-    let s = {
-      hospitalName: 'HIS HOSPITAL',
-      logoUrl: '',
-      opdHeaderUrl: '',
-      opdFooterUrl: '',
-      opdPrintPage1HeaderImage: '',
-      opdPrintPage2HeaderImage: '',
-      opdPrintPage1FooterImage: '',
-      opdPrintPage2FooterImage: '',
-      rememberLastModule: false
-    };
-    if (data) {
-      data.forEach(row => {
-        if (row.Key === 'HospitalName') s.hospitalName = row.Value;
-        if (row.Key === 'LogoUrl') s.logoUrl = row.Value;
-        if (row.Key === 'OpdHeaderUrl') s.opdHeaderUrl = row.Value;
-        if (row.Key === 'OpdFooterUrl') s.opdFooterUrl = row.Value;
-        if (row.Key === 'opd_print_page1_header_image') s.opdPrintPage1HeaderImage = row.Value || '';
-        if (row.Key === 'opd_print_page2_header_image') s.opdPrintPage2HeaderImage = row.Value || '';
-        if (row.Key === 'opd_print_page1_footer_image') s.opdPrintPage1FooterImage = row.Value || '';
-        if (row.Key === 'opd_print_page2_footer_image') s.opdPrintPage2FooterImage = row.Value || '';
-        if (row.Key === 'RememberLastModule') s.rememberLastModule = window.normalizeBooleanSetting(row.Value);
-      });
-    }
-
-    systemSettings = s;
-    $('#setHospitalName').val(s.hospitalName || "");
-    $('#setLogoUrl').val(s.logoUrl || "");
-    $('#setOpdHeaderUrl').val(s.opdHeaderUrl || "");
-    $('#setOpdFooterUrl').val(s.opdFooterUrl || "");
-    $('#setRememberLastModule').prop('checked', !!s.rememberLastModule);
-    $('#opd_print_page1_header_image').val(s.opdPrintPage1HeaderImage || '');
-    $('#opd_print_page2_header_image').val(s.opdPrintPage2HeaderImage || '');
-    $('#opd_print_page1_footer_image').val(s.opdPrintPage1FooterImage || '');
-    $('#opd_print_page2_footer_image').val(s.opdPrintPage2FooterImage || '');
-    window.renderOpdPrintImagePreview('opd_print_page1_header_image', s.opdPrintPage1HeaderImage || '');
-    window.renderOpdPrintImagePreview('opd_print_page2_header_image', s.opdPrintPage2HeaderImage || '');
-    window.renderOpdPrintImagePreview('opd_print_page1_footer_image', s.opdPrintPage1FooterImage || '');
-    window.renderOpdPrintImagePreview('opd_print_page2_footer_image', s.opdPrintPage2FooterImage || '');
-
-    if (typeof window.loadMasterList === 'function') window.loadMasterList();
-  } catch (err) {
-    console.error('Error:', err);
-  }
 };
 
 window.loadLocationsMasterView = async function () {

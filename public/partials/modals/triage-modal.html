@@ -77,15 +77,22 @@
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-bold">ປະເພດ (Type)</label>
-              <select class="form-select" id="v_type" name="v_type">
+              <label class="form-label fw-bold">ປະເພດ (Type) <span class="text-danger">*</span></label>
+              <select class="form-select" id="v_type" name="v_type" required>
+                <option value="">-- ເລືອກປະເພດ --</option>
                 <option value="OPD">OPD</option>
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label fw-bold">ຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ</label>
-              <select class="form-select dyn-Nurse" id="v_recorded_by" name="v_recorded_by">
+              <label class="form-label fw-bold">ຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ <span class="text-danger">*</span></label>
+              <select class="form-select dyn-Nurse" id="v_recorded_by" name="v_recorded_by" required>
                 <option value="">-- ເລືອກພະຍາບານ --</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">ແພດຜູ້ກວດ (Doctor) <span class="text-danger">*</span></label>
+              <select class="form-select doctor-users-select" id="v_doctor" name="v_doctor" required>
+                <option value="">-- ເລືອກແພດ --</option>
               </select>
             </div>
             <div class="col-12">

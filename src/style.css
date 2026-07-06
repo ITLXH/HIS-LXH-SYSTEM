@@ -2965,42 +2965,6 @@ h6 {
   padding-bottom: 4px !important;
 }
 
-.opd-print-image-card {
-  border: 1px solid #d7e2ee;
-  border-radius: 10px;
-  padding: 12px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.opd-print-image-dropzone {
-  min-height: 140px;
-  border: 1.5px dashed #94a3b8;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef5fb 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  cursor: pointer;
-  position: relative;
-}
-
-.opd-print-image-dropzone img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-.opd-print-image-placeholder {
-  color: #64748b;
-  font-weight: 600;
-  font-size: 12px;
-  text-align: center;
-  padding: 0 12px;
-}
-
 .opd-page:first-child .opd-table-noborder + .opd-table-noborder {
   margin-top: 2mm;
 }
@@ -6593,6 +6557,18 @@ table.dataTable thead > tr > td.sorting_desc:after {
   margin-top: 2px;
 }
 
+.dashboard-breakdown-total {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eaf2fa;
+  color: #0E3B5F;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+}
+
 .dashboard-report-subheader {
   position: relative;
   z-index: 1;
@@ -6677,13 +6653,13 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-title {
   color: #4a5b66;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-value {
   margin-top: 10px;
-  font-size: 3.1rem;
+  font-size: 3.4rem;
   font-weight: 800;
   color: #0E3B5F;
 }
@@ -6691,7 +6667,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-note {
   margin-top: 8px;
   color: #566670;
-  font-size: 12.5px;
+  font-size: 14px;
 }
 
 /* Date/title header injected into each page only during PDF export */
@@ -6779,37 +6755,51 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread .dashboard-report-panel-head h6 {
-  font-size: 12px;
+  font-size: 15px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread .dashboard-report-panel-head p,
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-split-title {
-  font-size: 10px;
+  font-size: 12.5px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--hero,
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--time .dashboard-report-chart--short {
-  height: 214px;
+  height: 206px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--medium {
-  height: 174px;
+  height: 168px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
-  height: 172px;
+  height: 148px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-chart--split {
-  height: 156px;
+  height: 130px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-split {
-  gap: 14px;
+  gap: 12px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-split-card {
-  padding: 12px;
+  padding: 10px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail {
+  gap: 10px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel,
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-split-card {
+  padding: 10px 12px 8px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel-head {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
 }
 
 #dashboardPrintArea canvas {

@@ -46,3 +46,50 @@
 4. ກົດ F12 > Console ເພື່ອເບິ່ງ log: `refreshPatientOrgDropdown: loaded X organizations`
 5. ກວດເບິ່ງ dropdown ລະຫັດລູກຄ້າວ່າສະແດງ `Cus_ID_Ex - Name`
 6. ກວດເບິ່ງວ່າສາມາດລຶບ/ເລືອກໃໝ່ໄດ້
+
+## 2026-07-06 — `loadOrgs()` paginate to bypass 1000-row cap
+
+### ບັນຫາ
+User uploaded `HIS_Organizations_Import_Template.xlsx` with **405 Dai-ichi customers** (`CUS-LXH-DICH-26-007-0001` … `-0405`). After upload the Orgs page showed **only 6 Dai-ichi rows**, and the DataTable footer said `1,000 ລາຍການ`.
+
+### ວິເຄາະ (Root cause)
+Direct query against Supabase (`GET /rest/v1/HIS_One_Organizations?…&Prefer: count=exact`) proved the upload actually worked — the DB really has **1,951 total Organizations** and **all 405 Dai-ichi rows are there**. The bug is display-side:
+- `loadOrgs()` called `.select('*').limit(9999)`.
+- Supabase PostgREST silently caps a single response at the server `Max Rows` setting (default **1,000**) regardless of `.limit()`.
+- The query had no `.order()`, so the returned 1,000-row slice was arbitrary (roughly physical order) — most Dai-ichi rows (which were inserted last) fell past position 1,000 and were dropped by the server.
+- On the client, DataTable sorted the 1,000 rows by ORG CODE, so the handful of Dai-ichi rows that *did* land in the slice appeared first (6 of 405). To the user this looked like "only 6 uploaded".
+
+### ການແກ້ໄຂ — `src/main.js` `window.loadOrgs`
+Replaced the single `.select().limit(9999)` with a `.range()` pagination loop:
+
+```js
+const PAGE = 1000;
+const orgs = [];
+for (let from = 0; ; from += PAGE) {
+  const { data, error } = await supabaseClient
+    .from(dbTable('Organizations'))
+    .select('*')
+    .order('Org_Code', { ascending: true })
+    .order('Cus_ID_Ex', { ascending: true })
+    .range(from, from + PAGE - 1);
+  if (error) { Swal.fire('Error', error.message, 'error'); return; }
+  if (!data || data.length === 0) break;
+  orgs.push(...data);
+  if (data.length < PAGE) break;
+}
+```
+
+The added `.order()` also makes the fetch deterministic (Org_Code then Cus_ID_Ex).
+
+### ວິທີກວດສອບ
+1. Open the Orgs page (`/orgs`). The DataTable footer should now show **1,951 ລາຍການ** (or the current true total), not 1,000.
+2. In the search box type `Dai-ichi` — all **405 rows** should be listed.
+3. Confirm via REST (still works as an audit path):
+   ```
+   curl -I "$SUPABASE_URL/rest/v1/HIS_One_Organizations?select=Org_ID&Org_Code=eq.Dai-ichi" \
+     -H "apikey: $ANON" -H "Prefer: count=exact" -H "Range: 0-0"
+   ```
+   `Content-Range: 0-404/405`.
+
+### Notes for future writers
+Any other `loadX` reading a table that can exceed 1,000 rows (Patients, Visits, Drugs_Master, Labs_Master, Vaccines_Master…) is subject to the same silent PostgREST cap. `.limit(9999)` alone does **not** work — use `.range()` pagination + explicit `.order()`, otherwise the "missing rows" symptom will look exactly like a broken import.

@@ -3,7 +3,7 @@
     style="border-bottom:2px solid var(--border-color);">
     <div class="dashboard-toolbar-title">
       <h3 class="fw-bold m-0 text-dark"><i class="fas fa-chart-line text-primary me-2"></i>Clinic Snapshot Board</h3>
-      <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ສະຫຼຸບ dashboard 2 ໜ້າ A4 ລວງນອນ ພ້ອມ filter ວັນທີ ແລະ ຊ່ວງເວລາ</p>
+      <p class="text-muted mb-0 mt-1" style="font-size:13px;">ສະຫຼຸບ dashboard 2 ໜ້າ A4 ລວງນອນ ພ້ອມ filter ວັນທີ ແລະ ຊ່ວງເວລາ</p>
     </div>
     <div class="dashboard-toolbar-controls d-flex flex-wrap gap-2 align-items-center bg-white p-2 rounded shadow-sm border">
       <div class="btn-group dashboard-range-group">
@@ -142,7 +142,7 @@
           <div class="dashboard-report-chart dashboard-report-chart--compact"><canvas id="chartOrganization"></canvas></div>
         </article>
 
-        <article class="dashboard-report-panel dashboard-report-panel--soft dashboard-report-panel--span-2">
+        <article class="dashboard-report-panel dashboard-report-panel--soft">
           <div class="dashboard-report-panel-head">
             <h6>Occupation</h6>
             <p>ອາຊີບຄົນເຈັບ (Top 8)</p>
@@ -150,19 +150,27 @@
           <div class="dashboard-report-chart dashboard-report-chart--compact"><canvas id="chartOccupation"></canvas></div>
         </article>
 
+        <article class="dashboard-report-panel dashboard-report-panel--accent">
+          <div class="dashboard-report-panel-head">
+            <h6>Top 5 Doctors</h6>
+            <p>ແພດທີ່ມີການເຄື່ອນໄຫວສູງ</p>
+          </div>
+          <div class="dashboard-report-chart dashboard-report-chart--compact"><canvas id="chartMarketing"></canvas></div>
+        </article>
+
         <article class="dashboard-report-panel dashboard-report-panel--span-4 dashboard-report-panel--community">
           <div class="dashboard-report-panel-head">
-            <h6>Community Snapshot</h6>
-            <p>ພື້ນທີ່ ແລະ ແພດທີ່ມີການເຄື່ອນໄຫວສູງ</p>
+            <h6>Province &amp; District</h6>
+            <p>ຈຳແນກຕາມແຂວງ ແລະ ເມືອງ</p>
           </div>
           <div class="dashboard-report-split">
             <div class="dashboard-report-split-card dashboard-report-split-card--map">
-              <div class="dashboard-report-split-title"><i class="fas fa-map-marker-alt"></i><span>Top 5 ເມືອງທີ່ມາໃຊ້ບໍລິການ</span></div>
-              <div class="dashboard-report-chart dashboard-report-chart--split"><canvas id="chartProvince"></canvas></div>
+              <div class="dashboard-report-split-title"><i class="fas fa-map-marker-alt"></i><span>Province / ແຂວງ</span><span class="dashboard-breakdown-total" id="tblProvinceTotal">0</span></div>
+              <div class="dashboard-report-chart dashboard-report-chart--split"><canvas id="chartProvinceBreakdown"></canvas></div>
             </div>
             <div class="dashboard-report-split-card dashboard-report-split-card--doctor">
-              <div class="dashboard-report-split-title"><i class="fas fa-user-doctor"></i><span>Top 5 Doctors</span></div>
-              <div class="dashboard-report-chart dashboard-report-chart--split"><canvas id="chartMarketing"></canvas></div>
+              <div class="dashboard-report-split-title"><i class="fas fa-city"></i><span>District / ເມືອງ</span><span class="dashboard-breakdown-total" id="tblDistrictTotal">0</span></div>
+              <div class="dashboard-report-chart dashboard-report-chart--split"><canvas id="chartDistrictBreakdown"></canvas></div>
             </div>
           </div>
         </article>

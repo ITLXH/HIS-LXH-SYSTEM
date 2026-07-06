@@ -1342,3 +1342,258 @@ headlessly via [tmp/pdfs/dash-changes-check.cjs](../tmp/pdfs/dash-changes-check.
 Community Snapshot preserved). Live-data verification pending user
 acceptance test with real Supabase data (dashboard needs auth).
 
+
+## 2026-07-06 — Dashboard: Province + District fixed-bucket breakdown tables
+
+### Requested by the user
+Screenshots supplied of a paper reference sheet: a two-column table with a blue
+header `Province` and rows `ວຽງຈັນ / ບໍລິຄຳໄຊ / ອື່ນໆ`, and a matching one for
+`District` with rows `Xaythany / Xaysettha / Chanthabuly / Naxaithong /
+Sikhottabong / others`. User wants both breakdowns on the Dashboard styled to
+match the reference.
+
+### Implementation
+- **[public/partials/views/dashboard.html](../public/partials/views/dashboard.html)** — added two new panels after the `Occupation` panel, one per breakdown. Each panel wraps a `<table class="dashboard-breakdown-table">` inside a `.dashboard-breakdown-wrap` scroll container. Table body IDs: `#tblProvinceBody`, `#tblDistrictBody`.
+- **[src/style.css](../src/style.css)** — new `.dashboard-breakdown-wrap` / `.dashboard-breakdown-table` block. Flat clinical look per `[feedback_no_ai_looking_ui]`: solid `#1B6BB0` header, white text, 4px radius, alternating `#f7fafc` odd rows, no gradients or shadows. Right-aligned tabular-nums count column via `.dashboard-breakdown-count`.
+- **[src/main.js](../src/main.js)** — new `window.renderProvinceDistrictTables(visits)`. Called at the tail of `renderDashboardCharts` right before `refreshDashboardChartLayout()`.
+
+### Aggregation logic
+Patient-level dedup (uses `v.Patients.Patient_ID` in a `Set` — returning
+patients don't inflate their home province/district). Each patient's
+`Province` / `District` value is normalized (`trim`+`toLowerCase`) and matched
+against a per-bucket alias list; unmatched values fall into `ອື່ນໆ` (province)
+or `others` (district).
+
+- Province buckets:
+  - **ວຽງຈັນ** — aliases: `ວຽງຈັນ`, `vientiane`, `ນະຄອນຫຼວງ`, `nakhon luang`, `nakhonluang`
+  - **ບໍລິຄຳໄຊ** — aliases: `ບໍລິຄຳໄຊ`, `bolikhamxay`, `borikhamxay`, `bolikhamsai`, `borikhamsai`
+- District buckets (5 named): **Xaythany**, **Xaysettha**, **Chanthabuly**, **Naxaithong**, **Sikhottabong** — each with Lao and common English-spelling aliases.
+
+Alias match uses `includes()`, so e.g. `"Vientiane Capital"` still buckets to
+`ວຽງຈັນ`.
+
+### i18n note
+The `Province` / `District` panel titles and `<th>` headers are auto-translated
+by the app's existing i18n system: in Lao mode the reader sees `ແຂວງ` / `ເມືອງ`,
+in English mode `Province` / `District`. The row labels themselves are not
+translated — Lao names stay Lao, English names stay English (matches the paper
+reference).
+
+### Verification
+- Fed 9 synthetic patients (Lao and English spellings, a duplicate Patient_ID,
+  and off-list provinces/districts) through `window.renderProvinceDistrictTables`
+  in the live dev preview. Province: `ວຽງຈັນ 5 / ບໍລິຄຳໄຊ 2 / ອື່ນໆ 2`;
+  District: `Xaythany 2 / Xaysettha 1 / Chanthabuly 2 / Naxaithong 1 /
+  Sikhottabong 1 / others 2` — dedup + alias matching both correct.
+- `preview_inspect` confirmed header cells render with `background-color:
+  rgb(27, 107, 176)` (`#1B6BB0`), white text, `font-weight: 700`, left-aligned;
+  count cells right-aligned with `color: rgb(14, 59, 95)` and `font-weight: 700`.
+  Matches the flat clinical brief.
+
+## 2026-07-06 (b) — Province + District into a single side-by-side band
+
+Followup to the same-day Province+District tables. User wanted:
+1. Remove the "Top 5 ເມືອງທີ່ມາໃຊ້ບໍລິການ" bar chart from Community Snapshot.
+2. Show Province + District in a single 2-column band styled like Community Snapshot (not as two separate panels).
+
+### Layout change ([public/partials/views/dashboard.html](../public/partials/views/dashboard.html))
+
+Replaced the two separate `--soft`/`--accent` breakdown panels **and** the old Community Snapshot panel with **one** `dashboard-report-panel--span-4 dashboard-report-panel--community` panel titled "Province & District". Inside it a `dashboard-report-split` grid holds two `dashboard-report-split-card` slots (`--map` for Province with `fa-map-marker-alt`, `--doctor` for District with `fa-city`), each wrapping the `.dashboard-breakdown-wrap`/`.dashboard-breakdown-table` structure from the earlier commit.
+
+Top 5 Doctors kept as its own `dashboard-report-panel--span-2 --accent` panel (canvas `#chartMarketing`).
+
+### JS cleanup ([src/main.js](../src/main.js))
+
+- Removed `chartProvince` from `window.dashboardChartIds` and the `compactDashboardCharts` Set.
+- Deleted the `topDist = getTopNWithOthers(district, 5, 0.001)` line and the `createChart('chartProvince', …)` call.
+- The `district` map is still populated by the visits loop but no longer read — left in place because removing the assignment risks breaking other code that walks the same loop.
+
+### Verification (live vite preview @ 1440×900)
+
+- `#chartProvince` canvas gone; `#chartMarketing` still present.
+- The Province/District panel's split cards render **side-by-side** at equal width (615×N each, 14px gap, same top Y-coordinate).
+- Row contents unchanged: `ວຽງຈັນ / ບໍລິຄຳໄຊ / ອື່ນໆ` and `Xaythany / Xaysettha / Chanthabuly / Naxaithong / Sikhottabong / others`.
+
+## 2026-07-06 (c) — Polish pass on the Province/District band
+
+User photo showed the District card with a visible right-side scrollbar hiding the top row (`Xaythany`) and asked for a nicer "frame" (`ກາບແບບສວຍງາມ`) look.
+
+### CSS changes ([src/style.css](../src/style.css))
+
+- **Removed** the `max-height:170px` cap on `.dashboard-breakdown-wrap` — it was clipping the 6-row District table. The wrap now sizes to content; `overflow:hidden` keeps the rounded corners clean.
+- Table font 12.5 → 13px; row padding 5px 10px → 9px 14px; header padding 6px 10px → 9px 14px with 0.2px letter-spacing.
+- Border colour `#e2e8f0 → #d6e0ea`; zebra `#f7fafc → #f5f9fc`.
+- New `tr:hover td { background:#eaf2fa }`.
+- New **totals footer** — `tfoot td` background `#f0f6fb`, 2px top border in `#1B6BB0`, weight 700, dark-blue text; second cell right-aligns via `tfoot td:last-child`.
+- New `.dashboard-breakdown-empty` — italic muted centered placeholder for the zero-data case.
+
+Design still follows [feedback_no_ai_looking_ui]: single accent blue, no gradients, 4px radius.
+
+### HTML changes ([public/partials/views/dashboard.html](../public/partials/views/dashboard.html))
+
+Added `<tfoot><tr><td>ລວມ / Total</td><td id="tblProvinceTotal|tblDistrictTotal">0</td></tr></tfoot>` to both tables.
+
+### JS changes ([src/main.js](../src/main.js))
+
+`paint()` inside `renderProvinceDistrictTables` now:
+1. Sums the bucket values → writes to `tblProvinceTotal` / `tblDistrictTotal`.
+2. When the sum is 0, replaces the body with a single `<tr class="dashboard-breakdown-empty"><td colspan="2">ບໍ່ພົບຂໍ້ມູນ</td></tr>` row instead of six zero-count rows.
+
+### Verification (live vite @ 1440×900, 9 synthetic patients)
+
+- Province total = 9, 3 rows.
+- District total = 9, all 6 rows visible; `wrap.scrollHeight === wrap.clientHeight` (no scrollbar).
+- `preview_inspect` on `tfoot td`: `background: rgb(240, 246, 251)`, `color: rgb(14, 59, 95)`, `font-weight: 700`.
+- Screenshots kept timing out on this session, but header/row/footer computed styles were inspected directly and match the spec.
+
+## 2026-07-06 (d) — Province & District tables → bar charts
+
+User asked "ບໍ່ເຫັນສິເປັນ chart ໂຊ" ("wouldn't it be better as a chart?"). Kept the same aggregation + fixed-bucket logic, just changed the rendering.
+
+### HTML ([public/partials/views/dashboard.html](../public/partials/views/dashboard.html))
+
+Both split-cards now contain `<div class="dashboard-report-chart dashboard-report-chart--split"><canvas id="chartProvinceBreakdown|chartDistrictBreakdown"></canvas></div>`. The split-title gets a small `Total` pill: `<span class="dashboard-breakdown-total" id="tblProvinceTotal|tblDistrictTotal">0</span>`.
+
+### CSS ([src/style.css](../src/style.css))
+
+- New `.dashboard-breakdown-total` — 999px pill, `#eaf2fa` bg, `#0E3B5F` text, weight 800, tabular-nums, `margin-left:auto` so it hugs the right end of the title bar.
+- **Removed** the previous ~55-line `.dashboard-breakdown-wrap` / `.dashboard-breakdown-table*` / `.dashboard-breakdown-count` / `.dashboard-breakdown-empty` block since HTML no longer uses it.
+
+### JS ([src/main.js](../src/main.js))
+
+`renderProvinceDistrictTables` swapped its `paint()` inner helper for `draw()`, which:
+1. Sums the bucket values → writes to `tblProvinceTotal` / `tblDistrictTotal`.
+2. Calls `window.createChart(canvasId, 'bar', labels, values, palette, true)` — the same compact-bar renderer used by Insurance / Organization / Occupation.
+
+Both canvases registered in `window.dashboardChartIds` and `compactDashboardCharts`, so the resize loop and compact-font sizing pick them up automatically.
+
+### Fixed-bucket note
+
+Buckets are fixed (`ວຽງຈັນ / ບໍລິຄຳໄຊ / ອື່ນໆ` and `Xaythany / Xaysettha / Chanthabuly / Naxaithong / Sikhottabong / others`) so zero-count bars are drawn too. Categories stay stable across date ranges, which is important for comparing periods.
+
+### Verification (live vite @ 1440×900, 11 synthetic patients)
+
+- Province: `ວຽງຈັນ 7 / ບໍລິຄຳໄຊ 2 / ອື່ນໆ 2`, Total = 11.
+- District: `Xaythany 4 / Xaysettha 0 / Chanthabuly 2 / Naxaithong 0 / Sikhottabong 0 / others 5`, Total = 11.
+- Both totals rendered in the pill; canvas dimensions 589×156.
+
+## 2026-07-06 (e) — Fit exactly 2 A4 pages in the exported dashboard PDF
+
+Reference: user's `Dashboard.pdf` — page 2 clipped the Province & District band mid-chart and pushed Top 5 Doctors onto a nonexistent page 3.
+
+### Root cause
+`dashboard-report-grid--spread-detail` is a **12-column** grid inside `#dashboardPrintArea` ([src/style.css:6751](../src/style.css#L6751)). Default detail-panel = `grid-column: span 3` ([src/style.css:6772](../src/style.css#L6772)), `--span-4` = span-12. Because Top 5 Doctors was declared *after* the `--span-4` Province & District panel in the HTML source, auto-placement floated it onto Row 4:
+
+- Row 1: Gender/OPD/Site/Age — 12 cols
+- Row 2: Insurance/Organization/Occupation — 9 cols; slot 10–12 empty
+- Row 3: **P&D (span-12)** — full row (couldn't fit in the 3-col leftover)
+- Row 4: Top 5 Doctors — off-page
+
+### Fix
+1. **Reorder in HTML** ([public/partials/views/dashboard.html](../public/partials/views/dashboard.html)) — Top 5 Doctors moved *before* Province & District. Row 2 now fills 12 cols with Insurance/Organization/Occupation/Doctors; P&D sits alone on Row 3 = 3 rows total on page 2.
+2. **Trim heights in export layout** ([src/style.css](../src/style.css)):
+   - Page 2 (spread-detail): `--compact 172→148px`, `--split 156→130px`, split-card padding `12→10px 12px 8px`, grid gap `14→10px`, panel-head margin/padding `10→6px`.
+   - Page 1 (spread-summary): `--hero 214→206px`, `--medium 174→168px`.
+
+### Verification
+Ran an export-simulation loop in the live preview: injected the same `.dash-pdf-header`, forced each `.dashboard-report-page--spread` to `297×210mm` with `overflow:hidden`, then read `scrollHeight` vs `clientHeight`. Both pages returned `scrollHeight === clientHeight === 792px` — **0 overflow, exactly 2 pages**.
+
+## 2026-07-06 — OPD Card printed a stale patient age
+
+Reviewer flagged an OPD Card where DOB 2023-07-20 rendered Age = 1 on the printout despite today being 2026-07-06 (real age 2y 11m). Root cause was not the age math but the *source*: [src/main.js:9211](../src/main.js#L9211) and [src/main.js:9290](../src/main.js#L9290) both wrote `d.Age` straight to `popd_age` / `popd2_age`. `Patients.Age` is a snapshot column populated by `calculateAgeForm()` at registration ([src/main.js:2985](../src/main.js#L2985)) and never refreshed. A patient registered in mid-2024 at age 1 keeps `Age = 1` in the DB forever.
+
+Fix: added a local `ageFromDob(dob)` helper inside `printOPDCard` that computes years from `Date_of_Birth` using calendar arithmetic (guards against months/days not yet reached this year), falling back to the stored `d.Age` only when DOB is missing or unparseable. Both page 1 (`popd_age`) and page 2 (`popd2_age`) now go through the same `printAge` value, so the two pages can never disagree either.
+
+Not touched: `calculateAgeForm()` — that path stores an age at registration by design (searches, filters and reports elsewhere depend on it). Only the *printed* age is now derived live.
+
+Edge cases handled:
+- Future DOB (data entry error) → returns `` (falls back to stored `d.Age`).
+- Same month, day-of-month not yet reached → decrements year (turns 3 → 2 for DOB 2023-07-20 on 2026-07-06).
+- DOB stored as either ISO (`2023-07-20`) or a raw `Date` — `new Date()` parses both.
+
+### 2026-07-06 (same-day follow-up) — same bug in Triage / OPD queues
+
+After the OPD Card printout was fixed, the reviewer spotted the Triage list still showed `3 ປີ` for the same DOB 2023-07-20 patient. Same root cause on a different surface: `_fetchTriageQueue` ([src/main.js](../src/main.js) `age: r.Age || p?.Age || 0`) and `_fetchOpdQueue` (identical line) built each row from the stored age snapshot. The reports/patients list had the same pattern for `p.Age`.
+
+Refactored age handling into a shared `window.ageFromDob(dob)` helper (returns `null` when DOB is missing/invalid/future so callers can fall back cleanly). The OPD Card local helper was replaced with a call to it. Both queue joins now select `Date_of_Birth` in addition to `Age`, and the row mappings compute `window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0)`. `calculateAgeForm()` was also rewritten on top of the shared helper — the old `Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970)` epoch-diff trick worked for common ages but was fragile around leap-second and TZ boundaries.
+
+Left alone: `Age_Group` band on Patients — reports elsewhere key off it and re-binding pediatric rows into a new band mid-report would break historical accuracy.
+
+
+## 2026-07-06 — Doctor dropdown moved from EMR to Triage
+
+User observation: the "Top 5 Doctors" chart on the dashboard was always empty. Two causes stacked:
+1. **Timing**: `Doctor_Name` was only assigned inside the EMR modal (`#emrDoctor`), after the visit had passed OPD. Any run that never reached EMR (or where the doctor was implicit) left the field blank.
+2. **Counter gate**: [src/main.js:4337](../src/main.js#L4337) required `Mapped_Specialist` to be non-empty before counting a doctor — a heuristic added earlier to filter out cases where `Doctor_Name` was a nurse or free-text string. With no specialist mapping this dropped otherwise valid doctors.
+
+Fix — move assignment upstream:
+- New `#v_doctor` select in [public/partials/modals/triage-modal.html](../public/partials/modals/triage-modal.html) using the `dyn-Doctor` auto-populate hook (options come from `MasterData["Doctor"]`).
+- `openTriage` hydrates it from the row (`r.doctor`), with the same safety `append(new Option(...))` pattern used for `#v_recorded_by` in case the row carries a doctor name not currently in MasterData.
+- `executeTriageSave` writes `Doctor_Name: fd.v_doctor` to `Visits`; local `currentTriageData[i].doctor` is patched so the list card stays in sync until the next fetch.
+- Dashboard counter gate on `Mapped_Specialist` removed — the dropdown is backed by curated MasterData so the nurse-leakage concern is moot.
+
+Relationship to EMR: the `#emrDoctor` dropdown in the EMR modal was intentionally left in place. It still edits the same `Visits.Doctor_Name` column, so a doctor can override the triage assignment mid-visit. EMR save runs later than Triage save, so any change there wins. The Triage assignment is the "first-touch" default.
+
+### 2026-07-06 (second follow-up) — Triage dropdown was showing non-doctors
+
+After the initial move, the dropdown pulled from `MasterData["Doctor"]` (via the `.dyn-Doctor` class). That MasterData category had been used loosely for all staff, so nurses appeared alongside physicians. The correct source is `HIS_One_Users.Role`.
+
+Added a small cache layer:
+- `window.doctorUsersCache` — plain array of Name strings.
+- `window.refreshDoctorUserList()` — Supabase select on `Users` filtered by `Role="doctor"`, then repopulates every `.doctor-users-select` in the DOM.
+- `window.applyDoctorUserSelects()` — DOM writer, called by the refresh and again inside `openTriage` to cover late-loading modals.
+- `loadUsers()` now triggers the refresh so admin edits stay in sync automatically.
+
+The Triage form now marks its select with class `doctor-users-select` (replacing `dyn-Doctor`). The "unknown value" append pattern still runs in `openTriage`, so an old visit whose `Doctor_Name` is a person no longer in the active-users list will still render and remain editable.
+
+EMR intentionally not touched. Its `.dyn-Doctor` source may still include people not in HIS_One_Users, and silently dropping them would be a regression we cannot verify from here. Revisit only if the user reports the same complaint on EMR.
+
+**2026-07-06 (third pass) — Fallback to MasterData when Users has no doctors.** The users-only source was too strict; a system that has not yet registered doctors as Users saw an empty dropdown. `applyDoctorUserSelects` now falls back to `masterDataStore["Doctor"]` when the users cache is empty, and is also called from the tail of `loadMasterDataGlobalCallback` so the fallback fires the moment MasterData finishes loading. Each rendered select gets a `data-doctor-source` attribute (`users` or `masterdata`) for debugging. Once the operator registers actual doctors in `HIS_One_Users` with role=doctor, the dropdown auto-flips to the curated list.
+
+
+## 2026-07-06 — Removed obsolete OPD Header/Footer URL inputs from Settings
+
+The System Settings card historically stored the OPD print header and footer as free-text URLs (`OpdHeaderUrl` / `OpdFooterUrl` in the Settings table, wired to `#setOpdHeaderUrl` / `#setOpdFooterUrl`). Since the image-upload cards in "ຕັ້ງຄ່າໃບ OPD / OPD Print Settings" landed, those URL inputs became redundant — the print path at `printOPDCard` prefers `opdPrintPage1HeaderImage` etc. and only falls back to the URLs when the image slot is empty. User asked to cut the two duplicated URL inputs.
+
+Removed:
+- The two `<div class="col-md-6">` blocks for `#setOpdHeaderUrl` and `#setOpdFooterUrl` in [public/partials/views/settings.html](../public/partials/views/settings.html).
+- Every DOM read/write against those inputs in `submitSettingsForm`, the post-login settings hydrate, and `loadSettings()` in [src/main.js](../src/main.js).
+- `OpdHeaderUrl` / `OpdFooterUrl` from the Settings upsert payload and the `systemSettings` merge inside `submitSettingsForm`.
+
+Kept for backward compatibility:
+- The Supabase read paths that populate `systemSettings.opdHeaderUrl` / `.opdFooterUrl` if those rows still exist in the Settings table.
+- The print-time fallback chain: `opdPrintPage1HeaderImage || opdHeaderUrl || logoUrl`. Tenants with legacy values still get them honored on print — the values just can no longer be edited from this page.
+
+
+## 2026-07-06 — OPD print header/footer images did not persist
+
+Users uploaded a header/footer image, saw the preview appear, then found the slot empty again on the next visit to Settings. Root cause was not the load path but a UX-side gap in the save flow: `handleOpdPrintImageUpload` only wrote the returned public URL into the hidden input, and persistence was gated on a separate "Save OPD Print Settings" click at the bottom of the card. Anyone who uploaded and navigated away lost the value.
+
+Added `window.persistOpdPrintImageSetting(settingKey, value)`:
+- Upserts a single row `{ Key: settingKey, Value: value }` into the `Settings` table with `onConflict: "Key"`.
+- Mirrors the value into the corresponding `systemSettings.opdPrintPage*Image` field so subsequent OPD prints in the same session pick it up without a full page reload.
+- Any Supabase error surfaces via Swal instead of a silent `console.error`, so a misconfigured unique-key constraint on the tenant `Settings` table becomes immediately visible.
+
+`handleOpdPrintImageUpload` awaits the persist call right after `uploadOpdPrintImage` returns. `clearOpdPrintImage` also persists an empty string so a Remove click is instantly durable. The bulk save button on the form is left in place; hitting it after individual auto-saves is a harmless no-op double-write.
+
+
+## 2026-07-06 — Both Settings-view configuration cards removed
+
+User confirmed (via AskUserQuestion) that they wanted both cards removed entirely, not just the URL fields inside them. Cut from settings.html:
+1. `ຕັ້ງຄ່າລະບົບ` (Hospital Name, Logo URL, remember-module toggle, Save button).
+2. `ຕັ້ງຄ່າໃບ OPD / OPD Print Settings` (four image dropzones + Save button).
+
+Only the Master Data section remains under `#view-settings`.
+
+JS cleanup in [src/main.js](../src/main.js): deleted `submitSettingsForm`, `submitOpdPrintSettingsForm`, `loadSettingsData` (an older duplicate load path that also targeted the removed inputs), plus the entire image-upload helper family (`getOpdPrintImageFieldIds`, `renderOpdPrintImagePreview`, `clearOpdPrintImage`, `uploadOpdPrintImage`, `handleOpdPrintImageUpload`, `persistOpdPrintImageSetting`). Simplified the on-navigate-to-settings handler to just render the Master Data UI.
+
+CSS cleanup: removed unused `.opd-print-image-card`, `.opd-print-image-dropzone`, `.opd-print-image-placeholder` blocks from [src/style.css](../src/style.css).
+
+Backward compatibility: the post-login Settings fetch still reads `HospitalName`, `LogoUrl`, `OpdHeaderUrl`, `OpdFooterUrl`, and the four `opd_print_page*_image` keys into `systemSettings`. `printOPDCard` still consults them via its fallback chain. Any tenant with existing rows keeps their printed header/footer/logo working; those values can no longer be edited from the UI and must be changed directly in the Supabase Settings table if needed.
+
+
+## 2026-07-06 — Triage Type / Recorded By / Doctor set to required
+
+User: make three fields required (`ຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ`, `ແພດຜູ້ກວດ (Doctor)`, `ປະເພດ (Type)`). Added the `required` attribute + red `*` on each label in [triage-modal.html](../public/partials/modals/triage-modal.html), and put an explicit `-- ເລືອກປະເພດ --` placeholder in front of the Type list so the field is not auto-satisfied by the sole `OPD` option.
+
+Backed with JS validation in `submitTriageForm` that fires a Swal warning per missing field, mirroring the pre-existing `Department` check. Native HTML5 required handles most cases; the JS layer catches Save clicks that somehow bypass the browser check.
