@@ -196,6 +196,17 @@ def main():
     print("HIS Database Backup — REST API mode")
     print("=" * 60)
 
+    # Fail fast when the Supabase Storage bucket is unset. Previously the
+    # script printed "SKIPPED" and still exited 0, so the workflow was marked
+    # green even when nothing was uploaded — that hid the config error from
+    # the UI, which then showed an empty bucket next to a "success" run.
+    if not SUPABASE_BUCKET:
+        print("\nFATAL: SUPABASE_STORAGE_BUCKET is not set.")
+        print("Set the GitHub Actions secret SUPABASE_STORAGE_BUCKET to the")
+        print("bucket name (e.g. 'his-backups') that the Cloudflare Pages")
+        print("function /api/backup/list also targets.")
+        sys.exit(2)
+
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
     zip_name = f"backup-{today}.zip"

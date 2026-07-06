@@ -155,3 +155,24 @@ Rewired callers: `loadLatestBackupStatus`, `renderBackupHistory`, `loadBackupFil
 Functions respond normally the helper just passes their JSON through. Backup remains a
 deploy-only feature (requires GH token + Supabase service-role key + optional Google service
 account); local dev now shows a clear, non-alarming message instead of looking broken.
+
+
+## 2026-07-06 — Fail fast when SUPABASE_STORAGE_BUCKET is unset
+
+User reported the Backup page showing a green "success" workflow run next to an empty Supabase Storage bucket. Root cause was in [backup/scripts/backup_rest.py](../backup/scripts/backup_rest.py): the upload block printed `SKIPPED (SUPABASE_STORAGE_BUCKET not set)` and moved on, and `main()` only exited non-zero when a *table* export failed. Net effect — a workflow could be marked ✅ even when no ZIP was uploaded.
+
+Fixed by adding a top-of-`main()` check that `sys.exit(2)` when `SUPABASE_BUCKET` is empty, printing a message pointing at the missing GitHub Actions secret.
+
+### What the user still needs to configure
+
+For automatic backups to actually land, set the following GitHub Actions secrets on the repo:
+
+| Secret | Purpose |
+|---|---|
+| `SUPABASE_URL` | Same URL the HIS app talks to. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key for the same project. |
+| `SUPABASE_STORAGE_BUCKET` | Bucket name — **must match** the Cloudflare Pages env of the same name (default `his-backups`). |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | *Optional.* Service-account JSON for Google Drive uploads. Omit to skip Drive entirely. |
+| `GOOGLE_DRIVE_FOLDER_ID` | *Optional.* Target folder ID; only used when the JSON secret is set. |
+
+Without `GOOGLE_SERVICE_ACCOUNT_JSON`, the Google Drive tab in the UI showing "ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ Google Drive" is expected behaviour, not a bug.
