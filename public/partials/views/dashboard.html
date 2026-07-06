@@ -50,10 +50,15 @@
           <strong class="dashboard-kpi-value" id="dash-old">0</strong>
           <span class="dashboard-kpi-note">ຄົນເຈັບເກົ່າທີ່ກັບມາຮັບບໍລິການ</span>
         </article>
-        <article class="dashboard-kpi-tile dashboard-kpi-tile--inscorp">
-          <span class="dashboard-kpi-title">Ins / Corp</span>
-          <strong class="dashboard-kpi-value" id="dash-inscorp">0</strong>
-          <span class="dashboard-kpi-note">ກຸ່ມປະກັນໄພ ແລະ ອົງກອນ</span>
+        <article class="dashboard-kpi-tile dashboard-kpi-tile--ins">
+          <span class="dashboard-kpi-title">Insurance</span>
+          <strong class="dashboard-kpi-value" id="dash-ins">0</strong>
+          <span class="dashboard-kpi-note">ຄົນເຈັບກຸ່ມປະກັນໄພ</span>
+        </article>
+        <article class="dashboard-kpi-tile dashboard-kpi-tile--corp">
+          <span class="dashboard-kpi-title">Corporation</span>
+          <strong class="dashboard-kpi-value" id="dash-corp">0</strong>
+          <span class="dashboard-kpi-note">ຄົນເຈັບກຸ່ມອົງກອນ</span>
         </article>
       </div>
 
@@ -82,12 +87,20 @@
           <div class="dashboard-report-chart dashboard-report-chart--medium"><canvas id="chartRevenue"></canvas></div>
         </article>
 
-        <article class="dashboard-report-panel dashboard-report-panel--accent dashboard-report-panel--span-2">
+        <article class="dashboard-report-panel dashboard-report-panel--soft">
           <div class="dashboard-report-panel-head">
             <h6>Specialists</h6>
             <p>ແພດສະເພາະທາງທີ່ມີການເຄື່ອນໄຫວສູງ</p>
           </div>
           <div class="dashboard-report-chart dashboard-report-chart--medium"><canvas id="chartSpecialist"></canvas></div>
+        </article>
+
+        <article class="dashboard-report-panel dashboard-report-panel--soft">
+          <div class="dashboard-report-panel-head">
+            <h6>Channel</h6>
+            <p>ຊ່ອງທາງທີ່ຮູ້ຈັກ (Top 8)</p>
+          </div>
+          <div class="dashboard-report-chart dashboard-report-chart--medium"><canvas id="chartChannel"></canvas></div>
         </article>
       </div>
     </section>

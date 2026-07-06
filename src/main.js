@@ -3907,7 +3907,7 @@ window.fetchDashboardData = async function (rangeType) {
   $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
   let d = new Date();
   $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  $('#dash-total, #dash-new, #dash-old, #dash-inscorp').html('<i class="fas fa-spinner fa-spin"></i>');
+  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp').html('<i class="fas fa-spinner fa-spin"></i>');
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -4060,7 +4060,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
+window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4094,7 +4094,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
+  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
   const legendFontSize = isCompactDashboardChart ? 11 : 12;
   const tickFontSize = isCompactDashboardChart ? 11 : 12;
@@ -4217,22 +4217,20 @@ window.renderDashboardCharts = function (visits) {
     const s = (val == null ? '' : val).toString().trim();
     return s !== '' && !insCorpNone.has(s.toLowerCase());
   };
-  let insCorp = visits.filter(v => {
+  let ins = visits.filter(v => insCorpHas((v.Patients || {}).Insurance_Company)).length;
+  let corp = visits.filter(v => {
     const p = v.Patients || {};
-    if (insCorpHas(p.Insurance_Company) || insCorpHas(p.Organization_ID) || insCorpHas(p.Name_Org)) return true;
-    // Legacy visit-level fallback
-    let rg = (v.Revenue_Group || v.RevenueGroup || v["Revenue Group"] || "").toString();
-    let vt = (v.Visit_Type || v.VisitType || "").toString();
-    return (rg && rg !== 'General Cash') || vt.toLowerCase().includes('package');
+    return insCorpHas(p.Organization_ID) || insCorpHas(p.Name_Org);
   }).length;
 
   $('#dash-total').text(total);
   $('#dash-new').text(newPatients);
   $('#dash-old').text(oldPatients);
-  $('#dash-inscorp').text(insCorp);
+  $('#dash-ins').text(ins);
+  $('#dash-corp').text(corp);
   // Cache last-known KPI values so the PDF export can restore them even if a
   // refresh momentarily re-shows the loading spinners during capture.
-  window.__dashKpiCache = { total, newPatients, oldPatients, insCorp };
+  window.__dashKpiCache = { total, newPatients, oldPatients, ins, corp };
 
   // 2. Helper with Grouping
   const getTopNWithOthers = (map, n = 5, minPercent = 0.01) => {
@@ -4273,7 +4271,7 @@ window.renderDashboardCharts = function (visits) {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
-  }, ageGroup = {}, district = {}, doctors = {}, insurance = {}, organization = {}, occupation = {};
+  }, ageGroup = {}, district = {}, doctors = {}, insurance = {}, organization = {}, occupation = {}, channel = {};
 
   // Count each unique PATIENT once per breakdown that comes off the patient
   // record (Insurance / Organization / Occupation) — otherwise a returning
@@ -4292,10 +4290,10 @@ window.renderDashboardCharts = function (visits) {
     let docName = v.Doctor_Name || v.DoctorName || v["Doctor Name"] || "ບໍ່ລະບຸຊື່ແພດ";
 
     if (servicesStr) servicesStr.split(',').forEach(s => { let n = s.trim(); if(n) services[n] = (services[n] || 0) + 1; });
-    
+
     if (revenueVal) revenueVal.split(',').forEach(r => { let n = r.trim(); if(n) revenue[n] = (revenue[n] || 0) + 1; });
     if (specialistVal) specialistVal.split(',').forEach(s => { let n = s.trim(); if(n) specialist[n] = (specialist[n] || 0) + 1; });
-    
+
     // Doctor_Name is now sourced from the MasterData "Doctor" dropdown at Triage time,
     // so any non-empty, non-placeholder value counts — no need to gate on specialist.
     if (docName && docName !== "ບໍ່ລະບຸຊື່ແພດ") {
@@ -4339,6 +4337,8 @@ window.renderDashboardCharts = function (visits) {
       if (insCorpHas(org)) organization[org] = (organization[org] || 0) + 1;
       const occ = (p.Occupation || '').toString().trim();
       if (occ) occupation[occ] = (occupation[occ] || 0) + 1;
+      const ch = (p.Channel || '').toString().trim();
+      if (ch) channel[ch] = (channel[ch] || 0) + 1;
     }
   });
 
@@ -4347,11 +4347,13 @@ window.renderDashboardCharts = function (visits) {
   let topSvc = getTopNWithOthers(services, 10, 0.001);
   let topRev = getTopNWithOthers(revenue, 8, 0.005);
   let topSpec = getTopNWithOthers(specialist, 8, 0.005);
+  let topCh = getTopNWithOthers(channel, 8, 0.001);
   let topDocs = getTopNWithOthers(doctors, 5, 0.0001);
 
   window.createChart('chartTopServices', 'bar', topSvc.labels, topSvc.data, palette, true);
   window.createChart('chartRevenue', 'bar', topRev.labels, topRev.data, palette, true);
   window.createChart('chartSpecialist', 'bar', topSpec.labels, topSpec.data, palette, true);
+  window.createChart('chartChannel', 'bar', topCh.labels, topCh.data, palette, true);
   window.createChart('chartMarketing', 'bar', topDocs.labels, topDocs.data, palette, true);
   window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#1B6BB0', '#DD1F26', '#94a3b8']);
   window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#1B6BB0', '#DD1F26']);
@@ -4472,7 +4474,7 @@ window.exportDashboardPDF = async function () {
   // Bulletproof KPI numbers: if a refresh left a spinner in any tile, restore
   // the last-known value from cache so the PDF never captures a spinner.
   const kpiCache = window.__dashKpiCache || {};
-  const kpiKeyById = { 'dash-total': 'total', 'dash-new': 'newPatients', 'dash-old': 'oldPatients', 'dash-inscorp': 'insCorp' };
+  const kpiKeyById = { 'dash-total': 'total', 'dash-new': 'newPatients', 'dash-old': 'oldPatients', 'dash-ins': 'ins', 'dash-corp': 'corp' };
   Object.entries(kpiKeyById).forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el && el.querySelector('.fa-spinner') && kpiCache[key] != null) {
@@ -5944,6 +5946,10 @@ window.submitPatientForm = async function (e) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   const fd = {};
   new FormData($('#patientForm')[0]).forEach((v, k) => fd[k] = v);
+  if (!String(fd.p_channel || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຊ່ອງທາງຮູ້ຈັກ', 'warning');
+    return;
+  }
   const isEdit = fd.p_action === 'edit' && fd.p_id;
   const age = parseInt(fd.p_age) || 0;
   const ageGroup = age <= 15 ? '0-15' : (age <= 35 ? '16-35' : (age <= 55 ? '36-55' : '55+'));
@@ -6522,7 +6528,8 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     if (!eDate) eDate = sDate;
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
-    // 1. Fetch Visits (Paginated)
+    // 1. Fetch Visits (Paginated). Descending so the newest patient sits at the
+    // top of the Triage list — the Map dedup below preserves insertion order.
     let visits = [];
     let startRange = 0;
     while (true) {
@@ -6530,7 +6537,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
         .select('*')
         .gte('Date', range.startIso)
         .lte('Date', range.endIso)
-        .order('Date', { ascending: true })
+        .order('Date', { ascending: false })
         .range(startRange, startRange + 999);
       
       if (vError) throw vError;
@@ -6693,6 +6700,8 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           gender: r.Gender || p?.Gender || '',
           photoUrl: p?.Photo_URL || '',
           doctor: r.Doctor_Name || '',
+          type: r.Visit_Type || '',
+          site: r.Site || '',
           bp: vital.bp, temp: vital.temp, weight: vital.weight, height: vital.height,
           bmi: vital.bmi, pulse: vital.pulse, rr: vital.rr, spo2: vital.spo2, symptoms: vital.symptoms,
           recordedBy: vital.recordedBy
@@ -6710,14 +6719,15 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     if (!eDate) eDate = sDate;
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
-    // 1. Fetch Visits with range (Paginated)
+    // 1. Fetch Visits with range (Paginated). Descending so the newest patient
+    // sits at the top of the OPD queue.
     let visitsInRange = [];
     let startRange = 0;
     while (true) {
       const { data: chunk, error } = await supabaseClient.from(dbTable('Visits')).select('*')
         .gte('Date', range.startIso)
         .lte('Date', range.endIso)
-        .order('Date', { ascending: true })
+        .order('Date', { ascending: false })
         .range(startRange, startRange + 999);
 
       if (error) { console.error("OPD Fetch Range Error:", error); break; }
@@ -6895,7 +6905,7 @@ window.loadTriageQueue = async function () {
   let sDate = $('#triageStartDate').val();
   let eDate = $('#triageEndDate').val();
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
-  $('#triageTableBody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-danger spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#triageTableBody').html('<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-danger spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
   const q = await window._fetchTriageQueue(sDate, eDate);
   currentTriageData = q || [];
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
@@ -6931,6 +6941,12 @@ window.loadTriageQueue = async function () {
                     <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small"><span class="fw-bold text-dark">${r.patientId}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${r.oldId})</span>` : ''}</div></td>
                     <td><span class="badge bg-secondary rounded-pill">${r.age} ປີ</span></td>
                     <td>${sb}</td>
+                    <td class="text-center opd-ipd-cell" data-t="${(String(r.type || '').trim().toUpperCase() || 'none')}">${(() => {
+                        const t = String(r.type || '').trim().toUpperCase();
+                        if (t === 'IPD') return '<span class="badge bg-info text-dark rounded-pill px-3">IPD</span>';
+                        if (t === 'OPD') return '<span class="badge bg-primary rounded-pill px-3">OPD</span>';
+                        return '';
+                      })()}</td>
                     <td class="text-center"><div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">${btnHtml}</div></td>
                   </tr>`;
     });
@@ -7090,11 +7106,14 @@ window.openTriage = async function (i) {
   siteOptions.forEach(x => siteHtml += `<option value="${x}">${x}</option>`);
   $('#v_site').html(siteHtml).val(r.site || 'In-site');
   window.handleTriageSiteChange();
-  if (r.type) {
-    if (!Array.from($('#v_type')[0].options).some(o => o.value === r.type)) {
-      $('#v_type').append(`<option value="${r.type}">${r.type}</option>`);
-    }
-    $('#v_type').val(r.type);
+  // Type is fixed to OPD / IPD only. Rebuild the option list every open so any
+  // legacy department options that were injected by earlier builds (via
+  // handleTriageSiteChange or the old openTriage "append unknown value" path)
+  // are wiped out.
+  {
+    $('#v_type').html('<option value="">-- ເລືອກປະເພດ --</option><option value="OPD">OPD</option><option value="IPD">IPD</option>');
+    const savedType = String(r.type || '').trim().toUpperCase();
+    $('#v_type').val(savedType === 'OPD' || savedType === 'IPD' ? savedType : '');
   }
 
   const recordedBy = String(r.recordedBy || '').trim();
@@ -8582,6 +8601,12 @@ window.loadQueue = async function () {
     const q = myRoom
       ? (allQueueRows || []).filter(r => window.isOpdRoomMatch(r.department, myRoom))
       : (allQueueRows || []);
+    // Newest arrivals on top
+    q.sort((a, b) => {
+      const ta = a.rawDate ? new Date(a.rawDate).getTime() : 0;
+      const tb = b.rawDate ? new Date(b.rawDate).getTime() : 0;
+      return tb - ta;
+    });
     queueDataStore = q;
     if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
     let h = '';
@@ -8627,7 +8652,7 @@ window.loadQueue = async function () {
       });
     }
     $('#queueTableBody').html(h);
-    $('#queueTable').DataTable({ responsive: true, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວລໍຖ້າ" } });
+    $('#queueTable').DataTable({ responsive: true, pageLength: 10, order: [], language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວລໍຖ້າ" } });
     window.applyButtonPermissions?.();
   } catch (err) {
     console.error("Critical loadQueue Error:", err);
@@ -8731,19 +8756,8 @@ window.handleSiteChange = function () {
 };
 
 window.handleTriageSiteChange = function () {
-  let site = $('#v_site').val();
-  if (!site) site = 'In-site';
-  let typeSelect = $('#v_type');
-  typeSelect.empty();
-  let options = [];
-  if (site === 'In-site' || site === 'In-Site') {
-    options = (masterDataStore['PatientType_InSite'] && masterDataStore['PatientType_InSite'].length > 0) ? masterDataStore['PatientType_InSite'].map(x => x.value) : ['OPD'];
-  } else {
-    options = (masterDataStore['PatientType_Onsite'] && masterDataStore['PatientType_Onsite'].length > 0) ? masterDataStore['PatientType_Onsite'].map(x => x.value) : ['Checkup Corporation', 'Individual First Aid', 'Corporation First Aid', 'HomeCare'];
-  }
-  let h = '';
-  options.forEach(opt => h += `<option value="${opt}">${opt}</option>`);
-  typeSelect.html(h);
+  // Type is intentionally fixed to OPD / IPD only — do not repopulate from
+  // MasterData PatientType_* categories (they contain department strings).
 };
 
 window.handleServiceSelectionChange = function () {

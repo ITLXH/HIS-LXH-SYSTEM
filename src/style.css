@@ -6359,7 +6359,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 .dashboard-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -6391,6 +6391,14 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 .dashboard-kpi-tile--inscorp {
   --kpi-accent: #DD1F26;
+}
+
+.dashboard-kpi-tile--ins {
+  --kpi-accent: #DD1F26;
+}
+
+.dashboard-kpi-tile--corp {
+  --kpi-accent: #ff7a15;
 }
 
 .dashboard-kpi-title {

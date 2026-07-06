@@ -1597,3 +1597,19 @@ Backward compatibility: the post-login Settings fetch still reads `HospitalName`
 User: make three fields required (`ຜູ້ລົງທະບຽນ / ຜູ້ບັນທຶກ`, `ແພດຜູ້ກວດ (Doctor)`, `ປະເພດ (Type)`). Added the `required` attribute + red `*` on each label in [triage-modal.html](../public/partials/modals/triage-modal.html), and put an explicit `-- ເລືອກປະເພດ --` placeholder in front of the Type list so the field is not auto-satisfied by the sole `OPD` option.
 
 Backed with JS validation in `submitTriageForm` that fires a Swal warning per missing field, mirroring the pre-existing `Department` check. Native HTML5 required handles most cases; the JS layer catches Save clicks that somehow bypass the browser check.
+
+
+## 2026-07-06 — OPD queue table sorts newest-first
+
+User: `ຕາຕະລາງ OPD ໃຫ້ລຽງຄົນເຈັບຄົນທີ່ເຂົ້າມາໃໝ່ຂື້ນເທີງ` — the newly-arrived patient must appear at the top of the OPD queue table.
+
+Root cause: `_fetchOpdQueue` in [main.js](../src/main.js) does query Supabase with `.order('Date', { ascending: false })`, but the subsequent dedup step (`Object.values(visitById)`) drops that ordering; and `loadQueue`'s DataTable init did not pass an `order` option, so DataTable defaulted to sorting by the first display column — a locale-formatted `dd/MM/yyyy HH:mm` string — which is not newest-first.
+
+Fix: sort the queue array by `rawDate` descending inside `loadQueue`, right after the `myRoom` room-filter step and before writing to `queueDataStore`. That way the array indices used by the row buttons (`openEMR(i)`, `viewEMR(i)`, `printOPDCard('opd', i)`, `openObservationFromVisit(i)`) line up with the rendered row order. DataTable init was left untouched, so clicking a column header still lets the user re-sort manually.
+
+
+### 2026-07-06 (same-day follow-up) — DataTable was overriding the JS sort
+
+After the sort-by-`rawDate` change landed, the OPD table still displayed oldest-first. Root cause: the DataTable init at [main.js:loadQueue](../src/main.js) was called without an `order` option, so DataTable applied its default (first column, ascending). That alphabetised the `dd/MM/yyyy HH:mm` strings and, for rows in a single day, produced exactly the ascending-time order the user reported.
+
+Fix: pass `order: []` to the DataTable options. That tells DataTable to keep the DOM order — which is now the desc-by-`rawDate` order the array sort produced. Clicking a column header still lets the user override on demand.
