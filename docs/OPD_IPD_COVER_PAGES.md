@@ -1,0 +1,58 @@
+# OPD / IPD File Cover Pages (ໜ້າປົກ)
+
+## 2026-07-07 — Initial version
+
+### What it is
+
+A one-page printable cover sheet for the paper OPD Card / IPD Chart, generated per patient. Bears the Luckxay Hospital logo, the patient's LXH code as a barcode, and a large centered title so the file is easy to identify on a shelf.
+
+### Where to trigger it
+
+- **OPD queue** — every row in the ຈັດການ column now has a **ໜ້າປົກ** button next to the existing ພິມ (OPD Card) button, on all three status branches (Waiting OPD, Waiting Lab, Completed). Handler: `window.printOPDCoverFromQueue(i)` in [src/main.js](../src/main.js).
+- **IPD Inpatient List** — each admission (both active and discharged) has a **ໜ້າປົກ** button next to the existing ໃບປະຫວັດ (chart) button. Handler: `window.printIPDCoverFromAdmission(admissionId)`.
+
+### What appears on the page
+
+| Position | OPD | IPD |
+|---|---|---|
+| Header | Luckxay logo + `ໂຮງໝໍ ຫຼັກໄຊ / LUCKXAY HOSPITAL` | Same |
+| Top-left corner | `ຫ້ອງກວດ: <department>` | `IPD No: <admission_id>` |
+| Top-right corner | `HN: LXH2026-XXXXXX` + Code128 barcode | Same |
+| Center title | `OPD CARD` (blue, ~84pt) | `IPD CARD` (red) |
+| Center subtitle | `ໃບບັນທຶກຄົນເຈັບນອກ` | `ໃບບັນທຶກຄົນເຈັບໃນ` |
+| Patient block | Title + Lao full name + English full name | Same |
+| Footer | Date / time of visit | Date + Ward/Bed |
+
+### Files
+
+- Template: [public/partials/print-areas.html](../public/partials/print-areas.html) — `#cover-print-area`
+- Styles: [src/style.css](../src/style.css) — `#cover-print-area .cover-page` block
+- Logic: [src/main.js](../src/main.js) — `printOPDCoverFromQueue`, `printIPDCoverFromAdmission`, `_printCoverPage`, `exportCoverPageAsPdf`
+- Logo asset: [public/luckxay-logo.jpg](../public/luckxay-logo.jpg) (already in repo — used by sidebar as well)
+
+### Why programmatic PDF instead of `window.print()`
+
+Same reasoning as OPD Card (`exportOpdCardAsPdf` at src/main.js:9309): the browser print dialog stamps date/URL/page-number headers that can't be turned off from within the page. html2canvas + jsPDF produces a clean A4 sheet with no injected chrome and opens it in a new tab where the user chooses save vs. print.
+
+## 2026-07-07 — IPD title renamed CHART → CARD
+
+The IPD cover sheet was labelled `IPD CHART`; user feedback ("IPD Card ບໍ່ແມ່ນ chart") is that the cover is a *card* (front sheet identifying the file), not the chart itself. Renamed to `IPD CARD` so it stays parallel with `OPD CARD`.
+
+Touched:
+- Title string: [src/main.js:9543](../src/main.js#L9543) — `setText('cover_title', isIPD ? 'IPD CARD' : 'OPD CARD')`
+- Chooser dialog: [src/main.js:9480](../src/main.js#L9480) — `denyButtonText` now shows `IPD CARD`
+- File-header comments: [src/main.js:9457](../src/main.js#L9457), [public/partials/print-areas.html:275](../public/partials/print-areas.html#L275), [src/style.css:2610](../src/style.css#L2610)
+
+Subtitle `ໃບບັນທຶກຄົນເຈັບໃນ` and red accent (`cover-ipd` class) unchanged — only the English title differs.
+
+## 2026-07-07 — Lao tone marks missing on exported cover PDF
+
+**Comment from ອ້າຍໂນ່:** patient names containing ໄມ້ເອກ ( ່ ) show fine in the app but the tone mark disappears on the exported cover PDF.
+
+**Root cause:** html2canvas's default text renderer walks text nodes and splits per character. Lao tone marks ( ່ ້ ໊ ໋ ) are Unicode combining characters that sit above their base consonant; the splitter emits the base and the mark as separate paint operations at the same x, and the second paint loses shaping context, so the mark either overpaints as an empty glyph or is dropped entirely. Same class of bug affects Thai (ั ่ ้), Arabic diacritics, Devanagari, etc.
+
+**Fix:** [src/main.js:9655](../src/main.js#L9655) `window.exportCoverPageAsPdf` now passes `foreignObjectRendering: true` to html2canvas. This wraps the target node in an SVG `<foreignObject>` and lets the browser rasterize it natively — full text shaping preserved. Wrapped in try/catch with a fallback to the previous non-foreignObject render so export still works on browsers where SVG-foreignObject rasterization fails (rare, but has happened on some Safari versions with local images).
+
+Also bumped `line-height` on `#cover-print-area .cover-field-value` from 1.2 → 1.5 and added `padding-top: 2mm` at [src/style.css:2773](../src/style.css#L2773). At 22pt bold, line-height 1.2 was too tight to leave headroom for a tone mark above the ascender — defense in depth in case a future export path stops using foreignObject.
+
+**Not applied to:** the OPD Card multi-page PDF ([src/main.js:9401](../src/main.js#L9401)) and the dashboard export ([src/main.js:4529](../src/main.js#L4529)) still use the plain canvas render. If the same tone-mark drop shows up there, add `foreignObjectRendering: true` to those calls too — kept scoped for now to avoid layout regressions on pages that have been working.

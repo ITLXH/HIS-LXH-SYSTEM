@@ -5653,6 +5653,9 @@ window.initPatientTable = async function () {
         acts += `<button class="btn btn-sm btn-warning text-dark shadow-sm fw-bold" onclick="window.sendToTriageFlow('${r.Patient_ID}', '${safeName}')"><i class="fas fa-share me-1"></i> Triage</button>`;
       }
 
+      // Print cover page — chooser (OPD or IPD)
+      acts += `<button class="btn btn-sm btn-outline-secondary shadow-sm" title="ພິມໜ້າປົກ OPD ຫຼື IPD" onclick="window.printCoverChooser('${r.Patient_ID}')"><i class="fas fa-file-alt me-1"></i> ໜ້າປົກ</button>`;
+
       // Edit button
       if (window.can('patients', 'edit')) {
         acts += `<button class="btn btn-sm btn-primary shadow-sm" title="${window.t('patients.edit')}" onclick="window.editPatient('${r.Patient_ID}')"><i class="fas fa-edit"></i></button>`;
@@ -9440,6 +9443,271 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
   } finally {
     prevPageStyles.forEach(({ page, cssText }) => { page.style.cssText = cssText; });
     if (p2sheet) p2sheet.style.cssText = prevSheetCss || '';
+    target.classList.remove('print-active');
+    prevContainerState.forEach(({ el, display, active }) => {
+      el.style.display = display || '';
+      if (active) el.classList.add('print-active');
+    });
+    if (wrapper) wrapper.style.display = prevWrapperDisplay || 'block';
+    if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  }
+};
+
+// ============================================================
+// File Cover Page — OPD CARD / IPD CARD cover printed for the
+// paper chart's front sheet. Single A4 portrait page.
+// ============================================================
+window.printOPDCoverFromPatientId = async function (patientId, opts) {
+  opts = opts || {};
+  const now = new Date();
+  const dateStr = opts.dateStr || (window.getLocalStr(now) + ' ' + window.getLocalTimeStr(now));
+  await window._printCoverPage({
+    kind: 'OPD',
+    patientId: patientId,
+    department: opts.department || '',
+    dateStr: dateStr,
+  });
+};
+
+window.printCoverChooser = async function (patientId) {
+  if (!patientId) return;
+  const res = await Swal.fire({
+    title: 'ພິມໜ້າປົກ',
+    html: '<div class="text-muted small mb-2">ເລືອກປະເພດໜ້າປົກທີ່ຕ້ອງການພິມ</div>',
+    showCancelButton: true,
+    showDenyButton: true,
+    confirmButtonText: '<i class="fas fa-user-md me-1"></i> OPD CARD',
+    denyButtonText: '<i class="fas fa-procedures me-1"></i> IPD CARD',
+    cancelButtonText: 'ຍົກເລີກ',
+    confirmButtonColor: '#1B6BB0',
+    denyButtonColor: '#B91C1C',
+    reverseButtons: false,
+  });
+  const now = new Date();
+  const dateStr = window.getLocalStr(now) + ' ' + window.getLocalTimeStr(now);
+  if (res.isConfirmed) {
+    await window._printCoverPage({ kind: 'OPD', patientId, dateStr });
+  } else if (res.isDenied) {
+    await window._printCoverPage({ kind: 'IPD', patientId, dateStr });
+  }
+};
+
+window.printIPDCoverFromAdmission = async function (admissionId) {
+  const state = window.ipdWardBedState || {};
+  const admission = (state.admissions || []).find(a => a.Admission_ID === admissionId);
+  if (!admission) {
+    return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບໃນລະບົບ', 'error');
+  }
+  const location = window.ipdAdmissionLocation ? window.ipdAdmissionLocation(admission) : {};
+  const wardName = location.ward?.Ward_Name || '';
+  const bedNo = location.bed?.Bed_Number || '';
+  const admitDate = [admission.Admission_Date, admission.Admission_Time].filter(Boolean).join(' ');
+  await window._printCoverPage({
+    kind: 'IPD',
+    patientId: admission.Patient_ID,
+    admissionId: admission.Admission_ID,
+    department: wardName + (bedNo ? ` (ຕຽງ ${bedNo})` : ''),
+    dateStr: admitDate || window.getLocalStr(new Date()),
+  });
+};
+
+window._printCoverPage = async function (opts) {
+  const isIPD = opts.kind === 'IPD';
+  Swal.fire({ title: 'ກຳລັງສ້າງໜ້າປົກ...', didOpen: () => Swal.showLoading() });
+
+  try {
+    const { data: d, error } = await supabaseClient
+      .from(dbTable('Patients'))
+      .select('*')
+      .eq('Patient_ID', opts.patientId)
+      .single();
+
+    if (error || !d) {
+      Swal.close();
+      return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບໃນລະບົບ', 'error');
+    }
+
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.innerText = val || '';
+    };
+
+    // Swap accent color per kind — OPD stays blue, IPD goes red.
+    const coverPage = document.querySelector('#cover-print-area .cover-page');
+    if (coverPage) {
+      coverPage.classList.remove('cover-opd', 'cover-ipd');
+      coverPage.classList.add(isIPD ? 'cover-ipd' : 'cover-opd');
+    }
+
+    // Title + centered content
+    setText('cover_title', isIPD ? 'IPD CARD' : 'OPD CARD');
+    setText('cover_subtitle', isIPD ? 'ໃບບັນທຶກຄົນເຈັບໃນ' : 'ໃບບັນທຶກຄົນເຈັບນອກ');
+
+    // Right corner: HN + barcode of patient LXH ID
+    const hn = d.Patient_ID || '';
+    setText('cover_hn', hn);
+    if (typeof window.renderOpdPatientBarcode === 'function') {
+      window.renderOpdPatientBarcode(hn, 'cover_barcode');
+    }
+
+    // Second meta row under HN — IPD admission number or OPD department
+    const leftRow = document.getElementById('cover_left_row');
+    if (isIPD && opts.admissionId) {
+      setText('cover_left_label', 'IPD No');
+      setText('cover_left_value', opts.admissionId);
+      if (leftRow) leftRow.style.display = 'flex';
+    } else if (opts.department) {
+      setText('cover_left_label', 'ຫ້ອງກວດ');
+      setText('cover_left_value', opts.department);
+      if (leftRow) leftRow.style.display = 'flex';
+    } else {
+      setText('cover_left_label', '');
+      setText('cover_left_value', '');
+      if (leftRow) leftRow.style.display = 'none';
+    }
+
+    // Patient title/name (English name removed from template — kept optional)
+    setText('cover_patient_title', d.Title || '');
+    setText('cover_patient_name', `${d.First_Name || ''} ${d.Last_Name || ''}`.trim());
+
+    // Footer date
+    setText('cover_date', opts.dateStr || '');
+
+    // Optional extra row (Ward/Bed for IPD)
+    const extraLabel = isIPD ? 'ວອດ / ຕຽງ' : '';
+    const extraRow = document.getElementById('cover_extra_row');
+    if (extraRow) {
+      if (opts.department && isIPD) {
+        setText('cover_extra_label', extraLabel);
+        setText('cover_extra_value', opts.department);
+        extraRow.style.display = 'flex';
+      } else {
+        extraRow.style.display = 'none';
+      }
+    }
+
+    Swal.close();
+    await window.exportCoverPageAsPdf(hn, isIPD ? 'IPD-Chart-Cover' : 'OPD-Card-Cover');
+  } catch (err) {
+    Swal.close();
+    console.error('Cover print error:', err);
+    Swal.fire('ຂໍ້ຜິດພາດ', 'ເກີດບັນຫາໃນການສ້າງໜ້າປົກ', 'error');
+  }
+};
+
+window.exportCoverPageAsPdf = async function (suffix, prefix) {
+  const target = document.getElementById('cover-print-area');
+  if (!target) return;
+
+  const html2canvas = window.html2canvas;
+  const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (typeof html2canvas !== 'function' || typeof jsPDF !== 'function') {
+    Swal.fire('PDF Error', 'PDF libraries (html2canvas/jsPDF) are not loaded', 'error');
+    return;
+  }
+
+  const wrapper = document.querySelector('.wrapper');
+  const prevWrapperDisplay = wrapper ? wrapper.style.display : '';
+  if (wrapper) wrapper.style.display = 'none';
+
+  const allPrintEls = document.querySelectorAll('.print-container');
+  const prevContainerState = [];
+  allPrintEls.forEach(el => {
+    prevContainerState.push({ el, display: el.style.display, active: el.classList.contains('print-active') });
+    el.style.display = (el.id === 'cover-print-area') ? 'block' : 'none';
+    el.classList.remove('print-active');
+  });
+  target.classList.add('print-active');
+
+  await new Promise(r => setTimeout(r, 200));
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (_) { }
+  }
+
+  const safeStamp = String(suffix || '').replace(/[^a-zA-Z0-9_-]/g, '') || Date.now();
+  const filename = `${prefix || 'Cover'}-${safeStamp}.pdf`;
+
+  // A4 portrait with 6mm side margins so the sheet uses full paper.
+  const PAGE_W_MM = 210, PAGE_H_MM = 297;
+  const MX = 6, MY = 4;
+  const wMm = PAGE_W_MM - 2 * MX;
+  const hMm = PAGE_H_MM - 2 * MY;
+  const CSS_PX_PER_MM = 96 / 25.4;
+  const wPx = Math.round(wMm * CSS_PX_PER_MM);
+  const hPx = Math.round(hMm * CSS_PX_PER_MM);
+
+  const page = target.querySelector('.cover-page');
+  const prevPageCss = page ? page.style.cssText : '';
+  if (page) {
+    page.style.setProperty('width', wMm + 'mm', 'important');
+    page.style.setProperty('min-width', wMm + 'mm', 'important');
+    page.style.setProperty('max-width', wMm + 'mm', 'important');
+    page.style.setProperty('height', hMm + 'mm', 'important');
+    page.style.setProperty('min-height', hMm + 'mm', 'important');
+    page.style.setProperty('max-height', hMm + 'mm', 'important');
+    page.style.margin = '0';
+    page.style.background = '#fff';
+    page.style.boxSizing = 'border-box';
+  }
+
+  let blobUrl = null;
+  try {
+    // foreignObjectRendering: true is required for Lao combining tone marks
+    // (ໄມ້ເອກ ່, ໄມ້ໂທ ້, etc.). The default html2canvas text splitter drops
+    // combining marks from base characters; SVG foreignObject delegates to
+    // the browser's native shaping engine and preserves them.
+    let canvas;
+    try {
+      canvas = await html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        foreignObjectRendering: true,
+        windowWidth: wPx,
+        windowHeight: hPx,
+        width: wPx,
+        height: hPx,
+        scrollX: 0,
+        scrollY: -window.scrollY
+      });
+    } catch (foErr) {
+      console.warn('Cover PDF: foreignObject render failed, falling back to canvas render', foErr);
+      canvas = await html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: wPx,
+        windowHeight: hPx,
+        width: wPx,
+        height: hPx,
+        scrollX: 0,
+        scrollY: -window.scrollY
+      });
+    }
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', MX, MY, wMm, hMm, 'cover', 'FAST');
+
+    const blob = pdf.output('blob');
+    blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch (err) {
+    console.error('Cover PDF export failed:', err);
+    Swal.fire('PDF Error', 'Could not create cover PDF', 'error');
+  } finally {
+    if (page) page.style.cssText = prevPageCss;
     target.classList.remove('print-active');
     prevContainerState.forEach(({ el, display, active }) => {
       el.style.display = display || '';
