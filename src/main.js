@@ -9652,42 +9652,26 @@ window.exportCoverPageAsPdf = async function (suffix, prefix) {
 
   let blobUrl = null;
   try {
-    // foreignObjectRendering: true is required for Lao combining tone marks
-    // (ໄມ້ເອກ ່, ໄມ້ໂທ ້, etc.). The default html2canvas text splitter drops
-    // combining marks from base characters; SVG foreignObject delegates to
-    // the browser's native shaping engine and preserves them.
-    let canvas;
-    try {
-      canvas = await html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        foreignObjectRendering: true,
-        windowWidth: wPx,
-        windowHeight: hPx,
-        width: wPx,
-        height: hPx,
-        scrollX: 0,
-        scrollY: -window.scrollY
-      });
-    } catch (foErr) {
-      console.warn('Cover PDF: foreignObject render failed, falling back to canvas render', foErr);
-      canvas = await html2canvas(page, {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        windowWidth: wPx,
-        windowHeight: hPx,
-        width: wPx,
-        height: hPx,
-        scrollX: 0,
-        scrollY: -window.scrollY
-      });
-    }
+    // NOTE: do NOT enable foreignObjectRendering here — html2canvas 1.4.1
+    // hangs indefinitely when it tries to inline the Google Fonts
+    // @font-face rules for Noto Sans Lao into the SVG foreignObject
+    // context (the WOFF2 fetch fails CORS inside a data-URI SVG and the
+    // library waits on it forever). Also do NOT enable letterRendering —
+    // per-character rendering desynchronizes combining tone marks from
+    // their base consonant. Plain canvas render with document.fonts.ready
+    // is the only path that doesn't hang.
+    const canvas = await html2canvas(page, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: wPx,
+      windowHeight: hPx,
+      width: wPx,
+      height: hPx,
+      scrollX: 0,
+      scrollY: -window.scrollY
+    });
 
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     pdf.addImage(canvas.toDataURL('image/jpeg', 0.98), 'JPEG', MX, MY, wMm, hMm, 'cover', 'FAST');

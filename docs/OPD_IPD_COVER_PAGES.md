@@ -56,3 +56,18 @@ Subtitle `ໃບບັນທຶກຄົນເຈັບໃນ` and red accent (`
 Also bumped `line-height` on `#cover-print-area .cover-field-value` from 1.2 → 1.5 and added `padding-top: 2mm` at [src/style.css:2773](../src/style.css#L2773). At 22pt bold, line-height 1.2 was too tight to leave headroom for a tone mark above the ascender — defense in depth in case a future export path stops using foreignObject.
 
 **Not applied to:** the OPD Card multi-page PDF ([src/main.js:9401](../src/main.js#L9401)) and the dashboard export ([src/main.js:4529](../src/main.js#L4529)) still use the plain canvas render. If the same tone-mark drop shows up there, add `foreignObjectRendering: true` to those calls too — kept scoped for now to avoid layout regressions on pages that have been working.
+
+## 2026-07-07 (later) — Reverted foreignObjectRendering (hung the page)
+
+User report: `/patients` → click ໜ້າປົກ → browser threw **"This page isn't responding"**. Root cause: html2canvas 1.4.1 with `foreignObjectRendering: true` inlines every `@font-face` rule from the page into the SVG foreignObject. Our Noto Sans Lao is loaded from `https://fonts.googleapis.com` (index.html:12), and inside a data-URI SVG the WOFF2 fetch is treated as cross-origin without CORS credentials — the browser blocks it, html2canvas keeps waiting on `document.fonts.ready` inside the SVG context, and the whole thing hangs.
+
+**Fix:** reverted [src/main.js:9655](../src/main.js#L9655) `exportCoverPageAsPdf` back to the plain canvas render (no `foreignObjectRendering`). Also removed `letterRendering: true` from the options — in html2canvas 1.4.1 it's a no-op for shaping but historically caused combining marks to render one-at-a-time; leaving it off can only help.
+
+**Kept:** the CSS line-height bump on `#cover-print-area .cover-field-value` (1.2 → 1.5 + 2mm top padding) at [src/style.css:2773](../src/style.css#L2773). If a font ever needs vertical headroom for tone marks above the ascender, that's still there as defense in depth.
+
+**Tone-mark issue is not yet resolved.** Next things to try, in order of least → most invasive:
+1. Self-host the Noto Sans Lao WOFF2 (drop it in `/public/fonts/`, replace the Google Fonts `<link>` in index.html with a local `@font-face`). Then try `foreignObjectRendering: true` again — same-origin fonts don't hit the CORS wall.
+2. Pre-render the patient-name string to a `<canvas>` using canvas 2D `fillText` (which uses the browser's native shaper and does preserve combining marks), export the canvas as a data-URI `<img>`, and swap the name span for the img just before html2canvas runs.
+3. Bypass html2canvas entirely for this one export: load a Noto Sans Lao TTF into jsPDF via `pdf.addFont`, and lay out the cover in jsPDF calls directly. Highest effort, most reliable.
+
+Do NOT re-enable `foreignObjectRendering: true` before doing step 1.
