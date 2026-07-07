@@ -71,3 +71,13 @@ User report: `/patients` → click ໜ້າປົກ → browser threw **"This 
 3. Bypass html2canvas entirely for this one export: load a Noto Sans Lao TTF into jsPDF via `pdf.addFont`, and lay out the cover in jsPDF calls directly. Highest effort, most reliable.
 
 Do NOT re-enable `foreignObjectRendering: true` before doing step 1.
+
+## 2026-07-07 (later still) — Hardened `exportCoverPageAsPdf` so a hang can't wedge the UI
+
+Follow-up bug from the hang: after the browser threw "This page isn't responding", the tab stayed on `/patients` but only the OPD CARD cover was visible — `.wrapper` was hidden and there was no button anywhere. Cause: DOM state was mutated **before** the try/catch, so a hang skipped the `finally` restore.
+
+**Change in [src/main.js:9598](../src/main.js#L9598) `window.exportCoverPageAsPdf`:**
+- Moved every state mutation (`wrapper.style.display = 'none'`, `.print-container` display flips, `.print-active` class, `await document.fonts.ready`, inline page styles) **inside the try block**. The `finally` block reliably restores everything even on a throw or a hang that gets killed by the browser.
+- Wrapped `document.fonts.ready` in a `Promise.race` against a 3-second timeout so a stalled webfont fetch can never hold the export forever.
+
+If the user hits another hang, they still lose the current export attempt, but the wrapper and containers come back — no forced reload required.

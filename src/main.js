@@ -9606,23 +9606,17 @@ window.exportCoverPageAsPdf = async function (suffix, prefix) {
     return;
   }
 
+  // All DOM state manipulation is done INSIDE the try/finally below so
+  // that if anything hangs or throws (html2canvas, fonts.ready, jsPDF),
+  // the finally block always restores the wrapper + hides the cover
+  // panel again. Without this, a hang would leave the app showing only
+  // the cover sheet with no way back except a page reload.
   const wrapper = document.querySelector('.wrapper');
-  const prevWrapperDisplay = wrapper ? wrapper.style.display : '';
-  if (wrapper) wrapper.style.display = 'none';
-
+  let prevWrapperDisplay = '';
   const allPrintEls = document.querySelectorAll('.print-container');
   const prevContainerState = [];
-  allPrintEls.forEach(el => {
-    prevContainerState.push({ el, display: el.style.display, active: el.classList.contains('print-active') });
-    el.style.display = (el.id === 'cover-print-area') ? 'block' : 'none';
-    el.classList.remove('print-active');
-  });
-  target.classList.add('print-active');
-
-  await new Promise(r => setTimeout(r, 200));
-  if (document.fonts && document.fonts.ready) {
-    try { await document.fonts.ready; } catch (_) { }
-  }
+  const page = target.querySelector('.cover-page');
+  const prevPageCss = page ? page.style.cssText : '';
 
   const safeStamp = String(suffix || '').replace(/[^a-zA-Z0-9_-]/g, '') || Date.now();
   const filename = `${prefix || 'Cover'}-${safeStamp}.pdf`;
@@ -9636,22 +9630,40 @@ window.exportCoverPageAsPdf = async function (suffix, prefix) {
   const wPx = Math.round(wMm * CSS_PX_PER_MM);
   const hPx = Math.round(hMm * CSS_PX_PER_MM);
 
-  const page = target.querySelector('.cover-page');
-  const prevPageCss = page ? page.style.cssText : '';
-  if (page) {
-    page.style.setProperty('width', wMm + 'mm', 'important');
-    page.style.setProperty('min-width', wMm + 'mm', 'important');
-    page.style.setProperty('max-width', wMm + 'mm', 'important');
-    page.style.setProperty('height', hMm + 'mm', 'important');
-    page.style.setProperty('min-height', hMm + 'mm', 'important');
-    page.style.setProperty('max-height', hMm + 'mm', 'important');
-    page.style.margin = '0';
-    page.style.background = '#fff';
-    page.style.boxSizing = 'border-box';
-  }
-
   let blobUrl = null;
   try {
+    prevWrapperDisplay = wrapper ? wrapper.style.display : '';
+    if (wrapper) wrapper.style.display = 'none';
+
+    allPrintEls.forEach(el => {
+      prevContainerState.push({ el, display: el.style.display, active: el.classList.contains('print-active') });
+      el.style.display = (el.id === 'cover-print-area') ? 'block' : 'none';
+      el.classList.remove('print-active');
+    });
+    target.classList.add('print-active');
+
+    await new Promise(r => setTimeout(r, 200));
+    if (document.fonts && document.fonts.ready) {
+      // Race fonts.ready against a 3-second cap so a stalled webfont
+      // load can never wedge the export.
+      await Promise.race([
+        document.fonts.ready.catch(() => {}),
+        new Promise(r => setTimeout(r, 3000)),
+      ]);
+    }
+
+    if (page) {
+      page.style.setProperty('width', wMm + 'mm', 'important');
+      page.style.setProperty('min-width', wMm + 'mm', 'important');
+      page.style.setProperty('max-width', wMm + 'mm', 'important');
+      page.style.setProperty('height', hMm + 'mm', 'important');
+      page.style.setProperty('min-height', hMm + 'mm', 'important');
+      page.style.setProperty('max-height', hMm + 'mm', 'important');
+      page.style.margin = '0';
+      page.style.background = '#fff';
+      page.style.boxSizing = 'border-box';
+    }
+
     // NOTE: do NOT enable foreignObjectRendering here — html2canvas 1.4.1
     // hangs indefinitely when it tries to inline the Google Fonts
     // @font-face rules for Noto Sans Lao into the SVG foreignObject
