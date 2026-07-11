@@ -5463,13 +5463,20 @@ h6 {
 .pcard-id {
   font-family: "Consolas", "Arial", sans-serif;
   font-weight: 700;
-  font-size: 44px;
+  font-size: 38px;
   color: #000;
   text-align: center;
-  line-height: 1.15;
+  line-height: 1.05;
   letter-spacing: 1px;
   white-space: nowrap;
-  padding: 0 0 2mm;
+  padding: 0;
+  margin-bottom: 0.5mm;
+}
+.pcard-barcode {
+  display: block;
+  width: 100%;
+  height: 16mm;
+  max-height: 16mm;
   border-bottom: 3px solid #000;
   margin-bottom: 2mm;
 }
@@ -5478,7 +5485,7 @@ h6 {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 3mm;
+  gap: 2.2mm;
   min-width: 0;
 }
 .pcard-row {
@@ -5496,6 +5503,13 @@ h6 {
   font-size: 30px;
   font-weight: 700;
   color: #1e293b;
+}
+.pcard-time {
+  margin-left: 4mm;
+  font-family: "Consolas", "Arial", sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  color: #000;
 }
 /* Second value on a shared row (ເມືອງ next to ບ້ານ, ເບີໂທ next to ແຂວງ) */
 .pcard-value-2nd {

@@ -2556,7 +2556,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-07-03-opd-page2-followup-log-v8';
+  const PARTIAL_CACHE_BUST = '2026-07-11-patient-barcode-sticker-v1';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
@@ -5648,6 +5648,11 @@ window.initPatientTable = async function () {
         acts += `<button class="btn btn-sm btn-info text-white shadow-sm fw-bold" title="${window.t('patients.viewDetails')}" onclick="window.viewPatientDetail('${r.Patient_ID}')"><i class="fas fa-eye me-1"></i> ${window.t('patients.view')}</button>`;
       }
 
+      // Barcode sticker button
+      if (window.can('patients', 'print_qr')) {
+        acts += `<button class="btn btn-sm btn-dark text-white shadow-sm btn-print-qr" title="ພິມ Barcode" onclick="window.printQRCard('${r.Patient_ID}')"><i class="fas fa-qrcode"></i></button>`;
+      }
+
       // Triage button
       if (window.can('patients', 'triage')) {
         acts += `<button class="btn btn-sm btn-warning text-dark shadow-sm fw-bold" onclick="window.sendToTriageFlow('${r.Patient_ID}', '${safeName}')"><i class="fas fa-share me-1"></i> Triage</button>`;
@@ -5823,6 +5828,50 @@ window.renderOpdPatientBarcode = function (patientId, svgId) {
     svg.style.display = 'block';
   } catch (err) {
     console.warn('Barcode render failed:', err);
+    svg.innerHTML = '';
+    svg.style.display = 'none';
+  }
+};
+
+window.getStickerDateTimeDefaults = function () {
+  const now = new Date();
+  const date = window.getLocalStr ? window.getLocalStr(now) : now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5);
+  return { date, time };
+};
+
+window.formatStickerPrintDate = function (dateValue) {
+  const value = String(dateValue || '').trim();
+  if (!value) return '';
+  const parts = value.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return value;
+};
+
+window.renderPatientStickerBarcode = function (patientId, svgId) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+
+  const value = String(patientId || '').trim();
+  if (!value) {
+    svg.innerHTML = '';
+    svg.style.display = 'none';
+    return;
+  }
+
+  try {
+    JsBarcode(svg, value, {
+      format: 'CODE128',
+      displayValue: false,
+      margin: 0,
+      width: 2,
+      height: 46,
+      lineColor: '#000',
+      background: '#fff'
+    });
+    svg.style.display = 'block';
+  } catch (err) {
+    console.warn('Patient sticker barcode render failed:', err);
     svg.innerHTML = '';
     svg.style.display = 'none';
   }
@@ -6034,9 +6083,37 @@ window.delPatient = async function (id) {
 };
 
 window.printQRCard = async function (id) {
-  Swal.fire({ title: 'ກຳລັງສ້າງບັດ QR...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  Swal.fire({ title: 'ກຳລັງສ້າງ Barcode Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
   const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
+  Swal.close();
+
+  const defaults = window.getStickerDateTimeDefaults();
+  const choice = await Swal.fire({
+    title: 'ພິມ Barcode Sticker',
+    html: `<div class="text-start">
+      <label class="form-label fw-bold">ວັນທີທີ່ສະແດງໃນ Sticker</label>
+      <input type="date" id="stickerPrintDate" class="form-control mb-3" value="${defaults.date}">
+      <label class="form-label fw-bold">ເວລາທີ່ສະແດງໃນ Sticker</label>
+      <input type="time" id="stickerPrintTime" class="form-control" value="${defaults.time}">
+    </div>`,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'ພິມ',
+    cancelButtonText: 'ຍົກເລີກ',
+    focusConfirm: false,
+    preConfirm: () => {
+      const date = document.getElementById('stickerPrintDate')?.value || defaults.date;
+      const time = document.getElementById('stickerPrintTime')?.value || defaults.time;
+      if (!date || !time) {
+        Swal.showValidationMessage('ກະລຸນາເລືອກວັນທີ ແລະ ເວລາ');
+        return false;
+      }
+      return { date, time };
+    }
+  });
+  if (!choice.isConfirmed) return;
+
   const d = {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
     lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '',
@@ -6049,10 +6126,11 @@ window.printQRCard = async function (id) {
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
   const phoneLine = (d.phone && `ເບີໂທ: ${d.phone}`) || '-';
-  const today = new Date();
-  const dateStr = today.toLocaleDateString('lo', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const dateStr = window.formatStickerPrintDate(choice.value.date);
+  const timeStr = choice.value.time;
   [1, 2, 3].forEach(i => {
     $(`#printDate${i}`).text(dateStr);
+    $(`#printTime${i}`).text(timeStr);
     $(`#printName${i}`).text(fullName);
     $(`#printDob${i}`).text(dobText);
     $(`#printAddr1${i}`).text(addrLine1);
@@ -6060,8 +6138,8 @@ window.printQRCard = async function (id) {
     $(`#printAddr3${i}`).text(addrLine3);
     $(`#printPhone${i}`).text(phoneLine);
     $(`#printID${i}`).text(d.id);
+    window.renderPatientStickerBarcode(d.id, `printBarcode${i}`);
   });
-  Swal.close();
   window.executePrint('print-area');
 };
 
