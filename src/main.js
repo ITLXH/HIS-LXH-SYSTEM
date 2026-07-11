@@ -5650,7 +5650,7 @@ window.initPatientTable = async function () {
 
       // Barcode sticker button
       if (window.can('patients', 'print_qr')) {
-        acts += `<button class="btn btn-sm btn-dark text-white shadow-sm btn-print-qr" title="ພິມ Barcode" onclick="window.printQRCard('${r.Patient_ID}')"><i class="fas fa-qrcode"></i></button>`;
+        acts += `<button class="btn btn-sm btn-dark text-white shadow-sm btn-print-qr" title="ພິມ Sticker" onclick="window.printQRCard('${r.Patient_ID}')"><i class="fas fa-qrcode"></i></button>`;
       }
 
       // Triage button
@@ -5846,35 +5846,6 @@ window.formatStickerPrintDate = function (dateValue) {
   const parts = value.split('-');
   if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
   return value;
-};
-
-window.renderPatientStickerBarcode = function (patientId, svgId) {
-  const svg = document.getElementById(svgId);
-  if (!svg) return;
-
-  const value = String(patientId || '').trim();
-  if (!value) {
-    svg.innerHTML = '';
-    svg.style.display = 'none';
-    return;
-  }
-
-  try {
-    JsBarcode(svg, value, {
-      format: 'CODE128',
-      displayValue: false,
-      margin: 0,
-      width: 2,
-      height: 46,
-      lineColor: '#000',
-      background: '#fff'
-    });
-    svg.style.display = 'block';
-  } catch (err) {
-    console.warn('Patient sticker barcode render failed:', err);
-    svg.innerHTML = '';
-    svg.style.display = 'none';
-  }
 };
 
 window.openNewPatientModal = function () {
@@ -6083,14 +6054,14 @@ window.delPatient = async function (id) {
 };
 
 window.printQRCard = async function (id) {
-  Swal.fire({ title: 'ກຳລັງສ້າງ Barcode Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  Swal.fire({ title: 'ກຳລັງສ້າງ Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
   const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
   Swal.close();
 
   const defaults = window.getStickerDateTimeDefaults();
   const choice = await Swal.fire({
-    title: 'ພິມ Barcode Sticker',
+    title: 'ພິມ Sticker',
     html: `<div class="text-start">
       <label class="form-label fw-bold">ວັນທີທີ່ສະແດງໃນ Sticker</label>
       <input type="date" id="stickerPrintDate" class="form-control mb-3" value="${defaults.date}">
@@ -6138,7 +6109,6 @@ window.printQRCard = async function (id) {
     $(`#printAddr3${i}`).text(addrLine3);
     $(`#printPhone${i}`).text(phoneLine);
     $(`#printID${i}`).text(d.id);
-    window.renderPatientStickerBarcode(d.id, `printBarcode${i}`);
   });
   window.executePrint('print-area');
 };
@@ -7014,7 +6984,7 @@ window.loadTriageQueue = async function () {
                          <button class="btn btn-sm btn-outline-danger shadow-sm me-1" onclick="window.deleteVisitFlow('${r.visitId}', '${r.patientId}')" title="ລຶບ"><i class="fas fa-trash"></i></button>
                          <button class="btn btn-sm btn-secondary text-white shadow-sm me-1" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
       if (window.can('patients', 'print_qr')) {
-        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printQRCard('${r.patientId}')" title="ພິມ Barcode"><i class="fas fa-qrcode"></i></button>`;
+        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printQRCard('${r.patientId}')" title="ພິມ Sticker"><i class="fas fa-qrcode"></i></button>`;
       }
       h += `<tr class="${isCalling ? 'table-danger' : ''}">
                     <td class="text-muted">${r.date}</td>
