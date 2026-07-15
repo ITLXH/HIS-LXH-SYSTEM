@@ -5989,6 +5989,10 @@ window.submitPatientForm = async function (e) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   const fd = {};
   new FormData($('#patientForm')[0]).forEach((v, k) => fd[k] = v);
+  if (!String(fd.p_gender || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກເພດ', 'warning');
+    return;
+  }
   if (!String(fd.p_channel || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຊ່ອງທາງຮູ້ຈັກ', 'warning');
     return;
