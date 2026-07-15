@@ -5375,11 +5375,16 @@ window.applyDoctorUserSelects = function () {
     list = md.map(x => String(x.value || '').trim()).filter(Boolean);
     source = 'masterdata';
   }
-  if (!list.length) return;
+  list = [...new Set(list.map(name => String(name || '').trim()).filter(Boolean))];
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   document.querySelectorAll('.doctor-users-select').forEach(sel => {
-    const prev = sel.value;
+    const $sel = typeof jQuery !== 'undefined' ? $(sel) : null;
+    const prev = String(($sel && $sel.val()) || sel.value || '').trim();
+    if ($sel && $.fn.select2 && $sel.data('select2')) {
+      try { $sel.select2('destroy'); } catch (e) {}
+    }
     let html = '<option value="">-- ເລືອກແພດ --</option>';
-    list.forEach(name => { html += `<option value="${name}">${name}</option>`; });
+    list.forEach(name => { html += `<option value="${esc(name)}">${esc(name)}</option>`; });
     sel.innerHTML = html;
     if (prev && !list.includes(prev)) {
       const opt = document.createElement('option');
@@ -5389,6 +5394,21 @@ window.applyDoctorUserSelects = function () {
       sel.value = prev;
     }
     sel.dataset.doctorSource = source;
+    if ($sel && $.fn.select2) {
+      $sel.select2({
+        dropdownParent: $('#triageModal').length ? $('#triageModal') : $(document.body),
+        placeholder: '-- ເລືອກ ຫຼື ພິມຊື່ແພດ --',
+        allowClear: true,
+        tags: true,
+        width: '100%',
+        createTag: function (params) {
+          const term = String(params.term || '').trim();
+          if (!term) return null;
+          return { id: term, text: term, newTag: true };
+        }
+      });
+      $sel.val(prev || null).trigger('change');
+    }
   });
 };
 
@@ -7180,7 +7200,7 @@ window.openTriage = async function (i) {
   if (doctorName && !$doctor.find(`option[value="${doctorName.replace(/"/g, '\\"')}"]`).length) {
     $doctor.append(new Option(doctorName, doctorName, true, true));
   }
-  $doctor.val(doctorName);
+  $doctor.val(doctorName || null).trigger('change');
 
   window.calculateBMI();
 
