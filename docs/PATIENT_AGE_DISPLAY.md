@@ -38,3 +38,24 @@ Feedback: ຄົນເຈັບເດັກນ້ອຍ (ຕົວຢ່າງ L
 - `2025-08-20` → 10 ເດືອນ · `2026-07-01` → 15 ວັນ · ເກີດມື້ນີ້ → 0 ວັນ
 - `2025-07-17` → 11 ເດືອນ · `2025-07-16` → 1 ປີ · `1990-05-12` → 36 ປີ
 - ບໍ່ມີ DOB + Age 54 → 54 ປີ · Age 0 → `-` · DOB ອະນາຄົດ → `-`
+
+## 2026-07-16 (v2) — ນຳໃຊ້ format ດຽວກັນທົ່ວລະບົບ (ຊັກປະຫວັດ, OPD, Report, Timeline, IPD)
+
+Feedback: "age ທັງ ຊັກປະຫວັດ ແລະ OPD ທຸກອັນໃຫ້ປ່ຽນຄືກັນ" — ໃຫ້ທຸກຈຸດທີ່ສະແດງອາຍຸໃຊ້ ເດືອນ/ວັນ ສຳລັບເດັກຕ່ຳກວ່າ 1 ປີ ຄືກັນໝົດ.
+
+### ຈຸດທີ່ປ່ຽນເພີ່ມ (src/main.js)
+
+| ຈຸດ | ວິທີປ່ຽນ |
+|---|---|
+| Report + ປະຫວັດການກວດ (`buildPatientVisitSummaryData`) | ຊ່ອງ `age` ປ່ຽນເປັນ text ພ້ອມໜ່ວຍຈາກ `formatAgeFromDob` — ຕາຕະລາງ Report, ຕາຕະລາງ Visit History, Excel/PDF export ໄດ້ຄ່າດຽວກັນໝົດ |
+| Report detail modal | ຕັດ " ປີ" ທີ່ຕໍ່ທ້າຍອອກ (ຄ່າໃໝ່ມີໜ່ວຍໃນໂຕແລ້ວ) |
+| ຄິວຊັກປະຫວັດ (triage builder) | ເພີ່ມຊ່ອງ `ageText` — ໃຊ້ໃນຕາຕະລາງຄິວ (badge ອາຍຸ) + modal "ບັນທຶກການຊັກປະຫວັດ" |
+| ຄິວ OPD (queue builder) | ເພີ່ມຊ່ອງ `ageText` — ໃຊ້ໃນ modal ລາຍລະອຽດຄິວ + ຫົວ EMR OPD (`emrOpdGenderAge`) |
+| ພິມ OPD Card (`printAge`) | `formatAgeFromDob(d.Date_of_Birth, d.Age)` |
+| ພິມ QR/Sticker (`dobText`) | `${dob} (${formatAgeFromDob(...)})` |
+| Timeline ຄົນເຈັບ (`#timeline_p_info`) | `formatAgeFromDob(p.Date_of_Birth, p.Age)` |
+| IPD ຕາຕະລາງ admission (`ageSex`) | `formatAgeFromDob(patient?.Date_of_Birth, patient?.Age)` |
+
+- ຊ່ອງ `age` ເລກເດີມໃນ queue objects ຍັງຄົງໄວ້ (ບໍ່ມີໃຜໃຊ້ຂຽນ DB — ກວດແລ້ວ) ເພື່ອບໍ່ກະທົບ logic ອື່ນ
+- ຟອມລົງທະບຽນ (`#ageInput`) ຍັງເປັນຕົວເລກປີຄືເກົ່າ (ເປັນ field ປ້ອນຂໍ້ມູນ ບໍ່ແມ່ນສະແດງຜົນ)
+- `node --check` ຜ່ານ

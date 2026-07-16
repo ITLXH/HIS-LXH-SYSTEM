@@ -4850,7 +4850,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       name: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || p.Patient_ID,
       displayName: `${p.Title || ''} ${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() || p.Patient_ID,
       gender: p.Gender || '-',
-      age: window.ageFromDob(p.Date_of_Birth) ?? (p.Age || '-'),
+      age: window.formatAgeFromDob(p.Date_of_Birth, p.Age) || '-',
       status: visit ? (totalVisitCount > 1 ? 'ເກົ່າ' : 'ໃໝ່') : '-',
       visitCount: totalVisitCount,
       rangeVisitCount: rangeVisitCountMap[p.Patient_ID] || 0,
@@ -5246,7 +5246,7 @@ window.viewReportDetail = function (i) {
               <h4>${r.name}</h4>
               <div class="report-detail-submeta">
                 <span class="report-detail-chip">${r.id}</span>
-                <span>${r.gender || '-'}${r.age ? `, ${r.age} ປີ` : ''}</span>
+                <span>${r.gender || '-'}${r.age && r.age !== '-' ? `, ${r.age}` : ''}</span>
               </div>
             </div>
             <div class="report-detail-visit-meta">
@@ -6090,7 +6090,7 @@ window.printQRCard = async function (id) {
     district: data.District || '', province: data.Province || ''
   };
   const fullName = `${d.title} ${d.firstname} ${d.lastname}`.trim();
-  const dobText = `${d.dob} (${d.age} ປີ)`;
+  const dobText = `${d.dob} (${window.formatAgeFromDob(d.dob, d.age) || '-'})`;
   const addrLine1 = (d.address && `ບ້ານ: ${d.address}`) || '-';
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
@@ -6742,6 +6742,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
           // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
           age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
+          ageText: window.formatAgeFromDob(p?.Date_of_Birth || r.Date_of_Birth, r.Age || p?.Age),
           gender: r.Gender || p?.Gender || '',
           photoUrl: p?.Photo_URL || '',
           doctor: r.Doctor_Name || '',
@@ -6925,6 +6926,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
         // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
         age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
+        ageText: window.formatAgeFromDob(p?.Date_of_Birth || r.Date_of_Birth, r.Age || p?.Age),
         gender: r.Gender || p?.Gender || '',
         photoUrl: p?.Photo_URL || '',
         allergy: window.parsePatientAllergyInfo?.(p?.Drug_Allergy || '')?.allergy || p?.Drug_Allergy || '',
@@ -6984,7 +6986,7 @@ window.loadTriageQueue = async function () {
                     <td class="text-muted">${r.date}</td>
                     <td class="fw-bold">${r.time}</td>
                     <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small"><span class="fw-bold text-dark">${r.patientId}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${r.oldId})</span>` : ''}</div></td>
-                    <td><span class="badge bg-secondary rounded-pill">${r.age} ປີ</span></td>
+                    <td><span class="badge bg-secondary rounded-pill">${r.ageText || '-'}</span></td>
                     <td>${sb}</td>
                     <td class="text-center opd-ipd-cell" data-t="${(String(r.type || '').trim().toUpperCase() || 'none')}">${(() => {
                         const t = String(r.type || '').trim().toUpperCase();
@@ -7086,7 +7088,7 @@ window.viewTriage = async function (i) {
               <th>ເພດ / Gender</th>
               <td>${r.gender || '-'}</td>
               <th>ອາຍຸ / Age</th>
-              <td>${r.age || '-'} ປີ</td>
+              <td>${r.ageText || '-'}</td>
             </tr>
             <tr>
               <th>ຫ້ອງກວດ / Department</th>
@@ -8738,7 +8740,7 @@ window.viewEMR = function (i) {
                     </div>
                     <div>
                         <b><i class="fas fa-user text-primary"></i> ຄົນເຈັບ:</b> ${q.patientName} <br>
-                        <small class="text-muted">(${q.patientId}) - ${q.gender || '-'}, ${q.age} ປີ</small>
+                        <small class="text-muted">(${q.patientId}) - ${q.gender || '-'}, ${q.ageText || '-'}</small>
                     </div>
                 </div>
                 <div class="col-6 text-end"><b><i class="far fa-clock text-info"></i> ເວລາ:</b> ${q.time}</div>
@@ -8940,7 +8942,7 @@ window.openEMR = function (i) {
   };
   setEmrOpdText('emrOpdPatientId', q.patientId);
   setEmrOpdText('emrOpdPatientName', q.patientName);
-  setEmrOpdText('emrOpdGenderAge', `${q.gender || '-'} / ${q.age || '-'} ປີ`);
+  setEmrOpdText('emrOpdGenderAge', `${q.gender || '-'} / ${q.ageText || '-'}`);
   setEmrOpdText('emrOpdDepartment', q.department || 'OPD');
   setEmrOpdText('emrOpdDateTime', `${q.date || '-'} ${q.time || ''}`.trim());
   setEmrOpdText('emrOpdRecordedBy', q.recordedBy || q.nurse || '-');
@@ -9207,8 +9209,7 @@ window.printOPDCard = async function (s, i) {
       if (el) el.innerText = text;
     };
 
-    const liveAge = window.ageFromDob(d.Date_of_Birth);
-    const printAge = liveAge != null ? String(liveAge) : (d.Age != null ? String(d.Age) : '');
+    const printAge = window.formatAgeFromDob(d.Date_of_Birth, d.Age) || '';
 
     const printPatientId = d.Patient_ID || '';
     const visitDateTime = ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || window.getLocalTimeStr?.(new Date()) || '')).trim();
@@ -13082,7 +13083,7 @@ window.showPatientTimeline = async function (patientId) {
     if (p) {
         $('#timeline_p_name').text(`${p.First_Name} ${p.Last_Name}`);
         $('#timeline_p_id').text(p.Patient_ID);
-        $('#timeline_p_info').text(`${p.Gender} | ${p.Age} ປີ | ${p.Province || '-'}`);
+        $('#timeline_p_info').text(`${p.Gender} | ${window.formatAgeFromDob(p.Date_of_Birth, p.Age) || '-'} | ${p.Province || '-'}`);
         if (p.Photo_URL) {
             $('#timeline_p_photo').attr('src', p.Photo_URL).show();
             $('#timeline_p_placeholder').hide();
@@ -14801,7 +14802,7 @@ window.renderIpdInpatientTable = function (selector = '#ipdInpatientTable') {
     const patient = admission.Patient_ID ? window.ipdWardBedState.patientsById[admission.Patient_ID] : null;
     const location = window.ipdAdmissionLocation(admission);
     const bed = location.bed;
-    const ageSex = [patient?.Age, patient?.Gender ? window.ipdTranslateValue(patient.Gender) : ''].filter(Boolean).join(' / ') || '-';
+    const ageSex = [window.formatAgeFromDob(patient?.Date_of_Birth, patient?.Age), patient?.Gender ? window.ipdTranslateValue(patient.Gender) : ''].filter(Boolean).join(' / ') || '-';
     const isActive = window.ipdIsActiveAdmission(admission);
     const dischargeAt = [admission.Discharge_Date, admission.Discharge_Time].filter(Boolean).join(' ') || (isActive ? '-' : (admission.Discharged_At || '-'));
     const coverAction = `<button class="btn btn-sm btn-outline-secondary me-1" onclick="window.printIPDCoverFromAdmission('${window.ipdEscape(admission.Admission_ID || '')}')" title="ພິມໜ້າປົກ"><i class="fas fa-file-alt me-1"></i>ໜ້າປົກ</button>`;
