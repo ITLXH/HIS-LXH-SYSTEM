@@ -82,9 +82,10 @@ echo -e "${BLUE}?${NC} Google Drive Service Account JSON (paste full JSON, press
 json_input=$(cat </dev/tty 2>/dev/null || echo "")
 json_input="$(echo "$json_input" | tr -d '\n' | xargs)"
 if [ -n "$json_input" ]; then
-  echo -e "${GREEN}  ✓  Setting GOOGLE_DRIVE_CREDENTIALS_JSON = ***(masked)***${NC}"
-  echo "$json_input" | gh secret set GOOGLE_DRIVE_CREDENTIALS_JSON --repo "$repo" 2>/dev/null \
-    || echo -e "${RED}    ✖ Failed to set GOOGLE_DRIVE_CREDENTIALS_JSON${NC}"
+  # Secret name must match .github/workflows/supabase-backup.yml
+  echo -e "${GREEN}  ✓  Setting GOOGLE_SERVICE_ACCOUNT_JSON = ***(masked)***${NC}"
+  echo "$json_input" | gh secret set GOOGLE_SERVICE_ACCOUNT_JSON --repo "$repo" 2>/dev/null \
+    || echo -e "${RED}    ✖ Failed to set GOOGLE_SERVICE_ACCOUNT_JSON${NC}"
 else
   echo -e "${YELLOW}  (empty — Google Drive upload will be skipped)${NC}"
 fi

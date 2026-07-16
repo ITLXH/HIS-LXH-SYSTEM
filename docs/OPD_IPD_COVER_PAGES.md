@@ -4,30 +4,29 @@
 
 ### What it is
 
-A one-page printable cover sheet for the paper OPD Card / IPD Chart, generated per patient. Bears the Luckxay Hospital logo, the patient's LXH code as a barcode, and a large centered title so the file is easy to identify on a shelf.
+A one-page printable cover sheet for the paper OPD Card / IPD Chart. OPD covers are generated per patient and are reusable. IPD covers are generated per admission and carry the admission's AM code while keeping the patient's HN visible.
 
 ### Where to trigger it
 
-- **OPD queue** — every row in the ຈັດການ column now has a **ໜ້າປົກ** button next to the existing ພິມ (OPD Card) button, on all three status branches (Waiting OPD, Waiting Lab, Completed). Handler: `window.printOPDCoverFromQueue(i)` in [src/main.js](../src/main.js).
-- **IPD Inpatient List** — each admission (both active and discharged) has a **ໜ້າປົກ** button next to the existing ໃບປະຫວັດ (chart) button. Handler: `window.printIPDCoverFromAdmission(admissionId)`.
+- **Patient Registration** — the row action **ໜ້າປົກ** opens a chooser. OPD prints the reusable patient cover. IPD loads the patient's existing admissions and asks which AM to print. Handler: `window.printCoverChooser(patientId)` in [src/main.js](../src/main.js).
+- **IPD Inpatient List** — each admission (active or discharged) has a **ໜ້າປົກ** button next to the chart/history actions. Handler: `window.printIPDCoverFromAdmission(admissionId)`.
 
 ### What appears on the page
 
 | Position | OPD | IPD |
 |---|---|---|
 | Header | Luckxay logo + `ໂຮງໝໍ ຫຼັກໄຊ / LUCKXAY HOSPITAL` | Same |
-| Top-left corner | `ຫ້ອງກວດ: <department>` | `IPD No: <admission_id>` |
-| Top-right corner | `HN: LXH2026-XXXXXX` + Code128 barcode | Same |
+| ID fields | `HN: LXH2026-XXXXXX` | `HN: LXH2026-XXXXXX` + `AM: AMYYYYMMDD-###` |
 | Center title | `OPD CARD` (blue, ~84pt) | `IPD CARD` (red) |
 | Center subtitle | `ໃບບັນທຶກຄົນເຈັບນອກ` | `ໃບບັນທຶກຄົນເຈັບໃນ` |
-| Patient block | Title + Lao full name + English full name | Same |
-| Footer | Date / time of visit | Date + Ward/Bed |
+| Patient block | Title + Lao full name | Same |
+| Date | None | Admission date/time + Ward/Bed |
 
 ### Files
 
 - Template: [public/partials/print-areas.html](../public/partials/print-areas.html) — `#cover-print-area`
 - Styles: [src/style.css](../src/style.css) — `#cover-print-area .cover-page` block
-- Logic: [src/main.js](../src/main.js) — `printOPDCoverFromQueue`, `printIPDCoverFromAdmission`, `_printCoverPage`, `exportCoverPageAsPdf`
+- Logic: [src/main.js](../src/main.js) — `printCoverChooser`, `printOPDCoverFromPatientId`, `printIPDCoverFromPatientId`, `printIPDCoverFromAdmission`, `_printCoverPage`, `exportCoverPageAsPdf`
 - Logo asset: [public/luckxay-logo.jpg](../public/luckxay-logo.jpg) (already in repo — used by sidebar as well)
 
 ### Why programmatic PDF instead of `window.print()`
@@ -81,3 +80,36 @@ Follow-up bug from the hang: after the browser threw "This page isn't responding
 - Wrapped `document.fonts.ready` in a `Promise.race` against a 3-second timeout so a stalled webfont fetch can never hold the export forever.
 
 If the user hits another hang, they still lose the current export attempt, but the wrapper and containers come back — no forced reload required.
+
+## 2026-07-13 — OPD reusable cover/sticker and IPD AM codes
+
+Feedback from OPD/IPD review:
+- OPD cover must not show a date because one patient keeps using the same OPD cover/card identity.
+- Sticker must not show visit date/time so unused printed stickers can be reused on another day.
+- OPD Card itself must still show the visit date automatically on both printed pages.
+- IPD must not reuse HN as its admission code. Each admission gets its own AM code, and one patient can have many AM codes.
+- Patient history must show every AM code for that patient.
+
+Implemented locally:
+- OPD cover hides the date row. HN and patient name stay visible.
+- IPD cover shows HN plus `AM` and keeps admission date/ward/bed visible.
+- Patient QR sticker template and print flow no longer ask for or print date/time.
+- OPD Card page 1 and page 2 now print `ວັນທີ: <visit date/time>` automatically in the header.
+- New IPD admissions use `AMYYYYMMDD-###`. In the real workflow the code comes from the database function `his_one_generate_am_id(p_admission_date)` and the `HIS_One_AM_Counters` table, then is saved into `Admissions.Admission_ID`. The browser has a local fallback only for unapplied local migrations.
+- AM generation is used by EMR → IPD, OPD Observation → IPD, and Quick Admit.
+- Patient Timeline now merges OPD visits and IPD admission events, showing every AM with a button to open that admission chart.
+- IPD Inpatient List now includes a `ໜ້າປົກ` button per admission.
+
+Pending business decision: IPD/OPD cover paper color is not encoded yet because the final paper color has not been chosen.
+
+## 2026-07-13 — AM source of truth review
+
+AM source in production-like flow:
+1. Patient has one HN in `Patients.Patient_ID`.
+2. When the patient is actually admitted to IPD, the admission flow asks the database to reserve the next AM for the admission date.
+3. The reserved AM is written to `HIS_One_Admissions.Admission_ID`.
+4. Beds, movements, clinical chart, IPD cover, and patient timeline all reference that saved AM. They do not generate a new AM.
+
+Why DB-backed: if two staff admit patients at the same time, browser-side counting can duplicate numbers. `his_one_generate_am_id()` uses an upserted daily counter so concurrent admissions get different AM values.
+
+Format: `AMYYYYMMDD-###`, for example `AM20260713-001`, `AM20260713-002`.

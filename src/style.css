@@ -5832,6 +5832,10 @@ table.dataTable thead > tr > td.sorting_desc:after {
  z-index: 1;
 }
 
+.timeline-dot-ipd {
+  border-color: #b91c1c;
+}
+
 .timeline-date {
  font-size: 11px;
  font-weight: 700;
@@ -5847,6 +5851,10 @@ table.dataTable thead > tr > td.sorting_desc:after {
  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
  border-left: 4px solid var(--primary);
  transition: transform 0.2s;
+}
+
+.timeline-card-ipd {
+  border-left-color: #b91c1c;
 }
 
 .timeline-card:hover {
@@ -5882,6 +5890,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 .timeline-tag-lab { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
 .timeline-tag-dx { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .timeline-tag-vitals { background: #fff7ed; color: #9a3412; border: 1px solid #ffedd5; }
+.timeline-tag-ipd { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
 /* Dashboard Premium Styles */
 .card {

@@ -183,7 +183,7 @@ window.appTranslations = {
     'ipd.allRooms': 'ຫ້ອງທັງໝົດ',
     'ipd.allStatus': 'ສະຖານະທັງໝົດ',
     'ipd.allTypes': 'ປະເພດທັງໝົດ',
-    'ipd.searchPlaceholder': 'ຕຽງ, ຫ້ອງ, HN, ຊື່ຄົນເຈັບ, IPD No',
+    'ipd.searchPlaceholder': 'ຕຽງ, ຫ້ອງ, HN, AM, ຊື່ຄົນເຈັບ',
     'ipd.bedBoard': 'ກະດານຕຽງ',
     'ipd.wards': 'ຫວອດ',
     'ipd.rooms': 'ຫ້ອງ',
@@ -200,7 +200,7 @@ window.appTranslations = {
     'ipd.bedId': 'ລະຫັດຕຽງ',
     'ipd.bedNo': 'ເລກຕຽງ',
     'ipd.patientHn': 'HN ຄົນເຈັບ',
-    'ipd.ipdNo': 'ເລກ IPD',
+    'ipd.ipdNo': 'AM',
     'ipd.dateTime': 'ວັນທີ / ເວລາ',
     'ipd.from': 'ຈາກ',
     'ipd.to': 'ໄປ',
@@ -351,7 +351,7 @@ window.appTranslations = {
     'ipd.allStatus': 'All status',
     'ipd.allTypes': 'All types',
     'ipd.allDoctors': 'All doctors',
-    'ipd.searchPlaceholder': 'Bed, room, HN, patient, doctor, IPD no',
+    'ipd.searchPlaceholder': 'Bed, room, HN, AM, patient, doctor',
     'ipd.bedBoard': 'Bed Board',
     'ipd.doctorCensus': 'Doctor Census',
     'ipd.wards': 'Wards',
@@ -369,7 +369,7 @@ window.appTranslations = {
     'ipd.bedId': 'Bed ID',
     'ipd.bedNo': 'Bed No',
     'ipd.patientHn': 'Patient HN',
-    'ipd.ipdNo': 'IPD No',
+    'ipd.ipdNo': 'AM',
     'ipd.dateTime': 'Date/Time',
     'ipd.from': 'From',
     'ipd.to': 'To',
@@ -464,7 +464,7 @@ Object.assign(window.appTranslations.lo, {
   'ipd.waitingBed': 'ລໍຖ້າຕຽງ',
   'ipd.longStay': 'ນອນດົນ',
   'ipd.allDoctors': 'ແພດທັງໝົດ',
-  'ipd.searchPlaceholder': 'ຕຽງ, ຫ້ອງ, HN, ຊື່ຄົນເຈັບ, ແພດ, IPD No',
+  'ipd.searchPlaceholder': 'ຕຽງ, ຫ້ອງ, HN, AM, ຊື່ຄົນເຈັບ, ແພດ',
   'ipd.doctorCensus': 'ຕິດຕາມຕາມແພດ',
   'ipd.noDoctorCensus': 'ບໍ່ພົບຄົນເຈັບ IPD active ຕາມເງື່ອນໄຂນີ້.',
   'ipd.unassignedDoctor': 'ຍັງບໍ່ລະບຸແພດ',
@@ -1395,6 +1395,8 @@ Object.assign(window.appTranslations.en, {
   'patients.printQr': 'Print QR card',
   'patients.delete': 'Delete',
   'patients.yearUnit': 'years',
+  'patients.monthUnit': 'months',
+  'patients.dayUnit': 'days',
   'patients.fromDate': 'From date',
   'patients.toDate': 'To date'
 });
@@ -1433,6 +1435,8 @@ Object.assign(window.appTranslations.lo, {
   'patients.printQr': 'ພິມບັດ QR',
   'patients.delete': 'ລຶບ',
   'patients.yearUnit': 'ປີ',
+  'patients.monthUnit': 'ເດືອນ',
+  'patients.dayUnit': 'ວັນ',
   'patients.fromDate': 'ຈາກວັນທີ',
   'patients.toDate': 'ຫາວັນທີ'
 });
@@ -2993,6 +2997,28 @@ window.ageFromDob = function (dob) {
   return years >= 0 ? years : null;
 };
 
+// Display age with a unit; under 1 year falls back to months, under 1 month to days.
+// Prefers DOB (accurate) over the stored Age integer (stale, always whole years).
+window.formatAgeFromDob = function (dob, fallbackAgeYears) {
+  const d0 = dob ? ((dob instanceof Date) ? dob : new Date(dob)) : null;
+  if (d0 && !isNaN(d0.getTime())) {
+    const now = new Date();
+    let years = now.getFullYear() - d0.getFullYear();
+    let months = now.getMonth() - d0.getMonth();
+    if (now.getDate() < d0.getDate()) months--;
+    if (months < 0) { years--; months += 12; }
+    if (years >= 1) return `${years} ${window.t('patients.yearUnit')}`;
+    if (years === 0 && months >= 1) return `${months} ${window.t('patients.monthUnit')}`;
+    if (years === 0 && months === 0) {
+      const days = Math.floor((now - d0) / 86400000);
+      if (days >= 0) return `${days} ${window.t('patients.dayUnit')}`;
+    }
+    return null; // DOB in the future
+  }
+  const n = parseInt(fallbackAgeYears, 10);
+  return n > 0 ? `${n} ${window.t('patients.yearUnit')}` : null;
+};
+
 window.calculateAgeForm = function () {
   const ui = $('#dobInput').val();
   const iso = window.dobUiToIso(ui);
@@ -4378,10 +4404,16 @@ window.renderDashboardCharts = function (visits) {
 // Bucket a patient's Province/District into named rows if any alias matches
 // (case-insensitive substring), otherwise into "ອື່ນໆ" / "others".
 window.renderProvinceDistrictTables = function (visits) {
+  const CAPITAL = 'ນະຄອນຫຼວງວຽງຈັນ';
+  // Match order matters: the capital bucket must run before ວຽງຈັນ, since
+  // "ນະຄອນຫຼວງວຽງຈັນ" contains "ວຽງຈັນ" as a substring. Aliases include the
+  // common misspellings found in patient data (ມະຄອນຫຼວງ, ຫລ vs ຫຼ).
   const provinceBuckets = [
-    { label: 'ວຽງຈັນ', aliases: ['ວຽງຈັນ', 'vientiane', 'ນະຄອນຫຼວງ', 'nakhon luang', 'nakhonluang'] },
+    { label: CAPITAL, aliases: ['ຄອນຫຼວງ', 'ຄອນຫລວງ', 'vientiane capital', 'nakhon luang', 'nakhonluang'] },
+    { label: 'ວຽງຈັນ', aliases: ['ວຽງຈັນ', 'vientiane'] },
     { label: 'ບໍລິຄຳໄຊ', aliases: ['ບໍລິຄຳໄຊ', 'bolikhamxay', 'borikhamxay', 'bolikhamsai', 'borikhamsai'] }
   ];
+  // All five named districts belong to ນະຄອນຫຼວງວຽງຈັນ.
   const districtBuckets = [
     { label: 'Xaythany', aliases: ['xaythany', 'ໄຊທານີ'] },
     { label: 'Xaysettha', aliases: ['xaysettha', 'ໄຊເສດຖາ'] },
@@ -4390,7 +4422,7 @@ window.renderProvinceDistrictTables = function (visits) {
     { label: 'Sikhottabong', aliases: ['sikhottabong', 'sikhottaboun', 'ສີໂຄດຕະບອງ'] }
   ];
 
-  const provinceCount = { 'ວຽງຈັນ': 0, 'ບໍລິຄຳໄຊ': 0, 'ອື່ນໆ': 0 };
+  const provinceCount = { 'ວຽງຈັນ': 0, 'ບໍລິຄຳໄຊ': 0, [CAPITAL]: 0, 'ອື່ນໆ': 0 };
   const districtCount = { 'Xaythany': 0, 'Xaysettha': 0, 'Chanthabuly': 0, 'Naxaithong': 0, 'Sikhottabong': 0, 'others': 0 };
 
   const seen = new Set();
@@ -4399,16 +4431,17 @@ window.renderProvinceDistrictTables = function (visits) {
     const pid = v.Patient_ID || p.Patient_ID;
     if (!pid || seen.has(pid)) return;
     seen.add(pid);
-    const prov = String(p.Province || '').trim().toLowerCase();
-    if (prov) {
-      const hit = provinceBuckets.find(b => b.aliases.some(a => prov.includes(a.toLowerCase())));
-      provinceCount[hit ? hit.label : 'ອື່ນໆ']++;
-    }
     const dist = String(p.District || p.district || '').trim().toLowerCase();
-    if (dist) {
-      const hit = districtBuckets.find(b => b.aliases.some(a => dist.includes(a.toLowerCase())));
-      districtCount[hit ? hit.label : 'others']++;
-    }
+    const distHit = dist ? districtBuckets.find(b => b.aliases.some(a => dist.includes(a.toLowerCase()))) : null;
+    if (dist) districtCount[distHit ? distHit.label : 'others']++;
+
+    const prov = String(p.Province || '').trim().toLowerCase();
+    const provHit = prov ? provinceBuckets.find(b => b.aliases.some(a => prov.includes(a.toLowerCase()))) : null;
+    let provLabel = provHit ? provHit.label : (prov ? 'ອື່ນໆ' : null);
+    // Keep the two charts consistent: a capital district always counts the
+    // patient under ນະຄອນຫຼວງວຽງຈັນ, even when the Province text disagrees.
+    if (distHit) provLabel = CAPITAL;
+    if (provLabel) provinceCount[provLabel]++;
   });
 
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
@@ -5464,7 +5497,7 @@ window.viewPatientDetail = async function (id) {
     $('#view_p_id').text(data.Patient_ID);
     $('#view_p_old_id').text(data.Old_Patient_ID ? `Old: ${data.Old_Patient_ID}` : '');
     $('#view_p_gender').text(data.Gender || '-');
-    $('#view_p_age').text((data.Age || '0') + ' ປີ');
+    $('#view_p_age').text(window.formatAgeFromDob(data.Date_of_Birth, data.Age) || '-');
     $('#view_p_dob').text(data.Date_of_Birth || '-');
     $('#view_p_blood').text(data.Blood_Type || '-');
     $('#view_p_phone').text(data.Phone_Number || '-');
@@ -5636,26 +5669,8 @@ window.initPatientTable = async function () {
       let oldPatientId = window.normalizePatientCode(r.Old_Patient_ID || '');
       let safeName = fullname.replace(/'/g, "\\'").replace(/"/g, "&quot;");
       
-      // ໃຊ້ Age ຈາກຖານຂໍ້ມູນໂດຍກົງ
-      let age = r.Age || 0;
-      
-      // ຖ້າ Age ເປັນ 0 ຫຼື ບໍ່ມີ ໃຫ້ຄິດໄລ່ຈາກ DOB
-      if ((!age || age === 0 || age === '0') && r.Date_of_Birth) {
-        const dob = new Date(r.Date_of_Birth);
-        if (!isNaN(dob.getTime())) {
-          const today = new Date();
-          age = today.getFullYear() - dob.getFullYear();
-          const m = today.getMonth() - dob.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-            age--;
-          }
-        }
-      }
-      
-      // ຖ້າຍັງເປັນ 0 ໃຫ້ສະແດງ "-"
-      if (!age || age === 0 || age === '0') {
-        age = '-';
-      }
+      // ອາຍຸ: ຄິດຈາກ DOB ກ່ອນ (ຕ່ຳກວ່າ 1 ປີ → ເດືອນ/ວັນ), ບໍ່ມີ DOB ຈຶ່ງໃຊ້ Age ຈາກຖານຂໍ້ມູນ
+      const ageText = window.formatAgeFromDob(r.Date_of_Birth, r.Age);
 
       // Build action buttons based on permissions
       let acts = `<div class="d-flex gap-1 flex-nowrap justify-content-center">`;
@@ -5703,7 +5718,7 @@ window.initPatientTable = async function () {
                     <td class="text-muted fw-bold small">${oldPatientId || '-'}</td>
                     <td class="fw-bold">${fullname}</td>
                     <td>${r.Gender || '-'}</td>
-                    <td>${age === '-' ? '-' : `${age} ${window.t('patients.yearUnit')}`}</td>
+                    <td>${ageText || '-'}</td>
                     <td class="text-muted">${r.Phone_Number || '-'}</td>
                     <td class="small text-muted">${r.District || ''} ${r.Province || ''}</td>
                     <td class="text-danger fw-bold small">${rowAllergyInfo.allergy || '-'}</td>
@@ -5851,21 +5866,6 @@ window.renderOpdPatientBarcode = function (patientId, svgId) {
     svg.innerHTML = '';
     svg.style.display = 'none';
   }
-};
-
-window.getStickerDateTimeDefaults = function () {
-  const now = new Date();
-  const date = window.getLocalStr ? window.getLocalStr(now) : now.toISOString().slice(0, 10);
-  const time = now.toTimeString().slice(0, 5);
-  return { date, time };
-};
-
-window.formatStickerPrintDate = function (dateValue) {
-  const value = String(dateValue || '').trim();
-  if (!value) return '';
-  const parts = value.split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  return value;
 };
 
 window.openNewPatientModal = function () {
@@ -6083,32 +6083,6 @@ window.printQRCard = async function (id) {
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
   Swal.close();
 
-  const defaults = window.getStickerDateTimeDefaults();
-  const choice = await Swal.fire({
-    title: 'ພິມ Sticker',
-    html: `<div class="text-start">
-      <label class="form-label fw-bold">ວັນທີທີ່ສະແດງໃນ Sticker</label>
-      <input type="date" id="stickerPrintDate" class="form-control mb-3" value="${defaults.date}">
-      <label class="form-label fw-bold">ເວລາທີ່ສະແດງໃນ Sticker</label>
-      <input type="time" id="stickerPrintTime" class="form-control" value="${defaults.time}">
-    </div>`,
-    icon: 'info',
-    showCancelButton: true,
-    confirmButtonText: 'ພິມ',
-    cancelButtonText: 'ຍົກເລີກ',
-    focusConfirm: false,
-    preConfirm: () => {
-      const date = document.getElementById('stickerPrintDate')?.value || defaults.date;
-      const time = document.getElementById('stickerPrintTime')?.value || defaults.time;
-      if (!date || !time) {
-        Swal.showValidationMessage('ກະລຸນາເລືອກວັນທີ ແລະ ເວລາ');
-        return false;
-      }
-      return { date, time };
-    }
-  });
-  if (!choice.isConfirmed) return;
-
   const d = {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
     lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '',
@@ -6121,11 +6095,7 @@ window.printQRCard = async function (id) {
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
   const phoneLine = (d.phone && `ເບີໂທ: ${d.phone}`) || '-';
-  const dateStr = window.formatStickerPrintDate(choice.value.date);
-  const timeStr = choice.value.time;
   [1, 2, 3].forEach(i => {
-    $(`#printDate${i}`).text(dateStr);
-    $(`#printTime${i}`).text(timeStr);
     $(`#printName${i}`).text(fullName);
     $(`#printDob${i}`).text(dobText);
     $(`#printAddr1${i}`).text(addrLine1);
@@ -8355,8 +8325,8 @@ window.convertObservationToIpd = async function (observationId) {
 
   const patient = window.observationPatientsById[row.patient_id] || window.observationPatientsById[row.hn] || {};
   const patientName = [patient.First_Name, patient.Last_Name].filter(Boolean).join(' ') || row.patient_id || row.hn || '';
-  const admissionId = window.ipdId('IPD');
   const now = new Date();
+  const admissionId = await window.generateIpdAdmissionId(now);
   const payload = {
     Admission_ID: admissionId,
     Patient_ID: row.patient_id || row.hn || null,
@@ -9088,8 +9058,8 @@ window.handleEmrSendToObservation = async function ({ visitId, patientId, doctor
 };
 
 window.handleEmrSendToIpd = async function ({ visitId, patientId, patientName, doctor, diagnosis }) {
-  const admissionId = window.ipdId('IPD');
   const now = new Date();
+  const admissionId = await window.generateIpdAdmissionId(now);
   const payload = {
     Admission_ID: admissionId,
     Patient_ID: patientId || null,
@@ -9241,10 +9211,12 @@ window.printOPDCard = async function (s, i) {
     const printAge = liveAge != null ? String(liveAge) : (d.Age != null ? String(d.Age) : '');
 
     const printPatientId = d.Patient_ID || '';
+    const visitDateTime = ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || window.getLocalTimeStr?.(new Date()) || '')).trim();
+    const visitDateTimeLabel = visitDateTime ? `ວັນທີ: ${visitDateTime}` : '';
     safeSetText('popd_cn', printPatientId);
     safeSetText('popd_org_id', d.Organization_ID || '');
     safeSetText('popd_orgname', d.Name_Org || '');
-    safeSetText('popd_datetime', ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || '')).trim());
+    safeSetText('popd_datetime', visitDateTimeLabel);
     safeSetText('popd_vid', v.visitId || '');
     safeSetText('popd_dept', v.department || '');
     window.renderOpdPatientBarcode(printPatientId);
@@ -9353,7 +9325,7 @@ window.printOPDCard = async function (s, i) {
     const p2logo = document.getElementById('print-opd-p2-logo');
     if (p2logo) bindOpdLogo(p2logo, page1HeaderSrc);
     safeSetText('popd2_cn', printPatientId);
-    safeSetText('popd2_datetime', ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || '')).trim());
+    safeSetText('popd2_datetime', visitDateTimeLabel);
     window.renderOpdPatientBarcode(printPatientId, 'popd2_barcode');
 
     Swal.close();
@@ -9531,13 +9503,10 @@ window.exportOpdCardAsPdf = async function (filenameSuffix) {
 // ============================================================
 window.printOPDCoverFromPatientId = async function (patientId, opts) {
   opts = opts || {};
-  const now = new Date();
-  const dateStr = opts.dateStr || (window.getLocalStr(now) + ' ' + window.getLocalTimeStr(now));
   await window._printCoverPage({
     kind: 'OPD',
     patientId: patientId,
     department: opts.department || '',
-    dateStr: dateStr,
   });
 };
 
@@ -9555,13 +9524,57 @@ window.printCoverChooser = async function (patientId) {
     denyButtonColor: '#B91C1C',
     reverseButtons: false,
   });
-  const now = new Date();
-  const dateStr = window.getLocalStr(now) + ' ' + window.getLocalTimeStr(now);
   if (res.isConfirmed) {
-    await window._printCoverPage({ kind: 'OPD', patientId, dateStr });
+    await window._printCoverPage({ kind: 'OPD', patientId });
   } else if (res.isDenied) {
-    await window._printCoverPage({ kind: 'IPD', patientId, dateStr });
+    await window.printIPDCoverFromPatientId(patientId);
   }
+};
+
+window.printIPDCoverFromPatientId = async function (patientId) {
+  if (!patientId) return;
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  Swal.fire({ title: 'ກຳລັງໂຫຼດ AM...', didOpen: () => Swal.showLoading() });
+  const { data, error } = await supabaseClient
+    .from(dbTable('Admissions'))
+    .select('*')
+    .eq('Patient_ID', patientId)
+    .order('Created_At', { ascending: false })
+    .limit(50);
+  Swal.close();
+
+  if (error) return Swal.fire('ຜິດພາດ', error.message || 'ບໍ່ສາມາດໂຫຼດ AM ໄດ້', 'error');
+  const admissions = data || [];
+  if (!admissions.length) {
+    return Swal.fire('ຍັງບໍ່ມີ AM', 'ຄົນເຈັບນີ້ຍັງບໍ່ມີລະຫັດເຂົ້ານອນ IPD. ກະລຸນາສ້າງ admission ກ່ອນພິມ IPD CARD.', 'info');
+  }
+
+  let admission = admissions[0];
+  if (admissions.length > 1) {
+    const options = admissions.map((a, idx) => {
+      const admitAt = [a.Admission_Date, a.Admission_Time].filter(Boolean).join(' ');
+      const label = [a.Admission_ID || '-', admitAt || '-', a.Status || ''].filter(Boolean).join(' | ');
+      return `<option value="${idx}">${esc(label)}</option>`;
+    }).join('');
+    const choice = await Swal.fire({
+      title: 'ເລືອກ AM ທີ່ຈະພິມ',
+      html: `<select id="ipdCoverAdmissionSelect" class="form-select">${options}</select>`,
+      showCancelButton: true,
+      confirmButtonText: 'ພິມ IPD CARD',
+      cancelButtonText: 'ຍົກເລີກ',
+      preConfirm: () => Number(document.getElementById('ipdCoverAdmissionSelect')?.value || 0)
+    });
+    if (!choice.isConfirmed) return;
+    admission = admissions[choice.value] || admissions[0];
+  }
+
+  await window._printIPDCoverFromAdmissionRecord(admission);
 };
 
 window.printIPDCoverFromAdmission = async function (admissionId) {
@@ -9570,9 +9583,14 @@ window.printIPDCoverFromAdmission = async function (admissionId) {
   if (!admission) {
     return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບໃນລະບົບ', 'error');
   }
+  await window._printIPDCoverFromAdmissionRecord(admission);
+};
+
+window._printIPDCoverFromAdmissionRecord = async function (admission) {
+  if (!admission) return;
   const location = window.ipdAdmissionLocation ? window.ipdAdmissionLocation(admission) : {};
-  const wardName = location.ward?.Ward_Name || '';
-  const bedNo = location.bed?.Bed_Number || '';
+  const wardName = location.ward?.Ward_Name || admission.Ward_ID || '';
+  const bedNo = location.bed?.Bed_Number || admission.Bed_ID || '';
   const admitDate = [admission.Admission_Date, admission.Admission_Time].filter(Boolean).join(' ');
   await window._printCoverPage({
     kind: 'IPD',
@@ -9615,22 +9633,19 @@ window._printCoverPage = async function (opts) {
     setText('cover_title', isIPD ? 'IPD CARD' : 'OPD CARD');
     setText('cover_subtitle', isIPD ? 'ໃບບັນທຶກຄົນເຈັບໃນ' : 'ໃບບັນທຶກຄົນເຈັບນອກ');
 
-    // Right corner: HN + barcode of patient LXH ID
+    // HN stays on both covers so IPD admissions can still be linked back
+    // to the original OPD patient record.
     const hn = d.Patient_ID || '';
     setText('cover_hn', hn);
     if (typeof window.renderOpdPatientBarcode === 'function') {
       window.renderOpdPatientBarcode(hn, 'cover_barcode');
     }
 
-    // Second meta row under HN — IPD admission number or OPD department
+    // Second meta row under HN — AM admission number for IPD, or OPD department.
     const leftRow = document.getElementById('cover_left_row');
     if (isIPD && opts.admissionId) {
-      setText('cover_left_label', 'IPD No');
+      setText('cover_left_label', 'AM');
       setText('cover_left_value', opts.admissionId);
-      if (leftRow) leftRow.style.display = 'flex';
-    } else if (opts.department) {
-      setText('cover_left_label', 'ຫ້ອງກວດ');
-      setText('cover_left_value', opts.department);
       if (leftRow) leftRow.style.display = 'flex';
     } else {
       setText('cover_left_label', '');
@@ -9642,8 +9657,15 @@ window._printCoverPage = async function (opts) {
     setText('cover_patient_title', d.Title || '');
     setText('cover_patient_name', `${d.First_Name || ''} ${d.Last_Name || ''}`.trim());
 
-    // Footer date
-    setText('cover_date', opts.dateStr || '');
+    // OPD cover is reusable for the same patient, so it intentionally has no date.
+    const dateRow = document.getElementById('cover_date_row');
+    if (isIPD && opts.dateStr) {
+      setText('cover_date', opts.dateStr);
+      if (dateRow) dateRow.style.display = 'flex';
+    } else {
+      setText('cover_date', '');
+      if (dateRow) dateRow.style.display = 'none';
+    }
 
     // Optional extra row (Ward/Bed for IPD)
     const extraLabel = isIPD ? 'ວອດ / ຕຽງ' : '';
@@ -9659,7 +9681,7 @@ window._printCoverPage = async function (opts) {
     }
 
     Swal.close();
-    await window.exportCoverPageAsPdf(hn, isIPD ? 'IPD-Chart-Cover' : 'OPD-Card-Cover');
+    await window.exportCoverPageAsPdf(isIPD ? (opts.admissionId || hn) : hn, isIPD ? 'IPD-Card-Cover' : 'OPD-Card-Cover');
   } catch (err) {
     Swal.close();
     console.error('Cover print error:', err);
@@ -13086,16 +13108,49 @@ window.showPatientTimeline = async function (patientId) {
       if (visits.length > 5000) break;
     }
 
-    if (visits.length === 0) {
+    let admissions = [];
+    try {
+      const { data: admissionRows, error: admissionError } = await supabaseClient
+        .from(dbTable('Admissions'))
+        .select('*')
+        .eq('Patient_ID', patientId)
+        .order('Created_At', { ascending: false })
+        .limit(1000);
+      if (!admissionError) admissions = admissionRows || [];
+      else console.warn('Patient timeline admissions load error:', admissionError);
+    } catch (admissionErr) {
+      console.warn('Patient timeline admissions load failed:', admissionErr);
+    }
+
+    if (window.ipdWardBedState && admissions.length) {
+      if (!Array.isArray(window.ipdWardBedState.admissions)) window.ipdWardBedState.admissions = [];
+      const existingIds = new Set(window.ipdWardBedState.admissions.map(a => String(a.Admission_ID || '')));
+      admissions.forEach(a => {
+        if (!existingIds.has(String(a.Admission_ID || ''))) window.ipdWardBedState.admissions.push(a);
+      });
+    }
+
+    if (visits.length === 0 && admissions.length === 0) {
       $('#timelineContent').html('<div class="text-center py-5 text-muted"><i class="fas fa-folder-open fa-3x mb-3"></i><p>ບໍ່ພົບປະຫວັດການກວດ</p></div>');
       return;
     }
 
-    let h = '';
+    const esc = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const jsArg = (value) => String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const eventTime = (dateValue, fallback) => {
+      const parsed = new Date(dateValue || 0);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+      const fallbackParsed = new Date(fallback || 0);
+      return Number.isNaN(fallbackParsed.getTime()) ? new Date(0) : fallbackParsed;
+    };
+    const events = [];
+
     visits.forEach(v => {
-      let d = new Date(v.Date);
-      let dateStr = d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      
       let meds = [];
       try { if (v.Prescription_JSON) meds = JSON.parse(v.Prescription_JSON); } catch(e) {}
       
@@ -13107,25 +13162,28 @@ window.showPatientTimeline = async function (patientId) {
       if (v.Temp) vitals.push(`T: ${v.Temp}°C`);
       if (v.Weight) vitals.push(`W: ${v.Weight}kg`);
 
-      h += `
+      events.push({
+        kind: 'opd',
+        at: eventTime(v.Date),
+        html: `
         <div class="timeline-item">
             <div class="timeline-dot"></div>
-            <div class="timeline-date">${dateStr}</div>
+            <div class="timeline-date"></div>
             <div class="timeline-card">
                 <div class="timeline-title">
-                    <span><i class="fas fa-stethoscope text-primary me-2"></i>${v.Department || 'OPD'}</span>
-                    <span class="badge ${(v.Status || '').includes('ສຳເລັດ') ? 'bg-success' : 'bg-warning'}">${v.Status}</span>
+                    <span><i class="fas fa-stethoscope text-primary me-2"></i>${esc(v.Department || 'OPD')}</span>
+                    <span class="badge ${(v.Status || '').includes('ສຳເລັດ') ? 'bg-success' : 'bg-warning'}">${esc(v.Status || '')}</span>
                 </div>
                 <div class="timeline-body">
-                    ${v.Symptoms ? `<div class="mb-2"><b>CC:</b> ${v.Symptoms}</div>` : ''}
-                    ${vitals.length > 0 ? `<div class="mb-2"><span class="timeline-tag timeline-tag-vitals"><i class="fas fa-heartbeat me-1"></i>${vitals.join(' | ')}</span></div>` : ''}
-                    ${v.Diagnosis ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-user-md me-1"></i>Dx: ${v.Diagnosis}</span></div>` : ''}
+                    ${v.Symptoms ? `<div class="mb-2"><b>CC:</b> ${esc(v.Symptoms)}</div>` : ''}
+                    ${vitals.length > 0 ? `<div class="mb-2"><span class="timeline-tag timeline-tag-vitals"><i class="fas fa-heartbeat me-1"></i>${esc(vitals.join(' | '))}</span></div>` : ''}
+                    ${v.Diagnosis ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-user-md me-1"></i>Dx: ${esc(v.Diagnosis)}</span></div>` : ''}
                     
                     ${meds.length > 0 ? `
                         <div class="mt-2">
                             <div class="small fw-bold text-success mb-1"><i class="fas fa-pills me-1"></i>ລາຍການຢາ:</div>
                             <div class="d-flex flex-wrap gap-1">
-                                ${meds.map(m => `<span class="timeline-tag timeline-tag-med">${m.name} (${m.qty} ${m.unit})</span>`).join('')}
+                                ${meds.map(m => `<span class="timeline-tag timeline-tag-med">${esc(m.name)} (${esc(m.qty)} ${esc(m.unit)})</span>`).join('')}
                             </div>
                         </div>
                     ` : ''}
@@ -13134,16 +13192,57 @@ window.showPatientTimeline = async function (patientId) {
                         <div class="mt-2">
                             <div class="small fw-bold text-primary mb-1"><i class="fas fa-flask me-1"></i>ລາຍການ Lab:</div>
                             <div class="d-flex flex-wrap gap-1">
-                                ${labs.map(l => `<span class="timeline-tag timeline-tag-lab">${l.name || l}</span>`).join('')}
+                                ${labs.map(l => `<span class="timeline-tag timeline-tag-lab">${esc(l.name || l)}</span>`).join('')}
                             </div>
                         </div>
                     ` : ''}
 
-                    ${v.Advice ? `<div class="mt-2 small text-muted font-italic"><b>Advice:</b> ${v.Advice}</div>` : ''}
+                    ${v.Advice ? `<div class="mt-2 small text-muted font-italic"><b>Advice:</b> ${esc(v.Advice)}</div>` : ''}
                 </div>
             </div>
-        </div>`;
+        </div>`
+      });
     });
+
+    admissions.forEach(a => {
+      const admitAtText = [a.Admission_Date, a.Admission_Time].filter(Boolean).join(' ');
+      const admitAt = eventTime(a.Admission_Date && `${a.Admission_Date}T${a.Admission_Time || '00:00'}`, a.Created_At);
+      const location = window.ipdAdmissionLocation ? window.ipdAdmissionLocation(a) : {};
+      const locationText = location.label || [a.Ward_ID, a.Room_ID, a.Bed_ID].filter(Boolean).join(' / ') || '-';
+      const isActive = window.ipdIsActiveAdmission ? window.ipdIsActiveAdmission(a) : !(a.Discharge_Date || a.Discharge_Status);
+      const am = a.Admission_ID || '-';
+      events.push({
+        kind: 'ipd',
+        at: admitAt,
+        html: `
+        <div class="timeline-item">
+            <div class="timeline-dot timeline-dot-ipd"></div>
+            <div class="timeline-date"></div>
+            <div class="timeline-card timeline-card-ipd">
+                <div class="timeline-title">
+                    <span><i class="fas fa-procedures text-danger me-2"></i>IPD Admission</span>
+                    <span class="badge ${isActive ? 'bg-danger' : 'bg-secondary'}">${esc(isActive ? 'Admitted' : 'Discharged')}</span>
+                </div>
+                <div class="timeline-body">
+                    <div class="mb-2"><span class="timeline-tag timeline-tag-ipd"><i class="fas fa-id-card me-1"></i>AM: ${esc(am)}</span></div>
+                    <div class="mb-1"><b>HN:</b> ${esc(a.Patient_ID || '-')}</div>
+                    <div class="mb-1"><b>ເຂົ້ານອນ:</b> ${esc(admitAtText || '-')}</div>
+                    <div class="mb-1"><b>Ward/Bed:</b> ${esc(locationText)}</div>
+                    ${a.Diagnosis_Admission || a.Diagnosis ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-user-md me-1"></i>Dx: ${esc(a.Diagnosis_Admission || a.Diagnosis)}</span></div>` : ''}
+                    <button class="btn btn-sm btn-outline-danger mt-1" onclick="$('#patientTimelineModal').modal('hide'); window.viewIpdChart('${jsArg(am)}')"><i class="fas fa-file-medical me-1"></i>ເບິ່ງ AM</button>
+                </div>
+            </div>
+        </div>`
+      });
+    });
+
+    events.sort((a, b) => b.at.getTime() - a.at.getTime());
+    const h = events.map(event => {
+      const dateStr = event.at.getTime()
+        ? event.at.toLocaleDateString('en-GB') + ' ' + event.at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        : '-';
+      return event.html.replace('<div class="timeline-date"></div>', `<div class="timeline-date">${dateStr}</div>`);
+    }).join('');
     $('#timelineContent').html(h);
   } catch (err) {
     console.error("Timeline Error:", err);
@@ -13797,6 +13896,72 @@ window.ipdId = function (prefix) {
   return prefix + Date.now() + Math.floor(Math.random() * 1000);
 };
 
+window.ipdAdmissionDateString = function (dateLike) {
+  if (!dateLike) return window.getLocalStr(new Date());
+  if (dateLike instanceof Date) return window.getLocalStr(dateLike);
+  const raw = String(dateLike);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? window.getLocalStr(new Date()) : window.getLocalStr(parsed);
+};
+
+window.generateIpdAdmissionId = async function (dateLike) {
+  const admitDate = window.ipdAdmissionDateString(dateLike);
+  try {
+    const { data, error } = await supabaseClient.rpc('his_one_generate_am_id', { p_admission_date: admitDate });
+    const amId = Array.isArray(data) ? data[0] : data;
+    if (!error && amId) return String(amId);
+    if (error) console.warn('DB AM admission allocator unavailable; using local fallback:', error);
+  } catch (err) {
+    console.warn('DB AM admission allocator error; using local fallback:', err);
+  }
+
+  const compactDate = admitDate.replace(/-/g, '');
+  const prefix = `AM${compactDate}`;
+  let existing = [];
+  let sameDayAdmissionCount = 0;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from(dbTable('Admissions'))
+      .select('Admission_ID')
+      .eq('Admission_Date', admitDate)
+      .limit(1000);
+    if (!error && Array.isArray(data)) {
+      sameDayAdmissionCount = data.length;
+      existing = existing.concat(data);
+    } else if (error) {
+      console.warn('Same-day admission count lookup failed:', error);
+    }
+  } catch (err) {
+    console.warn('Same-day admission count lookup error:', err);
+  }
+
+  try {
+    const { data, error } = await supabaseClient
+      .from(dbTable('Admissions'))
+      .select('Admission_ID')
+      .like('Admission_ID', `${prefix}-%`)
+      .limit(1000);
+    if (!error && Array.isArray(data)) existing = existing.concat(data);
+    else if (error) console.warn('AM admission sequence lookup failed:', error);
+  } catch (err) {
+    console.warn('AM admission sequence lookup error:', err);
+  }
+
+  const stateRows = window.ipdWardBedState?.admissions || [];
+  existing = existing.concat(stateRows.filter(a => String(a.Admission_ID || '').startsWith(`${prefix}-`)));
+
+  const maxSeq = existing.reduce((max, row) => {
+    const id = String(row.Admission_ID || '');
+    const match = id.match(new RegExp(`^${prefix}-(\\d+)$`));
+    return match ? Math.max(max, Number(match[1]) || 0) : max;
+  }, 0);
+
+  const nextSeq = Math.max(maxSeq, sameDayAdmissionCount) + 1;
+  return `${prefix}-${String(nextSeq).padStart(3, '0')}`;
+};
+
 window.ipdNormalizeStatus = function (value) {
   const raw = String(value || 'Available').trim();
   const lower = raw.toLowerCase();
@@ -14424,7 +14589,7 @@ window.renderIpdBedBoard = function () {
               ${window.ipdStatusBadge(status)}
             </div>
             ${hasPatient ? `<div class="ipd-compact-patient">${window.ipdEscape(info.patientName || '')}</div>
-              <div class="ipd-compact-meta">HN ${window.ipdEscape(info.hn || '')} - IPD ${window.ipdEscape(info.ipdNo || '')}</div>
+              <div class="ipd-compact-meta">HN ${window.ipdEscape(info.hn || '')} - AM ${window.ipdEscape(info.ipdNo || '')}</div>
               <div class="ipd-compact-meta">${window.ipdEscape(window.ipdLengthOfStay(info.admission))} - ${window.ipdEscape(info.doctor || '')}</div>` :
               status === 'Reserved' ? `<div class="ipd-compact-patient">${window.ipdEscape(reservation.patientName || reservation.hn || window.t('ipd.reserved'))}</div>
                 <div class="ipd-compact-meta">${reservation.hn ? `HN ${window.ipdEscape(reservation.hn)} - ` : ''}${window.ipdEscape(reservation.phone || '')}</div>
@@ -14578,7 +14743,7 @@ window.renderIpdDoctorCensus = function () {
           <div class="ipd-doctor-patient-main">
             <div>
               <div class="ipd-doctor-patient-name">${window.ipdEscape(patientName)}</div>
-              <div class="text-muted small">HN ${window.ipdEscape(admission.Patient_ID || '-')} / IPD ${window.ipdEscape(admission.Admission_ID || '-')}</div>
+              <div class="text-muted small">HN ${window.ipdEscape(admission.Patient_ID || '-')} / AM ${window.ipdEscape(admission.Admission_ID || '-')}</div>
             </div>
             ${location.status ? window.ipdStatusBadge(location.status) : `<span class="ipd-status-badge ipd-status-reserved">${window.ipdEscape(window.t('ipd.waitingBed'))}</span>`}
           </div>
@@ -14639,13 +14804,15 @@ window.renderIpdInpatientTable = function (selector = '#ipdInpatientTable') {
     const ageSex = [patient?.Age, patient?.Gender ? window.ipdTranslateValue(patient.Gender) : ''].filter(Boolean).join(' / ') || '-';
     const isActive = window.ipdIsActiveAdmission(admission);
     const dischargeAt = [admission.Discharge_Date, admission.Discharge_Time].filter(Boolean).join(' ') || (isActive ? '-' : (admission.Discharged_At || '-'));
+    const coverAction = `<button class="btn btn-sm btn-outline-secondary me-1" onclick="window.printIPDCoverFromAdmission('${window.ipdEscape(admission.Admission_ID || '')}')" title="ພິມໜ້າປົກ"><i class="fas fa-file-alt me-1"></i>ໜ້າປົກ</button>`;
     const actions = isActive
       ? [
+          coverAction,
           `<button class="btn btn-sm btn-outline-dark me-1" onclick="window.viewIpdChart('${window.ipdEscape(admission.Admission_ID || '')}')"><i class="fas fa-file-medical me-1"></i>${window.ipdEscape(window.t('ipd.chart'))}</button>`,
           bed ? `<button class="btn btn-sm btn-outline-primary me-1" onclick="window.openIpdTransferModal('${window.ipdEscape(bed.Bed_ID)}')"><i class="fas fa-exchange-alt me-1"></i>${window.ipdEscape(window.t('ipd.transfer'))}</button>` : '',
           bed ? `<button class="btn btn-sm btn-outline-warning" onclick="window.changeIpdBedStatus('${window.ipdEscape(bed.Bed_ID)}','Cleaning')"><i class="fas fa-sign-out-alt me-1"></i>${window.ipdEscape(window.t('ipd.discharge'))}</button>` : ''
         ].join('')
-      : `<button class="btn btn-sm btn-outline-info" onclick="window.viewIpdChart('${window.ipdEscape(admission.Admission_ID || '')}')"><i class="fas fa-history me-1"></i>${window.ipdEscape(window.t('ipd.viewHistory'))}</button>`;
+      : `${coverAction}<button class="btn btn-sm btn-outline-info" onclick="window.viewIpdChart('${window.ipdEscape(admission.Admission_ID || '')}')"><i class="fas fa-history me-1"></i>${window.ipdEscape(window.t('ipd.viewHistory'))}</button>`;
     const statusCell = isActive
       ? (location.status ? window.ipdStatusBadge(location.status) : `<span class="ipd-status-badge ipd-status-reserved">${window.ipdEscape(window.t('ipd.waitingBed'))}</span>`)
       : window.ipdStatusBadge('Discharged');
@@ -14905,9 +15072,10 @@ window.openIpdQuickAdmitModal = async function () {
 };
 
 window.createIpdQuickAdmission = async function (form) {
-  const admissionId = window.ipdId('IPD');
-  const admitDate = form.admitAt ? form.admitAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  const admitTime = form.admitAt ? form.admitAt.slice(11, 16) : new Date().toISOString().slice(11, 16);
+  const now = new Date();
+  const admitDate = form.admitAt ? form.admitAt.slice(0, 10) : window.getLocalStr(now);
+  const admitTime = form.admitAt ? form.admitAt.slice(11, 16) : window.getLocalTimeStr(now);
+  const admissionId = await window.generateIpdAdmissionId(admitDate);
   const bed = form.bedId ? window.ipdBedById(form.bedId) : null;
   const patient = window.ipdWardBedState.patientsById[form.patientId];
   if (!patient) return Swal.fire(window.t('ipd.patientRequired'), window.t('ipd.patientRequiredText'), 'warning');
@@ -16097,7 +16265,7 @@ window.renderIpdChartPage = function (admissionId) {
   const patientName = window.ipdPatientName(admission) || admission.Patient_ID || '-';
   const readOnly = !window.ipdIsActiveAdmission(admission);
   window.ipdCurrentChartReadOnly = readOnly;
-  $('#ipdChartSubtitle').text(`${admission.Admission_ID || '-'} · HN ${admission.Patient_ID || '-'} · ${patientName}`);
+  $('#ipdChartSubtitle').text(`AM ${admission.Admission_ID || '-'} · HN ${admission.Patient_ID || '-'} · ${patientName}`);
   const $banner = $('#ipdChartReadOnlyBanner');
   if (readOnly) {
     const html = `<div id="ipdChartReadOnlyBanner" class="alert alert-info py-2 mb-2"><i class="fas fa-history me-1"></i>${window.ipdEscape(window.t('ipd.historyChartReadOnly'))}</div>`;
@@ -16130,7 +16298,7 @@ window.renderIpdPatientHeader = function (admission, context = {}) {
     <div class="ipd-patient-title">
       <span>${window.ipdEscape(window.t('ipd.patient'))}</span>
       <strong>${window.ipdEscape(patientName)}</strong>
-      <div>HN ${window.ipdEscape(admission.Patient_ID || '-')} | IPD ${window.ipdEscape(admission.Admission_ID || '-')}</div>
+      <div>HN ${window.ipdEscape(admission.Patient_ID || '-')} | AM ${window.ipdEscape(admission.Admission_ID || '-')}</div>
     </div>
     <div class="ipd-patient-header-grid">
       <div><span>${window.ipdEscape(window.t('ipd.diagnosis'))}</span><strong>${window.ipdEscape(diagnosis)}</strong></div>
@@ -16690,7 +16858,7 @@ window.renderIpdClinicalSummary = function () {
   const rows = [
     [window.t('ipd.patient'), window.ipdPatientName(admission)],
     ['HN', admission.Patient_ID || '-'],
-    ['IPD No', admission.Admission_ID || '-'],
+    ['AM', admission.Admission_ID || '-'],
     [window.t('ipd.diagnosis'), admission.Diagnosis_Admission || admission.Diagnosis || '-'],
     [window.t('ipd.doctor'), window.ipdDoctorName(admission) || '-'],
     [window.t('ipd.wardRoomBed'), window.ipdAdmissionLocation(admission).label],
