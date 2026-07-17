@@ -3785,7 +3785,7 @@ h6 {
   width: 186mm !important;
   max-width: 186mm !important;
   margin: 0 !important;
-  padding: 0.5mm 0 2mm !important;
+  padding: 0 0 2mm !important;
   display: flex !important;
   flex-direction: column !important;
   min-height: 277mm !important;
@@ -3846,14 +3846,16 @@ h6 {
 
 /* Page 2 rebuilt (2026-07-03) to match the "ໃບຕິດຕາມອາການປິ່ນປົວ" paper form:
    patient header lines + one open 4-column follow-up log + nurse/doctor signatures. */
-#opd-print-area.opdref .opdref-p2-header { margin-bottom: 1mm !important; }
+#opd-print-area.opdref .opdref-p2-header { margin-bottom: 0.4mm !important; }
 /* Both header lines are flex so the dotted fills stretch left→right and bleed to
    the paper edge (per head request 2026-07-03). Fixed-width fields (DOB/age) hold
    their size; the rest flex-grow to consume all remaining width. */
-#opd-print-area.opdref .opdref-p2-line { display: flex !important; align-items: baseline !important; gap: 1.5mm !important; margin-bottom: 1.2mm !important; }
+#opd-print-area.opdref .opdref-p2-line { display: flex !important; align-items: baseline !important; gap: 1mm !important; margin-bottom: 0.65mm !important; }
+#opd-print-area.opdref .opdref-p2-label { font-size: 10pt !important; font-weight: 700 !important; line-height: 1.05 !important; white-space: nowrap !important; }
 #opd-print-area.opdref .opdref-fill-p2-name { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; }
 #opd-print-area.opdref .opdref-fill-p2-dob { flex: 0 0 27mm !important; width: auto !important; }
 #opd-print-area.opdref .opdref-fill-p2-age { flex: 0 0 9mm !important; width: auto !important; }
+#opd-print-area.opdref .opdref-p2-line-demo .opdref-check { flex: 0 0 auto !important; }
 #opd-print-area.opdref .opdref-fill-p2-addr { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 #opd-print-area.opdref .opdref-fill-p2-district { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 #opd-print-area.opdref .opdref-fill-p2-prov { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
@@ -3863,10 +3865,10 @@ h6 {
 
 /* Page 2 header: logo + centered title + red ID / barcode / date (compact vs Page 1).
    Logo top-aligned (align-items:start) with the ID, and a touch larger. */
-#opd-print-area.opdref .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 1mm !important; align-items: start !important; }
-#opd-print-area.opdref .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0.5mm !important; }
+#opd-print-area.opdref .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
+#opd-print-area.opdref .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0 !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-header-center { align-self: center !important; }
-#opd-print-area.opdref .opdref-p2-header-row .opdref-logo { width: 44mm !important; max-width: 44mm !important; max-height: 32mm !important; }
+#opd-print-area.opdref .opdref-p2-header-row .opdref-logo { width: 41mm !important; max-width: 41mm !important; max-height: 29mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-barcode { width: 54mm !important; max-width: 54mm !important; height: 10mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-cn-row { font-size: 12pt !important; width: 56mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-datetime-row { font-size: 9pt !important; width: 56mm !important; }
@@ -3876,12 +3878,12 @@ h6 {
 #opd-print-area.opdref .opdref-col-fl-symptom { width: 43% !important; }
 #opd-print-area.opdref .opdref-col-fl-treat { width: 43% !important; }
 #opd-print-area.opdref .opdref-col-fl-note { width: 14% !important; }
-#opd-print-area.opdref .opdref-followlog-body td { height: 184mm !important; }
+#opd-print-area.opdref .opdref-followlog-body td { height: 174mm !important; }
 
 #opd-print-area.opdref .opdref-p2-sign-row {
   display: flex !important;
   justify-content: space-between !important;
-  padding: 2mm 22mm 0 14mm !important;
+  padding: 1.2mm 22mm 0 14mm !important;
   font-weight: 700 !important;
   font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
   font-size: 12.5pt !important;
@@ -4247,7 +4249,7 @@ h6 {
   width: 186mm !important;
   max-width: 186mm !important;
   margin: 0 !important;
-  padding: 0.5mm 0 2mm !important;
+  padding: 0 0 2mm !important;
   display: flex !important;
   flex-direction: column !important;
   min-height: 277mm !important;
@@ -4307,21 +4309,23 @@ h6 {
 }
 
 /* Page 2 follow-up-log layout (fallback block) — mirrors #opd-print-area.opdref */
-.opdref-page .opdref-p2-header { margin-bottom: 1mm !important; }
-.opdref-page .opdref-p2-line { display: flex !important; align-items: baseline !important; gap: 1.5mm !important; margin-bottom: 1.2mm !important; }
+.opdref-page .opdref-p2-header { margin-bottom: 0.4mm !important; }
+.opdref-page .opdref-p2-line { display: flex !important; align-items: baseline !important; gap: 1mm !important; margin-bottom: 0.65mm !important; }
+.opdref-page .opdref-p2-label { font-size: 10pt !important; font-weight: 700 !important; line-height: 1.05 !important; white-space: nowrap !important; }
 .opdref-page .opdref-fill-p2-name { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-fill-p2-dob { flex: 0 0 27mm !important; width: auto !important; }
 .opdref-page .opdref-fill-p2-age { flex: 0 0 9mm !important; width: auto !important; }
+.opdref-page .opdref-p2-line-demo .opdref-check { flex: 0 0 auto !important; }
 .opdref-page .opdref-fill-p2-addr { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-fill-p2-district { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-fill-p2-prov { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-fill-p2-tel { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-row-full-line #popd2_phone { flex: 0 0 34mm !important; width: 34mm !important; min-width: 34mm !important; }
 .opdref-page .opdref-p2-vital-title { margin: 0 0 1mm !important; }
-.opdref-page .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 1mm !important; align-items: start !important; }
-.opdref-page .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0.5mm !important; }
+.opdref-page .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
+.opdref-page .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0 !important; }
 .opdref-page .opdref-p2-header-row .opdref-header-center { align-self: center !important; }
-.opdref-page .opdref-p2-header-row .opdref-logo { width: 44mm !important; max-width: 44mm !important; max-height: 32mm !important; }
+.opdref-page .opdref-p2-header-row .opdref-logo { width: 41mm !important; max-width: 41mm !important; max-height: 29mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-barcode { width: 54mm !important; max-width: 54mm !important; height: 10mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-cn-row { font-size: 12pt !important; width: 56mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-datetime-row { font-size: 9pt !important; width: 56mm !important; }
@@ -4329,11 +4333,11 @@ h6 {
 .opdref-page .opdref-col-fl-symptom { width: 43% !important; }
 .opdref-page .opdref-col-fl-treat { width: 43% !important; }
 .opdref-page .opdref-col-fl-note { width: 14% !important; }
-.opdref-page .opdref-followlog-body td { height: 184mm !important; }
+.opdref-page .opdref-followlog-body td { height: 174mm !important; }
 .opdref-page .opdref-p2-sign-row {
   display: flex !important;
   justify-content: space-between !important;
-  padding: 2mm 22mm 0 14mm !important;
+  padding: 1.2mm 22mm 0 14mm !important;
   font-weight: 700 !important;
   font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
   font-size: 12.5pt !important;

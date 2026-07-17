@@ -2560,7 +2560,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-07-17-patient-sticker-no-date-time-v1';
+  const PARTIAL_CACHE_BUST = '2026-07-17-opd-p2-bilingual-header-v1';
   const fetchPartial = (url) => {
     const sep = url.includes('?') ? '&' : '?';
     return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
