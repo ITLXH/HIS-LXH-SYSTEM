@@ -6077,11 +6077,52 @@ window.delPatient = async function (id) {
   }
 };
 
+window.getStickerDateTimeDefaults = function () {
+  const now = new Date();
+  const date = window.getLocalStr ? window.getLocalStr(now) : now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5);
+  return { date, time };
+};
+
+window.formatStickerPrintDate = function (dateValue) {
+  const value = String(dateValue || '').trim();
+  if (!value) return '';
+  const parts = value.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return value;
+};
+
 window.printQRCard = async function (id) {
   Swal.fire({ title: 'ກຳລັງສ້າງ Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
   const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
   if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
   Swal.close();
+
+  const defaults = window.getStickerDateTimeDefaults();
+  const choice = await Swal.fire({
+    title: 'ພິມ Sticker',
+    html: `<div class="text-start">
+      <label class="form-label fw-bold">ວັນທີທີ່ສະແດງໃນ Sticker</label>
+      <input type="date" id="stickerPrintDate" class="form-control mb-3" value="${defaults.date}">
+      <label class="form-label fw-bold">ເວລາທີ່ສະແດງໃນ Sticker</label>
+      <input type="time" id="stickerPrintTime" class="form-control" value="${defaults.time}">
+    </div>`,
+    icon: 'info',
+    showCancelButton: true,
+    confirmButtonText: 'ພິມ',
+    cancelButtonText: 'ຍົກເລີກ',
+    focusConfirm: false,
+    preConfirm: () => {
+      const date = document.getElementById('stickerPrintDate')?.value || defaults.date;
+      const time = document.getElementById('stickerPrintTime')?.value || defaults.time;
+      if (!date || !time) {
+        Swal.showValidationMessage('ກະລຸນາເລືອກວັນທີ ແລະ ເວລາ');
+        return false;
+      }
+      return { date, time };
+    }
+  });
+  if (!choice.isConfirmed) return;
 
   const d = {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
@@ -6095,7 +6136,11 @@ window.printQRCard = async function (id) {
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
   const phoneLine = (d.phone && `ເບີໂທ: ${d.phone}`) || '-';
+  const dateStr = window.formatStickerPrintDate(choice.value.date);
+  const timeStr = choice.value.time;
   [1, 2, 3].forEach(i => {
+    $(`#printDate${i}`).text(dateStr);
+    $(`#printTime${i}`).text(timeStr);
     $(`#printName${i}`).text(fullName);
     $(`#printDob${i}`).text(dobText);
     $(`#printAddr1${i}`).text(addrLine1);
