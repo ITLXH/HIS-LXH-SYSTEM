@@ -1,5 +1,31 @@
 # Patient Sticker (ພິມ Sticker 3 ໃບ/A4)
 
+## 2026-07-21 — ທົດສອບ local: ແຍກເບີໂທເປັນແຖວໃໝ່ + ຂະຫຍາຍ font
+
+User feedback: ໃນສະຕິກເກີ ໃຫ້ເອົາເບີໂທລົງມາແຖວໃໝ່ ແລະປັບ font ທັງໝົດໃຫ້ໃຫຍ່ຂຶ້ນ. ວຽກນີ້ເຮັດເພື່ອທົດສອບໃນ local ກ່ອນ; ຍັງບໍ່ commit/push.
+
+### ການປັບ
+
+- `public/partials/print-areas.html`: ແຍກ `#printPhone1-3` ອອກຈາກແຖວແຂວງ ແລະໃຫ້ຢູ່ໃນ `.pcard-row-phone` ແຖວໃໝ່.
+- `src/style.css`: ຂະຫຍາຍ font ສະຕິກເກີ:
+  - `.pcard-id` 44px → 52px
+  - `.pcard-label` 26px → 30px
+  - `.pcard-value` / `.pcard-time` 30px → 37px
+  - `.pcard-name` 32px → 39px
+  - ຫຼຸດ gap/padding ແລະ line-height ລົງເພື່ອໃຫ້ 3 sticker ຍັງຢູ່ໃນ A4 ໜ້າດຽວ.
+- `src/main.js`: bump partial cache key ເປັນ `2026-07-21-sticker-phone-row-v2` ເພື່ອໃຫ້ local browser ໂຫຼດ template ໃໝ່.
+
+### Layout ຫຼັງປັບ
+
+```text
+LXH2026-XXXXXX
+ຊື່ ແລະ ນາມສະກຸນ: <ຊື່>
+ວັນເດືອນປີເກີດ: yyyy-mm-dd (X ປີ)
+ບ້ານ: ...  ເມືອງ: ...
+ແຂວງ: ...
+ເບີໂທ: ...
+```
+
 ## 2026-07-17 — ກູ້ຄືນແຖວ ວັນທີມາກວດ + ຂະຫຍາຍໂຕໜັງສື
 
 Feedback: sticker ທີ່ພິມອອກມາ ຂາດແຖວ "ວັນທີມາກວດ" ແລະໂຕໜັງສືເບິ່ງນ້ອຍກວ່າ sticker ເກົ່າ.

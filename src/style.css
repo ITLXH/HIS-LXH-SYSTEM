@@ -5447,7 +5447,7 @@ h6 {
 .patient-card {
   width: 180mm;
   height: 89mm;
-  padding: 4mm 8mm 5mm;
+  padding: 3mm 8mm 4mm;
   border: 2px solid var(--primary);
   border-radius: 4px;
   background: white;
@@ -5467,44 +5467,44 @@ h6 {
 .pcard-id {
   font-family: "Consolas", "Arial", sans-serif;
   font-weight: 700;
-  font-size: 44px;
+  font-size: 52px;
   color: #000;
   text-align: center;
-  line-height: 1.15;
+  line-height: 1.04;
   letter-spacing: 1px;
   white-space: nowrap;
-  padding: 0 0 2mm;
+  padding: 0 0 1.2mm;
   border-bottom: 3px solid #000;
-  margin-bottom: 2mm;
+  margin-bottom: 1.1mm;
 }
 .pcard-info {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 2.2mm;
+  gap: 0.6mm;
   min-width: 0;
 }
 .pcard-row {
-  line-height: 1.2;
+  line-height: 1.04;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .pcard-label {
-  font-size: 26px;
+  font-size: 30px;
   color: #475569;
   font-weight: 500;
 }
 .pcard-value {
-  font-size: 30px;
+  font-size: 37px;
   font-weight: 700;
   color: #1e293b;
 }
 .pcard-time {
   margin-left: 4mm;
   font-family: "Consolas", "Arial", sans-serif;
-  font-size: 30px;
+  font-size: 37px;
   font-weight: 800;
   color: #000;
 }
@@ -5513,7 +5513,7 @@ h6 {
   margin-left: 5mm;
 }
 .pcard-name {
-  font-size: 32px;
+  font-size: 39px;
   font-weight: 800;
   color: #0284c7;
   word-break: break-word;
@@ -5524,7 +5524,10 @@ h6 {
 .pcard-row-name {
   white-space: normal !important;
   overflow: visible !important;
-  line-height: 1.15;
+  line-height: 1.04;
+}
+.pcard-row-phone {
+  margin-top: 0.2mm;
 }
 
 /* Vaccine Card */
