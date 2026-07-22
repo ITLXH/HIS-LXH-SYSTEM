@@ -4332,7 +4332,7 @@ window.renderDashboardCharts = function (visits) {
 
     let age = parseInt(p.Age);
     if (!isNaN(age)) {
-      let grp = age < 15 ? "0-14" : (age < 35 ? "15-34" : (age < 60 ? "35-59" : "60+"));
+      let grp = age <= 15 ? "0-15" : (age <= 35 ? "16-35" : (age <= 55 ? "36-55" : "56+"));
       ageGroup[grp] = (ageGroup[grp] || 0) + 1;
     }
     
@@ -4386,7 +4386,7 @@ window.renderDashboardCharts = function (visits) {
   window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7baede', '#3a8dc7']);
   
   window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
-  window.createChart('chartAge', 'bar', ["0-14", "15-34", "35-59", "60+"], ["0-14", "15-34", "35-59", "60+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
+  window.createChart('chartAge', 'bar', ["0-15", "16-35", "36-55", "56+"], ["0-15", "16-35", "36-55", "56+"].map(k => ageGroup[k] || 0), [palette[2], palette[0], palette[3], palette[1]], false);
 
   const topIns = getTopNWithOthers(insurance, 5, 0.001);
   const topOrg = getTopNWithOthers(organization, 5, 0.001);
@@ -5999,7 +5999,7 @@ window.submitPatientForm = async function (e) {
   }
   const isEdit = fd.p_action === 'edit' && fd.p_id;
   const age = parseInt(fd.p_age) || 0;
-  const ageGroup = age <= 15 ? '0-15' : (age <= 35 ? '16-35' : (age <= 55 ? '36-55' : '55+'));
+  const ageGroup = age <= 15 ? '0-15' : (age <= 35 ? '16-35' : (age <= 55 ? '36-55' : '56+'));
   // DOB UI is DD/MM/YYYY; convert to YYYY-MM-DD (or null if empty/invalid) before save.
   const dobIso = window.dobUiToIso(fd.p_dob || '');
   fd.p_dob = dobIso || null;
@@ -6629,7 +6629,7 @@ window._fetchTriageQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Old_Patient_ID, Age, Date_of_Birth, Photo_URL, Gender')
+          .select('Patient_ID, Old_Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Organization_ID, Name_Org')
           .in('Patient_ID', chunkIds);
         if (!pError && patients) {
           patients.forEach(p => pMap[p.Patient_ID] = p);
@@ -6745,6 +6745,8 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           ageText: window.formatAgeFromDob(p?.Date_of_Birth || r.Date_of_Birth, r.Age || p?.Age),
           gender: r.Gender || p?.Gender || '',
           photoUrl: p?.Photo_URL || '',
+          orgId: p?.Organization_ID || '',
+          orgName: p?.Name_Org || '',
           doctor: r.Doctor_Name || '',
           type: r.Visit_Type || '',
           site: r.Site || '',
@@ -6847,7 +6849,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
         const { data: patients } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Drug_Allergy, Underlying_Disease')
+          .select('Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Drug_Allergy, Underlying_Disease, Organization_ID, Name_Org')
           .in('Patient_ID', chunkIds);
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
@@ -6929,6 +6931,8 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         ageText: window.formatAgeFromDob(p?.Date_of_Birth || r.Date_of_Birth, r.Age || p?.Age),
         gender: r.Gender || p?.Gender || '',
         photoUrl: p?.Photo_URL || '',
+        orgId: p?.Organization_ID || '',
+        orgName: p?.Name_Org || '',
         allergy: window.parsePatientAllergyInfo?.(p?.Drug_Allergy || '')?.allergy || p?.Drug_Allergy || '',
         disease: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.disease || p?.Underlying_Disease || '',
         regularMedicine: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.regularMedicine || '',
@@ -9212,11 +9216,29 @@ window.printOPDCard = async function (s, i) {
     const printAge = window.formatAgeFromDob(d.Date_of_Birth, d.Age) || '';
 
     const printPatientId = d.Patient_ID || '';
+    const printOrg = {
+      id: String(d.Organization_ID || v.orgId || '').trim(),
+      name: String(d.Name_Org || v.orgName || '').trim(),
+      discount: String(d.Discount || '').trim()
+    };
+    if (printOrg.id && (!printOrg.name || !printOrg.discount)) {
+      try {
+        const { data: orgRow } = await supabaseClient
+          .from(dbTable('Organizations'))
+          .select('Discount, Org_Name, Name')
+          .or(`Org_ID.eq."${printOrg.id}",Org_Code.eq."${printOrg.id}"`)
+          .limit(1);
+        if (orgRow && orgRow[0]) {
+          if (!printOrg.name) printOrg.name = orgRow[0].Org_Name || orgRow[0].Name || '';
+          if (!printOrg.discount && orgRow[0].Discount) printOrg.discount = String(orgRow[0].Discount);
+        }
+      } catch (e) { console.warn('OPD organization lookup failed', e); }
+    }
     const visitDateTime = ((v.date || window.getLocalStr(new Date())) + ' ' + (v.time || window.getLocalTimeStr?.(new Date()) || '')).trim();
     const visitDateTimeLabel = visitDateTime ? `ວັນທີ: ${visitDateTime}` : '';
     safeSetText('popd_cn', printPatientId);
-    safeSetText('popd_org_id', d.Organization_ID || '');
-    safeSetText('popd_orgname', d.Name_Org || '');
+    safeSetText('popd_org_id', printOrg.id || '');
+    safeSetText('popd_orgname', printOrg.name || '');
     safeSetText('popd_datetime', visitDateTimeLabel);
     safeSetText('popd_vid', v.visitId || '');
     safeSetText('popd_dept', v.department || '');
@@ -9278,23 +9300,8 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_medicine_yes', hasPrintMedicine ? checkedMark : emptyMark);
     safeSetText('popd_medicine_no', hasPrintMedicine ? emptyMark : checkedMark);
     safeSetText('popd_regular_medicine', printDiseaseInfo.regularMedicine || '');
-    safeSetText('popd_coverage', d.Name_Org || '');
-    {
-      let discountText = '';
-      const orgKey = String(d.Organization_ID || '').trim();
-      if (orgKey) {
-        try {
-          const { data: orgRow } = await supabaseClient
-            .from(dbTable('Organizations'))
-            .select('Discount, Org_Name')
-            .or(`Org_ID.eq."${orgKey}",Org_Code.eq."${orgKey}"`)
-            .limit(1);
-          if (orgRow && orgRow[0] && orgRow[0].Discount) discountText = String(orgRow[0].Discount);
-        } catch (e) { console.warn('OPD discount lookup failed', e); }
-      }
-      if (!discountText && d.Discount) discountText = String(d.Discount);
-      safeSetText('popd_discount', discountText || '-');
-    }
+    safeSetText('popd_coverage', printOrg.name || '');
+    safeSetText('popd_discount', printOrg.discount || '-');
     safeSetText('popd_doctor', v.recordedBy || v.nurse || '');
 
     // Page 2 (ໃບຕິດຕາມອາການປິ່ນປົວ) repeats the patient header at the top of the
@@ -11940,7 +11947,7 @@ window.handlePatientExcelUpload = function (e) {
         let parsedAge = parseInt(getCell(row, ['Age'], 7)) || 0;
         let ageGroup = getCell(row, ['Age_Group'], 29) || '';
         if (parsedAge && !ageGroup) {
-          ageGroup = parsedAge <= 15 ? '0-15' : (parsedAge <= 35 ? '16-35' : (parsedAge <= 55 ? '36-55' : '55+'));
+          ageGroup = parsedAge <= 15 ? '0-15' : (parsedAge <= 35 ? '16-35' : (parsedAge <= 55 ? '36-55' : '56+'));
         }
 
         const rawDob = getCell(row, ['Date_of_Birth', 'DOB'], 5);
