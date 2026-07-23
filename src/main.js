@@ -9302,6 +9302,16 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd_regular_medicine', printDiseaseInfo.regularMedicine || '');
     safeSetText('popd_coverage', printOrg.name || '');
     safeSetText('popd_discount', printOrg.discount || '-');
+    (() => {
+      const insName = String(printOrg.name || '').trim();
+      ['popd', 'popd2'].forEach(prefix => {
+        const row = document.getElementById(`${prefix}_insurance_row`);
+        const nameEl = document.getElementById(`${prefix}_insurance_name`);
+        if (!row || !nameEl) return;
+        if (insName) { nameEl.textContent = insName; row.style.display = ''; }
+        else { nameEl.textContent = ''; row.style.display = 'none'; }
+      });
+    })();
     safeSetText('popd_doctor', v.recordedBy || v.nurse || '');
 
     // Page 2 (ໃບຕິດຕາມອາການປິ່ນປົວ) repeats the patient header at the top of the

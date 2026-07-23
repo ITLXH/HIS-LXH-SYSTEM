@@ -3433,7 +3433,7 @@ h6 {
 #opd-print-area.opdref .opdref-header-row {
   display: grid !important;
   grid-template-columns: 48mm 1fr 64mm !important;
-  align-items: center !important;
+  align-items: start !important;
   gap: 2mm !important;
   width: 100% !important;
   margin: 0 0 0.5mm !important;
@@ -3442,8 +3442,11 @@ h6 {
 
 #opd-print-area.opdref .opdref-header-left {
   display: flex !important;
-  justify-content: center !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
   align-items: center !important;
+  padding-top: 0 !important;
+  gap: 1mm !important;
 }
 
 #opd-print-area.opdref .opdref-header-center {
@@ -3865,10 +3868,10 @@ h6 {
 
 /* Page 2 header: logo + centered title + red ID / barcode / date (compact vs Page 1).
    Logo top-aligned (align-items:start) with the ID, and a touch larger. */
-#opd-print-area.opdref .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
+#opd-print-area.opdref .opdref-p2-header-row { grid-template-columns: 48mm 1fr 64mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0 !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-header-center { align-self: center !important; }
-#opd-print-area.opdref .opdref-p2-header-row .opdref-logo { width: 41mm !important; max-width: 41mm !important; max-height: 29mm !important; }
+#opd-print-area.opdref .opdref-p2-header-row .opdref-logo { width: 44mm !important; max-width: 44mm !important; max-height: 34mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-barcode { width: 54mm !important; max-width: 54mm !important; height: 10mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-cn-row { font-size: 12pt !important; width: 56mm !important; }
 #opd-print-area.opdref .opdref-p2-header-row .opdref-datetime-row { font-size: 9pt !important; width: 56mm !important; }
@@ -3954,7 +3957,7 @@ h6 {
 .opdref-page .opdref-header-row {
   display: grid !important;
   grid-template-columns: 48mm 1fr 64mm !important;
-  align-items: center !important;
+  align-items: start !important;
   gap: 2mm !important;
   width: 100% !important;
   margin: 0 0 0.5mm !important;
@@ -3963,8 +3966,11 @@ h6 {
 
 .opdref-page .opdref-header-left {
   display: flex !important;
-  justify-content: center !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
   align-items: center !important;
+  padding-top: 0 !important;
+  gap: 1mm !important;
 }
 
 .opdref-page .opdref-header-center {
@@ -4322,10 +4328,10 @@ h6 {
 .opdref-page .opdref-fill-p2-tel { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
 .opdref-page .opdref-row-full-line #popd2_phone { flex: 0 0 34mm !important; width: 34mm !important; min-width: 34mm !important; }
 .opdref-page .opdref-p2-vital-title { margin: 0 0 1mm !important; }
-.opdref-page .opdref-p2-header-row { grid-template-columns: 46mm 1fr 56mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
+.opdref-page .opdref-p2-header-row { grid-template-columns: 48mm 1fr 64mm !important; margin: 0 0 0.2mm !important; align-items: start !important; }
 .opdref-page .opdref-p2-header-row .opdref-header-left { align-items: flex-start !important; justify-content: center !important; padding-top: 0 !important; }
 .opdref-page .opdref-p2-header-row .opdref-header-center { align-self: center !important; }
-.opdref-page .opdref-p2-header-row .opdref-logo { width: 41mm !important; max-width: 41mm !important; max-height: 29mm !important; }
+.opdref-page .opdref-p2-header-row .opdref-logo { width: 44mm !important; max-width: 44mm !important; max-height: 34mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-barcode { width: 54mm !important; max-width: 54mm !important; height: 10mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-cn-row { font-size: 12pt !important; width: 56mm !important; }
 .opdref-page .opdref-p2-header-row .opdref-datetime-row { font-size: 9pt !important; width: 56mm !important; }
@@ -11873,4 +11879,17 @@ small,
     padding: 0 !important;
     overflow: hidden !important;
   }
+}
+
+/* Insurance row uses the same layout as other patient-info rows; only the value is red bold */
+#opd-print-area.opdref .opdref-insurance-row .opdref-insurance-name,
+.opdref-page .opdref-insurance-row .opdref-insurance-name {
+  color: #c62828 !important;
+  font-weight: 700 !important;
+}
+
+/* Page 2 only: nudge the ID + barcode + date column down so it isn't clipped by the top margin */
+#opd-print-area.opdref .opdref-p2-header-row .opdref-header-right,
+.opdref-page .opdref-p2-header-row .opdref-header-right {
+  margin-top: 3mm !important;
 }
