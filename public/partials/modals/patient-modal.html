@@ -284,139 +284,113 @@
 <!-- Patient Profile Detail Modal (Beautiful View) -->
 <div class="modal fade" id="patientProfileModal" tabindex="-1">
   <div class="modal-dialog modal-xl">
-    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-      <div class="profile-header text-center" style="background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; padding: 30px 20px;">
-        <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal"></button>
-        <div class="profile-img-wrapper" style="width: 120px; height: 120px; border-radius: 50%; border: 5px solid rgba(255,255,255,0.2); overflow: hidden; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-          <img id="view_p_photo" src="" alt="Patient Photo" style="display:none; width: 100%; height: 100%; object-fit: cover;">
-          <i class="fas fa-user fa-4x text-white-50" id="view_p_photo_placeholder"></i>
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white py-2">
+        <div class="d-flex align-items-center gap-3 flex-grow-1">
+          <div class="patient-view-photo">
+            <img id="view_p_photo" src="" alt="Patient Photo" style="display:none;">
+            <i class="fas fa-user" id="view_p_photo_placeholder"></i>
+          </div>
+          <div class="flex-grow-1 min-width-0">
+            <div class="fw-bold text-truncate" style="font-size: 16px;" id="view_p_name">-</div>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <span class="badge bg-white text-primary fw-bold" id="view_p_id">-</span>
+              <span class="small opacity-75" id="view_p_old_id"></span>
+            </div>
+          </div>
         </div>
-        <h3 class="fw-bold mb-1" id="view_p_name">-</h3>
-        <span class="badge bg-white text-primary px-3 py-2 rounded-pill shadow-sm" id="view_p_id">-</span>
-        <div class="small mt-2 opacity-75" id="view_p_old_id"></div>
+        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-4 bg-light">
+
+      <div class="modal-body p-3">
         <div class="row g-3">
-          <!-- Basic Info -->
-          <div class="col-md-6">
-            <div class="card profile-info-card h-100 border-0 shadow-sm rounded-3">
+          <div class="col-lg-6">
+            <div class="card card-outline card-primary shadow-sm h-100">
+              <div class="card-header py-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-info-circle text-info me-2"></i>ຂໍ້ມູນທົ່ວໄປ</h6>
+              </div>
               <div class="card-body">
-                <h6 class="fw-bold text-primary mb-3 border-bottom pb-2"><i class="fas fa-info-circle me-2"></i>ຂໍ້ມູນທົ່ວໄປ</h6>
-                <div class="row g-3">
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ເພດ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_gender">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ອາຍຸ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_age">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ວັນເກີດ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_dob">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ກຸ່ມເລືອດ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_blood">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ເບີໂທລະສັບ</div>
-                    <div class="profile-value text-primary" style="font-size: 14px; font-weight: 600;" id="view_p_phone">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ສັນຊາດ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_nation">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ອາຊີບ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_job">-</div>
-                  </div>
-                  <div class="col-12">
-                    <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ອີເມວ</div>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_email">-</div>
+                <div class="row g-3 patient-view-grid">
+                  <div class="col-6"><div class="pvg-label">ເພດ</div><div class="pvg-value" id="view_p_gender">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ອາຍຸ</div><div class="pvg-value" id="view_p_age">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ວັນເກີດ</div><div class="pvg-value" id="view_p_dob">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ກຸ່ມເລືອດ</div><div class="pvg-value" id="view_p_blood">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ເບີໂທລະສັບ</div><div class="pvg-value" id="view_p_phone">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ສັນຊາດ</div><div class="pvg-value" id="view_p_nation">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ອາຊີບ</div><div class="pvg-value" id="view_p_job">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ອີເມວ</div><div class="pvg-value" id="view_p_email">-</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="card card-outline card-primary shadow-sm h-100">
+              <div class="card-header py-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-heartbeat text-info me-2"></i>ຂໍ້ມູນສຸຂະພາບ</h6>
+              </div>
+              <div class="card-body">
+                <div class="patient-view-grid">
+                  <div class="mb-2"><div class="pvg-label">ອາການແພ້ຢາ</div><div class="pvg-value text-danger" id="view_p_allergy">-</div></div>
+                  <div class="mb-2"><div class="pvg-label">ອາການແພ້</div><div class="pvg-value text-danger" id="view_p_allergy_symptoms">-</div></div>
+                  <div class="mb-2"><div class="pvg-label">ພະຍາດປະຈຳຕົວ</div><div class="pvg-value" id="view_p_disease">-</div></div>
+                  <div class="mb-2"><div class="pvg-label">ຢາກິນປະຈຳ</div><div class="pvg-value" id="view_p_regular_medicine">-</div></div>
+                  <div class="border-top pt-2 mt-2">
+                    <div class="pvg-label mb-1">ຂໍ້ມູນການລົງທະບຽນ</div>
+                    <div class="row g-2">
+                      <div class="col-6"><div class="pvg-label">ວັນທີລົງທະບຽນ</div><div class="pvg-value" id="view_p_reg_date">-</div></div>
+                      <div class="col-6"><div class="pvg-label">ເວລານັດ</div><div class="pvg-value" id="view_p_reg_time">-</div></div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <!-- Health Info -->
-          <div class="col-md-6">
-            <div class="card profile-info-card h-100 border-0 shadow-sm rounded-3">
-              <div class="card-body">
-                <h6 class="fw-bold text-danger mb-3 border-bottom pb-2"><i class="fas fa-heartbeat me-2"></i>ຂໍ້ມູນສຸຂະພາບ</h6>
-                <div class="mb-3">
-                  <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ອາການແພ້ຢາ</div>
-                  <div class="profile-value text-danger" style="font-size: 14px; font-weight: 600;" id="view_p_allergy">-</div>
-                </div>
-                <div class="mb-3">
-                  <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ອາການແພ້</div>
-                  <div class="profile-value text-danger" style="font-size: 14px; font-weight: 600;" id="view_p_allergy_symptoms">-</div>
-                </div>
-                <div class="mb-3">
-                  <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ພະຍາດປະຈຳຕົວ</div>
-                  <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_disease">-</div>
-                </div>
-                <div class="mb-3">
-                  <div class="profile-label" style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">ຢາກິນປະຈຳ</div>
-                  <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_regular_medicine">-</div>
-                </div>
-                <div class="row border-top pt-2">
-                  <div class="col-12 mb-2">
-                    <h6 class="fw-bold text-dark small mb-2">ຂໍ້ມູນການລົງທະບຽນ</h6>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 10px;">ວັນທີລົງທະບຽນ</div>
-                    <div class="profile-value small" id="view_p_reg_date">-</div>
-                  </div>
-                  <div class="col-6">
-                    <div class="profile-label" style="font-size: 10px;">ເວລານັດ</div>
-                    <div class="profile-value small" id="view_p_reg_time">-</div>
-                  </div>
+
+          <div class="col-lg-4">
+            <div class="card card-outline card-primary shadow-sm h-100">
+              <div class="card-header py-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-map-marker-alt text-info me-2"></i>ທີ່ຢູ່ປະຈຸບັນ</h6>
+              </div>
+              <div class="card-body patient-view-grid">
+                <div class="pvg-value" id="view_p_address">-</div>
+                <div class="small text-muted mt-1" id="view_p_location">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-4">
+            <div class="card card-outline card-primary shadow-sm h-100">
+              <div class="card-header py-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-shield-alt text-info me-2"></i>ປະກັນໄພ &amp; ອົງກອນ</h6>
+              </div>
+              <div class="card-body patient-view-grid">
+                <div class="mb-2"><div class="pvg-label">ບໍລິສັດປະກັນ / ອົງກອນ</div><div class="pvg-value" id="view_p_ins_org">-</div></div>
+                <div class="row g-2">
+                  <div class="col-6"><div class="pvg-label">ລະຫັດປະກັນ</div><div class="pvg-value" id="view_p_ins_code">-</div></div>
+                  <div class="col-6"><div class="pvg-label">ຊ່ອງທາງຮູ້ຈັກ</div><div class="pvg-value" id="view_p_channel">-</div></div>
                 </div>
               </div>
             </div>
           </div>
-          <!-- Insurance & Org -->
-          <div class="col-12">
-            <div class="card profile-info-card border-0 shadow-sm rounded-3">
-              <div class="card-body">
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <h6 class="fw-bold text-success mb-3 border-bottom pb-2"><i class="fas fa-map-marker-alt me-2"></i>ທີ່ຢູ່ປະຈຸບັນ</h6>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_address">-</div>
-                    <div class="small text-muted mt-1" id="view_p_location">-</div>
-                  </div>
-                  <div class="col-md-4 border-start ps-4">
-                    <h6 class="fw-bold text-warning mb-3 border-bottom pb-2"><i class="fas fa-shield-alt me-2"></i>ປະກັນໄພ & ອົງກອນ</h6>
-                    <div class="mb-2">
-                      <div class="profile-label" style="font-size: 10px;">ບໍລິສັດປະກັນ / ອົງກອນ</div>
-                      <div class="profile-value small" id="view_p_ins_org">-</div>
-                    </div>
-                    <div class="row">
-                      <div class="col-6">
-                        <div class="profile-label" style="font-size: 10px;">ລະຫັດປະກັນ</div>
-                        <div class="profile-value small" id="view_p_ins_code">-</div>
-                      </div>
-                      <div class="col-6">
-                        <div class="profile-label" style="font-size: 10px;">ຊ່ອງທາງຮູ້ຈັກ</div>
-                        <div class="profile-value small" id="view_p_channel">-</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-4 border-start ps-4">
-                    <h6 class="fw-bold text-secondary mb-3 border-bottom pb-2"><i class="fas fa-exclamation-triangle me-2"></i>ຕິດຕໍ່ສຸກເສີນ</h6>
-                    <div class="profile-value" style="font-size: 14px; font-weight: 600;" id="view_p_emer">-</div>
-                    <div class="small text-muted mt-1" id="view_p_emer_contact">-</div>
-                  </div>
-                </div>
+
+          <div class="col-lg-4">
+            <div class="card card-outline card-primary shadow-sm h-100">
+              <div class="card-header py-2">
+                <h6 class="mb-0 fw-bold text-dark"><i class="fas fa-exclamation-triangle text-info me-2"></i>ຕິດຕໍ່ສຸກເສີນ</h6>
+              </div>
+              <div class="card-body patient-view-grid">
+                <div class="pvg-value" id="view_p_emer">-</div>
+                <div class="small text-muted mt-1" id="view_p_emer_contact">-</div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div class="modal-footer bg-white border-0">
-        <button type="button" class="btn btn-secondary px-4 rounded-pill" data-bs-dismiss="modal">ປິດອອກ</button>
-        <button type="button" class="btn btn-primary px-4 rounded-pill shadow-sm" id="btn_edit_from_view"><i class="fas fa-edit me-2"></i>ແກ້ໄຂຂໍ້ມູນ</button>
+
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ປິດ</button>
+        <button type="button" class="btn btn-primary fw-bold" id="btn_edit_from_view"><i class="fas fa-edit me-1"></i>ແກ້ໄຂຂໍ້ມູນ</button>
       </div>
     </div>
   </div>
