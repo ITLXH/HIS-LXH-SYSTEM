@@ -11940,3 +11940,279 @@ small,
   background: #f8f9fa;
   border-bottom: 1px solid var(--border-color);
 }
+
+/* OPD Card page 1: nursing condition log added to the lower blank area. */
+#opd-print-area.opdref .opdref-nursing-note-block,
+.opdref-page .opdref-nursing-note-block {
+  width: 100% !important;
+  margin: 3mm 0 0 !important;
+  padding: 0 !important;
+  color: #000 !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
+#opd-print-area.opdref .opdref-nursing-note-title,
+.opdref-page .opdref-nursing-note-title {
+  text-align: center !important;
+  font-family: "Phetsarath OT", "Noto Sans Lao", "Times New Roman", serif !important;
+  font-size: 12.5pt !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  margin: 0 0 1mm !important;
+  padding: 0 !important;
+}
+
+#opd-print-area.opdref .opdref-nursing-note-table,
+.opdref-page .opdref-nursing-note-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  table-layout: fixed !important;
+  border: 0 !important;
+  border-right: 1px solid #000 !important;
+  border-bottom: 1px solid #000 !important;
+  margin: 0 !important;
+  background: #fff !important;
+  box-sizing: border-box !important;
+}
+
+#opd-print-area.opdref .opdref-nursing-note-table th,
+#opd-print-area.opdref .opdref-nursing-note-table td,
+.opdref-page .opdref-nursing-note-table th,
+.opdref-page .opdref-nursing-note-table td {
+  border: 0 !important;
+  border-left: 1px solid #000 !important;
+  border-top: 1px solid #000 !important;
+  padding: 0.7mm 0.9mm !important;
+  color: #000 !important;
+  background: #fff !important;
+  font-family: "Times New Roman", "Phetsarath OT", "Noto Sans Lao", serif !important;
+  font-size: 10pt !important;
+  line-height: 1.1 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
+}
+
+#opd-print-area.opdref .opdref-nursing-note-table th,
+.opdref-page .opdref-nursing-note-table th {
+  height: 6.2mm !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+#opd-print-area.opdref .opdref-nursing-note-table td,
+.opdref-page .opdref-nursing-note-table td {
+  height: 5.9mm !important;
+}
+
+#opd-print-area.opdref .opdref-col-nurse-date,
+.opdref-page .opdref-col-nurse-date { width: 15% !important; }
+#opd-print-area.opdref .opdref-col-nurse-symptom,
+.opdref-page .opdref-col-nurse-symptom { width: 23% !important; }
+#opd-print-area.opdref .opdref-col-nurse-order,
+.opdref-page .opdref-col-nurse-order { width: 27% !important; }
+#opd-print-area.opdref .opdref-col-nurse-name,
+.opdref-page .opdref-col-nurse-name { width: 20% !important; }
+#opd-print-area.opdref .opdref-col-nurse-doctor,
+.opdref-page .opdref-col-nurse-doctor { width: 15% !important; }
+
+/* OPD Card page 1 compact pass: keep the patient information tight so the
+   nursing log sits above the recorder signature on one A4 page. */
+#opd-print-area.opdref .opd-page-one .opdref-sheet,
+.opdref-page.opd-page-one .opdref-sheet {
+  font-size: 11.7pt !important;
+  line-height: 1.22 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-header-row,
+.opdref-page.opd-page-one .opdref-header-row {
+  margin-bottom: 0.2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-header-center,
+.opdref-page.opd-page-one .opdref-header-center {
+  transform: translateY(4mm) !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-title-lao,
+#opd-print-area.opdref .opd-page-one .opdp1-title.opdref-title-lao,
+.opdref-page.opd-page-one .opdref-title-lao,
+.opdref-page.opd-page-one .opdp1-title.opdref-title-lao {
+  font-size: 16.2pt !important;
+  line-height: 1.05 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-title-en,
+.opdref-page.opd-page-one .opdref-title-en {
+  font-size: 13.2pt !important;
+  margin-top: 0.4mm !important;
+  line-height: 1.05 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-rule,
+.opdref-page.opd-page-one .opdref-rule {
+  margin-bottom: 0.8mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-rule-tight,
+.opdref-page.opd-page-one .opdref-rule-tight {
+  margin: 0.7mm 0 0.3mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-section,
+.opdref-page.opd-page-one .opdref-section {
+  font-size: 11.8pt !important;
+  line-height: 1.14 !important;
+  margin: 0.45mm 0 0.65mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-section-inline,
+.opdref-page.opd-page-one .opdref-section-inline {
+  margin-top: 0.35mm !important;
+  margin-bottom: 0.75mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-med-title,
+.opdref-page.opd-page-one .opdref-med-title {
+  margin-top: 0.7mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-row,
+.opdref-page.opd-page-one .opdref-row {
+  font-size: 11.7pt !important;
+  line-height: 1.13 !important;
+  margin-bottom: 1mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-fill,
+.opdref-page.opd-page-one .opdref-fill {
+  min-height: 3.8mm !important;
+  font-size: 11.7pt !important;
+  line-height: 1.05 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-vital-table,
+.opdref-page.opd-page-one .opdref-vital-table {
+  margin-bottom: 0.7mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-vital-table th,
+#opd-print-area.opdref .opd-page-one .opdref-vital-table td,
+.opdref-page.opd-page-one .opdref-vital-table th,
+.opdref-page.opd-page-one .opdref-vital-table td {
+  font-size: 9.1pt !important;
+  padding: 0.55mm 0.25mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-vital-table th,
+.opdref-page.opd-page-one .opdref-vital-table th {
+  height: 6.2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-vital-table td,
+.opdref-page.opd-page-one .opdref-vital-table td {
+  height: 7.1mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-block,
+.opdref-page.opd-page-one .opdref-nursing-note-block {
+  margin-top: 2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-title,
+.opdref-page.opd-page-one .opdref-nursing-note-title {
+  font-size: 11.2pt !important;
+  margin-bottom: 0.6mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table th,
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table td,
+.opdref-page.opd-page-one .opdref-nursing-note-table th,
+.opdref-page.opd-page-one .opdref-nursing-note-table td {
+  font-size: 9.3pt !important;
+  padding: 0.45mm 0.65mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table th,
+.opdref-page.opd-page-one .opdref-nursing-note-table th {
+  height: 6.1mm !important;
+  font-size: 8.4pt !important;
+  line-height: 1.05 !important;
+  white-space: normal !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table td,
+.opdref-page.opd-page-one .opdref-nursing-note-table td {
+  height: 5.2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-signature-block,
+.opdref-page.opd-page-one .opdref-signature-block {
+  position: absolute !important;
+  right: 5mm !important;
+  bottom: 22mm !important;
+  width: 82mm !important;
+  margin: 0 !important;
+  font-size: 11.7pt !important;
+  line-height: 1.14 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-signature-title,
+.opdref-page.opd-page-one .opdref-signature-title {
+  margin-bottom: 1.2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-signature-line,
+.opdref-page.opd-page-one .opdref-signature-line {
+  height: 5.2mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-block,
+.opdref-page.opd-page-one .opdref-nursing-note-block {
+  width: 170mm !important;
+  max-width: 170mm !important;
+  margin: 2mm auto 0 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table,
+.opdref-page.opd-page-one .opdref-nursing-note-table {
+  width: 170mm !important;
+  max-width: 170mm !important;
+  border-collapse: collapse !important;
+  border: 1.3px solid #000 !important;
+  outline: 1.1px solid #000 !important;
+  outline-offset: -1px !important;
+  box-shadow: none !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table th:first-child,
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table td:first-child,
+.opdref-page.opd-page-one .opdref-nursing-note-table th:first-child,
+.opdref-page.opd-page-one .opdref-nursing-note-table td:first-child {
+  border-left: 1.2px solid #000 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table th:last-child,
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table td:last-child,
+.opdref-page.opd-page-one .opdref-nursing-note-table th:last-child,
+.opdref-page.opd-page-one .opdref-nursing-note-table td:last-child {
+  border-right: 1.2px solid #000 !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table th,
+.opdref-page.opd-page-one .opdref-nursing-note-table th {
+  height: 7mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-nursing-note-table td,
+.opdref-page.opd-page-one .opdref-nursing-note-table td {
+  height: 8.5mm !important;
+}
+
+#opd-print-area.opdref .opd-page-one .opdref-signature-block,
+.opdref-page.opd-page-one .opdref-signature-block {
+  bottom: 14mm !important;
+}
