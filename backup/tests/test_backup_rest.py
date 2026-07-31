@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import os
 import tempfile
@@ -114,6 +115,44 @@ class BackupRestTests(unittest.TestCase):
         ):
             self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
             self.assertIn("backups/2020/01/backup-old.zip", deleted.call_args.args[0])
+
+    def test_required_customer_and_settings_tables_are_enforced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(backup_rest, "OUTPUT", Path(tmp)), patch.object(
+                backup_rest, "REQUIRED_TABLES", ["HIS_One_Patients", "HIS_One_Settings"]
+            ), patch.object(
+                backup_rest, "discover_tables", return_value=["HIS_One_Patients"]
+            ):
+                self.assertFalse(backup_rest.main())
+
+    def test_application_storage_objects_are_downloaded_with_hashes(self):
+        bucket_response = Mock(
+            status_code=200,
+            json=Mock(return_value=[{"id": "order-result-files", "public": False}]),
+        )
+        object_response = Mock(status_code=200, content=b"result-pdf")
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(backup_rest, "OUTPUT", Path(tmp)), patch.object(
+                backup_rest, "INCLUDE_STORAGE", True
+            ), patch.object(
+                backup_rest.requests, "get", side_effect=[bucket_response, object_response]
+            ), patch.object(
+                backup_rest,
+                "list_storage_objects",
+                return_value=[("patients/result.pdf", {"metadata": {"mimetype": "application/pdf"}})],
+            ):
+                result = backup_rest.backup_storage_buckets()
+
+            self.assertEqual(result["total_objects"], 1)
+            self.assertEqual(result["total_bytes"], len(b"result-pdf"))
+            self.assertEqual(
+                result["buckets"][0]["objects"][0]["sha256"],
+                hashlib.sha256(b"result-pdf").hexdigest(),
+            )
+            self.assertEqual(
+                (Path(tmp) / "storage" / "order-result-files" / "patients" / "result.pdf").read_bytes(),
+                b"result-pdf",
+            )
 
 
 if __name__ == "__main__":

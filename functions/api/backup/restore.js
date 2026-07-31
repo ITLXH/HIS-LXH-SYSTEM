@@ -27,7 +27,13 @@ export async function onRequestPost(ctx) {
     return json({ success: false, error: 'confirm must be the literal string "RESTORE"' });
   }
 
-  const inputs = { source, dry_run: dryRun ? 'true' : 'false' };
+  const inputs = {
+    source,
+    dry_run: dryRun ? 'true' : 'false',
+    // The workflow and restore script enforce this independently from the
+    // browser/API check, so a direct workflow dispatch cannot bypass it.
+    confirmation: confirm,
+  };
 
   if (source === 'gdrive') {
     const fileId = String(body?.gdrive_file_id || '').trim();

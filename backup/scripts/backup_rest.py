@@ -4,6 +4,7 @@ import json, os, sys, csv, zipfile
 import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -12,6 +13,13 @@ SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups").strip() or "his-backups"
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 OUTPUT = Path(os.environ.get("OUTPUT_DIR", "output"))
+INCLUDE_STORAGE = os.environ.get("BACKUP_INCLUDE_STORAGE", "0") == "1"
+REQUIRED_TABLES = [
+    item.strip()
+    for item in os.environ.get("BACKUP_REQUIRED_TABLES", "").split(",")
+    if item.strip()
+]
+OPENAPI_SPEC = {}
 
 HEADERS = {
     "apikey": SERVICE_KEY,
@@ -41,6 +49,7 @@ KNOWN_TABLES = [
 
 def discover_tables():
     """Use OpenAPI spec or HEAD probes to find real public tables."""
+    global OPENAPI_SPEC
     # Try OpenAPI spec
     try:
         resp = requests.get(
@@ -64,6 +73,7 @@ def discover_tables():
                     print(f"  OpenAPI discovery found {len(tables)} tables")
                     return tables
             elif isinstance(data, dict):
+                OPENAPI_SPEC = data
                 defs = data.get("definitions", data.get("components", {}).get("schemas", {}))
                 if isinstance(defs, dict):
                     tables = sorted(defs.keys())
@@ -85,6 +95,141 @@ def discover_tables():
         except Exception:
             pass
     return existing
+
+
+def table_is_restorable(table):
+    """Use PostgREST's OpenAPI paths to distinguish writable tables from views."""
+    if not OPENAPI_SPEC:
+        return True
+    operations = OPENAPI_SPEC.get("paths", {}).get(f"/{table}", {})
+    return "post" in operations
+
+
+def storage_headers(content_type="application/json"):
+    return {
+        "Authorization": f"Bearer {SERVICE_KEY}",
+        "apikey": SERVICE_KEY,
+        "Content-Type": content_type,
+    }
+
+
+def _safe_storage_destination(root, bucket, object_name):
+    candidate = (root / bucket / Path(object_name.replace("\\", "/"))).resolve()
+    root_resolved = root.resolve()
+    if root_resolved not in candidate.parents:
+        raise RuntimeError(f"Unsafe Storage object path: {bucket}/{object_name}")
+    return candidate
+
+
+def list_storage_objects(bucket):
+    """Recursively list every object in a Supabase Storage bucket."""
+    list_url = f"{SUPABASE_URL}/storage/v1/object/list/{quote(bucket, safe='')}"
+
+    def walk(prefix="", depth=0):
+        if depth > 20:
+            raise RuntimeError(f"Storage folder nesting is too deep in bucket {bucket}")
+        found = []
+        offset = 0
+        while True:
+            resp = requests.post(
+                list_url,
+                headers=storage_headers(),
+                data=json.dumps({"prefix": prefix, "limit": 1000, "offset": offset}),
+                timeout=60,
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Storage list failed for {bucket}/{prefix}: HTTP {resp.status_code} {resp.text[:200]}"
+                )
+            payload = resp.json()
+            if not isinstance(payload, list):
+                raise RuntimeError(f"Storage list returned invalid data for {bucket}/{prefix}")
+            for item in payload:
+                name = item.get("name", "")
+                if not name:
+                    continue
+                full_name = f"{prefix}/{name}" if prefix else name
+                if item.get("id") is None:
+                    found.extend(walk(full_name, depth + 1))
+                else:
+                    found.append((full_name, item))
+            if len(payload) < 1000:
+                break
+            offset += len(payload)
+        return found
+
+    return walk()
+
+
+def backup_storage_buckets():
+    """Download all application Storage objects except the backup destination itself."""
+    if not INCLUDE_STORAGE:
+        return {"enabled": False, "buckets": [], "total_objects": 0, "total_bytes": 0}
+
+    response = requests.get(
+        f"{SUPABASE_URL}/storage/v1/bucket",
+        headers=storage_headers(),
+        timeout=60,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Storage bucket list failed: HTTP {response.status_code} {response.text[:200]}")
+
+    storage_root = OUTPUT / "storage"
+    bucket_entries = []
+    total_objects = 0
+    total_bytes = 0
+    bucket_payload = response.json()
+    for bucket_info in bucket_payload if isinstance(bucket_payload, list) else []:
+        bucket = bucket_info.get("id") or bucket_info.get("name")
+        if not bucket or bucket == SUPABASE_BUCKET:
+            continue
+        objects = []
+        for object_name, metadata in list_storage_objects(bucket):
+            destination = _safe_storage_destination(storage_root, bucket, object_name)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            object_url = (
+                f"{SUPABASE_URL}/storage/v1/object/{quote(bucket, safe='')}/"
+                f"{quote(object_name, safe='/')}"
+            )
+            download = requests.get(
+                object_url,
+                headers=storage_headers(content_type="application/octet-stream"),
+                timeout=300,
+            )
+            if download.status_code != 200:
+                raise RuntimeError(
+                    f"Storage download failed for {bucket}/{object_name}: "
+                    f"HTTP {download.status_code} {download.text[:200]}"
+                )
+            destination.write_bytes(download.content)
+            size = len(download.content)
+            objects.append(
+                {
+                    "name": object_name,
+                    "size_bytes": size,
+                    "sha256": sha256(destination),
+                    "content_type": (metadata.get("metadata") or {}).get("mimetype"),
+                }
+            )
+            total_objects += 1
+            total_bytes += size
+        bucket_entries.append(
+            {
+                "id": bucket,
+                "public": bool(bucket_info.get("public", False)),
+                "file_size_limit": bucket_info.get("file_size_limit"),
+                "allowed_mime_types": bucket_info.get("allowed_mime_types"),
+                "objects": objects,
+            }
+        )
+        print(f"    Storage {bucket}: {len(objects)} objects")
+
+    return {
+        "enabled": True,
+        "buckets": bucket_entries,
+        "total_objects": total_objects,
+        "total_bytes": total_bytes,
+    }
 
 
 def export_table(table):
@@ -309,22 +454,28 @@ def main():
     zip_path = OUTPUT / zip_name
 
     # Discover tables
-    print("\n[1/4] Discovering tables...")
+    print("\n[1/5] Discovering tables...")
     tables = discover_tables()
     print(f"  Found {len(tables)} tables: {', '.join(tables)}")
     if not tables:
         print("\nFATAL: no tables were discovered; refusing to create an empty backup.")
         github_error("No Supabase tables were discovered; check the service-role key and PostgREST access")
         return False
+    missing_required = [table for table in REQUIRED_TABLES if table not in tables]
+    if missing_required:
+        print(f"\nFATAL: required customer/settings tables are missing: {', '.join(missing_required)}")
+        github_error(f"Required backup tables are missing: {', '.join(missing_required)}")
+        return False
 
     # Export each table
-    print("\n[2/4] Exporting tables via REST API...")
+    print("\n[2/5] Exporting tables via REST API...")
     (OUTPUT / "csv").mkdir(parents=True, exist_ok=True)
     csv_files = []
     json_files = []
     total_rows = 0
     failed = []
     table_rows = {}
+    table_details = {}
 
     for i, table in enumerate(tables):
         try:
@@ -338,6 +489,11 @@ def main():
             if count > 0:
                 csv_files.append(str(csv_path))
             table_rows[table] = count
+            table_details[table] = {
+                "rows": count,
+                "sha256": sha256(json_path),
+                "restorable": table_is_restorable(table),
+            }
             total_rows += count
             print(f"    {table}: {count} rows")
         except Exception as e:
@@ -346,22 +502,43 @@ def main():
 
     print(f"\n  Total: {total_rows} rows across {len(table_rows)} tables ({len(failed)} failed)")
 
+    print("\n[3/5] Backing up application Storage objects...")
+    try:
+        storage_backup = backup_storage_buckets()
+    except Exception as exc:
+        print(f"  Storage backup FAILED: {exc}")
+        github_error(f"Application Storage backup failed: {exc}")
+        return False
+
+    metadata_dir = OUTPUT / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    openapi_path = metadata_dir / "postgrest-openapi.json"
+    openapi_path.write_text(
+        json.dumps(OPENAPI_SPEC, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
     archive_manifest = {
+        "format_version": 2,
+        "backup_scope": "application-data-settings-and-storage",
         "date": today,
         "time": now.isoformat(),
         "tables_discovered": len(tables),
         "tables_exported": len(table_rows),
         "total_rows": total_rows,
         "table_rows": table_rows,
+        "table_details": table_details,
+        "required_tables": REQUIRED_TABLES,
         "failed_tables": failed,
         "formats": ["json", "csv"],
+        "storage": storage_backup,
+        "metadata": {"postgrest_openapi": "metadata/postgrest-openapi.json"},
     }
     archive_manifest_path = OUTPUT / "archive-manifest.json"
     with open(archive_manifest_path, "w", encoding="utf-8") as f:
         json.dump(archive_manifest, f, ensure_ascii=False, indent=2)
 
     # Zip everything
-    print(f"\n[3/4] Creating zip archive: {zip_name}")
+    print(f"\n[4/5] Creating zip archive: {zip_name}")
     csv_paths = [Path(fp) for fp in csv_files]
     json_paths = [Path(fp) for fp in json_files]
     with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
@@ -369,6 +546,12 @@ def main():
             zf.write(fp, "csv/" + fp.name)
         for fp in json_paths:
             zf.write(fp, "json/" + fp.name)
+        for root_name in ("storage", "metadata"):
+            root = OUTPUT / root_name
+            if root.exists():
+                for fp in root.rglob("*"):
+                    if fp.is_file():
+                        zf.write(fp, fp.relative_to(OUTPUT).as_posix())
         zf.write(archive_manifest_path, "manifest.json")
 
     size = zip_path.stat().st_size
@@ -382,7 +565,7 @@ def main():
         return False
 
     # Upload to Supabase Storage
-    print(f"\n[4/4] Uploading to Supabase Storage...")
+    print(f"\n[5/5] Uploading to Supabase Storage...")
     sb_url_out = None
     ts_suffix = now.strftime("%Y%m%d_%H%M%S")
     zip_name_ts = f"backup-{today}_{ts_suffix}.zip"
@@ -420,6 +603,8 @@ def main():
         "tables": len(table_rows),
         "total_rows": total_rows,
         "table_rows": table_rows,
+        "storage_objects": storage_backup["total_objects"],
+        "storage_bytes": storage_backup["total_bytes"],
         "failed_tables": failed,
         "sha256": sha,
         "size_bytes": size,

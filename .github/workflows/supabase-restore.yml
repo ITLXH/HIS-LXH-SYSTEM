@@ -24,12 +24,23 @@ on:
       dry_run:
         description: 'Dry-run (do not actually write rows)'
         required: false
-        default: 'false'
+        default: 'true'
+        type: boolean
+      confirmation:
+        description: 'Type RESTORE for an actual restore (not needed for dry-run)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-database-restore
+  cancel-in-progress: false
 
 jobs:
   restore:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,16 +53,31 @@ jobs:
       - name: Install Python deps
         run: pip install requests google-api-python-client google-auth
 
+      - name: Create pre-restore safety backup
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
+          OUTPUT_DIR: pre-restore-output
+          RETENTION_DAYS: '30'
+          BACKUP_INCLUDE_STORAGE: '1'
+          BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users
+        run: |
+          echo "Creating a verified safety snapshot before any restore writes..."
+          python backup/scripts/backup_rest.py
+
       - name: Run Restore
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BACKUP_SOURCE: ${{ github.event.inputs.source }}
           BACKUP_NAME: ${{ github.event.inputs.backup_name }}
           BACKUP_GDRIVE_FILE_ID: ${{ github.event.inputs.gdrive_file_id }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+          RESTORE_CONFIRMATION: ${{ github.event.inputs.confirmation }}
         run: |
           python backup/scripts/restore_rest.py
 
@@ -66,5 +92,6 @@ jobs:
           echo "| Backup name | \`${{ github.event.inputs.backup_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Drive file ID | \`${{ github.event.inputs.gdrive_file_id }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dry-run | ${{ github.event.inputs.dry_run }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Pre-restore safety backup | ${{ github.event.inputs.dry_run == 'true' && 'Not required' || 'Created and verified' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
