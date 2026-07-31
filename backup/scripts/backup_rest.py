@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Supabase backup via REST API — works from GitHub Actions (no direct DB access needed)."""
+"""Supabase backup via REST API - works from GitHub Actions (no direct DB access needed)."""
 import json, os, sys, csv, zipfile
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
 
-SUPABASE_URL = os.environ["SUPABASE_URL"].rstrip("/")
-SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups").strip() or "his-backups"
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 OUTPUT = Path(os.environ.get("OUTPUT_DIR", "output"))
 
@@ -20,7 +20,7 @@ HEADERS = {
     "Prefer": "count=exact",
 }
 
-# Fallback table names — HIS_One_ prefix as used in this project
+# Fallback table names - HIS_One_ prefix as used in this project
 KNOWN_TABLES = [
     "HIS_One_Users", "HIS_One_Settings", "HIS_One_Patients",
     "HIS_One_Appointments", "HIS_One_Locations", "HIS_One_Organizations",
@@ -87,6 +87,7 @@ def export_table(table):
     offset = 0
     limit = 1000
     all_rows = []
+    expected_total = None
 
     while True:
         resp = requests.get(
@@ -97,36 +98,57 @@ def export_table(table):
         )
         if resp.status_code in (200, 206):
             rows = resp.json()
+            content_range = resp.headers.get("Content-Range", "")
+            if "/" in content_range:
+                total_text = content_range.rsplit("/", 1)[-1]
+                if total_text.isdigit():
+                    expected_total = int(total_text)
             if not rows:
                 break
             all_rows.extend(rows)
-            offset += limit
-            if offset >= 100000:
+            offset += len(rows)
+            if len(rows) < limit:
                 break
         elif resp.status_code == 416:
             break
         else:
-            print(f"    HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}")
-            break
+            raise RuntimeError(
+                f"HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}"
+            )
 
-    # Deduplicate by id
-    seen = set()
-    unique = []
-    for row in all_rows:
-        key = row.get("id", str(row))
-        if key not in seen:
-            seen.add(key)
-            unique.append(row)
-    return unique
+    if expected_total is not None and len(all_rows) != expected_total:
+        raise RuntimeError(
+            f"row-count mismatch for {table}: exported {len(all_rows)}, expected {expected_total}"
+        )
+    return all_rows
 
 
 def save_csv(table, rows, path):
     if not rows:
         return 0
+    fieldnames = []
+    seen_fields = set()
+    for row in rows:
+        for key in row.keys():
+            if key not in seen_fields:
+                seen_fields.add(key)
+                fieldnames.append(key)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(rows)
+        for row in rows:
+            encoded = {
+                key: json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value
+                for key, value in row.items()
+            }
+            writer.writerow(encoded)
+    return len(rows)
+
+
+def save_json(rows, path):
+    """Preserve Postgres/PostgREST value types for disaster recovery."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(rows, f, ensure_ascii=False, indent=2)
     return len(rows)
 
 
@@ -154,37 +176,110 @@ def upload_supabase_storage(zip_path, object_path):
     return resp
 
 
-def cleanup_supabase_storage():
-    """Delete old backups from Supabase Storage."""
-    prefix = "backups/"
-    list_url = f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}"
+def verify_supabase_upload(object_path, expected_size):
+    """Confirm the uploaded object exists and has the expected byte size."""
+    parent, filename = object_path.rsplit("/", 1)
     resp = requests.post(
-        list_url,
-        headers={"Authorization": f"Bearer {SERVICE_KEY}", "Content-Type": "application/json"},
-        data=json.dumps({"prefix": prefix, "limit": 1000}),
+        f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}",
+        headers={
+            "Authorization": f"Bearer {SERVICE_KEY}",
+            "apikey": SERVICE_KEY,
+            "Content-Type": "application/json",
+        },
+        data=json.dumps({"prefix": parent, "limit": 100, "search": filename}),
         timeout=30,
     )
     if resp.status_code != 200:
-        print(f"  List failed: HTTP {resp.status_code}")
-        return 0
+        print(f"  Verification list failed (HTTP {resp.status_code}): {resp.text[:200]}")
+        return False
 
-    objects = resp.json()
-    if not isinstance(objects, list):
-        return 0
+    items = resp.json()
+    for item in items if isinstance(items, list) else []:
+        if item.get("name") != filename:
+            continue
+        actual_size = (item.get("metadata") or {}).get("size")
+        if actual_size is None or int(actual_size) == int(expected_size):
+            return True
+        print(f"  Verification size mismatch: Storage={actual_size}, local={expected_size}")
+        return False
+    print(f"  Verification failed: {object_path} was not returned by Storage list")
+    return False
 
-    cutoff = datetime.now() - __import__('datetime').timedelta(days=RETENTION_DAYS)
+
+def ensure_supabase_bucket():
+    """Create the private backup bucket when it does not already exist."""
+    headers = {
+        "Authorization": f"Bearer {SERVICE_KEY}",
+        "apikey": SERVICE_KEY,
+        "Content-Type": "application/json",
+    }
+    bucket_url = f"{SUPABASE_URL}/storage/v1/bucket/{SUPABASE_BUCKET}"
+    resp = requests.get(bucket_url, headers=headers, timeout=30)
+    if resp.status_code == 200:
+        print(f"  Bucket ready: {SUPABASE_BUCKET}")
+        return
+    if resp.status_code not in (400, 404):
+        raise RuntimeError(f"Bucket check failed (HTTP {resp.status_code}): {resp.text[:300]}")
+
+    create_resp = requests.post(
+        f"{SUPABASE_URL}/storage/v1/bucket",
+        headers=headers,
+        data=json.dumps({"id": SUPABASE_BUCKET, "name": SUPABASE_BUCKET, "public": False}),
+        timeout=30,
+    )
+    if create_resp.status_code in (200, 201, 409):
+        print(f"  Bucket ready: {SUPABASE_BUCKET}")
+        return
+    raise RuntimeError(f"Bucket create failed (HTTP {create_resp.status_code}): {create_resp.text[:300]}")
+
+
+def cleanup_supabase_storage():
+    """Delete old backups from Supabase Storage."""
+    list_url = f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}"
+    storage_headers = {
+        "Authorization": f"Bearer {SERVICE_KEY}",
+        "apikey": SERVICE_KEY,
+        "Content-Type": "application/json",
+    }
+
+    def walk(prefix, depth=0):
+        if depth > 5:
+            return []
+        resp = requests.post(
+            list_url,
+            headers=storage_headers,
+            data=json.dumps({"prefix": prefix, "limit": 1000}),
+            timeout=30,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Storage list failed for {prefix!r}: HTTP {resp.status_code}")
+        found = []
+        items = resp.json()
+        for obj in items if isinstance(items, list) else []:
+            name = obj.get("name", "")
+            if not name:
+                continue
+            full_name = f"{prefix}/{name}" if prefix else name
+            if obj.get("id") is None:
+                found.extend(walk(full_name, depth + 1))
+            else:
+                found.append((full_name, obj))
+        return found
+
+    objects = walk("backups")
+    cutoff = datetime.now().astimezone() - timedelta(days=RETENTION_DAYS)
     deleted = 0
-    for obj in objects:
-        name = obj.get("name", "")
+    for name, obj in objects:
         if not name.endswith(".zip"):
             continue
         try:
-            created = datetime.fromisoformat(obj["created"].replace("Z", "+00:00"))
+            created_text = obj.get("created_at") or obj.get("updated_at") or ""
+            created = datetime.fromisoformat(created_text.replace("Z", "+00:00"))
         except Exception:
             continue
         if created < cutoff:
             del_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{name}"
-            dr = requests.delete(del_url, headers={"Authorization": f"Bearer {SERVICE_KEY}"}, timeout=30)
+            dr = requests.delete(del_url, headers=storage_headers, timeout=30)
             if dr.status_code in (200, 204):
                 print(f"  Deleted from Supabase: {name}")
                 deleted += 1
@@ -193,18 +288,12 @@ def cleanup_supabase_storage():
 
 def main():
     print("=" * 60)
-    print("HIS Database Backup — REST API mode")
+    print("HIS Database Backup - REST API mode")
     print("=" * 60)
 
-    # Fail fast when the Supabase Storage bucket is unset. Previously the
-    # script printed "SKIPPED" and still exited 0, so the workflow was marked
-    # green even when nothing was uploaded — that hid the config error from
-    # the UI, which then showed an empty bucket next to a "success" run.
-    if not SUPABASE_BUCKET:
-        print("\nFATAL: SUPABASE_STORAGE_BUCKET is not set.")
-        print("Set the GitHub Actions secret SUPABASE_STORAGE_BUCKET to the")
-        print("bucket name (e.g. 'his-backups') that the Cloudflare Pages")
-        print("function /api/backup/list also targets.")
+    if not SUPABASE_URL or not SERVICE_KEY:
+        print("\nFATAL: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.")
+        print("Set both values as GitHub Actions secrets for this repository.")
         sys.exit(2)
 
     now = datetime.now()
@@ -216,64 +305,92 @@ def main():
     print("\n[1/4] Discovering tables...")
     tables = discover_tables()
     print(f"  Found {len(tables)} tables: {', '.join(tables)}")
+    if not tables:
+        print("\nFATAL: no tables were discovered; refusing to create an empty backup.")
+        return False
 
     # Export each table
     print("\n[2/4] Exporting tables via REST API...")
     (OUTPUT / "csv").mkdir(parents=True, exist_ok=True)
     csv_files = []
+    json_files = []
     total_rows = 0
     failed = []
+    table_rows = {}
 
     for i, table in enumerate(tables):
         try:
             rows = export_table(table)
             csv_path = OUTPUT / "csv" / f"{table}.csv"
+            json_path = OUTPUT / "json" / f"{table}.json"
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            save_json(rows, json_path)
+            json_files.append(str(json_path))
             count = save_csv(table, rows, csv_path)
             if count > 0:
                 csv_files.append(str(csv_path))
+            table_rows[table] = count
             total_rows += count
             print(f"    {table}: {count} rows")
         except Exception as e:
-            print(f"    {table}: FAILED — {e}")
+            print(f"    {table}: FAILED - {e}")
             failed.append(table)
 
-    print(f"\n  Total: {total_rows} rows across {len(csv_files)} tables ({len(failed)} failed)")
+    print(f"\n  Total: {total_rows} rows across {len(table_rows)} tables ({len(failed)} failed)")
+
+    archive_manifest = {
+        "date": today,
+        "time": now.isoformat(),
+        "tables_discovered": len(tables),
+        "tables_exported": len(table_rows),
+        "total_rows": total_rows,
+        "table_rows": table_rows,
+        "failed_tables": failed,
+        "formats": ["json", "csv"],
+    }
+    archive_manifest_path = OUTPUT / "archive-manifest.json"
+    with open(archive_manifest_path, "w", encoding="utf-8") as f:
+        json.dump(archive_manifest, f, ensure_ascii=False, indent=2)
 
     # Zip everything
     print(f"\n[3/4] Creating zip archive: {zip_name}")
     csv_paths = [Path(fp) for fp in csv_files]
-    if csv_paths:
-        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
-            for fp in csv_paths:
-                zf.write(fp, "csv/" + fp.name)
-    else:
-        print("  No CSV data — creating manifest-only zip")
-        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
-            pass
+    json_paths = [Path(fp) for fp in json_files]
+    with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
+        for fp in csv_paths:
+            zf.write(fp, "csv/" + fp.name)
+        for fp in json_paths:
+            zf.write(fp, "json/" + fp.name)
+        zf.write(archive_manifest_path, "manifest.json")
 
     size = zip_path.stat().st_size
     sha = sha256(str(zip_path))
     print(f"  Size: {size:,} bytes ({size / 1024 / 1024:.1f} MB)")
     print(f"  SHA-256: {sha}")
 
+    if failed:
+        print(f"\nFATAL: {len(failed)} table(s) failed; refusing to upload an incomplete backup.")
+        return False
+
     # Upload to Supabase Storage
     print(f"\n[4/4] Uploading to Supabase Storage...")
     sb_url_out = None
-    if SUPABASE_BUCKET:
-        ts_suffix = now.strftime("%Y%m%d_%H%M%S")
-        zip_name_ts = f"backup-{today}_{ts_suffix}.zip"
-        object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name_ts}"
-        try:
-            resp = upload_supabase_storage(str(zip_path), object_path)
-            if resp.status_code in (200, 201):
-                sb_url_out = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{object_path}"
-                print(f"  SUCCESS: {sb_url_out}")
+    ts_suffix = now.strftime("%Y%m%d_%H%M%S")
+    zip_name_ts = f"backup-{today}_{ts_suffix}.zip"
+    object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name_ts}"
+    try:
+        ensure_supabase_bucket()
+        resp = upload_supabase_storage(str(zip_path), object_path)
+        if resp.status_code in (200, 201):
+            if verify_supabase_upload(object_path, size):
+                sb_url_out = object_path
+                print(f"  SUCCESS + VERIFIED: {SUPABASE_BUCKET}/{object_path}")
             else:
-                print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
-        except Exception as e:
-            print(f"  FAILED: {e}")
-    else:
-        print("  SKIPPED (SUPABASE_STORAGE_BUCKET not set)")
+                print("  FAILED: upload returned success but verification did not pass")
+        else:
+            print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
+    except Exception as e:
+        print(f"  FAILED: {e}")
 
     # Cleanup old backups
     print(f"\nCleaning up old backups (>{RETENTION_DAYS} days)...")
@@ -288,11 +405,14 @@ def main():
         "date": today,
         "time": now.isoformat(),
         "filename": zip_name,
-        "tables": len(csv_files),
+        "tables": len(table_rows),
         "total_rows": total_rows,
+        "table_rows": table_rows,
         "failed_tables": failed,
         "sha256": sha,
         "size_bytes": size,
+        "storage_bucket": SUPABASE_BUCKET,
+        "storage_object": sb_url_out,
     }
     manifest_path = OUTPUT / "manifest.json"
     with open(manifest_path, "w") as f:
@@ -308,9 +428,13 @@ def main():
         with open(outputs_path, "a") as f:
             f.write(f"zip_size={size}\n")
             f.write(f"total_rows={total_rows}\n")
-            f.write(f"backup_tables={len(csv_files)}\n")
+            f.write(f"backup_tables={len(table_rows)}\n")
             if sb_url_out:
                 f.write(f"supabase_url={sb_url_out}\n")
+
+    if not sb_url_out:
+        print("\nFATAL: backup ZIP was created but was not uploaded to Supabase Storage.")
+        return False
 
     return len(failed) == 0
 

@@ -13,6 +13,13 @@ on:
 env:
   RETENTION_DAYS: 30
 
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-database-backup
+  cancel-in-progress: false
+
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -33,6 +40,7 @@ jobs:
         run: pip install requests google-api-python-client google-auth
 
       - name: Run Backup (Supabase Storage)
+        id: backup
         # Destination 1 — Supabase Storage bucket in the SAME Supabase
         # project the HIS app talks to. SUPABASE_URL / SERVICE_ROLE_KEY are
         # the production project's credentials (configured as repo secrets).
@@ -42,7 +50,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
           OUTPUT_DIR: output
           RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
 
@@ -120,7 +128,11 @@ jobs:
           echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Name | ${{ steps.outputs.outputs.zip_name || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Size | ${{ steps.outputs.outputs.backup_size || '-' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Destination 1 (Supabase) | ✅ Storage bucket |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.backup.outcome }}" == "success" ]]; then
+            echo "| Destination 1 (Supabase) | ✅ Uploaded and verified |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Destination 1 (Supabase) | ❌ Backup/upload failed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
             echo "| Destination 2 (Google Drive) | [Open ↗](${{ steps.outputs.outputs.drive_url }}) |" >> "$GITHUB_STEP_SUMMARY"
           else
