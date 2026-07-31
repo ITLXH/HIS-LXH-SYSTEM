@@ -1,87 +1,76 @@
-# ຜົນກວດສອບ HIS Backup → Supabase Storage
+# ຜົນກວດສອບ HIS Backup ແລະ Restore
 
-ວັນທີກວດສອບ: **2026-07-31**
-
-Repository: `ITLXH/HIS-LXH-SYSTEM`
-
-Branch: `main`
-
-Production commit: `7077609a6007872201043ab165a8f56414a7d42a`
+ວັນທີກວດສອບ: **2026-07-31**  
+Repository: `ITLXH/HIS-LXH-SYSTEM`  
+Branch: `main`  
+Production commit: `aa89234090fd4ac9916896b313269bfc7599aeef`
 
 ## ສະຫຼຸບຜົນ
 
-ລະບົບ backup ໃຊ້ງານໄດ້ແລ້ວໃນ production. GitHub Actions run **#49** ສຳເລັດ ແລະໄຟລ໌ ZIP ຖືກ upload ແລະ verify ໃນ private Supabase Storage bucket `his-backups`.
+ລະບົບ backup ແລະ restore ໃຊ້ງານໄດ້ແລ້ວໃນ production. Backup ຄອບຄຸມຂໍ້ມູນຄົນເຈັບ/ລູກຄ້າ, users, permissions, settings, master data, visits, admissions, orders/results ແລະໄຟລ໌ໃນ application Storage.
 
 | ລາຍການ | ຜົນ |
 |---|---|
-| GitHub Actions run | `#49` — Success |
-| Run ID | `30629874413` |
-| Tables ທີ່ export | `54` |
-| Rows ທັງໝົດ | `51,433` |
-| Tables ທີ່ລົ້ມເຫຼວ | `0` |
-| ຂະໜາດ ZIP | `3,555,647 bytes` (`3.4 MB`) |
-| SHA-256 | `5233dd3a5324e78bc815f7561a744a68950324e14df0739bd0681d7fd0e57236` |
-| Supabase object | `backups/2026/07/backup-2026-07-31_20260731_121437.zip` |
-| Production UI | ສະແດງໄຟລ໌ `3.4 MB` ແລະ run `#49 Success` |
+| Production backup run | `30641028459` — Success |
+| Restore dry-run | `30641934982` — Success |
+| Tables | `54` |
+| Rows | `51,504` |
+| Table export failures | `0` |
+| Application Storage | `376` objects, upload ແລະ checksum verify ຄົບ |
+| Metadata ZIP | `3,612,512 bytes` (`3.4 MB`) |
+| ZIP SHA-256 | `b065fa4c76b165c75e9876f4ee4fde42771652da73d4060a9c6a3972313ea041` |
+| Supabase object | `backups/2026/07/backup-2026-07-31_20260731_150037.zip` |
 
-GitHub Actions URL: <https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30629874413>
+- Backup run: <https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30641028459>
+- Restore dry-run: <https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30641934982>
+- Production UI: <https://his-lxh-system.pages.dev/backup>
 
-## ສິ່ງທີ່ໄດ້ຕັ້ງຄ່າ
+## ຂອບເຂດ Backup
 
-GitHub Actions Secrets ຖືກຕັ້ງແລ້ວ:
+- export ທຸກ table/view ທີ່ Supabase PostgREST/OpenAPI expose;
+- ບັງຄັບໃຫ້ມີ core tables: `HIS_One_Patients`, `HIS_One_Settings`, `HIS_One_Users`, `lis_one_settings`, `lis_one_users`;
+- ບັນທຶກ typed JSON ສຳລັບ restore, CSV ສຳລັບກວດສອບ, OpenAPI metadata ແລະ `manifest.json`;
+- ສຳຮອງ application Storage ທຸກ bucket ຍົກເວັ້ນ `his-backups`;
+- ບັນທຶກ row count, object size ແລະ SHA-256 ແລ້ວ verify ຫຼັງ upload;
+- fail-safe: ຖ້າຂາດ table, export ບໍ່ຄົບ, upload/verify ບໍ່ຜ່ານ ຈະບໍ່ລາຍງານ backup ສຳເລັດ;
+- retry ອັດຕະໂນມັດສຳລັບ HTTP `408`, `425`, `429`, `500`, `502`, `503`, `504`;
+- cleanup backup ເກົ່າກວ່າ 30 ມື້.
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_STORAGE_BUCKET=his-backups`
+Storage files ຖືກເກັບເປັນ sidecar snapshots ເພື່ອຮອງຮັບ Supabase global upload limit 50 MB ໂດຍບໍ່ປິດ Spend Cap. Main ZIP ເກັບ database data ແລະ manifest ທີ່ຊີ້ໄປຫາ sidecar ແຕ່ລະໄຟລ໌.
 
-ໝາຍເຫດສຳຄັນ: Storage API ຕ້ອງໃຊ້ legacy `service_role` JWT. Supabase `sb_secret_...` key ອ່ານ PostgREST ໄດ້ ແຕ່ Storage upload ຕອບ `Invalid Compact JWS`; ຈຶ່ງໄດ້ປ່ຽນ GitHub Secret ເປັນ legacy service-role JWT. Secret ບໍ່ໄດ້ຖືກບັນທຶກໃນ source code ຫຼືເອກະສານນີ້.
+## Restore
 
-Cloudflare Pages ມີ server-side secrets ສຳລັບ trigger/list backup ແລ້ວ. Production page:
+Restore dry-run ດາວໂຫຼດ main ZIP ແລະ sidecars ກັບຈາກ private Supabase bucket, ກວດ ZIP CRC, path traversal, manifest, table row counts, table hashes, Storage sizes ແລະ Storage hashes. Run `30641934982` ຜ່ານຄົບໂດຍບໍ່ຂຽນຂໍ້ມູນ production.
 
-<https://his-lxh-system.pages.dev/backup>
+ສຳລັບ restore ຈິງ:
 
-## ການແກ້ໄຂ Code
+1. ຕ້ອງກຳນົດ `dry_run=false` ແລະພິມ confirmation `RESTORE`.
+2. Workflow ຈະສ້າງແລະ verify pre-restore safety backup ກ່ອນ.
+3. Tables ຖືກ upsert ດ້ວຍ Primary Key; Storage files ຖືກ upsert ແລະ verify SHA-256 ຫຼັງຂຽນ.
+4. Read-only views ບໍ່ຖືກຂຽນ; ຂໍ້ມູນຈະກັບຄືນຈາກ source tables.
 
-- default bucket ເປັນ `his-backups`;
-- ສ້າງ private bucket ອັດຕະໂນມັດຖ້າຍັງບໍ່ມີ;
-- export ທຸກ table ທີ່ PostgREST/OpenAPI ສະແດງ ໂດຍ pagination;
-- ບັນທຶກ CSV, JSON ແລະ manifest ໃນ ZIP;
-- ກວດຈຳນວນ rows ແລະບໍ່ອະນຸຍາດ incomplete backup;
-- verify object ຫຼັງ upload ໂດຍກວດຂະໜາດໄຟລ໌;
-- workflow ຈະ fail ຖ້າ export, upload ຫຼື verify ບໍ່ສຳເລັດ;
-- cleanup backup ທີ່ເກົ່າກວ່າ `30` ມື້;
-- ສະແດງ error annotation ທີ່ອ່ານງ່າຍໃນ GitHub Actions.
-
-Commits:
-
-- `9059290` — Make Supabase backups fail-safe and self-provisioning
-- `7077609` — Expose backup failure reasons in Actions
+ບໍ່ໄດ້ຮັນ restore ຈິງໃສ່ production ໃນການທົດສອບນີ້ ເພາະຈະແກ້ໄຂຂໍ້ມູນໂດຍບໍ່ຈຳເປັນ. Dry-run ໄດ້ພິສູດວ່າ archive ສາມາດດາວໂຫຼດ, ກວດ ແລະກຽມ restore ໄດ້ຄົບ.
 
 ## ຜົນທົດສອບ Local
 
 | ຄຳສັ່ງ | ຜົນ |
 |---|---|
-| `python -m unittest discover -s backup/tests -v` | PASS — 6 tests |
+| `python -m unittest discover -s backup/tests -v` | PASS — 16 tests |
+| `python -m py_compile backup/scripts/backup_rest.py backup/scripts/restore_rest.py` | PASS |
 | `npm run build` | PASS |
-
-Unit tests ຄອບຄຸມ bucket creation, upload success/failure, table discovery, pagination ແລະ row-count verification.
 
 ## ການເຮັດວຽກອັດຕະໂນມັດ
 
-Workflow `supabase-backup.yml` ຮັນທຸກມື້ຕາມ cron `0 0 * * *`:
+Workflow `supabase-backup.yml` ຮັນທຸກມື້ຕາມ cron `0 0 * * *` (`07:00` ເວລາລາວ/ບາງກອກ). Admin ສາມາດກົດ **Backup Now** ຈາກໜ້າ `/backup` ໄດ້.
 
-- `00:00 UTC`
-- `07:00` ເວລາລາວ/ບາງກອກ (UTC+7)
+GitHub Actions secrets ທີ່ໃຊ້:
 
-ຜູ້ໃຊ້ສາມາດກົດ **Backup Now** ໃນໜ້າ `/backup` ເພື່ອ run manual ໄດ້. Google Drive ຍັງຖືກ skip ເພາະບໍ່ມີ `GOOGLE_SERVICE_ACCOUNT_JSON`; ບໍ່ມີຜົນຕໍ່ Supabase backup.
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET=his-backups`
 
-## ຂອບເຂດຂອງ Backup
+Secret ບໍ່ໄດ້ຖືກບັນທຶກໃນ source code ຫຼືເອກະສານ.
 
-Backup ນີ້ປ້ອງກັນຂໍ້ມູນ rows ຂອງ 54 tables ທີ່ expose ຜ່ານ Supabase PostgREST. ມັນບໍ່ແມ່ນ full PostgreSQL dump ແລະຍັງບໍ່ຄອບຄຸມ:
+## ຂໍ້ຈຳກັດ
 
-- database schema, functions, triggers, policies, roles ແລະ extensions;
-- Supabase Auth users;
-- objects ຈາກ Storage buckets ອື່ນ;
-- tables/schemas ທີ່ບໍ່ expose ຜ່ານ PostgREST.
-
-ສຳລັບ disaster recovery ແບບເຕັມຮູບແບບ ຄວນເພີ່ມ scheduled PostgreSQL dump ແລະ backup Storage objects ແຍກຕ່າງຫາກ. ກ່ອນ restore ຂໍ້ມູນຈິງ ຄວນທົດສອບໃນ non-production project ກ່ອນ.
+Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Database DDL ເຊັ່ນ functions, triggers, RLS policies, roles ແລະ extensions ບໍ່ສາມາດສ້າງຄືນຜ່ານ service-role REST API. ເມື່ອສ້າງ Supabase project ໃໝ່ຈາກສູນ ຕ້ອງ deploy schema/migrations ຈາກ repository ກ່ອນ ແລ້ວຈຶ່ງ restore archive.

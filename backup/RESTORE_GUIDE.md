@@ -1,5 +1,12 @@
 # HIS Backup ແລະ Restore Guide
 
+## Production verification (2026-07-31)
+
+- Backup run `30641028459`: success — 54 tables, 51,504 rows and 376 application Storage objects.
+- Restore dry-run `30641934982`: success — the production archive and every external Storage snapshot were downloaded and verified without writing data.
+- Verified object: `backups/2026/07/backup-2026-07-31_20260731_150037.zip`.
+- Full evidence: [`docs/BACKUP_LOCAL_TEST_2026-07-31.md`](../docs/BACKUP_LOCAL_TEST_2026-07-31.md).
+
 ## ຂອບເຂດ Backup
 
 Production workflow ສຳຮອງ:
