@@ -2560,38 +2560,81 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-07-21-sticker-phone-row-v2';
-  const fetchPartial = (url) => {
-    const sep = url.includes('?') ? '&' : '?';
-    return fetch(`${url}${sep}v=${PARTIAL_CACHE_BUST}`, {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache' }
-    }).then(r => {
-      if (!r.ok) throw new Error(`Failed to load ${url}: HTTP ${r.status}`);
-      return r.text();
-    });
+  const PARTIAL_CACHE_BUST = '2026-07-31-resilient-loader-v1';
+  const partialRequests = [
+    { type: 'navbar', name: 'navbar', url: '/partials/navbar.html' },
+    ...views.map(name => ({ type: 'view', name, url: `/partials/views/${name}.html` })),
+    ...modals.map(name => ({ type: 'modal', name, url: `/partials/modals/${name}.html` })),
+    { type: 'print', name: 'print-areas', url: '/partials/print-areas.html' }
+  ];
+
+  const wait = ms => new Promise(resolve => window.setTimeout(resolve, ms));
+  const fetchPartial = async (request) => {
+    const sep = request.url.includes('?') ? '&' : '?';
+    const url = `${request.url}${sep}v=${PARTIAL_CACHE_BUST}`;
+    let lastError;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch(url, {
+          cache: attempt === 1 ? 'default' : 'reload',
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { ...request, ok: true, html: await response.text() };
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) await wait(300 * attempt);
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    return {
+      ...request,
+      ok: false,
+      error: `${request.url}: ${lastError?.name === 'AbortError' ? 'request timeout' : (lastError?.message || 'Failed to fetch')}`
+    };
   };
 
-  try {
-    const [navbarHtml, ...rest] = await Promise.all([
-      fetchPartial('/partials/navbar.html'),
-      ...views.map(v => fetchPartial(`/partials/views/${v}.html`)),
-      ...modals.map(m => fetchPartial(`/partials/modals/${m}.html`)),
-      fetchPartial('/partials/print-areas.html')
-    ]);
+  const results = new Array(partialRequests.length);
+  let nextRequestIndex = 0;
+  const worker = async () => {
+    while (nextRequestIndex < partialRequests.length) {
+      const index = nextRequestIndex;
+      nextRequestIndex += 1;
+      results[index] = await fetchPartial(partialRequests[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, partialRequests.length) }, worker));
 
-    document.getElementById('partial-navbar').innerHTML = navbarHtml;
-    document.getElementById('partial-views').innerHTML =
-      rest.slice(0, views.length).join('\n');
-    document.getElementById('partial-modals').innerHTML =
-      rest.slice(views.length, views.length + modals.length).join('\n');
-    document.getElementById('partial-prints').innerHTML =
-      rest[rest.length - 1];
-  } catch (err) {
-    console.error('loadPartials error:', err);
-    // Fallback message so the user knows what went wrong
-    document.body.innerHTML += `<div style="position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:16px 24px;border-radius:8px;font-family:sans-serif;z-index:9999;">
-          ⚠️ ບໍ່ສາມາດໂຫຼດ partials ໄດ້.<br>ກະລຸນາ run ຜ່ານ HTTP server (VS Code Live Server ຫຼື npx serve).<br><small>${err.message}</small></div>`;
+  const navbarResult = results.find(result => result.type === 'navbar');
+  const printResult = results.find(result => result.type === 'print');
+  const viewResults = new Map(results.filter(result => result.type === 'view').map(result => [result.name, result]));
+  const modalResults = new Map(results.filter(result => result.type === 'modal').map(result => [result.name, result]));
+  const failures = results.filter(result => !result.ok);
+
+  document.getElementById('partial-navbar').innerHTML = navbarResult?.html || '';
+  document.getElementById('partial-views').innerHTML = views.map(name => {
+    const result = viewResults.get(name);
+    if (result?.ok) return result.html;
+    return `<div id="view-${name}" style="display:none;" class="container py-5 text-center">
+      <div class="alert alert-warning d-inline-block">
+        <strong>ບໍ່ສາມາດໂຫຼດໜ້ານີ້ໄດ້</strong><br>
+        <small>${result?.error || name}</small>
+      </div>
+    </div>`;
+  }).join('\n');
+  document.getElementById('partial-modals').innerHTML = modals
+    .map(name => modalResults.get(name)?.html || '')
+    .join('\n');
+  document.getElementById('partial-prints').innerHTML = printResult?.html || '';
+
+  if (failures.length) {
+    window.partialLoadFailures = failures.map(result => result.error);
+    console.warn('Some partials could not be loaded after retries:', window.partialLoadFailures);
   }
 }
 
