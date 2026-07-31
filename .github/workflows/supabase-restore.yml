@@ -62,6 +62,7 @@ jobs:
           OUTPUT_DIR: pre-restore-output
           RETENTION_DAYS: '30'
           BACKUP_INCLUDE_STORAGE: '1'
+          BACKUP_STORAGE_WORKERS: '8'
           BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users
         run: |
           echo "Creating a verified safety snapshot before any restore writes..."

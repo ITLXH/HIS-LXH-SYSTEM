@@ -2,6 +2,7 @@
 """Supabase backup via REST API - works from GitHub Actions (no direct DB access needed)."""
 import json, os, sys, csv, zipfile
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -14,6 +15,7 @@ SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups").strip
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
 OUTPUT = Path(os.environ.get("OUTPUT_DIR", "output"))
 INCLUDE_STORAGE = os.environ.get("BACKUP_INCLUDE_STORAGE", "0") == "1"
+STORAGE_WORKERS = max(1, min(16, int(os.environ.get("BACKUP_STORAGE_WORKERS", "8"))))
 REQUIRED_TABLES = [
     item.strip()
     for item in os.environ.get("BACKUP_REQUIRED_TABLES", "").split(",")
@@ -183,8 +185,10 @@ def backup_storage_buckets():
         bucket = bucket_info.get("id") or bucket_info.get("name")
         if not bucket or bucket == SUPABASE_BUCKET:
             continue
-        objects = []
-        for object_name, metadata in list_storage_objects(bucket):
+        listed_objects = list_storage_objects(bucket)
+
+        def download_object(item):
+            object_name, metadata = item
             destination = _safe_storage_destination(storage_root, bucket, object_name)
             destination.parent.mkdir(parents=True, exist_ok=True)
             object_url = (
@@ -194,7 +198,7 @@ def backup_storage_buckets():
             download = requests.get(
                 object_url,
                 headers=storage_headers(content_type="application/octet-stream"),
-                timeout=300,
+                timeout=(15, 120),
             )
             if download.status_code != 200:
                 raise RuntimeError(
@@ -203,16 +207,23 @@ def backup_storage_buckets():
                 )
             destination.write_bytes(download.content)
             size = len(download.content)
-            objects.append(
-                {
-                    "name": object_name,
-                    "size_bytes": size,
-                    "sha256": sha256(destination),
-                    "content_type": (metadata.get("metadata") or {}).get("mimetype"),
-                }
-            )
-            total_objects += 1
-            total_bytes += size
+            return {
+                "name": object_name,
+                "size_bytes": size,
+                "sha256": sha256(destination),
+                "content_type": (metadata.get("metadata") or {}).get("mimetype"),
+            }
+
+        objects = []
+        with ThreadPoolExecutor(max_workers=STORAGE_WORKERS) as pool:
+            futures = [pool.submit(download_object, item) for item in listed_objects]
+            for completed, future in enumerate(as_completed(futures), start=1):
+                objects.append(future.result())
+                if completed % 25 == 0 or completed == len(futures):
+                    print(f"      {bucket}: downloaded {completed}/{len(futures)} objects")
+        objects.sort(key=lambda item: item["name"])
+        total_objects += len(objects)
+        total_bytes += sum(item["size_bytes"] for item in objects)
         bucket_entries.append(
             {
                 "id": bucket,

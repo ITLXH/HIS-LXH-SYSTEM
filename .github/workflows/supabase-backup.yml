@@ -54,6 +54,7 @@ jobs:
           OUTPUT_DIR: output
           RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
           BACKUP_INCLUDE_STORAGE: '1'
+          BACKUP_STORAGE_WORKERS: '8'
           # Refuse a green run if the core customer, user or settings tables
           # disappear from PostgREST discovery.
           BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users
