@@ -23,7 +23,7 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,29 +71,30 @@ jobs:
           echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
 
       - name: Upload to Google Drive
-        # Destination 2 — optional. The gdrive_upload.py script itself checks
-        # for GOOGLE_SERVICE_ACCOUNT_JSON and prints a warning + exits 0 if
-        # it isn't configured, so this step always runs but is a no-op
-        # without credentials.
+        # Destination 2 — complete independent copy of the database archive
+        # and all application Storage sidecars.
         id: gdrive
         env:
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GDRIVE_STORAGE_WORKERS: '6'
         run: |
-          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::notice::Google Drive upload skipped — GOOGLE_SERVICE_ACCOUNT_JSON not set"
+          if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Drive upload skipped — credentials not set"
             exit 0
           fi
           python backup/scripts/gdrive_upload.py "${{ steps.zip.outputs.zip_path }}" "$GOOGLE_DRIVE_FOLDER_ID"
 
       - name: Cleanup old Google Drive backups
         env:
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
         run: |
-          if [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::notice::Google Drive cleanup skipped — GOOGLE_SERVICE_ACCOUNT_JSON not set"
+          if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::notice::Google Drive cleanup skipped — credentials not set"
             exit 0
           fi
           python backup/scripts/gdrive_cleanup.py "$GOOGLE_DRIVE_FOLDER_ID" || true
@@ -119,6 +120,7 @@ jobs:
           echo "storage_objects=${STORAGE_OBJECTS}" >> $GITHUB_OUTPUT
           echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
           echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
+          echo "drive_sidecars=${{ steps.gdrive.outputs.drive_sidecars || '0' }}" >> $GITHUB_OUTPUT
 
       - name: Backup summary
         if: always()
@@ -143,7 +145,7 @@ jobs:
             echo "| Destination 1 (Supabase) | ❌ Backup/upload failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
           if [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
-            echo "| Destination 2 (Google Drive) | [Open ↗](${{ steps.outputs.outputs.drive_url }}) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Destination 2 (Google Drive) | [Open complete copy ↗](${{ steps.outputs.outputs.drive_url }}) — ${{ steps.outputs.outputs.drive_sidecars }} sidecars |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -20,6 +20,12 @@ from urllib.parse import quote
 
 import requests
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from gdrive_common import DRIVE_FILE_SCOPE, load_drive_credentials
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups") or "his-backups"
@@ -38,6 +44,8 @@ NON_RESTORABLE_TABLES = {
     ).split(",")
     if item.strip()
 }
+GDRIVE_SIDECAR_INDEX = {}
+GDRIVE_ACCESS_TOKEN = ""
 
 REST_HEADERS = {
     "apikey": SERVICE_KEY,
@@ -88,29 +96,54 @@ def download_from_supabase():
     return response.content
 
 
-def download_from_gdrive():
-    if not BACKUP_GDRIVE_FILE_ID:
-        raise RuntimeError("BACKUP_GDRIVE_FILE_ID is required when BACKUP_SOURCE=gdrive")
-    credentials_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    if not credentials_json:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is required when BACKUP_SOURCE=gdrive")
-
-    from google.oauth2.service_account import Credentials
-    from googleapiclient.discovery import build
+def _download_drive_media(drive, file_id):
     from googleapiclient.http import MediaIoBaseDownload
 
-    credentials = Credentials.from_service_account_info(
-        json.loads(credentials_json), scopes=["https://www.googleapis.com/auth/drive.readonly"]
-    )
-    request = build("drive", "v3", credentials=credentials).files().get_media(
-        fileId=BACKUP_GDRIVE_FILE_ID
-    )
+    request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
     buffer = io.BytesIO()
     downloader = MediaIoBaseDownload(buffer, request)
     done = False
     while not done:
         _, done = downloader.next_chunk()
-    blob = buffer.getvalue()
+    return buffer.getvalue()
+
+
+def download_from_gdrive():
+    global GDRIVE_ACCESS_TOKEN, GDRIVE_SIDECAR_INDEX
+    if not BACKUP_GDRIVE_FILE_ID:
+        raise RuntimeError("BACKUP_GDRIVE_FILE_ID is required when BACKUP_SOURCE=gdrive")
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+
+    credentials = load_drive_credentials(scopes=[DRIVE_FILE_SCOPE])
+    if not credentials.valid or credentials.expired:
+        credentials.refresh(Request())
+    GDRIVE_ACCESS_TOKEN = credentials.token
+    drive = build(
+        "drive", "v3", credentials=credentials, cache_discovery=False
+    )
+    metadata = (
+        drive.files()
+        .get(
+            fileId=BACKUP_GDRIVE_FILE_ID,
+            supportsAllDrives=True,
+            fields="id,name,size,appProperties",
+        )
+        .execute()
+    )
+    properties = metadata.get("appProperties") or {}
+    index_id = properties.get("his_sidecar_index_id")
+    GDRIVE_SIDECAR_INDEX = {}
+    if index_id:
+        index_payload = json.loads(_download_drive_media(drive, index_id))
+        if index_payload.get("format_version") != 1:
+            raise RuntimeError("Unsupported Google Drive sidecar index version")
+        GDRIVE_SIDECAR_INDEX = index_payload.get("objects") or {}
+        if int(index_payload.get("total_objects", -1)) != len(GDRIVE_SIDECAR_INDEX):
+            raise RuntimeError("Google Drive sidecar index count mismatch")
+        print(f"    Drive sidecar index: {len(GDRIVE_SIDECAR_INDEX)} objects")
+
+    blob = _download_drive_media(drive, BACKUP_GDRIVE_FILE_ID)
     print(f"    Got {len(blob):,} bytes")
     return blob
 
@@ -233,13 +266,30 @@ def hydrate_storage_snapshots(manifest, storage_files):
     def download_one(item):
         key, obj = item
         backup_object = obj["backup_object"]
-        response = request_with_retry(
-            "get",
-            f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
-            f"{quote(backup_object, safe='/')}",
-            headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
-            timeout=(15, 180),
-        )
+        if BACKUP_SOURCE == "gdrive":
+            entry = GDRIVE_SIDECAR_INDEX.get(backup_object)
+            if not entry:
+                raise RuntimeError(f"Google Drive sidecar index is missing {backup_object}")
+            if (
+                int(entry.get("size_bytes", -1)) != int(obj["size_bytes"])
+                or entry.get("sha256") != obj["sha256"]
+            ):
+                raise RuntimeError(f"Google Drive sidecar index mismatch for {key[0]}/{key[1]}")
+            response = request_with_retry(
+                "get",
+                f"https://www.googleapis.com/drive/v3/files/{quote(entry['file_id'], safe='')}"
+                "?alt=media&supportsAllDrives=true",
+                headers={"Authorization": f"Bearer {GDRIVE_ACCESS_TOKEN}"},
+                timeout=(15, 180),
+            )
+        else:
+            response = request_with_retry(
+                "get",
+                f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+                f"{quote(backup_object, safe='/')}",
+                headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
+                timeout=(15, 180),
+            )
         if response.status_code != 200:
             raise RuntimeError(
                 f"Storage snapshot download failed for {key[0]}/{key[1]}: HTTP {response.status_code}"

@@ -1,22 +1,23 @@
 // GET /api/backup/gdrive-list
 // Lists backup ZIP files in the configured Google Drive folder using the
-// service-account credentials stored in Cloudflare Pages env. This lets
+// OAuth or service-account credentials stored in Cloudflare Pages env. This lets
 // the Backup view show Drive backups alongside Supabase Storage backups.
 //
 // Env vars (Cloudflare Pages):
-//   GOOGLE_SERVICE_ACCOUNT_JSON  — full JSON contents of the service account key
+//   GOOGLE_DRIVE_OAUTH_JSON      — authorized-user JSON with a refresh token
+//   GOOGLE_SERVICE_ACCOUNT_JSON  — service-account fallback
 //   GOOGLE_DRIVE_FOLDER_ID       — Drive folder ID the SA has access to
 
 export async function onRequestGet(ctx) {
   const { env } = ctx;
 
-  const saJson = env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+  const credentialsJson = env.GOOGLE_DRIVE_OAUTH_JSON || env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
   const folderId = env.GOOGLE_DRIVE_FOLDER_ID || '';
 
-  if (!saJson) {
+  if (!credentialsJson) {
     return json({
       status: 'disabled',
-      message: 'Google Drive not configured (GOOGLE_SERVICE_ACCOUNT_JSON missing)',
+      message: 'Google Drive credentials are not configured',
       files: [],
     });
   }
@@ -24,22 +25,24 @@ export async function onRequestGet(ctx) {
     return json({ status: 'error', error: 'GOOGLE_DRIVE_FOLDER_ID not set', files: [] });
   }
 
-  let sa;
+  let credentials;
   try {
-    sa = JSON.parse(saJson);
+    credentials = JSON.parse(credentialsJson);
   } catch (_) {
-    return json({ status: 'error', error: 'GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON', files: [] });
+    return json({ status: 'error', error: 'Google Drive credential JSON is invalid', files: [] });
   }
 
   try {
-    const token = await getDriveAccessToken(sa);
+    const token = await getDriveAccessToken(credentials);
     const q = `'${folderId}' in parents and mimeType='application/zip' and trashed=false`;
     const url =
       'https://www.googleapis.com/drive/v3/files' +
       `?q=${encodeURIComponent(q)}` +
       '&fields=files(id,name,size,createdTime,webViewLink)' +
       '&orderBy=createdTime%20desc' +
-      '&pageSize=100';
+      '&pageSize=100' +
+      '&supportsAllDrives=true' +
+      '&includeItemsFromAllDrives=true';
 
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!resp.ok) {
@@ -66,6 +69,23 @@ export async function onRequestGet(ctx) {
 // Runs inside the Cloudflare Workers runtime, which exposes WebCrypto.
 // ---------------------------------------------------------------------------
 async function getDriveAccessToken(sa) {
+  if (sa.type === 'authorized_user' || sa.refresh_token) {
+    const resp = await fetch(sa.token_uri || 'https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:
+        'client_id=' + encodeURIComponent(sa.client_id) +
+        '&client_secret=' + encodeURIComponent(sa.client_secret) +
+        '&refresh_token=' + encodeURIComponent(sa.refresh_token) +
+        '&grant_type=refresh_token',
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`OAuth refresh HTTP ${resp.status}: ${text.slice(0, 200)}`);
+    }
+    return (await resp.json()).access_token;
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'RS256', typ: 'JWT', kid: sa.private_key_id };
   const claim = {

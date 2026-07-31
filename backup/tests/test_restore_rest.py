@@ -134,6 +134,48 @@ class RestoreRestTests(unittest.TestCase):
         finally:
             archive.close()
 
+    def test_google_drive_sidecar_is_downloaded_from_drive_index(self):
+        backup_object = "snapshots/2026/07/id/order-result-files/patient/result.pdf"
+        manifest = {
+            "storage": {
+                "buckets": [
+                    {
+                        "id": "order-result-files",
+                        "objects": [
+                            {
+                                "name": "patient/result.pdf",
+                                "size_bytes": len(b"patient-file"),
+                                "sha256": hashlib.sha256(b"patient-file").hexdigest(),
+                                "backup_object": backup_object,
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        storage = {("order-result-files", "patient/result.pdf"): None}
+        index = {
+            backup_object: {
+                "file_id": "drive-sidecar-id",
+                "size_bytes": len(b"patient-file"),
+                "sha256": hashlib.sha256(b"patient-file").hexdigest(),
+            }
+        }
+        response = Mock(status_code=200, content=b"patient-file")
+        with patch.object(restore_rest, "BACKUP_SOURCE", "gdrive"), patch.object(
+            restore_rest, "GDRIVE_SIDECAR_INDEX", index
+        ), patch.object(
+            restore_rest, "GDRIVE_ACCESS_TOKEN", "access-token"
+        ), patch.object(
+            restore_rest, "request_with_retry", return_value=response
+        ) as request:
+            hydrated = restore_rest.hydrate_storage_snapshots(manifest, storage)
+
+        self.assertEqual(
+            hydrated[("order-result-files", "patient/result.pdf")], b"patient-file"
+        )
+        self.assertIn("drive/v3/files/drive-sidecar-id", request.call_args.args[1])
+
 
 if __name__ == "__main__":
     unittest.main()
