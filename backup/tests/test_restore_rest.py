@@ -6,7 +6,7 @@ import os
 import unittest
 import zipfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -108,6 +108,31 @@ class RestoreRestTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "RESTORE_CONFIRMATION"):
                 restore_rest.main()
+
+    def test_external_storage_snapshot_is_downloaded_and_verified(self):
+        blob = make_archive()
+        source = zipfile.ZipFile(io.BytesIO(blob))
+        manifest = json.loads(source.read("manifest.json"))
+        obj = manifest["storage"]["buckets"][0]["objects"][0]
+        obj["backup_object"] = "snapshots/2026/07/id/order-result-files/patient/result.pdf"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as target:
+            for name in source.namelist():
+                if name.startswith("storage/"):
+                    continue
+                target.writestr(name, json.dumps(manifest) if name == "manifest.json" else source.read(name))
+        source.close()
+
+        archive, parsed_manifest, _, storage = restore_rest.validate_archive(buffer.getvalue())
+        try:
+            response = Mock(status_code=200, content=b"patient-file")
+            with patch.object(restore_rest.requests, "get", return_value=response):
+                hydrated = restore_rest.hydrate_storage_snapshots(parsed_manifest, storage)
+            self.assertEqual(
+                hydrated[("order-result-files", "patient/result.pdf")], b"patient-file"
+            )
+        finally:
+            archive.close()
 
 
 if __name__ == "__main__":

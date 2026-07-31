@@ -10,7 +10,7 @@ Production workflow ສຳຮອງ:
 - files ທັງໝົດຈາກ application Storage buckets, ຍົກເວັ້ນ bucket `his-backups` ເອງ;
 - PostgREST OpenAPI metadata ສຳລັບກວດ table/view ແລະ restore capability.
 
-Archive version 2 ມີ typed JSON, CSV, Storage objects ແລະ `manifest.json`. Manifest ບັນທຶກ row count, SHA-256, writable/read-only status, Storage size ແລະ object hashes.
+Archive version 2 ມີ typed JSON, CSV ແລະ `manifest.json`. Storage files ຖືກເກັບເປັນ sidecar snapshots ແຕ່ລະ object ເພື່ອບໍ່ເກີນ Supabase 50 MB Spend-Cap limit. Manifest ບັນທຶກ row count, SHA-256, writable/read-only status, Storage size, object hashes ແລະ sidecar paths ເພື່ອ restore ກັບຄືນອັດຕະໂນມັດ.
 
 Workflow ຈະ fail ຖ້າຂາດ core tables ເຫຼົ່ານີ້:
 

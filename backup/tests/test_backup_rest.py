@@ -106,6 +106,7 @@ class BackupRestTests(unittest.TestCase):
                         "created_at": "2020-01-01T00:00:00Z",
                     }
                 ],
+                "snapshots": [],
             }
             return Mock(status_code=200, json=Mock(return_value=payloads[prefix]))
 
@@ -153,6 +154,43 @@ class BackupRestTests(unittest.TestCase):
                 (Path(tmp) / "storage" / "order-result-files" / "patients" / "result.pdf").read_bytes(),
                 b"result-pdf",
             )
+
+    def test_storage_snapshots_are_uploaded_as_sidecars(self):
+        storage_backup = {
+            "enabled": True,
+            "total_objects": 1,
+            "total_bytes": 4,
+            "buckets": [
+                {
+                    "id": "order-result-files",
+                    "objects": [
+                        {
+                            "name": "patient/file.pdf",
+                            "size_bytes": 4,
+                            "sha256": hashlib.sha256(b"data").hexdigest(),
+                            "content_type": "application/pdf",
+                        }
+                    ],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            file_path = output / "storage" / "order-result-files" / "patient" / "file.pdf"
+            file_path.parent.mkdir(parents=True)
+            file_path.write_bytes(b"data")
+            uploaded = Mock(status_code=200, text="ok")
+            verified = Mock(status_code=200, content=b"data")
+            with patch.object(backup_rest, "OUTPUT", output), patch.object(
+                backup_rest.requests, "post", return_value=uploaded
+            ), patch.object(backup_rest.requests, "get", return_value=verified):
+                result = backup_rest.upload_storage_snapshots(
+                    storage_backup, backup_rest.datetime(2026, 7, 31, 12, 0, 0)
+                )
+        self.assertEqual(
+            result["buckets"][0]["objects"][0]["backup_object"],
+            "snapshots/2026/07/20260731_120000/order-result-files/patient/file.pdf",
+        )
 
 
 if __name__ == "__main__":

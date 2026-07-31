@@ -243,6 +243,98 @@ def backup_storage_buckets():
     }
 
 
+def upload_storage_snapshots(storage_backup, now):
+    """Copy application files into the backup bucket as individually restorable objects.
+
+    Keeping each original file separate respects Supabase's 50 MB global upload
+    limit when Spend Cap is enabled, while the small database ZIP remains the
+    atomic manifest that makes the snapshot visible to the restore UI.
+    """
+    if not storage_backup.get("enabled") or not storage_backup.get("total_objects"):
+        return storage_backup
+
+    snapshot_id = now.strftime("%Y%m%d_%H%M%S")
+    tasks = []
+    for bucket in storage_backup["buckets"]:
+        for obj in bucket["objects"]:
+            tasks.append((bucket["id"], obj))
+
+    def upload_one(task):
+        bucket_id, obj = task
+        local_path = _safe_storage_destination(OUTPUT / "storage", bucket_id, obj["name"])
+        backup_object = (
+            f"snapshots/{now.strftime('%Y/%m')}/{snapshot_id}/"
+            f"{bucket_id}/{obj['name']}"
+        )
+        url = (
+            f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+            f"{quote(backup_object, safe='/')}"
+        )
+        raw = local_path.read_bytes()
+        headers = {
+            "Authorization": f"Bearer {SERVICE_KEY}",
+            "apikey": SERVICE_KEY,
+            "Content-Type": obj.get("content_type") or "application/octet-stream",
+            "x-upsert": "true",
+        }
+        response = requests.post(url, headers=headers, data=raw, timeout=(15, 180))
+        if response.status_code not in (200, 201):
+            raise RuntimeError(
+                f"Snapshot upload failed for {bucket_id}/{obj['name']}: "
+                f"HTTP {response.status_code} {response.text[:200]}"
+            )
+        verification = requests.get(url, headers=headers, timeout=(15, 180))
+        if (
+            verification.status_code != 200
+            or len(verification.content) != obj["size_bytes"]
+            or sha256_bytes(verification.content) != obj["sha256"]
+        ):
+            raise RuntimeError(f"Snapshot verification failed for {bucket_id}/{obj['name']}")
+        return obj, backup_object
+
+    uploaded_paths = []
+    try:
+        with ThreadPoolExecutor(max_workers=STORAGE_WORKERS) as pool:
+            futures = [pool.submit(upload_one, task) for task in tasks]
+            for completed, future in enumerate(as_completed(futures), start=1):
+                obj, backup_object = future.result()
+                obj["backup_object"] = backup_object
+                uploaded_paths.append(backup_object)
+                if completed % 25 == 0 or completed == len(futures):
+                    print(f"      Snapshots uploaded and verified: {completed}/{len(futures)}")
+    except Exception:
+        delete_backup_objects(uploaded_paths)
+        raise
+    storage_backup["snapshot_id"] = snapshot_id
+    return storage_backup
+
+
+def delete_backup_objects(object_paths):
+    """Remove sidecars from an incomplete backup attempt."""
+    deleted = 0
+    for object_path in object_paths:
+        response = requests.delete(
+            f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+            f"{quote(object_path, safe='/')}",
+            headers=storage_headers(),
+            timeout=60,
+        )
+        if response.status_code in (200, 204):
+            deleted += 1
+    if deleted:
+        print(f"  Removed {deleted} sidecar objects from incomplete backup")
+    return deleted
+
+
+def delete_storage_snapshots(storage_backup):
+    paths = []
+    for bucket in storage_backup.get("buckets", []):
+        for obj in bucket.get("objects", []):
+            if obj.get("backup_object"):
+                paths.append(obj["backup_object"])
+    return delete_backup_objects(paths)
+
+
 def export_table(table):
     """Export a table via REST API with pagination."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
@@ -320,6 +412,10 @@ def sha256(path):
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def sha256_bytes(value):
+    return hashlib.sha256(value).hexdigest()
 
 
 def upload_supabase_storage(zip_path, object_path):
@@ -428,11 +524,11 @@ def cleanup_supabase_storage():
                 found.append((full_name, obj))
         return found
 
-    objects = walk("backups")
+    objects = walk("backups") + walk("snapshots")
     cutoff = datetime.now().astimezone() - timedelta(days=RETENTION_DAYS)
     deleted = 0
     for name, obj in objects:
-        if not name.endswith(".zip"):
+        if not (name.endswith(".zip") or name.startswith("snapshots/")):
             continue
         try:
             created_text = obj.get("created_at") or obj.get("updated_at") or ""
@@ -513,9 +609,16 @@ def main():
 
     print(f"\n  Total: {total_rows} rows across {len(table_rows)} tables ({len(failed)} failed)")
 
+    if failed:
+        print(f"\nFATAL: {len(failed)} table(s) failed; refusing to create an incomplete backup.")
+        github_error(f"{len(failed)} table export(s) failed: {', '.join(failed)}")
+        return False
+
     print("\n[3/5] Backing up application Storage objects...")
     try:
         storage_backup = backup_storage_buckets()
+        ensure_supabase_bucket()
+        storage_backup = upload_storage_snapshots(storage_backup, now)
     except Exception as exc:
         print(f"  Storage backup FAILED: {exc}")
         github_error(f"Application Storage backup failed: {exc}")
@@ -557,7 +660,9 @@ def main():
             zf.write(fp, "csv/" + fp.name)
         for fp in json_paths:
             zf.write(fp, "json/" + fp.name)
-        for root_name in ("storage", "metadata"):
+        # Storage files are copied as individual sidecar snapshots in the
+        # backup bucket so every upload remains below Supabase's file limit.
+        for root_name in ("metadata",):
             root = OUTPUT / root_name
             if root.exists():
                 for fp in root.rglob("*"):
@@ -569,11 +674,6 @@ def main():
     sha = sha256(str(zip_path))
     print(f"  Size: {size:,} bytes ({size / 1024 / 1024:.1f} MB)")
     print(f"  SHA-256: {sha}")
-
-    if failed:
-        print(f"\nFATAL: {len(failed)} table(s) failed; refusing to upload an incomplete backup.")
-        github_error(f"{len(failed)} table export(s) failed: {', '.join(failed)}")
-        return False
 
     # Upload to Supabase Storage
     print(f"\n[5/5] Uploading to Supabase Storage...")
@@ -593,7 +693,9 @@ def main():
                 github_error("Supabase Storage upload could not be verified")
         else:
             print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
-            github_error(f"Supabase Storage upload failed with HTTP {resp.status_code}")
+            github_error(
+                f"Supabase Storage upload failed with HTTP {resp.status_code}: {resp.text[:200]}"
+            )
     except Exception as e:
         print(f"  FAILED: {e}")
         github_error(f"Supabase Storage setup/upload failed: {e}")
@@ -641,6 +743,10 @@ def main():
                 f.write(f"supabase_url={sb_url_out}\n")
 
     if not sb_url_out:
+        try:
+            delete_storage_snapshots(storage_backup)
+        except Exception as exc:
+            print(f"  Incomplete snapshot cleanup failed: {exc}")
         print("\nFATAL: backup ZIP was created but was not uploaded to Supabase Storage.")
         github_error("Backup ZIP was created but was not uploaded to Supabase Storage")
         return False

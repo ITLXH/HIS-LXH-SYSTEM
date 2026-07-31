@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -28,6 +29,7 @@ DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
 RESTORE_CONFIRMATION = os.environ.get("RESTORE_CONFIRMATION", "")
 BATCH_SIZE = int(os.environ.get("RESTORE_BATCH_SIZE", "200"))
 MAX_RESTORE_PASSES = int(os.environ.get("RESTORE_MAX_PASSES", "3"))
+STORAGE_WORKERS = max(1, min(16, int(os.environ.get("RESTORE_STORAGE_WORKERS", "8"))))
 NON_RESTORABLE_TABLES = {
     item.strip()
     for item in os.environ.get(
@@ -178,13 +180,17 @@ def validate_archive(blob):
         for obj in bucket.get("objects", []):
             object_name = obj.get("name", "")
             member = f"storage/{bucket_id}/{object_name}"
-            if member not in names:
+            if member in names:
+                raw = archive.read(member)
+            elif obj.get("backup_object"):
+                raw = None
+            else:
                 raise RuntimeError(f"Storage object is missing from ZIP: {bucket_id}/{object_name}")
-            raw = archive.read(member)
-            if len(raw) != int(obj.get("size_bytes", len(raw))):
-                raise RuntimeError(f"Storage size mismatch: {bucket_id}/{object_name}")
-            if obj.get("sha256") and sha256_bytes(raw) != obj["sha256"]:
-                raise RuntimeError(f"Storage SHA-256 mismatch: {bucket_id}/{object_name}")
+            if raw is not None:
+                if len(raw) != int(obj.get("size_bytes", len(raw))):
+                    raise RuntimeError(f"Storage size mismatch: {bucket_id}/{object_name}")
+                if obj.get("sha256") and sha256_bytes(raw) != obj["sha256"]:
+                    raise RuntimeError(f"Storage SHA-256 mismatch: {bucket_id}/{object_name}")
             storage_files[(bucket_id, object_name)] = raw
 
     print(
@@ -193,6 +199,45 @@ def validate_archive(blob):
         f"{len(storage_files)} Storage objects"
     )
     return archive, manifest, tables, storage_files
+
+
+def hydrate_storage_snapshots(manifest, storage_files):
+    """Download and verify sidecar Storage snapshots before database writes."""
+    external = []
+    for bucket in (manifest.get("storage") or {}).get("buckets", []):
+        for obj in bucket.get("objects", []):
+            key = (bucket["id"], obj["name"])
+            if storage_files.get(key) is None:
+                external.append((key, obj))
+    if not external:
+        return storage_files
+
+    def download_one(item):
+        key, obj = item
+        backup_object = obj["backup_object"]
+        response = requests.get(
+            f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+            f"{quote(backup_object, safe='/')}",
+            headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
+            timeout=(15, 180),
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Storage snapshot download failed for {key[0]}/{key[1]}: HTTP {response.status_code}"
+            )
+        raw = response.content
+        if len(raw) != int(obj["size_bytes"]) or sha256_bytes(raw) != obj["sha256"]:
+            raise RuntimeError(f"Storage snapshot verification failed for {key[0]}/{key[1]}")
+        return key, raw
+
+    with ThreadPoolExecutor(max_workers=STORAGE_WORKERS) as pool:
+        futures = [pool.submit(download_one, item) for item in external]
+        for completed, future in enumerate(as_completed(futures), start=1):
+            key, raw = future.result()
+            storage_files[key] = raw
+            if completed % 25 == 0 or completed == len(futures):
+                print(f"    Storage snapshots verified: {completed}/{len(futures)}")
+    return storage_files
 
 
 def restore_table(table, rows):
@@ -343,6 +388,7 @@ def main():
     print(f"==> HIS restore: {BACKUP_NAME} (dry-run={DRY_RUN})")
     blob = download_zip()
     archive, manifest, tables, storage_files = validate_archive(blob)
+    storage_files = hydrate_storage_snapshots(manifest, storage_files)
     try:
         table_count, row_count, skipped = restore_tables(manifest, tables)
         storage_count = restore_storage(manifest, storage_files)
