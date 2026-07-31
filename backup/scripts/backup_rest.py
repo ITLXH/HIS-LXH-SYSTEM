@@ -20,6 +20,12 @@ HEADERS = {
     "Prefer": "count=exact",
 }
 
+
+def github_error(message):
+    """Expose a safe failure reason in the GitHub Actions run annotation."""
+    safe = str(message).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::error::{safe}")
+
 # Fallback table names - HIS_One_ prefix as used in this project
 KNOWN_TABLES = [
     "HIS_One_Users", "HIS_One_Settings", "HIS_One_Patients",
@@ -294,6 +300,7 @@ def main():
     if not SUPABASE_URL or not SERVICE_KEY:
         print("\nFATAL: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.")
         print("Set both values as GitHub Actions secrets for this repository.")
+        github_error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing")
         sys.exit(2)
 
     now = datetime.now()
@@ -307,6 +314,7 @@ def main():
     print(f"  Found {len(tables)} tables: {', '.join(tables)}")
     if not tables:
         print("\nFATAL: no tables were discovered; refusing to create an empty backup.")
+        github_error("No Supabase tables were discovered; check the service-role key and PostgREST access")
         return False
 
     # Export each table
@@ -370,6 +378,7 @@ def main():
 
     if failed:
         print(f"\nFATAL: {len(failed)} table(s) failed; refusing to upload an incomplete backup.")
+        github_error(f"{len(failed)} table export(s) failed: {', '.join(failed)}")
         return False
 
     # Upload to Supabase Storage
@@ -387,10 +396,13 @@ def main():
                 print(f"  SUCCESS + VERIFIED: {SUPABASE_BUCKET}/{object_path}")
             else:
                 print("  FAILED: upload returned success but verification did not pass")
+                github_error("Supabase Storage upload could not be verified")
         else:
             print(f"  FAILED (HTTP {resp.status_code}): {resp.text[:300]}")
+            github_error(f"Supabase Storage upload failed with HTTP {resp.status_code}")
     except Exception as e:
         print(f"  FAILED: {e}")
+        github_error(f"Supabase Storage setup/upload failed: {e}")
 
     # Cleanup old backups
     print(f"\nCleaning up old backups (>{RETENTION_DAYS} days)...")
@@ -434,6 +446,7 @@ def main():
 
     if not sb_url_out:
         print("\nFATAL: backup ZIP was created but was not uploaded to Supabase Storage.")
+        github_error("Backup ZIP was created but was not uploaded to Supabase Storage")
         return False
 
     return len(failed) == 0
