@@ -12,6 +12,7 @@ import io
 import json
 import os
 import sys
+import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
@@ -55,11 +56,28 @@ def github_error(message):
     print(f"::error::{safe}")
 
 
+def request_with_retry(method, url, attempts=5, **kwargs):
+    retry_statuses = {408, 425, 429, 500, 502, 503, 504}
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            response = getattr(requests, method)(url, **kwargs)
+            if response.status_code not in retry_statuses:
+                return response
+            last_error = RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
+        except requests.RequestException as exc:
+            last_error = exc
+        if attempt + 1 < attempts:
+            time.sleep(min(8, 2 ** attempt))
+    raise last_error or RuntimeError(f"{method.upper()} request failed")
+
+
 def download_from_supabase():
     if not BACKUP_NAME:
         raise RuntimeError("BACKUP_NAME is required when BACKUP_SOURCE=supabase")
     print(f"==> Downloading {BACKUP_NAME} from Supabase bucket '{SUPABASE_BUCKET}'")
-    response = requests.get(
+    response = request_with_retry(
+        "get",
         f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
         f"{quote(BACKUP_NAME, safe='/')}",
         headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
@@ -215,7 +233,8 @@ def hydrate_storage_snapshots(manifest, storage_files):
     def download_one(item):
         key, obj = item
         backup_object = obj["backup_object"]
-        response = requests.get(
+        response = request_with_retry(
+            "get",
             f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
             f"{quote(backup_object, safe='/')}",
             headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
@@ -251,7 +270,8 @@ def restore_table(table, rows):
     written = 0
     for start in range(0, len(rows), BATCH_SIZE):
         chunk = rows[start : start + BATCH_SIZE]
-        response = requests.post(
+        response = request_with_retry(
+            "post",
             f"{SUPABASE_URL}/rest/v1/{quote(table, safe='')}",
             headers=REST_HEADERS,
             data=json.dumps(chunk, ensure_ascii=False),
@@ -365,13 +385,17 @@ def restore_storage(manifest, storage_files):
                 "Content-Type": obj.get("content_type") or "application/octet-stream",
                 "x-upsert": "true",
             }
-            upload = requests.post(url, headers=headers, data=raw, timeout=300)
+            upload = request_with_retry(
+                "post", url, headers=headers, data=raw, timeout=(15, 180)
+            )
             if upload.status_code not in (200, 201):
                 raise RuntimeError(
                     f"Storage restore failed for {bucket['id']}/{obj['name']}: "
                     f"HTTP {upload.status_code} {upload.text[:200]}"
                 )
-            verify = requests.get(url, headers=headers, timeout=300)
+            verify = request_with_retry(
+                "get", url, headers=headers, timeout=(15, 180)
+            )
             if verify.status_code != 200 or sha256_bytes(verify.content) != obj["sha256"]:
                 raise RuntimeError(f"Storage verification failed for {bucket['id']}/{obj['name']}")
             restored += 1

@@ -22,6 +22,18 @@ spec.loader.exec_module(backup_rest)
 
 
 class BackupRestTests(unittest.TestCase):
+    def test_transient_502_is_retried(self):
+        transient = Mock(status_code=502, text="temporary gateway error")
+        success = Mock(status_code=200, text="ok")
+        with patch.object(
+            backup_rest.requests, "get", side_effect=[transient, success]
+        ) as request, patch.object(backup_rest.time, "sleep") as sleep:
+            response = backup_rest.request_with_retry("get", "https://example.test/file")
+
+        self.assertIs(response, success)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
     def test_refuses_empty_table_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(backup_rest, "OUTPUT", Path(tmp)), patch.object(

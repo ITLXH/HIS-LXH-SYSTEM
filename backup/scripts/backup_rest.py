@@ -2,6 +2,7 @@
 """Supabase backup via REST API - works from GitHub Actions (no direct DB access needed)."""
 import json, os, sys, csv, zipfile
 import hashlib
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,6 +36,27 @@ def github_error(message):
     """Expose a safe failure reason in the GitHub Actions run annotation."""
     safe = str(message).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::error::{safe}")
+
+
+def request_with_retry(method, url, attempts=5, **kwargs):
+    """Retry transient Supabase/CDN failures with bounded exponential backoff."""
+    retry_statuses = {408, 425, 429, 500, 502, 503, 504}
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            response = getattr(requests, method)(url, **kwargs)
+            if response.status_code not in retry_statuses:
+                return response
+            last_error = RuntimeError(f"HTTP {response.status_code}: {response.text[:200]}")
+        except requests.RequestException as exc:
+            last_error = exc
+        if attempt + 1 < attempts:
+            delay = min(8, 2 ** attempt)
+            print(f"      Transient {method.upper()} failure; retry {attempt + 2}/{attempts} in {delay}s")
+            time.sleep(delay)
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"{method.upper()} request failed without a response")
 
 # Fallback table names - HIS_One_ prefix as used in this project
 KNOWN_TABLES = [
@@ -195,7 +217,8 @@ def backup_storage_buckets():
                 f"{SUPABASE_URL}/storage/v1/object/{quote(bucket, safe='')}/"
                 f"{quote(object_name, safe='/')}"
             )
-            download = requests.get(
+            download = request_with_retry(
+                "get",
                 object_url,
                 headers=storage_headers(content_type="application/octet-stream"),
                 timeout=(15, 120),
@@ -277,13 +300,17 @@ def upload_storage_snapshots(storage_backup, now):
             "Content-Type": obj.get("content_type") or "application/octet-stream",
             "x-upsert": "true",
         }
-        response = requests.post(url, headers=headers, data=raw, timeout=(15, 180))
+        response = request_with_retry(
+            "post", url, headers=headers, data=raw, timeout=(15, 180)
+        )
         if response.status_code not in (200, 201):
             raise RuntimeError(
                 f"Snapshot upload failed for {bucket_id}/{obj['name']}: "
                 f"HTTP {response.status_code} {response.text[:200]}"
             )
-        verification = requests.get(url, headers=headers, timeout=(15, 180))
+        verification = request_with_retry(
+            "get", url, headers=headers, timeout=(15, 180)
+        )
         if (
             verification.status_code != 200
             or len(verification.content) != obj["size_bytes"]
@@ -422,7 +449,8 @@ def upload_supabase_storage(zip_path, object_path):
     """Upload file to Supabase Storage bucket."""
     url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{object_path}"
     with open(zip_path, "rb") as f:
-        resp = requests.post(
+        resp = request_with_retry(
+            "post",
             url,
             headers={
                 "Authorization": f"Bearer {SERVICE_KEY}",
@@ -437,7 +465,8 @@ def upload_supabase_storage(zip_path, object_path):
 def verify_supabase_upload(object_path, expected_size):
     """Confirm the uploaded object exists and has the expected byte size."""
     parent, filename = object_path.rsplit("/", 1)
-    resp = requests.post(
+    resp = request_with_retry(
+        "post",
         f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}",
         headers={
             "Authorization": f"Bearer {SERVICE_KEY}",
