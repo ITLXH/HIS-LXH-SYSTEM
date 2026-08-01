@@ -69,4 +69,8 @@ Google Drive intentionally stores only the verified database/settings ZIP, curre
 
 Drive files are marked with `his_backup_scope=database_only`. A Drive restore verifies and restores the database tables but skips application Storage. Use the Supabase backup source when complete recovery must include patient/result files.
 
-Latest verified Supabase restore evidence: workflow run `30681645725` — 54 tables, 51,687 rows and 380/380 Storage objects, dry-run success.
+Latest production evidence:
+
+- Full Supabase backup run `30682154926`: 54 tables, 51,689 rows and 382/382 Storage objects; success.
+- Google Drive database-only restore dry-run `30682898230`: 54 tables and 51,689 rows verified, 0 Storage objects by design; success.
+- Complete Supabase restore dry-run `30681645725`: 54 tables, 51,687 rows and 380/380 Storage objects; success.

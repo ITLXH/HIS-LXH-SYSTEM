@@ -77,8 +77,10 @@ Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Da
 
 ## Production re-verification (2026-08-01)
 
-- Backup run `30680448430` exported 54 tables, 51,687 rows and 380/380 application Storage objects to Supabase. The verified object is `backups/2026/08/backup-2026-08-01_20260801_023958.zip`.
-- Restore dry-run `30681645725` succeeded: 54 tables, 51,687 rows and 380/380 Storage objects were downloaded and verified without production writes.
+- Backup run `30682154926` succeeded. Supabase received 54 tables, 51,689 rows and 382/382 application Storage objects. The verified object is `backups/2026/08/backup-2026-08-01_20260801_033136.zip`.
+- The same run uploaded the Google Drive database-only file `backup-2026-08-01_20260801_033136.zip` (`3,622,681` bytes), with Drive size/MD5 verification and `his_backup_scope=database_only`.
+- Google Drive restore dry-run `30682898230` succeeded: 54 tables and 51,689 rows were verified without production writes; application Storage was intentionally skipped.
+- Complete Supabase restore dry-run `30681645725` also succeeded: 54 tables, 51,687 rows and 380/380 Storage objects were downloaded and verified without production writes.
 - Supabase is the complete backup destination: database/settings plus all application Storage objects.
 - Google Drive is intentionally database-only. Each scheduled run uploads the verified database/settings ZIP (about 3.5 MB) and never duplicates the 10.23 GiB application PDF Storage collection.
 - A Drive restore marked `his_backup_scope=database_only` restores and verifies tables but intentionally skips application Storage. Complete application recovery uses the Supabase copy.
