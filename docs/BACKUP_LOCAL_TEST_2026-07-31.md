@@ -74,3 +74,12 @@ Secret ບໍ່ໄດ້ຖືກບັນທຶກໃນ source code ຫຼື
 ## ຂໍ້ຈຳກັດ
 
 Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Database DDL ເຊັ່ນ functions, triggers, RLS policies, roles ແລະ extensions ບໍ່ສາມາດສ້າງຄືນຜ່ານ service-role REST API. ເມື່ອສ້າງ Supabase project ໃໝ່ຈາກສູນ ຕ້ອງ deploy schema/migrations ຈາກ repository ກ່ອນ ແລ້ວຈຶ່ງ restore archive.
+
+## Production re-verification (2026-08-01)
+
+- Backup run `30680448430` exported 54 tables, 51,687 rows and 380/380 application Storage objects to Supabase. The verified object is `backups/2026/08/backup-2026-08-01_20260801_023958.zip`.
+- Restore dry-run `30681645725` succeeded: 54 tables, 51,687 rows and 380/380 Storage objects were downloaded and verified without production writes.
+- The Google Drive uploader now refuses a successful result when the detailed sidecar inventory is missing or its count differs from `storage_objects`.
+- Google Drive snapshots use a shared content-addressed blob pool. Unchanged files are reused by SHA-256, so daily snapshots upload only new unique application files plus the database ZIP and sidecar index.
+- The current application Storage baseline is 10,982,251,071 bytes (10.23 GiB). The connected Google account does not currently have enough free quota for the first full Drive baseline; Google returned `storageQuotaExceeded`. Supabase automatic backup remains operational and verified while Drive waits for additional quota.
+- Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 22 tests.
