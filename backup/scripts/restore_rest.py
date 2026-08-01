@@ -46,6 +46,7 @@ NON_RESTORABLE_TABLES = {
 }
 GDRIVE_SIDECAR_INDEX = {}
 GDRIVE_ACCESS_TOKEN = ""
+GDRIVE_DATABASE_ONLY = False
 
 REST_HEADERS = {
     "apikey": SERVICE_KEY,
@@ -109,7 +110,7 @@ def _download_drive_media(drive, file_id):
 
 
 def download_from_gdrive():
-    global GDRIVE_ACCESS_TOKEN, GDRIVE_SIDECAR_INDEX
+    global GDRIVE_ACCESS_TOKEN, GDRIVE_SIDECAR_INDEX, GDRIVE_DATABASE_ONLY
     if not BACKUP_GDRIVE_FILE_ID:
         raise RuntimeError("BACKUP_GDRIVE_FILE_ID is required when BACKUP_SOURCE=gdrive")
     from google.auth.transport.requests import Request
@@ -132,6 +133,9 @@ def download_from_gdrive():
         .execute()
     )
     properties = metadata.get("appProperties") or {}
+    GDRIVE_DATABASE_ONLY = properties.get("his_backup_scope") == "database_only"
+    if GDRIVE_DATABASE_ONLY:
+        print("    Google Drive backup scope: database/settings only")
     index_id = properties.get("his_sidecar_index_id")
     GDRIVE_SIDECAR_INDEX = {}
     if index_id:
@@ -462,7 +466,11 @@ def main():
     print(f"==> HIS restore: {BACKUP_NAME} (dry-run={DRY_RUN})")
     blob = download_zip()
     archive, manifest, tables, storage_files = validate_archive(blob)
-    storage_files = hydrate_storage_snapshots(manifest, storage_files)
+    if BACKUP_SOURCE == "gdrive" and GDRIVE_DATABASE_ONLY:
+        print("==> Drive database-only restore: application Storage is not included")
+        storage_files = {}
+    else:
+        storage_files = hydrate_storage_snapshots(manifest, storage_files)
     try:
         table_count, row_count, skipped = restore_tables(manifest, tables)
         storage_count = restore_storage(manifest, storage_files)

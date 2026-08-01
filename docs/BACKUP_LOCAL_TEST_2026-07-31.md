@@ -79,7 +79,7 @@ Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Da
 
 - Backup run `30680448430` exported 54 tables, 51,687 rows and 380/380 application Storage objects to Supabase. The verified object is `backups/2026/08/backup-2026-08-01_20260801_023958.zip`.
 - Restore dry-run `30681645725` succeeded: 54 tables, 51,687 rows and 380/380 Storage objects were downloaded and verified without production writes.
-- The Google Drive uploader now refuses a successful result when the detailed sidecar inventory is missing or its count differs from `storage_objects`.
-- Google Drive snapshots use a shared content-addressed blob pool. Unchanged files are reused by SHA-256, so daily snapshots upload only new unique application files plus the database ZIP and sidecar index.
-- The current application Storage baseline is 10,982,251,071 bytes (10.23 GiB). The connected Google account does not currently have enough free quota for the first full Drive baseline; Google returned `storageQuotaExceeded`. Supabase automatic backup remains operational and verified while Drive waits for additional quota.
-- Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 22 tests.
+- Supabase is the complete backup destination: database/settings plus all application Storage objects.
+- Google Drive is intentionally database-only. Each scheduled run uploads the verified database/settings ZIP (about 3.5 MB) and never duplicates the 10.23 GiB application PDF Storage collection.
+- A Drive restore marked `his_backup_scope=database_only` restores and verifies tables but intentionally skips application Storage. Complete application recovery uses the Supabase copy.
+- Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 21 tests, and `npm run build` passed.

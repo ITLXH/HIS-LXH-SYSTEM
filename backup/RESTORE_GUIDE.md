@@ -63,10 +63,10 @@ Dry-run ຈະດາວໂຫຼດ ແລະກວດ backup ທັງໝົດ
 
 Application backup ນີ້ສາມາດ restore ຂໍ້ມູນໃສ່ project ທີ່ມີ database schema ຢູ່ແລ້ວ. Database DDL ເຊັ່ນ functions, triggers, RLS policies, roles ແລະ extensions ບໍ່ສາມາດສ້າງຄືນຜ່ານ service-role REST API. ສຳລັບການສ້າງ Supabase project ໃໝ່ຈາກສູນ ຕ້ອງນຳ schema/migrations ຈາກ repository ໄປ deploy ກ່ອນ ແລ້ວຈຶ່ງ restore archive.
 
-## Google Drive complete-copy requirements
+## Google Drive database-only copy
 
-Google Drive stores immutable application files in the shared `HIS Backup Content Blobs` folder and stores one `sidecars.json` index per snapshot. Each index maps the original Supabase snapshot path to a Drive file ID, size and SHA-256. Restore from Drive downloads the main ZIP and every referenced blob, then verifies all sizes and hashes before any write.
+Google Drive intentionally stores only the verified database/settings ZIP, currently about 3.5 MB per scheduled backup. Application Storage files are not uploaded to Drive; the complete copy of those files remains in Supabase Storage.
 
-The initial Drive baseline must have enough free quota for all unique application files. On 2026-08-01 the baseline was 10.23 GiB (380 objects), while the connected account had less free space, so the Drive upload correctly failed with `storageQuotaExceeded` and removed the incomplete snapshot. Add at least enough quota for the baseline and normal growth before retrying. Later daily snapshots reuse unchanged SHA-256 blobs and upload only new unique files.
+Drive files are marked with `his_backup_scope=database_only`. A Drive restore verifies and restores the database tables but skips application Storage. Use the Supabase backup source when complete recovery must include patient/result files.
 
 Latest verified Supabase restore evidence: workflow run `30681645725` — 54 tables, 51,687 rows and 380/380 Storage objects, dry-run success.

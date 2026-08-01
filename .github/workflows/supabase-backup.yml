@@ -71,8 +71,8 @@ jobs:
           echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
 
       - name: Upload to Google Drive
-        # Destination 2 — complete independent copy of the database archive
-        # and all application Storage sidecars.
+        # Destination 2 — database/settings ZIP only. Supabase remains the
+        # complete destination for application Storage files.
         id: gdrive
         env:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
@@ -121,6 +121,7 @@ jobs:
           echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
           echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
           echo "drive_sidecars=${{ steps.gdrive.outputs.drive_sidecars || '0' }}" >> $GITHUB_OUTPUT
+          echo "drive_scope=${{ steps.gdrive.outputs.drive_scope || '' }}" >> $GITHUB_OUTPUT
 
       - name: Backup summary
         if: always()
@@ -145,7 +146,7 @@ jobs:
             echo "| Destination 1 (Supabase) | ❌ Backup/upload failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
           if [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
-            echo "| Destination 2 (Google Drive) | [Open complete copy ↗](${{ steps.outputs.outputs.drive_url }}) — ${{ steps.outputs.outputs.drive_sidecars }} sidecars |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Destination 2 (Google Drive) | [Open database-only copy ↗](${{ steps.outputs.outputs.drive_url }}) — application Storage stays in Supabase |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"
           fi

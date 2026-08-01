@@ -4,7 +4,6 @@ import os
 import sys
 import tempfile
 import unittest
-import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -22,162 +21,65 @@ spec.loader.exec_module(gdrive_upload)
 
 
 class GoogleDriveUploadTests(unittest.TestCase):
-    def test_safe_local_path_rejects_traversal(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(RuntimeError, "Unsafe"):
-                gdrive_upload.safe_local_path(Path(tmp), "bucket", "../secret.txt")
-
-    def test_complete_bundle_uploads_sidecars_index_and_main_zip(self):
+    def test_upload_is_database_only_and_does_not_upload_storage_sidecars(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
-            (output / "storage" / "results" / "patient").mkdir(parents=True)
-            (output / "storage" / "results" / "patient" / "scan.pdf").write_bytes(b"pdf")
             zip_path = output / "backup.zip"
-            zip_path.write_bytes(b"zip")
-            manifest = {
-                "storage_object": "backups/2026/07/backup-unique.zip",
-                "storage_objects": 1,
-                "storage": {
-                    "snapshot_id": "20260731_150037",
-                    "buckets": [
-                        {
-                            "id": "results",
-                            "objects": [
-                                {
-                                    "name": "patient/scan.pdf",
-                                    "size_bytes": 3,
-                                    "sha256": "hash",
-                                    "content_type": "application/pdf",
-                                    "backup_object": "snapshots/id/results/patient/scan.pdf",
-                                }
-                            ],
-                        }
-                    ],
-                },
-            }
-            (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-
-            created = [
-                {"id": "folder-id", "name": "folder"},
-                {"id": "sidecar-id", "size": "3", "md5Checksum": "mock"},
-                {"id": "index-id", "size": "1", "md5Checksum": "mock"},
-                {
-                    "id": "main-id",
-                    "size": "3",
-                    "md5Checksum": "mock",
-                    "webViewLink": "https://drive.test/main-id",
-                },
-            ]
-
-            def fake_binary(_drive, path, metadata, content_type=None):
-                result = created.pop(0)
-                result.setdefault("name", metadata["name"])
-                return result
-
-            with patch.object(gdrive_upload, "build_drive", return_value=Mock()), patch.object(
-                gdrive_upload, "get_or_create_blob_pool", return_value={"id": "pool-id"}
-            ), patch.object(gdrive_upload, "list_blob_pool", return_value={}), patch.object(
-                gdrive_upload, "drive_create", return_value=created.pop(0)
-            ), patch.object(gdrive_upload, "upload_binary", side_effect=fake_binary):
-                result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
-
-            self.assertEqual(result["file_id"], "main-id")
-            self.assertEqual(result["sidecars"], 1)
-            self.assertEqual(result["new_blobs"], 1)
-            self.assertEqual(result["snapshot_folder_id"], "folder-id")
-
-    def test_complete_bundle_reuses_one_blob_for_duplicate_content(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp)
-            for name in ("first.pdf", "second.pdf"):
-                path = output / "storage" / "results" / name
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(b"pdf")
-            zip_path = output / "backup.zip"
-            zip_path.write_bytes(b"zip")
-            objects = [
-                {
-                    "name": name,
-                    "size_bytes": 3,
-                    "sha256": "same-hash",
-                    "content_type": "application/pdf",
-                    "backup_object": f"snapshots/id/results/{name}",
-                }
-                for name in ("first.pdf", "second.pdf")
-            ]
+            zip_path.write_bytes(b"database-zip")
             (output / "manifest.json").write_text(
                 json.dumps(
                     {
-                        "storage_object": "backups/backup.zip",
-                        "storage_objects": 2,
-                        "storage": {
-                            "snapshot_id": "snapshot-id",
-                            "buckets": [{"id": "results", "objects": objects}],
-                        },
+                        "tables": 54,
+                        "total_rows": 51687,
+                        "storage_objects": 380,
+                        "storage_object": "backups/2026/08/backup-production.zip",
+                        "failed_tables": [],
                     }
                 ),
                 encoding="utf-8",
             )
-            binary_results = [
-                {"id": "blob-id", "size": "3"},
-                {"id": "index-id", "size": "1"},
-                {"id": "main-id", "size": "3"},
-            ]
+            uploaded = {
+                "id": "drive-file-id",
+                "size": str(zip_path.stat().st_size),
+                "md5Checksum": gdrive_upload.md5_file(zip_path),
+                "webViewLink": "https://drive.test/database",
+            }
 
             with patch.object(gdrive_upload, "build_drive", return_value=Mock()), patch.object(
-                gdrive_upload, "get_or_create_blob_pool", return_value={"id": "pool-id"}
-            ), patch.object(gdrive_upload, "list_blob_pool", return_value={}), patch.object(
-                gdrive_upload, "drive_create", return_value={"id": "folder-id"}
-            ), patch.object(
-                gdrive_upload, "upload_binary", side_effect=binary_results
+                gdrive_upload, "upload_binary", return_value=uploaded
             ) as upload:
-                result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
+                result = gdrive_upload.upload_database_backup(zip_path, "root-folder")
 
-            self.assertEqual(result["sidecars"], 2)
-            self.assertEqual(result["new_blobs"], 1)
-            self.assertEqual(upload.call_count, 3)
+            metadata = upload.call_args.args[2]
+            self.assertEqual(metadata["appProperties"]["his_backup_scope"], "database_only")
+            self.assertNotIn("his_sidecar_index_id", metadata["appProperties"])
+            self.assertEqual(result["sidecars"], 0)
+            self.assertEqual(result["scope"], "database_only")
+            self.assertEqual(upload.call_count, 1)
 
-    def test_load_manifest_recovers_storage_inventory_from_zip(self):
+    def test_manifest_rejects_empty_database_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             zip_path = output / "backup.zip"
-            storage = {
-                "snapshot_id": "snapshot-1",
-                "buckets": [
-                    {
-                        "id": "results",
-                        "objects": [
-                            {
-                                "name": "patient/scan.pdf",
-                                "size_bytes": 3,
-                                "sha256": "hash",
-                                "backup_object": "snapshots/id/results/patient/scan.pdf",
-                            }
-                        ],
-                    }
-                ],
-            }
-            with zipfile.ZipFile(zip_path, "w") as archive:
-                archive.writestr("manifest.json", json.dumps({"storage": storage}))
+            zip_path.write_bytes(b"zip")
             (output / "manifest.json").write_text(
-                json.dumps({"storage_objects": 1}), encoding="utf-8"
+                json.dumps({"tables": 0, "failed_tables": []}), encoding="utf-8"
             )
 
-            _, manifest = gdrive_upload.load_manifest(zip_path)
+            with self.assertRaisesRegex(RuntimeError, "no exported tables"):
+                gdrive_upload.load_manifest(zip_path)
 
-            self.assertEqual(manifest["storage"], storage)
-
-    def test_load_manifest_rejects_missing_sidecar_inventory(self):
+    def test_manifest_rejects_failed_table_exports(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             zip_path = output / "backup.zip"
-            with zipfile.ZipFile(zip_path, "w") as archive:
-                archive.writestr("manifest.json", json.dumps({"storage": {}}))
+            zip_path.write_bytes(b"zip")
             (output / "manifest.json").write_text(
-                json.dumps({"storage_objects": 1}), encoding="utf-8"
+                json.dumps({"tables": 54, "failed_tables": ["patients"]}),
+                encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(RuntimeError, "sidecar manifest mismatch"):
+            with self.assertRaisesRegex(RuntimeError, "failed table exports"):
                 gdrive_upload.load_manifest(zip_path)
 
 

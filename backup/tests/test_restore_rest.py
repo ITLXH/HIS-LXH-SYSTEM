@@ -176,6 +176,21 @@ class RestoreRestTests(unittest.TestCase):
         )
         self.assertIn("drive/v3/files/drive-sidecar-id", request.call_args.args[1])
 
+    def test_database_only_drive_restore_skips_storage_hydration_and_writes(self):
+        with patch.object(restore_rest, "BACKUP_SOURCE", "gdrive"), patch.object(
+            restore_rest, "GDRIVE_DATABASE_ONLY", True
+        ), patch.object(restore_rest, "DRY_RUN", True), patch.object(
+            restore_rest, "download_zip", return_value=make_archive()
+        ), patch.object(
+            restore_rest, "hydrate_storage_snapshots"
+        ) as hydrate, patch.object(
+            restore_rest, "restore_storage", wraps=restore_rest.restore_storage
+        ) as storage_restore:
+            self.assertTrue(restore_rest.main())
+
+        hydrate.assert_not_called()
+        self.assertEqual(storage_restore.call_args.args[1], {})
+
 
 if __name__ == "__main__":
     unittest.main()
