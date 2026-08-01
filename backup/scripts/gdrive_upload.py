@@ -16,6 +16,7 @@ import mimetypes
 import os
 import sys
 import threading
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
 
@@ -81,7 +82,46 @@ def load_manifest(zip_path):
     manifest_path = output_dir / "manifest.json"
     if not manifest_path.exists():
         raise RuntimeError(f"Backup manifest not found: {manifest_path}")
-    return output_dir, json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    # backup_rest.py keeps the detailed Storage inventory in the archive's
+    # manifest.json.  The small workflow manifest beside the ZIP contains only
+    # aggregate counts, so recover the detailed inventory before uploading the
+    # independent Drive sidecars.
+    if not manifest.get("storage"):
+        try:
+            with zipfile.ZipFile(zip_path, "r") as archive:
+                archive_manifest = json.loads(
+                    archive.read("manifest.json").decode("utf-8")
+                )
+        except (
+            KeyError,
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            zipfile.BadZipFile,
+        ) as exc:
+            if int(manifest.get("storage_objects") or 0):
+                raise RuntimeError(
+                    "Backup reports application Storage objects but its detailed "
+                    "Storage manifest could not be read"
+                ) from exc
+        else:
+            if archive_manifest.get("storage"):
+                manifest["storage"] = archive_manifest["storage"]
+
+    expected_objects = int(manifest.get("storage_objects") or 0)
+    storage = manifest.get("storage") or {}
+    detailed_objects = sum(
+        len(bucket.get("objects", [])) for bucket in storage.get("buckets", [])
+    )
+    if expected_objects != detailed_objects:
+        raise RuntimeError(
+            "Google Drive sidecar manifest mismatch: "
+            f"backup reports {expected_objects} objects but {detailed_objects} are listed"
+        )
+
+    return output_dir, manifest
 
 
 def upload_complete_bundle(zip_path, root_folder_id):

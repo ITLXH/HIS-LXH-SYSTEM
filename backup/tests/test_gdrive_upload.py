@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -35,6 +36,7 @@ class GoogleDriveUploadTests(unittest.TestCase):
             zip_path.write_bytes(b"zip")
             manifest = {
                 "storage_object": "backups/2026/07/backup-unique.zip",
+                "storage_objects": 1,
                 "storage": {
                     "snapshot_id": "20260731_150037",
                     "buckets": [
@@ -80,6 +82,49 @@ class GoogleDriveUploadTests(unittest.TestCase):
             self.assertEqual(result["file_id"], "main-id")
             self.assertEqual(result["sidecars"], 1)
             self.assertEqual(result["snapshot_folder_id"], "folder-id")
+
+    def test_load_manifest_recovers_storage_inventory_from_zip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            zip_path = output / "backup.zip"
+            storage = {
+                "snapshot_id": "snapshot-1",
+                "buckets": [
+                    {
+                        "id": "results",
+                        "objects": [
+                            {
+                                "name": "patient/scan.pdf",
+                                "size_bytes": 3,
+                                "sha256": "hash",
+                                "backup_object": "snapshots/id/results/patient/scan.pdf",
+                            }
+                        ],
+                    }
+                ],
+            }
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.writestr("manifest.json", json.dumps({"storage": storage}))
+            (output / "manifest.json").write_text(
+                json.dumps({"storage_objects": 1}), encoding="utf-8"
+            )
+
+            _, manifest = gdrive_upload.load_manifest(zip_path)
+
+            self.assertEqual(manifest["storage"], storage)
+
+    def test_load_manifest_rejects_missing_sidecar_inventory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            zip_path = output / "backup.zip"
+            with zipfile.ZipFile(zip_path, "w") as archive:
+                archive.writestr("manifest.json", json.dumps({"storage": {}}))
+            (output / "manifest.json").write_text(
+                json.dumps({"storage_objects": 1}), encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "sidecar manifest mismatch"):
+                gdrive_upload.load_manifest(zip_path)
 
 
 if __name__ == "__main__":
