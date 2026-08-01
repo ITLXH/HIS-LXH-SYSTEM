@@ -237,11 +237,17 @@ class BackupRestTests(unittest.TestCase):
                 result = backup_rest.backup_storage_buckets(previous)
 
         self.assertEqual(request.call_count, 1)
-        self.assertEqual(result["buckets"][0]["objects"][0]["_state"], "unchanged")
+        self.assertEqual(result["buckets"][0]["objects"][0]["_state"], "metadata_reused")
         self.assertEqual(
             result["buckets"][0]["objects"][0]["backup_object"],
             "blobs/sha256/3a/existing",
         )
+        incremental = backup_rest.upload_storage_snapshots(
+            result, backup_rest.datetime(2026, 8, 1, 12, 0, 0)
+        )
+        self.assertEqual(incremental["incremental"]["uploaded_objects"], 0)
+        self.assertEqual(incremental["incremental"]["metadata_reused_objects"], 1)
+        self.assertEqual(incremental["incremental"]["hash_reused_objects"], 0)
 
     def test_cleanup_preserves_blobs_referenced_by_retained_manifests(self):
         old = "2020-01-01T00:00:00Z"

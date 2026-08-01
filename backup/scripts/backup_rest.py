@@ -334,7 +334,7 @@ def backup_storage_buckets(previous_index=None):
                     (metadata.get("metadata") or {}).get("mimetype")
                     or previous.get("content_type")
                 )
-                reused["_state"] = "unchanged"
+                reused["_state"] = "metadata_reused"
                 return reused
 
             destination = _safe_storage_destination(storage_root, bucket, object_name)
@@ -374,7 +374,7 @@ def backup_storage_buckets(previous_index=None):
                 and _integer(previous.get("size_bytes")) == size
             ):
                 result["backup_object"] = previous["backup_object"]
-                result["_state"] = "unchanged"
+                result["_state"] = "hash_reused"
             return result
 
         objects = []
@@ -383,7 +383,7 @@ def backup_storage_buckets(previous_index=None):
             for completed, future in enumerate(as_completed(futures), start=1):
                 objects.append(future.result())
                 if completed % 25 == 0 or completed == len(futures):
-                    print(f"      {bucket}: downloaded {completed}/{len(futures)} objects")
+                    print(f"      {bucket}: processed {completed}/{len(futures)} objects")
         objects.sort(key=lambda item: item["name"])
         total_objects += len(objects)
         total_bytes += sum(item["size_bytes"] for item in objects)
@@ -419,7 +419,7 @@ def upload_storage_snapshots(storage_backup, now):
     tasks = []
     for bucket in storage_backup["buckets"]:
         for obj in bucket["objects"]:
-            if obj.get("_state") != "unchanged":
+            if obj.get("_state") not in ("metadata_reused", "hash_reused"):
                 tasks.append((bucket["id"], obj))
 
     def upload_one(task):
@@ -493,12 +493,23 @@ def upload_storage_snapshots(storage_backup, now):
         delete_backup_objects(uploaded_paths)
         raise
 
-    unchanged_objects = storage_backup["total_objects"] - len(tasks)
+    metadata_reused_objects = sum(
+        obj.get("_state") == "metadata_reused"
+        for bucket in storage_backup["buckets"]
+        for obj in bucket["objects"]
+    )
+    hash_reused_objects = sum(
+        obj.get("_state") == "hash_reused"
+        for bucket in storage_backup["buckets"]
+        for obj in bucket["objects"]
+    )
     storage_backup["incremental"] = {
         "changed_objects": len(tasks),
         "uploaded_objects": len(uploaded_paths),
         "uploaded_bytes": uploaded_bytes,
-        "reused_objects": unchanged_objects + reused_changed_objects,
+        "reused_objects": metadata_reused_objects + hash_reused_objects + reused_changed_objects,
+        "metadata_reused_objects": metadata_reused_objects,
+        "hash_reused_objects": hash_reused_objects,
         "reused_bytes": storage_backup["total_bytes"] - uploaded_bytes,
     }
     storage_backup["_new_backup_objects"] = uploaded_paths
@@ -508,7 +519,8 @@ def upload_storage_snapshots(storage_backup, now):
     print(
         "  Incremental Storage: "
         f"{len(uploaded_paths)} uploaded ({uploaded_bytes:,} bytes), "
-        f"{storage_backup['incremental']['reused_objects']} reused"
+        f"{metadata_reused_objects} metadata-reused without download, "
+        f"{hash_reused_objects + reused_changed_objects} hash-reused"
     )
     return storage_backup
 
@@ -942,6 +954,12 @@ def main():
         ),
         "storage_reused_objects": (storage_backup.get("incremental") or {}).get(
             "reused_objects", 0
+        ),
+        "storage_metadata_reused_objects": (storage_backup.get("incremental") or {}).get(
+            "metadata_reused_objects", 0
+        ),
+        "storage_hash_reused_objects": (storage_backup.get("incremental") or {}).get(
+            "hash_reused_objects", 0
         ),
         "failed_tables": failed,
         "sha256": sha,
