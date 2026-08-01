@@ -75,13 +75,67 @@ class GoogleDriveUploadTests(unittest.TestCase):
                 return result
 
             with patch.object(gdrive_upload, "build_drive", return_value=Mock()), patch.object(
+                gdrive_upload, "get_or_create_blob_pool", return_value={"id": "pool-id"}
+            ), patch.object(gdrive_upload, "list_blob_pool", return_value={}), patch.object(
                 gdrive_upload, "drive_create", return_value=created.pop(0)
             ), patch.object(gdrive_upload, "upload_binary", side_effect=fake_binary):
                 result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
 
             self.assertEqual(result["file_id"], "main-id")
             self.assertEqual(result["sidecars"], 1)
+            self.assertEqual(result["new_blobs"], 1)
             self.assertEqual(result["snapshot_folder_id"], "folder-id")
+
+    def test_complete_bundle_reuses_one_blob_for_duplicate_content(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            for name in ("first.pdf", "second.pdf"):
+                path = output / "storage" / "results" / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"pdf")
+            zip_path = output / "backup.zip"
+            zip_path.write_bytes(b"zip")
+            objects = [
+                {
+                    "name": name,
+                    "size_bytes": 3,
+                    "sha256": "same-hash",
+                    "content_type": "application/pdf",
+                    "backup_object": f"snapshots/id/results/{name}",
+                }
+                for name in ("first.pdf", "second.pdf")
+            ]
+            (output / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "storage_object": "backups/backup.zip",
+                        "storage_objects": 2,
+                        "storage": {
+                            "snapshot_id": "snapshot-id",
+                            "buckets": [{"id": "results", "objects": objects}],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            binary_results = [
+                {"id": "blob-id", "size": "3"},
+                {"id": "index-id", "size": "1"},
+                {"id": "main-id", "size": "3"},
+            ]
+
+            with patch.object(gdrive_upload, "build_drive", return_value=Mock()), patch.object(
+                gdrive_upload, "get_or_create_blob_pool", return_value={"id": "pool-id"}
+            ), patch.object(gdrive_upload, "list_blob_pool", return_value={}), patch.object(
+                gdrive_upload, "drive_create", return_value={"id": "folder-id"}
+            ), patch.object(
+                gdrive_upload, "upload_binary", side_effect=binary_results
+            ) as upload:
+                result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
+
+            self.assertEqual(result["sidecars"], 2)
+            self.assertEqual(result["new_blobs"], 1)
+            self.assertEqual(upload.call_count, 3)
 
     def test_load_manifest_recovers_storage_inventory_from_zip(self):
         with tempfile.TemporaryDirectory() as tmp:

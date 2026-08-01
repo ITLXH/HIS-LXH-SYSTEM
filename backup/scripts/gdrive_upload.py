@@ -124,6 +124,64 @@ def load_manifest(zip_path):
     return output_dir, manifest
 
 
+def get_or_create_blob_pool(drive, root_folder_id):
+    query = (
+        f"'{root_folder_id}' in parents and "
+        "mimeType='application/vnd.google-apps.folder' and trashed=false and "
+        "appProperties has { key='his_backup_type' and value='blob_pool' }"
+    )
+    response = (
+        drive.files()
+        .list(
+            q=query,
+            fields="files(id,name)",
+            pageSize=10,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        )
+        .execute()
+    )
+    folders = response.get("files", [])
+    if folders:
+        return folders[0]
+    return drive_create(
+        drive,
+        body={
+            "name": "HIS Backup Content Blobs",
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [root_folder_id],
+            "appProperties": {"his_backup_type": "blob_pool"},
+        },
+        fields="id,name,webViewLink",
+    )
+
+
+def list_blob_pool(drive, pool_folder_id):
+    blobs = {}
+    page_token = None
+    while True:
+        response = (
+            drive.files()
+            .list(
+                q=f"'{pool_folder_id}' in parents and trashed=false",
+                fields="nextPageToken,files(id,name,size,appProperties)",
+                pageSize=1000,
+                pageToken=page_token,
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
+            )
+            .execute()
+        )
+        for item in response.get("files", []):
+            properties = item.get("appProperties") or {}
+            sha256 = properties.get("his_sha256")
+            if sha256:
+                blobs[sha256] = item
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            return blobs
+
+
 def upload_complete_bundle(zip_path, root_folder_id):
     if not root_folder_id:
         raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID is required")
@@ -136,6 +194,8 @@ def upload_complete_bundle(zip_path, root_folder_id):
     main_file = None
 
     try:
+        blob_pool = get_or_create_blob_pool(root_drive, root_folder_id)
+        blobs_by_hash = list_blob_pool(root_drive, blob_pool["id"])
         snapshot_folder = drive_create(
             root_drive,
             body={
@@ -151,48 +211,71 @@ def upload_complete_bundle(zip_path, root_folder_id):
         )
         sidecar_folder_id = snapshot_folder["id"]
 
-        tasks = []
+        objects = []
         for bucket in storage.get("buckets", []):
             for obj in bucket.get("objects", []):
-                tasks.append((bucket["id"], obj))
+                objects.append((bucket["id"], obj))
 
-        def upload_sidecar(task):
+        missing_blobs = {}
+        for bucket_id, obj in objects:
+            sha256 = obj.get("sha256")
+            if not sha256:
+                raise RuntimeError(f"Storage SHA-256 missing for {bucket_id}/{obj['name']}")
+            existing = blobs_by_hash.get(sha256)
+            if existing:
+                if int(existing.get("size", -1)) != int(obj["size_bytes"]):
+                    raise RuntimeError(f"Drive blob size mismatch for SHA-256 {sha256}")
+            else:
+                missing_blobs.setdefault(sha256, (bucket_id, obj))
+
+        def upload_blob(task):
             bucket_id, obj = task
             local_path = safe_local_path(output_dir / "storage", bucket_id, obj["name"])
             if not local_path.is_file():
                 raise RuntimeError(f"Storage sidecar missing locally: {bucket_id}/{obj['name']}")
             content_type = obj.get("content_type") or mimetypes.guess_type(obj["name"])[0]
+            sha256 = obj["sha256"]
+            suffix = Path(obj["name"]).suffix.lower()[:12]
             result = upload_binary(
                 worker_drive(),
                 local_path,
                 {
-                    "name": Path(obj["name"]).name or "storage-object",
-                    "parents": [sidecar_folder_id],
+                    "name": f"{sha256}{suffix}",
+                    "parents": [blob_pool["id"]],
                     "appProperties": {
-                        "his_backup_type": "sidecar",
-                        "his_snapshot_id": snapshot_id,
+                        "his_backup_type": "blob",
+                        "his_sha256": sha256,
+                        "his_size": str(obj["size_bytes"]),
                     },
                 },
                 content_type,
             )
             if int(result["size"]) != int(obj["size_bytes"]):
                 raise RuntimeError(f"Manifest size mismatch for {bucket_id}/{obj['name']}")
-            return obj["backup_object"], {
-                "file_id": result["id"],
+            return sha256, result
+
+        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+            futures = [pool.submit(upload_blob, task) for task in missing_blobs.values()]
+            for completed, future in enumerate(as_completed(futures), start=1):
+                sha256, result = future.result()
+                blobs_by_hash[sha256] = result
+                if completed % 25 == 0 or completed == len(futures):
+                    print(f"  New Drive content blobs uploaded: {completed}/{len(futures)}")
+
+        sidecar_index = {}
+        for bucket_id, obj in objects:
+            blob = blobs_by_hash[obj["sha256"]]
+            sidecar_index[obj["backup_object"]] = {
+                "file_id": blob["id"],
                 "size_bytes": obj["size_bytes"],
                 "sha256": obj["sha256"],
                 "bucket": bucket_id,
                 "name": obj["name"],
             }
-
-        sidecar_index = {}
-        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-            futures = [pool.submit(upload_sidecar, task) for task in tasks]
-            for completed, future in enumerate(as_completed(futures), start=1):
-                backup_object, entry = future.result()
-                sidecar_index[backup_object] = entry
-                if completed % 25 == 0 or completed == len(futures):
-                    print(f"  Drive sidecars uploaded and verified: {completed}/{len(futures)}")
+        print(
+            f"  Drive sidecar references verified: {len(sidecar_index)}; "
+            f"new unique blobs: {len(missing_blobs)}"
+        )
 
         index_path = output_dir / "gdrive-sidecars.json"
         index_payload = {
@@ -242,6 +325,7 @@ def upload_complete_bundle(zip_path, root_folder_id):
             ),
             "snapshot_folder_id": sidecar_folder_id,
             "sidecars": len(sidecar_index),
+            "new_blobs": len(missing_blobs),
         }
     except Exception:
         if main_file:
