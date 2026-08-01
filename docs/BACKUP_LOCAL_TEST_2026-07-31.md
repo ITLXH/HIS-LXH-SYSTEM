@@ -87,3 +87,9 @@ Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Da
 - Incremental Supabase Storage uses SHA-256 blob paths. Unchanged objects are reused; only new or changed content consumes additional backup space.
 - Retention cleanup first scans every retained manifest and never deletes a blob that is still referenced by any recoverable backup.
 - Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 23 tests, and `npm run build` passed.
+
+## Incremental production verification (2026-08-01)
+
+- Migration run [`30684617276`](https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30684617276) found 383 Storage objects. One genuinely new object (`30,797,381` bytes) was uploaded and 382 existing objects were reused; the 10.23 GiB collection was not uploaded again.
+- Zero-change run [`30685479107`](https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30685479107) uploaded `0` Storage objects and `0` bytes. All 383 objects were reused from metadata without downloading their contents.
+- Incremental restore dry-run [`30685890975`](https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/30685890975) verified 54 tables, 51,704 rows and all 383/383 Storage blobs. It prepared 51,702 writable rows, skipped one read-only view and made no production writes.

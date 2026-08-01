@@ -75,3 +75,5 @@ Latest production evidence:
 - Full Supabase backup run `30682154926`: 54 tables, 51,689 rows and 382/382 Storage objects; success.
 - Google Drive database-only restore dry-run `30682898230`: 54 tables and 51,689 rows verified, 0 Storage objects by design; success.
 - Complete Supabase restore dry-run `30681645725`: 54 tables, 51,687 rows and 380/380 Storage objects; success.
+- Incremental zero-change backup run `30685479107`: 383 Storage objects reused without download, 0 objects/0 bytes uploaded; success.
+- Incremental full restore dry-run `30685890975`: 54 tables, 51,704 rows and 383/383 Storage objects verified without production writes; success.
