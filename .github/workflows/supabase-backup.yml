@@ -108,16 +108,25 @@ jobs:
             ROWS=$(python3 -c "import json; print(json.load(open('output/manifest.json'))['total_rows'])")
             TABLES=$(python3 -c "import json; print(json.load(open('output/manifest.json'))['tables'])")
             STORAGE_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_objects', 0))")
+            STORAGE_UPLOADED_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_uploaded_objects', 0))")
+            STORAGE_UPLOADED_BYTES=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_uploaded_bytes', 0))")
+            STORAGE_REUSED_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_reused_objects', 0))")
           else
             SIZE="0"
             ROWS="0"
             TABLES="0"
             STORAGE_OBJECTS="0"
+            STORAGE_UPLOADED_OBJECTS="0"
+            STORAGE_UPLOADED_BYTES="0"
+            STORAGE_REUSED_OBJECTS="0"
           fi
           echo "backup_size=${SIZE}" >> $GITHUB_OUTPUT
           echo "backup_rows=${ROWS}" >> $GITHUB_OUTPUT
           echo "backup_tables=${TABLES}" >> $GITHUB_OUTPUT
           echo "storage_objects=${STORAGE_OBJECTS}" >> $GITHUB_OUTPUT
+          echo "storage_uploaded_objects=${STORAGE_UPLOADED_OBJECTS}" >> $GITHUB_OUTPUT
+          echo "storage_uploaded_bytes=${STORAGE_UPLOADED_BYTES}" >> $GITHUB_OUTPUT
+          echo "storage_reused_objects=${STORAGE_REUSED_OBJECTS}" >> $GITHUB_OUTPUT
           echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
           echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
           echo "drive_sidecars=${{ steps.gdrive.outputs.drive_sidecars || '0' }}" >> $GITHUB_OUTPUT
@@ -138,6 +147,8 @@ jobs:
           echo "| Tables | ${{ steps.outputs.outputs.backup_tables || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Application Storage Objects | ${{ steps.outputs.outputs.storage_objects || '0' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| New/changed Storage uploaded | ${{ steps.outputs.outputs.storage_uploaded_objects || '0' }} objects / ${{ steps.outputs.outputs.storage_uploaded_bytes || '0' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Unchanged Storage reused | ${{ steps.outputs.outputs.storage_reused_objects || '0' }} objects |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Name | ${{ steps.outputs.outputs.zip_name || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Zip Size | ${{ steps.outputs.outputs.backup_size || '-' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ steps.backup.outcome }}" == "success" ]]; then

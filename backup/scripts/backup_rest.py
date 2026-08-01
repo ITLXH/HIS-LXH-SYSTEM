@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Supabase backup via REST API - works from GitHub Actions (no direct DB access needed)."""
+import io
 import json, os, sys, csv, zipfile
 import hashlib
 import time
@@ -185,7 +186,119 @@ def list_storage_objects(bucket):
     return walk()
 
 
-def backup_storage_buckets():
+def _integer(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _source_metadata(item):
+    """Return stable Storage metadata used to avoid downloading unchanged files."""
+    nested = item.get("metadata") or {}
+    return {
+        "source_updated_at": (
+            item.get("updated_at")
+            or item.get("updatedAt")
+            or nested.get("lastModified")
+        ),
+        "source_etag": nested.get("eTag") or nested.get("etag") or item.get("version"),
+        "source_size_bytes": _integer(
+            nested.get("size") or nested.get("contentLength") or item.get("size")
+        ),
+    }
+
+
+def _storage_index(manifest):
+    index = {}
+    for bucket in (manifest.get("storage") or {}).get("buckets", []):
+        bucket_id = bucket.get("id")
+        for obj in bucket.get("objects", []):
+            if bucket_id and obj.get("name"):
+                index[(bucket_id, obj["name"])] = obj
+    return index
+
+
+def list_backup_bucket_objects(prefix, depth=0):
+    """Recursively list objects below a prefix in the private backup bucket."""
+    if depth > 20:
+        raise RuntimeError(f"Backup folder nesting is too deep below {prefix}")
+    found = []
+    offset = 0
+    while True:
+        response = requests.post(
+            f"{SUPABASE_URL}/storage/v1/object/list/{quote(SUPABASE_BUCKET, safe='')}",
+            headers=storage_headers(),
+            data=json.dumps({"prefix": prefix, "limit": 1000, "offset": offset}),
+            timeout=60,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Backup object list failed for {prefix}: HTTP {response.status_code}")
+        payload = response.json()
+        payload = payload if isinstance(payload, list) else []
+        for item in payload:
+            name = item.get("name", "")
+            if not name:
+                continue
+            full_name = f"{prefix}/{name}" if prefix else name
+            if item.get("id") is None:
+                found.extend(list_backup_bucket_objects(full_name, depth + 1))
+            else:
+                found.append((full_name, item))
+        if len(payload) < 1000:
+            break
+        offset += len(payload)
+    return found
+
+
+def download_backup_manifest(object_path):
+    response = request_with_retry(
+        "get",
+        f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+        f"{quote(object_path, safe='/')}",
+        headers=storage_headers(content_type="application/octet-stream"),
+        timeout=(15, 120),
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Unable to download manifest archive {object_path}")
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        return json.loads(archive.read("manifest.json"))
+
+
+def load_latest_storage_index():
+    """Load the newest successful backup so unchanged Storage objects can be reused."""
+    backups = [
+        (path, metadata)
+        for path, metadata in list_backup_bucket_objects("backups")
+        if path.endswith(".zip")
+    ]
+    if not backups:
+        print("  No previous backup manifest found; all Storage objects require hashing once")
+        return {}
+    object_path, _ = max(backups, key=lambda item: item[0])
+    manifest = download_backup_manifest(object_path)
+    index = _storage_index(manifest)
+    print(f"  Previous manifest loaded: {object_path} ({len(index)} Storage objects)")
+    return index
+
+
+def _can_reuse_storage_object(previous, current_source):
+    if not previous or not previous.get("backup_object") or not previous.get("sha256"):
+        return False
+    previous_size = _integer(previous.get("size_bytes"))
+    current_size = current_source.get("source_size_bytes")
+    if previous_size is not None and current_size is not None and previous_size != current_size:
+        return False
+    etag = current_source.get("source_etag")
+    if etag and previous.get("source_etag"):
+        return etag == previous["source_etag"]
+    updated_at = current_source.get("source_updated_at")
+    if updated_at and previous.get("source_updated_at"):
+        return updated_at == previous["source_updated_at"]
+    return False
+
+
+def backup_storage_buckets(previous_index=None):
     """Download all application Storage objects except the backup destination itself."""
     if not INCLUDE_STORAGE:
         return {"enabled": False, "buckets": [], "total_objects": 0, "total_bytes": 0}
@@ -198,6 +311,7 @@ def backup_storage_buckets():
     if response.status_code != 200:
         raise RuntimeError(f"Storage bucket list failed: HTTP {response.status_code} {response.text[:200]}")
 
+    previous_index = previous_index or {}
     storage_root = OUTPUT / "storage"
     bucket_entries = []
     total_objects = 0
@@ -211,6 +325,18 @@ def backup_storage_buckets():
 
         def download_object(item):
             object_name, metadata = item
+            source = _source_metadata(metadata)
+            previous = previous_index.get((bucket, object_name))
+            if _can_reuse_storage_object(previous, source):
+                reused = dict(previous)
+                reused.update({key: value for key, value in source.items() if value is not None})
+                reused["content_type"] = (
+                    (metadata.get("metadata") or {}).get("mimetype")
+                    or previous.get("content_type")
+                )
+                reused["_state"] = "unchanged"
+                return reused
+
             destination = _safe_storage_destination(storage_root, bucket, object_name)
             destination.parent.mkdir(parents=True, exist_ok=True)
             object_url = (
@@ -230,12 +356,26 @@ def backup_storage_buckets():
                 )
             destination.write_bytes(download.content)
             size = len(download.content)
-            return {
+            result = {
                 "name": object_name,
                 "size_bytes": size,
                 "sha256": sha256(destination),
                 "content_type": (metadata.get("metadata") or {}).get("mimetype"),
+                "_state": "changed",
             }
+            result.update({key: value for key, value in source.items() if value is not None})
+            # Migration path for legacy dated snapshots: the first incremental
+            # run may need to hash the source once, but it must not upload the
+            # same 10+ GiB again when the previous SHA-256 still matches.
+            if (
+                previous
+                and previous.get("backup_object")
+                and previous.get("sha256") == result["sha256"]
+                and _integer(previous.get("size_bytes")) == size
+            ):
+                result["backup_object"] = previous["backup_object"]
+                result["_state"] = "unchanged"
+            return result
 
         objects = []
         with ThreadPoolExecutor(max_workers=STORAGE_WORKERS) as pool:
@@ -267,28 +407,25 @@ def backup_storage_buckets():
 
 
 def upload_storage_snapshots(storage_backup, now):
-    """Copy application files into the backup bucket as individually restorable objects.
+    """Store changed application files as content-addressed, reusable blobs.
 
     Keeping each original file separate respects Supabase's 50 MB global upload
-    limit when Spend Cap is enabled, while the small database ZIP remains the
-    atomic manifest that makes the snapshot visible to the restore UI.
+    limit. SHA-256 paths let every daily manifest reference the same physical
+    object until the source content actually changes.
     """
     if not storage_backup.get("enabled") or not storage_backup.get("total_objects"):
         return storage_backup
 
-    snapshot_id = now.strftime("%Y%m%d_%H%M%S")
     tasks = []
     for bucket in storage_backup["buckets"]:
         for obj in bucket["objects"]:
-            tasks.append((bucket["id"], obj))
+            if obj.get("_state") != "unchanged":
+                tasks.append((bucket["id"], obj))
 
     def upload_one(task):
         bucket_id, obj = task
         local_path = _safe_storage_destination(OUTPUT / "storage", bucket_id, obj["name"])
-        backup_object = (
-            f"snapshots/{now.strftime('%Y/%m')}/{snapshot_id}/"
-            f"{bucket_id}/{obj['name']}"
-        )
+        backup_object = f"blobs/sha256/{obj['sha256'][:2]}/{obj['sha256']}"
         url = (
             f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
             f"{quote(backup_object, safe='/')}"
@@ -298,8 +435,25 @@ def upload_storage_snapshots(storage_backup, now):
             "Authorization": f"Bearer {SERVICE_KEY}",
             "apikey": SERVICE_KEY,
             "Content-Type": obj.get("content_type") or "application/octet-stream",
-            "x-upsert": "true",
+            "x-upsert": "false",
         }
+
+        existing = request_with_retry(
+            "get", url, headers=headers, timeout=(15, 180)
+        )
+        if existing.status_code == 200:
+            if (
+                len(existing.content) != obj["size_bytes"]
+                or sha256_bytes(existing.content) != obj["sha256"]
+            ):
+                raise RuntimeError(f"Existing content blob failed verification: {backup_object}")
+            return obj, backup_object, False
+        if existing.status_code not in (400, 404):
+            raise RuntimeError(
+                f"Content blob check failed for {bucket_id}/{obj['name']}: "
+                f"HTTP {existing.status_code} {existing.text[:200]}"
+            )
+
         response = request_with_retry(
             "post", url, headers=headers, data=raw, timeout=(15, 180)
         )
@@ -317,22 +471,45 @@ def upload_storage_snapshots(storage_backup, now):
             or sha256_bytes(verification.content) != obj["sha256"]
         ):
             raise RuntimeError(f"Snapshot verification failed for {bucket_id}/{obj['name']}")
-        return obj, backup_object
+        return obj, backup_object, True
 
     uploaded_paths = []
+    uploaded_bytes = 0
+    reused_changed_objects = 0
     try:
         with ThreadPoolExecutor(max_workers=STORAGE_WORKERS) as pool:
             futures = [pool.submit(upload_one, task) for task in tasks]
             for completed, future in enumerate(as_completed(futures), start=1):
-                obj, backup_object = future.result()
+                obj, backup_object, created = future.result()
                 obj["backup_object"] = backup_object
-                uploaded_paths.append(backup_object)
+                if created:
+                    uploaded_paths.append(backup_object)
+                    uploaded_bytes += int(obj["size_bytes"])
+                else:
+                    reused_changed_objects += 1
                 if completed % 25 == 0 or completed == len(futures):
-                    print(f"      Snapshots uploaded and verified: {completed}/{len(futures)}")
+                    print(f"      Changed blobs handled and verified: {completed}/{len(futures)}")
     except Exception:
         delete_backup_objects(uploaded_paths)
         raise
-    storage_backup["snapshot_id"] = snapshot_id
+
+    unchanged_objects = storage_backup["total_objects"] - len(tasks)
+    storage_backup["incremental"] = {
+        "changed_objects": len(tasks),
+        "uploaded_objects": len(uploaded_paths),
+        "uploaded_bytes": uploaded_bytes,
+        "reused_objects": unchanged_objects + reused_changed_objects,
+        "reused_bytes": storage_backup["total_bytes"] - uploaded_bytes,
+    }
+    storage_backup["_new_backup_objects"] = uploaded_paths
+    for bucket in storage_backup["buckets"]:
+        for obj in bucket["objects"]:
+            obj.pop("_state", None)
+    print(
+        "  Incremental Storage: "
+        f"{len(uploaded_paths)} uploaded ({uploaded_bytes:,} bytes), "
+        f"{storage_backup['incremental']['reused_objects']} reused"
+    )
     return storage_backup
 
 
@@ -354,12 +531,7 @@ def delete_backup_objects(object_paths):
 
 
 def delete_storage_snapshots(storage_backup):
-    paths = []
-    for bucket in storage_backup.get("buckets", []):
-        for obj in bucket.get("objects", []):
-            if obj.get("backup_object"):
-                paths.append(obj["backup_object"])
-    return delete_backup_objects(paths)
+    return delete_backup_objects(storage_backup.get("_new_backup_objects", []))
 
 
 def export_table(table):
@@ -521,55 +693,68 @@ def ensure_supabase_bucket():
 
 
 def cleanup_supabase_storage():
-    """Delete old backups from Supabase Storage."""
-    list_url = f"{SUPABASE_URL}/storage/v1/object/list/{SUPABASE_BUCKET}"
-    storage_headers = {
-        "Authorization": f"Bearer {SERVICE_KEY}",
-        "apikey": SERVICE_KEY,
-        "Content-Type": "application/json",
-    }
-
-    def walk(prefix, depth=0):
-        if depth > 5:
-            return []
-        resp = requests.post(
-            list_url,
-            headers=storage_headers,
-            data=json.dumps({"prefix": prefix, "limit": 1000}),
-            timeout=30,
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(f"Storage list failed for {prefix!r}: HTTP {resp.status_code}")
-        found = []
-        items = resp.json()
-        for obj in items if isinstance(items, list) else []:
-            name = obj.get("name", "")
-            if not name:
-                continue
-            full_name = f"{prefix}/{name}" if prefix else name
-            if obj.get("id") is None:
-                found.extend(walk(full_name, depth + 1))
-            else:
-                found.append((full_name, obj))
-        return found
-
-    objects = walk("backups") + walk("snapshots")
+    """Apply retention without deleting blobs referenced by a retained manifest."""
     cutoff = datetime.now().astimezone() - timedelta(days=RETENTION_DAYS)
-    deleted = 0
-    for name, obj in objects:
-        if not (name.endswith(".zip") or name.startswith("snapshots/")):
-            continue
+
+    def created_at(metadata):
+        value = metadata.get("created_at") or metadata.get("created") or metadata.get("updated_at")
+        if not value:
+            return None
         try:
-            created_text = obj.get("created_at") or obj.get("updated_at") or ""
-            created = datetime.fromisoformat(created_text.replace("Z", "+00:00"))
-        except Exception:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=cutoff.tzinfo)
+        except (TypeError, ValueError):
+            return None
+
+    def delete_object(name):
+        response = requests.delete(
+            f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/"
+            f"{quote(name, safe='/')}",
+            headers=storage_headers(),
+            timeout=60,
+        )
+        if response.status_code in (200, 204):
+            print(f"  Deleted from Supabase: {name}")
+            return True
+        print(f"  Cleanup delete failed for {name}: HTTP {response.status_code}")
+        return False
+
+    backup_archives = [
+        (name, metadata)
+        for name, metadata in list_backup_bucket_objects("backups")
+        if name.endswith(".zip")
+    ]
+    retained_archives = []
+    deleted = 0
+    for name, metadata in backup_archives:
+        created = created_at(metadata)
+        if created is not None and created < cutoff:
+            deleted += int(delete_object(name))
+        else:
+            retained_archives.append(name)
+
+    referenced_objects = set()
+    try:
+        for archive_path in retained_archives:
+            manifest = download_backup_manifest(archive_path)
+            for obj in _storage_index(manifest).values():
+                if obj.get("backup_object"):
+                    referenced_objects.add(obj["backup_object"])
+    except Exception as exc:
+        print(f"  Sidecar cleanup skipped: retained manifest scan failed: {exc}")
+        return deleted
+
+    sidecars = list_backup_bucket_objects("snapshots") + list_backup_bucket_objects("blobs")
+    for name, metadata in sidecars:
+        created = created_at(metadata)
+        if name in referenced_objects or created is None or created >= cutoff:
             continue
-        if created < cutoff:
-            del_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{name}"
-            dr = requests.delete(del_url, headers=storage_headers, timeout=30)
-            if dr.status_code in (200, 204):
-                print(f"  Deleted from Supabase: {name}")
-                deleted += 1
+        deleted += int(delete_object(name))
+
+    print(
+        f"  Retained {len(retained_archives)} manifests referencing "
+        f"{len(referenced_objects)} unique Storage blobs"
+    )
     return deleted
 
 
@@ -645,9 +830,11 @@ def main():
 
     print("\n[3/5] Backing up application Storage objects...")
     try:
-        storage_backup = backup_storage_buckets()
         ensure_supabase_bucket()
+        previous_storage_index = load_latest_storage_index() if INCLUDE_STORAGE else {}
+        storage_backup = backup_storage_buckets(previous_storage_index)
         storage_backup = upload_storage_snapshots(storage_backup, now)
+        new_backup_objects = list(storage_backup.pop("_new_backup_objects", []))
     except Exception as exc:
         print(f"  Storage backup FAILED: {exc}")
         github_error(f"Application Storage backup failed: {exc}")
@@ -661,7 +848,7 @@ def main():
     )
 
     archive_manifest = {
-        "format_version": 2,
+        "format_version": 3,
         "backup_scope": "application-data-settings-and-storage",
         "date": today,
         "time": now.isoformat(),
@@ -747,6 +934,15 @@ def main():
         "table_rows": table_rows,
         "storage_objects": storage_backup["total_objects"],
         "storage_bytes": storage_backup["total_bytes"],
+        "storage_uploaded_objects": (storage_backup.get("incremental") or {}).get(
+            "uploaded_objects", storage_backup["total_objects"]
+        ),
+        "storage_uploaded_bytes": (storage_backup.get("incremental") or {}).get(
+            "uploaded_bytes", storage_backup["total_bytes"]
+        ),
+        "storage_reused_objects": (storage_backup.get("incremental") or {}).get(
+            "reused_objects", 0
+        ),
         "failed_tables": failed,
         "sha256": sha,
         "size_bytes": size,
@@ -768,12 +964,24 @@ def main():
             f.write(f"zip_size={size}\n")
             f.write(f"total_rows={total_rows}\n")
             f.write(f"backup_tables={len(table_rows)}\n")
+            f.write(
+                "storage_uploaded_bytes="
+                f"{(storage_backup.get('incremental') or {}).get('uploaded_bytes', storage_backup['total_bytes'])}\n"
+            )
+            f.write(
+                "storage_uploaded_objects="
+                f"{(storage_backup.get('incremental') or {}).get('uploaded_objects', storage_backup['total_objects'])}\n"
+            )
+            f.write(
+                "storage_reused_objects="
+                f"{(storage_backup.get('incremental') or {}).get('reused_objects', 0)}\n"
+            )
             if sb_url_out:
                 f.write(f"supabase_url={sb_url_out}\n")
 
     if not sb_url_out:
         try:
-            delete_storage_snapshots(storage_backup)
+            delete_backup_objects(new_backup_objects)
         except Exception as exc:
             print(f"  Incomplete snapshot cleanup failed: {exc}")
         print("\nFATAL: backup ZIP was created but was not uploaded to Supabase Storage.")

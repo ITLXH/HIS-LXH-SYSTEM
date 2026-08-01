@@ -18,6 +18,7 @@ Production workflow ສຳຮອງ:
 - PostgREST OpenAPI metadata ສຳລັບກວດ table/view ແລະ restore capability.
 
 Archive version 2 ມີ typed JSON, CSV ແລະ `manifest.json`. Storage files ຖືກເກັບເປັນ sidecar snapshots ແຕ່ລະ object ເພື່ອບໍ່ເກີນ Supabase 50 MB Spend-Cap limit. Manifest ບັນທຶກ row count, SHA-256, writable/read-only status, Storage size, object hashes ແລະ sidecar paths ເພື່ອ restore ກັບຄືນອັດຕະໂນມັດ.
+Archive version 3 ເພີ່ມ incremental Storage: ໄຟລ໌ໃໝ່/ປ່ຽນແປງຖືກເກັບໃນ `blobs/sha256/...`; ໄຟລ໌ທີ່ບໍ່ປ່ຽນຈະ reuse blob ເກົ່າ. Manifest ແຕ່ລະມື້ຍັງຄົງອ້າງອີງໄຟລ໌ຄົບທັງໝົດ ຈຶ່ງ restore ກັບໄດ້ເຕັມ snapshot ໂດຍບໍ່ເກັບ 10+ GiB ຊ້ຳ.
 
 Workflow ຈະ fail ຖ້າຂາດ core tables ເຫຼົ່ານີ້:
 

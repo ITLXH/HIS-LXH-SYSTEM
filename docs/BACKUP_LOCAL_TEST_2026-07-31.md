@@ -36,7 +36,7 @@ Production commit: `aa89234090fd4ac9916896b313269bfc7599aeef`
 - retry ອັດຕະໂນມັດສຳລັບ HTTP `408`, `425`, `429`, `500`, `502`, `503`, `504`;
 - cleanup backup ເກົ່າກວ່າ 30 ມື້.
 
-Storage files ຖືກເກັບເປັນ sidecar snapshots ເພື່ອຮອງຮັບ Supabase global upload limit 50 MB ໂດຍບໍ່ປິດ Spend Cap. Main ZIP ເກັບ database data ແລະ manifest ທີ່ຊີ້ໄປຫາ sidecar ແຕ່ລະໄຟລ໌.
+Storage files ຖືກເກັບເປັນ content-addressed blobs ຕາມ SHA-256 ເພື່ອຮອງຮັບ Supabase global upload limit 50 MB ແລະບໍ່ຄັດລອກໄຟລ໌ 10+ GiB ຊ້ຳທຸກມື້. Main ZIP ເກັບ database data ແລະ manifest ທີ່ຊີ້ໄປຫາ blob ແຕ່ລະໄຟລ໌. ຖ້າ source ETag/updated time ແລະ size ບໍ່ປ່ຽນ, workflow ຈະ reuse blob ເກົ່າໂດຍບໍ່ download ຫຼື upload ໃໝ່.
 
 ## Restore
 
@@ -84,4 +84,6 @@ Application restore ຕ້ອງມີ database schema ຢູ່ແລ້ວ. Da
 - Supabase is the complete backup destination: database/settings plus all application Storage objects.
 - Google Drive is intentionally database-only. Each scheduled run uploads the verified database/settings ZIP (about 3.5 MB) and never duplicates the 10.23 GiB application PDF Storage collection.
 - A Drive restore marked `his_backup_scope=database_only` restores and verifies tables but intentionally skips application Storage. Complete application recovery uses the Supabase copy.
-- Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 21 tests, and `npm run build` passed.
+- Incremental Supabase Storage uses SHA-256 blob paths. Unchanged objects are reused; only new or changed content consumes additional backup space.
+- Retention cleanup first scans every retained manifest and never deletes a blob that is still referenced by any recoverable backup.
+- Local validation: `python -m unittest discover -s backup/tests -p 'test_*.py' -v` passed 23 tests, and `npm run build` passed.

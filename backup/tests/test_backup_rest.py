@@ -119,6 +119,7 @@ class BackupRestTests(unittest.TestCase):
                     }
                 ],
                 "snapshots": [],
+                "blobs": [],
             }
             return Mock(status_code=200, json=Mock(return_value=payloads[prefix]))
 
@@ -167,7 +168,7 @@ class BackupRestTests(unittest.TestCase):
                 b"result-pdf",
             )
 
-    def test_storage_snapshots_are_uploaded_as_sidecars(self):
+    def test_storage_snapshots_use_content_addressed_blobs(self):
         storage_backup = {
             "enabled": True,
             "total_objects": 1,
@@ -201,8 +202,84 @@ class BackupRestTests(unittest.TestCase):
                 )
         self.assertEqual(
             result["buckets"][0]["objects"][0]["backup_object"],
-            "snapshots/2026/07/20260731_120000/order-result-files/patient/file.pdf",
+            "blobs/sha256/3a/3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
         )
+
+    def test_unchanged_storage_metadata_reuses_previous_blob_without_download(self):
+        previous = {
+            ("order-result-files", "patient/file.pdf"): {
+                "name": "patient/file.pdf",
+                "size_bytes": 4,
+                "sha256": hashlib.sha256(b"data").hexdigest(),
+                "backup_object": "blobs/sha256/3a/existing",
+                "source_etag": "stable-etag",
+            }
+        }
+        bucket_response = Mock(
+            status_code=200,
+            json=Mock(return_value=[{"id": "order-result-files", "public": False}]),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(backup_rest, "OUTPUT", Path(tmp)), patch.object(
+                backup_rest, "INCLUDE_STORAGE", True
+            ), patch.object(
+                backup_rest.requests, "get", return_value=bucket_response
+            ) as request, patch.object(
+                backup_rest,
+                "list_storage_objects",
+                return_value=[
+                    (
+                        "patient/file.pdf",
+                        {"metadata": {"mimetype": "application/pdf", "size": 4, "eTag": "stable-etag"}},
+                    )
+                ],
+            ):
+                result = backup_rest.backup_storage_buckets(previous)
+
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(result["buckets"][0]["objects"][0]["_state"], "unchanged")
+        self.assertEqual(
+            result["buckets"][0]["objects"][0]["backup_object"],
+            "blobs/sha256/3a/existing",
+        )
+
+    def test_cleanup_preserves_blobs_referenced_by_retained_manifests(self):
+        old = "2020-01-01T00:00:00Z"
+        current = "2026-08-01T00:00:00Z"
+        listings = {
+            "backups": [("backups/current.zip", {"created_at": current})],
+            "snapshots": [],
+            "blobs": [
+                ("blobs/sha256/aa/referenced", {"created_at": old}),
+                ("blobs/sha256/bb/orphan", {"created_at": old}),
+            ],
+        }
+        manifest = {
+            "storage": {
+                "buckets": [
+                    {
+                        "id": "files",
+                        "objects": [
+                            {
+                                "name": "result.pdf",
+                                "backup_object": "blobs/sha256/aa/referenced",
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        deleted = Mock(return_value=Mock(status_code=200))
+        with patch.object(
+            backup_rest, "list_backup_bucket_objects", side_effect=lambda prefix: listings[prefix]
+        ), patch.object(
+            backup_rest, "download_backup_manifest", return_value=manifest
+        ), patch.object(backup_rest.requests, "delete", deleted):
+            self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
+
+        deleted_url = deleted.call_args.args[0]
+        self.assertIn("blobs/sha256/bb/orphan", deleted_url)
+        self.assertNotIn("referenced", deleted_url)
 
 
 if __name__ == "__main__":
