@@ -53,7 +53,7 @@ The latest observed scheduled run before this release was GitHub Actions run `32
 - ZIP location step: successful.
 - Secondary Google Drive upload: failed with `invalid_grant`, indicating revoked or expired OAuth authorization.
 
-The release changes make Google Drive an optional secondary destination, refresh OAuth credentials eagerly, and use the service account as fallback when configured. Supabase Storage remains the required primary backup. A new manual workflow run must be dispatched after push; its run ID and outcome will be added below.
+The release changes make Google Drive an optional secondary destination, refresh OAuth credentials eagerly, and use the service account as fallback when configured. Supabase Storage remains the required primary backup.
 
 ## Database and security review
 
@@ -64,7 +64,10 @@ The release changes make Google Drive an optional secondary destination, refresh
 
 ## Post-push verification
 
-- Manual backup workflow run: pending.
-- Primary Supabase backup result: pending.
-- Secondary Google Drive result: pending.
-- Final release commit(s): pending.
+- Release commit: `70e52d5` (`feat: promote OPD EMR and harden production backup`).
+- Manual backup workflow run: [32723129751](https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/runs/32723129751), completed successfully in 12 minutes 29 seconds.
+- Primary Supabase backup: successful and verified; 63,057 rows across 57 tables with 0 table failures.
+- Application Storage: 938 objects represented; 29 new/changed objects (893,124,049 bytes) uploaded and 909 objects reused from the previous manifest.
+- Secondary Google Drive copy: optional step failed with `invalid_grant`. The configured OAuth authorization is revoked/expired and `GOOGLE_SERVICE_ACCOUNT_JSON` is not configured in GitHub Actions, so no fallback identity was available.
+- Required follow-up for dual-destination backup: either re-authorize `GOOGLE_DRIVE_OAUTH_JSON` or add a valid `GOOGLE_SERVICE_ACCOUNT_JSON` repository secret and share the destination Drive folder with its service-account email.
+- This Google Drive issue does not invalidate the verified primary Supabase backup and no restore was attempted.

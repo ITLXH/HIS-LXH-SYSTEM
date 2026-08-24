@@ -673,3 +673,4 @@ User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exac
 - Upgraded Wrangler to v4, cleared all npm audit findings, and removed the obsolete Pages `_redirects` SPA rule; Wrangler/Pages now serves direct application routes through its built-in SPA fallback.
 - Hardened scheduled backup behavior: Supabase Storage remains the required primary backup, Google Drive is reported as an optional secondary copy, revoked OAuth can fall back to a configured service account, and backup Cloudflare APIs require an active Admin session.
 - Release evidence and verification results are recorded in `docs/RELEASE_READINESS_2026-08-24.md`.
+- Post-push workflow run 32723129751 verified the primary backup: 63,057 rows / 57 tables / 0 failures and 938 Storage objects. The optional Drive copy still reports `invalid_grant` because no `GOOGLE_SERVICE_ACCOUNT_JSON` repository secret is configured; primary Supabase backup remains valid.
