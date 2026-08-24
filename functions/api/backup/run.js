@@ -1,4 +1,5 @@
 import { ghRequest } from '../../_utils/gh-api.js';
+import { requireHisAdmin } from '../../_utils/his-auth.js';
 
 // POST /api/backup/run
 // Triggers GitHub Actions workflow_dispatch — server-side only
@@ -6,6 +7,8 @@ import { ghRequest } from '../../_utils/gh-api.js';
 
 export async function onRequestPost(ctx) {
   const { request, env } = ctx;
+  const auth = await requireHisAdmin(ctx);
+  if (auth.response) return auth.response;
 
   try {
     // Repo is now ITLXH/HIS-LXH-SYSTEM. Env vars still override if needed.

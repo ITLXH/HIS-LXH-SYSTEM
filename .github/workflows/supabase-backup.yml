@@ -2,6 +2,7 @@ name: Supabase DB Backup
 
 on:
   schedule:
+    # Daily at 00:00 UTC (07:00 Asia/Bangkok). No manual action is required.
     - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
@@ -72,8 +73,11 @@ jobs:
 
       - name: Upload to Google Drive
         # Destination 2 — database/settings ZIP only. Supabase remains the
-        # complete destination for application Storage files.
+        # complete destination for application Storage files. Drive is an
+        # optional secondary copy, so credential expiry must not mark a
+        # verified Supabase backup as failed.
         id: gdrive
+        continue-on-error: true
         env:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -160,7 +164,9 @@ jobs:
           else
             echo "| Destination 1 (Supabase) | ❌ Backup/upload failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
+          if [[ "${{ steps.gdrive.outcome }}" == "failure" ]]; then
+            echo "| Destination 2 (Google Drive) | ⚠️ Optional copy failed; primary Supabase backup remains valid |" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
             echo "| Destination 2 (Google Drive) | [Open database-only copy ↗](${{ steps.outputs.outputs.drive_url }}) — application Storage stays in Supabase |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"

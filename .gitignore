@@ -59,3 +59,10 @@ output/
 
 # Cloudflare Pages local dev vars (contains secrets)
 .dev.vars
+
+# Cloudflare/Wrangler local state
+.wrangler/
+
+# OPD visual-test artifacts
+/tmp-opd-*.png
+/tmp-opd-*.pdf

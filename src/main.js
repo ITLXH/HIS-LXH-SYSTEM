@@ -1,4 +1,25 @@
-﻿import JsBarcode from 'jsbarcode';
+import JsBarcode from 'jsbarcode';
+
+import { OPD_LAB_ORDER_FORM } from './opdLabOrderForm.js';
+import { buildOpdOrderPrintDocument, normalizeMedicationPrintItem } from './opdOrderPrint.js';
+import {
+  buildOpdQueueOrderSummary,
+  buildOpdTestVisitPersistence,
+  resolveOpdTestInvestigationType
+} from './opdTestPersistence.js';
+import { escapeHisHtml } from '../shared/his-html.js';
+import {
+  HIS_ROLE_ACTION_DEFAULTS,
+  HIS_ROLE_PAGE_DEFAULTS,
+  isHisProtectedAdminEmail,
+  normalizeHisRole,
+  parseHisPagePermissions,
+  resolveHisEffectiveRole,
+  roleAllowsHisAction,
+  roleAllowsHisPage,
+  sanitizeHisActionPermissions,
+  sanitizeHisPagePermissions
+} from '../shared/his-permissions.js';
 
 const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
@@ -9,6 +30,14 @@ const supabaseClient = supabase.createClient(
   SUPABASE_ANON_KEY
 );
 console.log("Supabase Client:", supabaseClient);
+
+window.authenticatedFetch = async function (url, options = {}) {
+  const { data } = await supabaseClient.auth.getSession();
+  const accessToken = data?.session?.access_token;
+  const headers = new Headers(options.headers || {});
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  return fetch(url, { ...options, headers });
+};
 
 const DB_TABLE_PREFIX = "HIS_One_";
 const dbTable = (name) => `${DB_TABLE_PREFIX}${name}`;
@@ -106,6 +135,7 @@ let labsMasterList = [];
 let currentEMRLabs = [];
 let currentEMRLabPickerSelection = [];
 let currentEMRLabSearchQuery = '';
+window.opdTestInvestigationPickerType = window.opdTestInvestigationPickerType || 'all';
 let currentEMRDrugs = [];
 
 window.normalizePatientCode = function (value) {
@@ -141,6 +171,7 @@ window.fetchSupabaseRows = async function (tableName, options = {}) {
 };
 const HIS_AUTH_SESSION_KEY = 'his_current_user_session';
 const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const HIS_MIN_PASSWORD_LENGTH = 6;
 
 window.appTranslations = {
   lo: {
@@ -1581,7 +1612,7 @@ window.staticTranslationPairs = [
   ['ຫົວໜ່ວຍ', 'Unit'],
   ['ວິທີໃຊ້', 'Usage'],
   ['ຂໍ້ມູນ Lab', 'Lab Information'],
-  ['ເພີ່ມລາຍການ Lab', 'Add Lab Item'],
+  ['ເພີ່ມລາຍການກວດ', 'Add Investigation'],
   ['ຊື່ລາຍການ', 'Item Name'],
   ['ລາຄາ', 'Price'],
   ['ບໍລິການ', 'Services'],
@@ -1694,15 +1725,15 @@ window.staticTranslationPairs = [
   ['ສົ່ງຕໍ່', 'Transfer'],
   ['ກວດສຳເລັດ / ກັບບ້ານ', 'Completed / Go home'],
   ['ບໍ່ມີຢາ', 'no medication'],
-  ['ລາຍການ Lab', 'Lab Items'],
-  ['ເພີ່ມ Lab', 'Add Lab'],
+  ['ລາຍການກວດວິນິດໄສ', 'Diagnostic Investigations'],
+  ['ເພີ່ມການກວດ', 'Add Investigation'],
   ['ລາຍການຢາ (Rx)', 'Medication List (Rx)'],
   ['ເພີ່ມຢາ', 'Add Drug'],
   ['ບັນທຶກຜົນການກວດ', 'Save Examination Result'],
-  ['ເລືອກລາຍການ Lab', 'Select Lab Items'],
-  ['ເລືອກລາຍການກວດຈາກ LIS ໂດຍບໍ່ສະແດງລາຄາ', 'Select lab items from LIS without showing prices'],
-  ['ສະຫຼຸບລາຍການກວດທີ່ເລືອກໄວ້', 'Selected lab item summary'],
-  ['ຍັງບໍ່ມີລາຍການກວດ', 'No lab items selected'],
+  ['ເລືອກການກວດວິນິດໄສ', 'Select Diagnostic Investigations'],
+  ['Lab • Ultrasound • X-Ray • ການກວດພິເສດອື່ນໆ', 'Lab • Ultrasound • X-Ray • Other Investigations'],
+  ['ສະຫຼຸບລາຍການກວດທີ່ເລືອກໄວ້', 'Selected investigation summary'],
+  ['ຍັງບໍ່ມີລາຍການກວດ', 'No investigations selected'],
   ['ຢືນຍັນເລືອກ', 'Confirm selection'],
   ['ຈຳນວນ (Qty)', 'Quantity (Qty)'],
   ['ໜ່ວຍ (Unit)', 'Unit'],
@@ -1935,8 +1966,10 @@ window.HIS_NAV_ROUTES = {
   triage: { view: 'triage', navId: 'triage', path: '/triage' },
   vaccines: { view: 'vaccines', navId: 'vaccines', path: '/vaccines' },
   appointments: { view: 'appointments', navId: 'appointments', path: '/appointments' },
-  opd_queue: { view: 'opd', navId: 'opd_queue', path: '/opd/queue' },
-  opd_consultation: { view: 'opd', navId: 'opd_consultation', path: '/opd/consultation' },
+  opd_queue: { view: 'opd', navId: 'opd', path: '/opd' },
+  opd_consultation: { view: 'opd_test', navId: 'opd', path: '/opd/consultation' },
+  // Compatibility alias for old bookmarks and the loopback preview route.
+  opd_test: { view: 'opd_test', navId: 'opd', path: '/opd/test' },
   opd_observation: { view: 'opd_observation', navId: 'opd_observation', path: '/opd/observation' },
   opd_observation_list: { view: 'opd_observation_list', navId: 'opd_observation_list', path: '/opd/observation/list' },
   patients: { view: 'patients', navId: 'patients', path: '/patients' },
@@ -1970,6 +2003,7 @@ window.HIS_PATH_ROUTES = {
   '/opd': 'opd_queue',
   '/opd/queue': 'opd_queue',
   '/opd/consultation': 'opd_consultation',
+  '/opd/test': 'opd_test',
   '/opd/observation': 'opd_observation',
   '/opd/observation/list': 'opd_observation_list',
   '/opd_observation': 'opd_observation',
@@ -2086,97 +2120,116 @@ window.clearIntendedRoute = function () {
   window.ipdCurrentChartAdmissionId = null;
 };
 
+// Keep the standalone OPD prototype easy to exercise during local development.
+// This bypass is deliberately limited to loopback hosts and the OPD test route;
+// deployed environments continue through the normal authentication flow.
+window.isLocalOpdTestPreview = function () {
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(host);
+  const previewRequested = new URLSearchParams(window.location.search).get('preview') === '1';
+  return isLoopback && previewRequested && window.parseProtectedRoute?.()?.view === 'opd_test';
+};
+
+window.initLocalOpdTestPreview = function () {
+  $('body').removeClass('auth-checking');
+  $('#login-section').hide();
+  $('#app-content').show();
+  $('#sidebarUserName').text('OPD Local Test');
+  window.toggleLoading(false);
+  window.loadView('opd_test', { replace: true, force: true });
+  window.setupLisResultNotifications?.();
+};
+
 window.emrLabCategoryConfig = [
   {
     key: 'hematology',
     label: 'Hematology',
-    columns: 2,
-    matchers: [/cbc/i, /abo group/i, /\brh\b/i, /esr/i, /hb\s*typing/i, /\biron\b/i, /ferritin/i, /hba1c/i, /g6pd/i, /tibc/i, /folic acid/i, /blood smear/i, /\bpt\b/i, /\baptt\b/i, /\btt\b/i, /bt\s*\(ts\s*tc\)/i, /\binr\b/i, /blood sugar$/i],
-    order: ['CBC 24P', 'ABO group', 'Rh', 'ESR/VS', 'Hb Typing', 'IRON', 'Ferritin', 'HbA1C', 'Blood sugar', 'G6PD', 'TIBC', 'Folic Acid', 'Blood smear', 'PT', 'APTT', 'TT', 'BT (Ts Tc)', 'INR']
-  },
-  {
-    key: 'serology',
-    label: 'Serology',
-    columns: 2,
-    matchers: [/anti-hav/i, /hbeag/i, /gonorrhea/i, /chlamydia|chamydia/i, /hbsag/i, /hbsab/i, /hiv/i, /vdrl/i, /h\.?pylori/i, /hcv/i, /crp/i, /tuberculosis|\btb\b/i, /rickettsia|rikettsia/i, /dengue/i, /typhoid/i, /influenza|infeuza|rsv|covid/i, /antigen/i, /igm/i, /igg/i],
-    order: ['Anti-HAV', 'HBsAg', 'HBsAb', 'HCV', 'Rickettsia', 'HBeAg', 'HIV', 'VDRL', 'CRP', 'Dengue NS1', 'IgM, IgG', 'Gonorrhea rapid test', 'Chlamydia rapid test', 'H.Pylori', 'Tuberculosis (TB)', 'Typhoi IgG/IgM', 'Antigen Influenza, RSV, Covid-19']
+    formColumn: 1,
+    columns: 1,
+    aliases: ['Hematology'],
+    matchers: [/cbc/i, /malaria\s*stain/i, /ts\s*tc/i, /blood\s*typing|abo\s*group/i, /\brh\b/i, /\besr\b/i, /blood\s*smear/i],
+    order: ['CBC 24P', 'CBC 24 p', 'CBC 18P', 'CBC 18 P', 'Malaria stain', 'Ts Tc', 'Blood typing (ABO)', 'ABO group', 'Rh', 'ESR', 'ESR/VS', 'Blood smear']
   },
   {
     key: 'biochemistry',
     label: 'Biochemistry',
-    columns: 2,
-    matchers: [/blood sugar\/fbs/i, /\bfbs\b/i, /urea\/bun|ureabun/i, /\bbun\b/i, /creatinine/i, /cholesterol/i, /triglycer/i, /hdl/i, /ldl/i, /sgot|\bast\b/i, /sgpt|\balt\b/i, /protein/i, /albumin/i, /direct bilirubin/i, /total bilirubin|bilirubin total/i, /amylase/i, /uric acid/i, /calcium/i, /gamma|ggt/i, /alkaline phosphatase|alp phosphatase|\balp\b/i, /electrolyte/i, /bilirubin/i],
-    order: ['Blood sugar/FBS', 'Urea/BUN', 'Creatinine', 'Cholesterol', 'Triglyceride', 'HDL-C', 'LDL-C', 'SGOT(AST)', 'SGPT(ALT)', 'Protein', 'Albumin', 'Direct Bilirubin', 'Total Bilirubin', 'Amylase', 'Uric Acid', 'Calcium', 'Gamma(GGT)', 'Alkaline phosphatase (ALP)', 'Electrolyte (Na,K,Cl)']
-  },
-  {
-    key: 'tumor_markers',
-    label: 'Tumor makers',
-    columns: 2,
-    matchers: [/\bafp\b/i, /ca[-\s]?153/i, /\bcea\b/i, /\bpsa\b/i, /\bt3\b/i, /\bt4\b/i, /\btsh\b/i, /ft3/i, /ft4/i, /ca[-\s]?125/i, /ca[-\s]?19-?9/i, /beta\s*hcg|\bhcg\b/i, /\bfsh\b/i, /\blh\b/i, /rapid test/i],
-    order: ['AFP', 'CA-153', 'CEA', 'PSA', 'T3', 'T4', 'TSH', 'FT3', 'FT4', 'CA-125', 'CA 19-9', 'Beta HCG', 'FSH', 'LH', 'AFP(rapid test)', 'CEA(rapid test)', 'PSA(rapid test)']
-  },
-  {
-    key: 'pathology',
-    label: 'Pathology',
+    formColumn: 1,
     columns: 1,
-    matchers: [/gram stain/i, /pap smear/i, /co[-\s]?testing/i, /culture/i, /biopsy/i],
-    order: ['Gram Stain', 'Pap smear', 'Co - Testing', 'Culture', 'Biopsy']
-  },
-  {
-    key: 'screening_heart',
-    label: 'Screening Heart disease',
-    columns: 1,
-    matchers: [/\bcpk\b/i, /troponin/i, /ck-?mb/i, /homocysteine/i],
-    order: ['CPK', 'Troponin T', 'CK-MB', 'Troponin I', 'Homocysteine']
-  },
-  {
-    key: 'urine_stool',
-    label: 'Urine/Stool Examination',
-    columns: 2,
-    matchers: [/urine analysis|urine test/i, /pregnancy/i, /amphetamine/i, /sediment|clot/i, /stool/i, /occult blood/i, /leukocyte/i],
-    order: ['Urine Analysis', 'Pregnancy Test', 'Amphetamine', 'Sediment/Clot', 'Stool Examination', 'Occult blood', 'Leukocyte']
-  },
-  {
-    key: 'service',
-    label: 'Service',
-    columns: 1,
-    matchers: [/service/i, /2h/i, /6h/i, /ຜ່າຕັດ/i, /ຄ່າບໍລິການ/i],
-    order: ['ການບໍລິການຕິດຕາມອາການ 2h - 6h', 'ການບໍລິການຕິດຕາມອາການ 6h ຂຶ້ນໄປ', 'ນັດຕາທາງສາຍຕາ', 'ນັດຕາທາງລຳບາກ', 'ນັດຕາທາງບັນທຶກ']
-  },
-  {
-    key: 'ultrasound',
-    label: 'Ultrasound',
-    columns: 2,
-    matchers: [/ultrasound/i, /4d obstetric/i, /obstetric/i, /pelvic/i, /prostatic/i, /breast/i, /thyroid/i, /soft tissue/i, /abdominal/i, /colposcopy/i],
-    order: ['Abdominal Ultrasound', 'Pelvic Ultrasound', 'Prostatic Ultrasound', 'Thyroid Ultrasound', 'Colposcopy', 'Obstetric Ultrasound', '4D Obstetric Ultrasound', 'Breast Ultrasound', 'Soft Tissue Ultrasound']
+    aliases: ['Biochemistry'],
+    matchers: [/glucose|blood sugar|\bfbs\b/i, /urea|\bbun\b/i, /creatinine/i, /uric acid/i, /calcium/i, /total protein|\bprotein\b/i, /albumin/i, /sgot|\bast\b/i, /sgpt|\balt\b/i, /gamma|\bggt\b/i, /alkaline phosphatase|\balp\b/i, /bilirubin/i, /amylase/i, /electrolyte/i, /cholesterol/i, /triglycer/i, /hdl/i, /ldl/i, /\bldh\b/i, /\blft\b|\blipid\b/i, /troponin/i, /\biron\b/i, /cytochemical/i],
+    order: ['Glucose', 'Blood sugar/FBS', 'BUN', 'Urea/BUN', 'Creatinine', 'Uric Acid', 'Calcium', 'Total Protein', 'Protein', 'Albumin', 'AST(SGOT)', 'SGOT(AST)', 'ALT(SGPT)', 'SGPT(ALT)', 'Gamma (GGT)', 'Gamma(GGT)', 'ALP (Alkaline phosphatase)', 'Alkaline phosphatase (ALP)', 'Direct Bilirubin', 'Total Bilirubin', 'Amylase', 'Electrolyte', 'Cholesterol', 'Triglyceride', 'HDL', 'HDL-C', 'LDL', 'LDL-C', 'LDH', 'Troponin I', 'Troponin T', 'Iron', 'Cytochemical']
   },
   {
     key: 'cardiology',
     label: 'Cardiology',
+    formColumn: 1,
     columns: 1,
-    matchers: [/\becg\b/i, /echo cardio|cardiae ultrasound|cardiac ultrasound|u\/s cardio/i],
-    order: ['Cardiae ultrasound/Echo cardio graphy', 'ECG']
+    aliases: ['Cardiology'],
+    matchers: [/cardiac ultrasound|cardiae ultrasound|echo\s*cardio|echocardiography|u\/s cardio|\becho\b/i, /\becg\b/i],
+    order: ['Cardiac Ultrasound/Echocardiography', 'Cardiae ultrasound/Echo cardio graphy', 'ECG']
   },
   {
-    key: 'ent',
-    label: 'ENT',
-    columns: 2,
-    matchers: [/ear\s*-?\s*scopy/i, /throat|thoat\s*-?\s*scopy/i, /nose\s*-?\s*scopy/i, /clean\s*-?\s*ear/i, /clean\s*-?\s*nose/i, /clean\s*-?\s*throat|thoat/i, /\bent\b/i],
-    order: ['Ear - scopy', 'Nose - scopy', 'Clean - Nose', 'Thoat - scopy', 'Clean - Ear', 'Clean - Thoat']
+    key: 'immunology',
+    label: 'Immunology',
+    formColumn: 2,
+    columns: 1,
+    aliases: ['Immunology', 'Serology', 'Tumor makers', 'Tumor markers'],
+    matchers: [/hbs[-\s]?ag/i, /hbs[-\s]?ab/i, /hbe[-\s]?ag/i, /hbe[-\s]?ab/i, /hcv[-\s]?ab/i, /hav[-\s]?ab/i, /\btsh\b/i, /\bt3\b/i, /\bt4\b/i, /dengue/i, /influenza|flu\s*a|\brsv\b|covid/i, /tuberculosis|\btb\b/i, /rickettsia|rikettsia/i, /leptospirosis/i, /typhoid/i, /malaria rapid/i, /h\.?pylori/i, /\bafp\b/i, /\bcea\b/i, /\bpsa\b/i, /ca[-\s]?19-?9/i, /\baslo\b/i, /\bcrp\b/i, /vdrl|syphilis/i, /\bhiv\b/i],
+    order: ['HBs-Ag', 'HBsAg', 'HBs-Ab', 'HBsAb', 'HBe-Ag', 'HBeAg', 'HBe-Ab', 'HBeAb', 'HCV-Ab', 'HCV', 'HAV-Ab', 'TSH', 'T3', 'T4', 'Dengue Fever Test', 'Influenza', 'Tuberculosis (TB) Rapid Test', 'Rickettsia Rapid test', 'Leptospirosis Rapid test', 'Typhoid Fever Test', 'Malaria Rapid Test', 'H-pylori Test', 'AFP', 'CEA', 'PSA', 'CA 19-9', 'ASLO', 'CRP (C-reactive protein)', 'CRP', 'Syphilis test (VDRL)', 'VDRL', 'HIV Test']
+  },
+  {
+    key: 'stool_urine',
+    label: 'Stool/Urine',
+    formColumn: 2,
+    columns: 1,
+    aliases: ['Stool/Urine', 'Urine/Stool Examination', 'Urine/Stool'],
+    matchers: [/parasite/i, /occult blood/i, /leukocyte/i, /urine|\bua\b/i, /pregnancy/i, /amphetamine/i, /dysmorphic\s*rbc/i, /stool/i, /sediment|clot/i],
+    order: ['Parasites', 'Occult Blood Test', 'Occult blood', 'Leukocyte Test', 'Leukocyte', 'Urine Physical Examination', 'Urine Chemical Examination', 'Urine Microscopy', 'Urine Protein', 'Urine Creatinine Clearance', 'Urine Analysis', 'Pregnancy Test', 'Amphetamine Test', 'Amphetamine', 'Dysmorphic RBC', 'Stool Examination', 'Sediment/Clot']
+  },
+  {
+    key: 'ultrasound',
+    label: 'Ultrasound',
+    formColumn: 3,
+    columns: 1,
+    aliases: ['Ultrasound'],
+    matchers: [/ultrasound/i, /4d obstetric/i, /obstetric/i, /pelvic/i, /prostatic/i, /breast/i, /thyroid/i, /soft tissue/i, /abdominal/i, /colposcopy/i],
+    order: ['Upper Abd Ultrasound', 'Lower Abd Ultrasound', 'Whole Abdomen', 'Carotid Doppler', 'Arterial Doppler – Upper Extremity', 'Arterial Doppler - Lower Extremity', 'Arterial Kidney Doppler', 'Venous Doppler - Upper Extremity', 'Venous Doppler - Lower Extremity', 'Soft Tissue Ultrasound', 'Thyroid Ultrasound', 'Shoulder', 'Elbow', 'Wrist', 'Small Part / Pointing Guide Lesion', 'Knee Ultrasound', 'Abdominal Ultrasound', 'Pelvic Ultrasound', 'Prostatic Ultrasound', 'Obstetric Ultrasound', '4D Obstetric Ultrasound', 'Breast Ultrasound']
   },
   {
     key: 'xray',
     label: 'X-Ray',
-    columns: 2,
-    matchers: [/x-?ray/i, /town view/i, /mortell|morteill/i, /frog leg/i, /oblique/i, /chest ap/i, /chest pa/i, /chest lat/i, /c\.spine/i, /(?:^|\s)pa(?:,|\s|$)/i],
-    order: ['PA, TOWN VIEW,LATERAL', 'PA, ALO', 'PA, LATERAL', 'C.Spine', 'AP, FROG LEG, OBLIQUE', 'Chest AP', 'Morteill AP, Lateral', 'Chest PA', 'Chest LAT']
+    formColumn: 3,
+    columns: 1,
+    aliases: ['X-Ray', 'Xray'],
+    matchers: [/x-?ray/i, /town view/i, /mortell|morteill/i, /frog leg/i, /oblique/i, /chest ap/i, /chest pa/i, /chest lat/i, /spine/i, /skull|facial bones|sinuses|mandible|nasal bones/i, /clavicle|scapula|humerus|forearm|pelvic|femur|tib\s*\/\s*fib|calcaneus/i, /abdominal supine|abdominal upright|\bivp\b|\bkub\b|barium swallow/i, /(?:^|\s)pa(?:,|\s|$)/i],
+    order: ['PA, ALO', 'AP, FROG LEG, Oblique', 'PA, Lateral', 'AP, Lateral', 'Mortell AP, Lateral', 'AP, Lateral, Oblique', 'Skull', 'Facial Bones', 'Sinuses', 'Mandible', 'Nasal Bones', 'Cervical Spine', 'Thoracic Spine', 'Lumbar Spine', 'Sacrum', 'Coccyx', 'Whole Spine', 'Soft Tissue', 'Chest PA', 'Chest AP', 'Chest LAT', 'Shoulder', 'Clavicle', 'Scapula', 'Humerus', 'Elbow', 'Forearm', 'Wrist', 'Hand', 'Finger', 'Pelvic', 'Hip', 'Femur', 'Knee', 'TIB / FIB', 'Ankle', 'Foot', 'Calcaneus', 'Toe', 'Abdominal SUPINE', 'Abdominal UPRIGHT', 'Abdominal LAT', 'IVP', 'KUB', 'Barium Swallow', 'PA, TOWN VIEW, LATERAL']
   },
   {
-    key: 'others',
-    label: 'Others',
+    key: 'ent',
+    label: 'ENT',
+    formColumn: 4,
     columns: 1,
-    matchers: [/check-?up/i, /package/i],
-    order: []
+    aliases: ['ENT'],
+    matchers: [/ear\s*-?\s*scopy/i, /throat|thoat\s*-?\s*scopy/i, /nose\s*-?\s*scopy/i, /clean\s*-?\s*ear/i, /clean\s*-?\s*nose/i, /clean\s*-?\s*throat|thoat/i, /\bent\b/i],
+    order: ['Nose - Scopy', 'Throat - Scopy', 'Clean - Ear', 'Clean - Nose', 'Clean - Throat', 'Ear - Scopy']
+  },
+  {
+    key: 'pathology',
+    label: 'Pathology',
+    formColumn: 4,
+    columns: 1,
+    aliases: ['Pathology'],
+    matchers: [/gram stain/i, /chlamydia culture/i, /gonorrhea culture/i, /gdm screening|ogtt/i, /vaginal ph/i, /sonography/i, /ultrasound pelvic\s*-?\s*gn/i, /ultrasound ob/i, /\bbpp\b|fetal biophysical/i, /\bctg\b|cardiotocography/i, /\bnst\b|non stress/i, /fine needle|\bfna\b/i, /cervical biopsy|colposcopy/i, /\becc\b|endocervical/i, /\bmva\b|misopostol/i, /bartholin/i, /coagulator/i, /thin pap|pap smear/i, /hpv typing|hpv testing/i, /beta\s*hcg/i, /hb typing/i, /coomb/i, /wet mount/i, /culture/i, /biopsy/i],
+    order: ['Gram Stain', 'Chlamydia Culture', 'Gonorrhea Culture', 'LH Test', 'GDM screening (OGTT)', 'Chlamydia rapid test', 'Gonorrhea rapid test', 'Vaginal PH Test', 'Breast sonography', 'Ultrasound pelvic - GN', 'Ultrasound OB 2D', 'Ultrasound OB 3D', 'Ultrasound OB 4D', 'Ultrasound OB Screening Fetal Anomaly', 'BPP', 'CTG', 'NST', 'Fine Needle Aspiration', 'Colposcopy (cervical biopsy)', 'Cervical Biopsy', 'ECC', 'MVA or Aspiration', 'Misopostol', 'Colposcopy', 'Bartholin Abscess', 'Coagulator', 'Thin Pap', 'HPV typing', 'HPV testing', 'Vaginal Ultrasound pelvic', 'Beta HCG', 'Pap smear', 'HB Typing', 'Direct Coomb Test', 'Indirect Coomb Test', 'Vaginal Wet mount']
+  },
+  {
+    key: 'out_lab',
+    label: 'Out Lab',
+    formColumn: 4,
+    columns: 1,
+    aliases: ['Out Lab', 'Outlab', 'Service', 'Others'],
+    matchers: [/\bptt\b/i, /anti[-\s]?hav/i, /anti[-\s]?ds\s*dna/i, /reticulocyte/i, /magnesium/i, /\bcpk\b/i, /ck[-\s]?mb/i, /free\s*t3|free\s*t4|\bft3\b|\bft4\b/i, /ca[-\s]?125|ca[-\s]?15[-\s]?3/i, /rheumatoid/i, /rubella|torch|rota\s*virus/i, /\bana\b|d[-\s]?dimer|cortisol/i, /hemoculture|pus culture|urine culture/i, /cytology|histology/i, /viral load/i, /allergen/i, /thoracentesis|lumbar puncture|paracentesis|arthrocentesis/i, /throat swab/i, /genexpert/i, /ct\s*|mri/i, /check-?up|package|service/i, /2h|6h|ຜ່າຕັດ|ຄ່າບໍລິການ/i],
+    order: ['PTT', 'Anti HAV (IgM)', 'Anti HAV (Total)', 'Anti-ds DNA', 'Reticulocyte count', 'Magnesium', 'CPK', 'CK MB', 'PSA', 'Free T3', 'Free T4', 'CA-125', 'CA-15-3', 'Ca 19-9', 'Rheumatoid factor', 'Rubella', 'TORCH', 'Rota virus', 'ANA', 'D dimer', 'Cortisol', 'Hemoculture', 'Pus culture', 'Cytobact', 'Urine culture', 'Cytology', 'Histology', 'NFA', 'HBV Viral Load', 'HBD Viral Load', 'HCV Viral Load', 'Allergens profile', 'Thoracentesis', 'Lumbar Puncture', 'Abdominal Paracentesis', 'Knee Arthrocentesis', 'Throat Swab', 'Genexpert', 'CT', 'MRI', 'INR/PT']
   }
 ];
 
@@ -2216,30 +2269,7 @@ window.getLabCategoryOptions = function () {
 };
 
 window.getEMRLabPickerCategoryConfig = function () {
-  const othersCategory = window.emrLabCategoryConfig.find(category => category.key === 'others');
-  const base = window.emrLabCategoryConfig
-    .filter(category => category.key !== 'others')
-    .map(category => ({ ...category }));
-  const known = new Set(base.map(category => window.normalizeLabCategoryLabel(category.label)));
-
-  if (othersCategory) known.add(window.normalizeLabCategoryLabel(othersCategory.label));
-
-  window.getLabCategoryOptions().forEach(label => {
-    const normalized = window.normalizeLabCategoryLabel(label);
-    if (!normalized || known.has(normalized)) return;
-    known.add(normalized);
-    base.push({
-      key: `custom_${normalized.replace(/[^a-z0-9]+/g, '_')}`,
-      label,
-      columns: 2,
-      matchers: [],
-      order: []
-    });
-  });
-
-  if (othersCategory) base.push({ ...othersCategory });
-
-  return base;
+  return window.emrLabCategoryConfig.map(category => ({ ...category }));
 };
 
 window.getLabCategoryMappingLookup = function () {
@@ -2249,8 +2279,10 @@ window.getLabCategoryMappingLookup = function () {
       const parsed = JSON.parse(item.value || '{}');
       const labId = String(parsed.labId || '').trim();
       const category = String(parsed.category || '').trim();
-      if (!labId || !category) return;
-      lookup[labId] = { id: item.id, category };
+      const parsedSortOrder = Number.parseInt(parsed.sortOrder, 10);
+      const sortOrder = Number.isFinite(parsedSortOrder) && parsedSortOrder > 0 ? parsedSortOrder : null;
+      if (!labId) return;
+      lookup[labId] = { id: item.id, category, sortOrder };
     } catch (error) {
       console.warn('Invalid LabCategoryMapping entry:', item, error);
     }
@@ -2260,11 +2292,25 @@ window.getLabCategoryMappingLookup = function () {
 
 window.applyLabCategoriesToList = function (items) {
   const lookup = window.getLabCategoryMappingLookup();
-  return (items || []).map(item => {
+  return (items || []).map((item, itemIndex) => {
     const labId = String(item.id || item.Lab_ID || '').trim();
+    const mapping = lookup[labId];
+    const labName = String(item.name || item.Lab_Name || '').trim();
+    const labDescription = String(item.desc || item.Description || '').trim();
+    const formReference = typeof window.getEMRLabOrderFormReference === 'function'
+      ? window.getEMRLabOrderFormReference(labName)
+      : null;
+    const inferredCategory = formReference
+      ? (window.emrLabCategoryConfig.find(category => category.key === formReference.categoryKey)?.label || formReference.category || '')
+      : (window.emrLabCategoryConfig.find(category => category.key !== 'out_lab'
+        && (category.matchers || []).some(matcher => matcher.test(`${labName} ${labDescription}`)))?.label || 'Out Lab');
+    const inferredSortOrder = Number.parseInt(formReference?.number, 10) || itemIndex + 1;
     return {
       ...item,
-      category: item.category || lookup[labId]?.category || ''
+      category: mapping?.category || item.category || inferredCategory,
+      sortOrder: mapping?.sortOrder || Number.parseInt(item.sortOrder, 10) || inferredSortOrder,
+      hasCategoryOverride: Boolean(mapping?.category),
+      hasSortOrderOverride: Boolean(mapping?.sortOrder)
     };
   });
 };
@@ -2281,15 +2327,17 @@ window.ensureLabCategoriesExist = async function (categoryValues) {
   return { error };
 };
 
-window.saveLabCategoryMapping = async function (labId, category) {
+window.saveLabCategoryMapping = async function (labId, category, sortOrder) {
   const normalizedLabId = String(labId || '').trim();
   const normalizedCategory = String(category || '').trim();
+  const parsedSortOrder = Number.parseInt(sortOrder, 10);
+  const normalizedSortOrder = Number.isFinite(parsedSortOrder) && parsedSortOrder > 0 ? parsedSortOrder : null;
   if (!normalizedLabId) return { error: null };
 
   const lookup = window.getLabCategoryMappingLookup();
   const existing = lookup[normalizedLabId];
 
-  if (!normalizedCategory) {
+  if (!normalizedCategory && !normalizedSortOrder) {
     if (!existing) return { error: null };
     const { error } = await supabaseClient.from(dbTable('MasterData')).delete().eq('ID', existing.id);
     return { error };
@@ -2298,9 +2346,13 @@ window.saveLabCategoryMapping = async function (labId, category) {
   const ensureResult = await window.ensureLabCategoriesExist([normalizedCategory]);
   if (ensureResult.error) return ensureResult;
 
-  const payload = JSON.stringify({ labId: normalizedLabId, category: normalizedCategory });
+  const payload = JSON.stringify({
+    labId: normalizedLabId,
+    category: normalizedCategory,
+    sortOrder: normalizedSortOrder
+  });
   if (existing) {
-    if (existing.category === normalizedCategory) return { error: null };
+    if (existing.category === normalizedCategory && existing.sortOrder === normalizedSortOrder) return { error: null };
     const { error } = await supabaseClient.from(dbTable('MasterData')).update({ Value: payload }).eq('ID', existing.id);
     return { error };
   }
@@ -2328,6 +2380,176 @@ window.deleteLabCategoryMappings = async function (labIds) {
   return { error };
 };
 
+window.isOpdTestLabOrderFormMode = function () {
+  return window.parseProtectedRoute?.()?.view === 'opd_test'
+    || Boolean(document.querySelector('#view-opd_test:not([style*="display: none"])'));
+};
+
+window.opdTestInvestigationTypeForItem = function (item) {
+  const source = item && typeof item === 'object' ? item : { name: String(item || '') };
+  const hasFormReference = Object.prototype.hasOwnProperty.call(source, 'formReference');
+  const formReference = hasFormReference ? source.formReference : window.getEMRLabOrderFormReference?.(source.name);
+  const formNumber = Number.parseInt(formReference?.number, 10);
+  if (Number.isFinite(formNumber) && formNumber >= 253 && formNumber <= 279) return 'xray';
+  const inferredCategory = hasFormReference && !formReference && !source.hasCategoryOverride ? '' : source.category;
+  return resolveOpdTestInvestigationType({
+    ...source,
+    categoryKey: source.categoryKey || formReference?.categoryKey,
+    category: inferredCategory || formReference?.category,
+    formReference
+  });
+};
+
+window.opdTestInvestigationTypeMeta = function (type) {
+  const normalizedType = ['lab', 'ultrasound', 'xray'].includes(String(type || '').toLowerCase())
+    ? String(type).toLowerCase()
+    : 'lab';
+  return ({
+    lab: {
+      type: 'lab',
+      label: 'Lab',
+      title: 'ເລືອກລາຍການ Lab / Laboratory',
+      panelTitle: 'Laboratory',
+      subtitle: 'ລາຍການກວດຫ້ອງແລັບ · ພ້ອມຕໍ່ LIS',
+      icon: 'fa-vials',
+      destinationSystem: 'LIS'
+    },
+    ultrasound: {
+      type: 'ultrasound',
+      label: 'Ultrasound',
+      title: 'ເລືອກລາຍການ Ultrasound',
+      panelTitle: 'Ultrasound',
+      subtitle: 'ລາຍການກວດອັນຕຣາຊາວ · ພ້ອມຕໍ່ RIS',
+      icon: 'fa-wave-square',
+      destinationSystem: 'RIS'
+    },
+    xray: {
+      type: 'xray',
+      label: 'X-Ray',
+      title: 'ເລືອກລາຍການ X-Ray',
+      panelTitle: 'X-Ray',
+      subtitle: 'ລາຍການກວດລັງສີ · ພ້ອມຕໍ່ RIS',
+      icon: 'fa-x-ray',
+      destinationSystem: 'RIS'
+    }
+  })[normalizedType];
+};
+
+window.opdTestSetInvestigationPickerMode = function (type) {
+  const meta = window.opdTestInvestigationTypeMeta(type);
+  window.opdTestInvestigationPickerType = meta.type;
+  const title = document.getElementById('emrLabModalTitleText');
+  const titleIcon = document.getElementById('emrLabModalTitleIcon');
+  const panelTitle = document.getElementById('emrLabModalPanelTitle');
+  const panelSubtitle = document.getElementById('emrLabModalPanelSubtitle');
+  const panelIcon = document.getElementById('emrLabModalPanelIcon');
+  const search = document.getElementById('emrLabSearchInput');
+  if (title) title.textContent = meta.title;
+  if (panelTitle) panelTitle.textContent = meta.panelTitle;
+  if (panelSubtitle) panelSubtitle.textContent = meta.subtitle;
+  if (search) search.placeholder = `ຄົ້ນຫາ ${meta.label}...`;
+  [titleIcon, panelIcon].forEach(icon => {
+    if (!icon) return;
+    icon.className = `${icon === titleIcon ? 'fas me-2' : 'fas'} ${meta.icon}`;
+  });
+  return meta;
+};
+
+window.normalizeEMRLabFormMatchText = function (value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\((?:lab\s*imdc|lab\s*thai|150\s*hospital|sth|mtp\s*lab)\)/gi, ' ')
+    .replace(/\b(?:lab\s*imdc|lab\s*thai|150\s*hospital|mtp\s*lab)\b/gi, ' ')
+    .replace(/[^a-z0-9\u0e80-\u0eff]+/g, '');
+};
+
+window.emrLabOrderFormReferences = OPD_LAB_ORDER_FORM.map(reference => ({
+  ...reference,
+  normalizedName: window.normalizeEMRLabFormMatchText(reference.name)
+}));
+window.emrLabOrderFormReferenceCache = new Map();
+
+window.getEMRLabOrderFormReference = function (name) {
+  const sourceName = String(name || '').trim();
+  if (!sourceName) return null;
+  if (window.emrLabOrderFormReferenceCache.has(sourceName)) {
+    return window.emrLabOrderFormReferenceCache.get(sourceName);
+  }
+
+  const normalizedName = window.normalizeEMRLabFormMatchText(sourceName);
+  let bestReference = null;
+  let bestScore = -1;
+
+  window.emrLabOrderFormReferences.forEach(reference => {
+    const normalizedReference = reference.normalizedName;
+    if (!normalizedReference) return;
+
+    let score = -1;
+    if (normalizedName === normalizedReference) {
+      score = 100000 + normalizedReference.length;
+    } else {
+      const shortestLength = Math.min(normalizedName.length, normalizedReference.length);
+      const contains = shortestLength >= 4
+        && (normalizedName.includes(normalizedReference) || normalizedReference.includes(normalizedName));
+      if (contains) score = 50000 + shortestLength;
+    }
+
+    if (score > bestScore) {
+      bestReference = reference;
+      bestScore = score;
+    }
+  });
+
+  const result = bestScore >= 0 ? bestReference : null;
+  window.emrLabOrderFormReferenceCache.set(sourceName, result);
+  return result;
+};
+
+window.mergeEMRLabsWithOrderForm = function (databaseItems) {
+  const databaseWithReferences = (databaseItems || []).map((item, databaseIndex) => {
+    const formReference = window.getEMRLabOrderFormReference(item.name);
+    return { ...item, databaseIndex, formReference, isFormVirtual: false };
+  });
+
+  const candidatesByReference = new Map();
+  databaseWithReferences.forEach(item => {
+    if (!item.formReference) return;
+    const candidates = candidatesByReference.get(item.formReference.index) || [];
+    candidates.push(item);
+    candidatesByReference.set(item.formReference.index, candidates);
+  });
+
+  const usedDatabaseIndexes = new Set();
+  const formRows = window.emrLabOrderFormReferences.map(reference => {
+    const candidates = [...(candidatesByReference.get(reference.index) || [])]
+      .sort((a, b) => a.name.length - b.name.length || a.databaseIndex - b.databaseIndex);
+    const primaryItem = candidates[0];
+    if (primaryItem) {
+      usedDatabaseIndexes.add(primaryItem.databaseIndex);
+      return { ...primaryItem, formReference: reference };
+    }
+    return {
+      id: `opd-form-${reference.page}-${reference.column}-${reference.index}`,
+      name: reference.name,
+      desc: `ໃບສັ່ງກວດ ເລກທີ ${reference.number}`,
+      category: reference.category,
+      formReference: reference,
+      isFormVirtual: true
+    };
+  });
+
+  const supplementalRows = databaseWithReferences
+    .filter(item => !usedDatabaseIndexes.has(item.databaseIndex))
+    .map((item, supplementalIndex) => ({
+      ...item,
+      formReference: null,
+      formSupplementalIndex: supplementalIndex,
+      isFormSupplemental: true
+    }));
+
+  return [...formRows, ...supplementalRows];
+};
+
 window.normalizeEMRLabOrderText = function (value) {
   return String(value || '')
     .toLowerCase()
@@ -2349,27 +2571,24 @@ window.getEMRLabCategoryForItem = function (lab) {
   const effectiveCategories = window.getEMRLabPickerCategoryConfig();
   if (explicitCategory) {
     const normalizedExplicit = window.normalizeLabCategoryLabel(explicitCategory);
-    const matched = effectiveCategories.find(category => window.normalizeLabCategoryLabel(category.label) === normalizedExplicit);
+    const matched = effectiveCategories.find(category => {
+      const labels = [category.label, ...(category.aliases || [])];
+      return labels.some(label => window.normalizeLabCategoryLabel(label) === normalizedExplicit);
+    });
     if (matched) return matched;
-    return {
-      key: `custom_${normalizedExplicit.replace(/[^a-z0-9]+/g, '_')}`,
-      label: explicitCategory,
-      columns: 2,
-      matchers: [],
-      order: []
-    };
   }
 
   const searchableText = `${lab?.name || ''} ${lab?.desc || ''}`.toLowerCase();
   for (const category of window.emrLabCategoryConfig) {
-    if (category.key === 'others') continue;
+    if (category.key === 'out_lab') continue;
     if (category.matchers.some(matcher => matcher.test(searchableText))) return category;
   }
-  const others = effectiveCategories.find(category => category.key === 'others');
-  return others || effectiveCategories[effectiveCategories.length - 1];
+  const outLab = effectiveCategories.find(category => category.key === 'out_lab');
+  return outLab || effectiveCategories[effectiveCategories.length - 1];
 };
 
 window.getEMRLabPickerGroups = function () {
+  const useOrderForm = window.isOpdTestLabOrderFormMode();
   const groups = window.getEMRLabPickerCategoryConfig().map(category => ({
     ...category,
     items: [],
@@ -2382,15 +2601,51 @@ window.getEMRLabPickerGroups = function () {
     const desc = String(lab?.desc || '').trim();
     const haystack = `${name} ${desc}`.toLowerCase();
     if (currentEMRLabSearchQuery && !haystack.includes(currentEMRLabSearchQuery)) return;
+    const pickerType = String(window.opdTestInvestigationPickerType || 'all').toLowerCase();
+    if (useOrderForm && pickerType !== 'all' && window.opdTestInvestigationTypeForItem(lab) !== pickerType) return;
 
-    const category = window.getEMRLabCategoryForItem(lab);
-    const group = groupMap[category.key] || groupMap.others;
-    group.items.push({ ...lab, index, name, desc });
+    const baseFormReference = useOrderForm
+      ? (lab.isFormSupplemental ? null : (lab.formReference || window.getEMRLabOrderFormReference(name)))
+      : null;
+    const managedCategory = lab.hasCategoryOverride ? window.getEMRLabCategoryForItem(lab) : null;
+    const managedSortOrder = lab.hasSortOrderOverride ? Number.parseInt(lab.sortOrder, 10) : null;
+    const formReference = baseFormReference && (managedCategory || managedSortOrder)
+      ? {
+        ...baseFormReference,
+        category: managedCategory?.label || baseFormReference.category,
+        categoryKey: managedCategory?.key || baseFormReference.categoryKey,
+        column: managedCategory?.formColumn || baseFormReference.column,
+        page: managedCategory ? (['pathology', 'out_lab'].includes(managedCategory.key) ? 2 : 1) : baseFormReference.page,
+        index: managedSortOrder || baseFormReference.index,
+        number: managedSortOrder || baseFormReference.number,
+        isManaged: true
+      }
+      : baseFormReference;
+    const category = formReference
+      ? window.emrLabCategoryConfig.find(entry => entry.key === formReference.categoryKey)
+      : (useOrderForm
+        ? window.emrLabCategoryConfig.find(entry => entry.key === 'out_lab')
+        : window.getEMRLabCategoryForItem(lab));
+    const group = groupMap[category.key] || groupMap.out_lab;
+    if (!group) return;
+    group.items.push({ ...lab, index, name, desc, formReference });
     if (currentEMRLabPickerSelection.includes(name)) group.selectedCount += 1;
   });
 
   groups.forEach(group => {
     group.items.sort((a, b) => {
+      const managedOrderA = Number.parseInt(a.sortOrder, 10);
+      const managedOrderB = Number.parseInt(b.sortOrder, 10);
+      if (Number.isFinite(managedOrderA) && Number.isFinite(managedOrderB) && managedOrderA !== managedOrderB) {
+        return managedOrderA - managedOrderB;
+      }
+      if (useOrderForm) {
+        const referenceA = a.formReference;
+        const referenceB = b.formReference;
+        if (referenceA && referenceB && referenceA.index !== referenceB.index) return referenceA.index - referenceB.index;
+        if (referenceA && !referenceB) return -1;
+        if (!referenceA && referenceB) return 1;
+      }
       const orderA = window.getEMRLabSheetOrderIndex(a.name, group.order);
       const orderB = window.getEMRLabSheetOrderIndex(b.name, group.order);
       if (orderA !== orderB) return orderA - orderB;
@@ -2461,9 +2716,86 @@ window.filterEMRLabPicker = function (query) {
   window.renderEMRLabPicker();
 };
 
+window.renderEMRLabOrderFormPages = function (groups) {
+  const pages = Array.from({ length: 3 }, (_, pageIndex) => ({
+    page: pageIndex + 1,
+    columns: Array.from({ length: 4 }, (_, columnIndex) => ({
+      column: columnIndex + 1,
+      sections: [],
+      sectionMap: new Map()
+    }))
+  }));
+
+  const pickerItems = groups.flatMap(group => group.items.map(item => ({ ...item, pickerGroup: group })));
+  const supplementalItems = pickerItems.filter(item => !item.formReference);
+  const supplementalColumnSize = Math.max(1, Math.ceil(supplementalItems.length / 4));
+
+  pickerItems.forEach(item => {
+    const reference = item.formReference;
+    const pageNumber = reference?.page || 3;
+    const columnNumber = reference?.column
+      || Math.min(4, Math.floor((item.formSupplementalIndex || 0) / supplementalColumnSize) + 1);
+    const column = pages[pageNumber - 1].columns[columnNumber - 1];
+    const sectionKey = reference?.categoryKey || 'out_lab_extra';
+    let section = column.sectionMap.get(sectionKey);
+    if (!section) {
+      const category = window.emrLabCategoryConfig.find(entry => entry.key === reference?.categoryKey);
+      section = {
+        key: sectionKey,
+        label: reference ? (category?.label || reference.category) : 'Out Lab • Additional',
+        items: []
+      };
+      column.sectionMap.set(sectionKey, section);
+      column.sections.push(section);
+    }
+    section.items.push(item);
+  });
+
+  const renderItem = item => {
+    const isSelected = currentEMRLabPickerSelection.includes(item.name);
+    const displayName = item.formReference?.name || item.name;
+    const safeName = window.escapeEmrPickerHtml(displayName);
+    const showDatabaseVariant = item.formReference
+      && !item.isFormVirtual
+      && window.normalizeEMRLabOrderText(item.name) !== window.normalizeEMRLabOrderText(displayName);
+    const variantLabel = showDatabaseVariant
+      ? `<small class="emr-lis-form-item-variant">${window.escapeEmrPickerHtml(item.name)}</small>`
+      : '';
+    const safeDesc = window.escapeEmrPickerHtml(item.desc || '');
+    const formNumber = item.formReference?.number;
+    const numberLabel = formNumber ? `${formNumber}.` : '+';
+    return `<label class="emr-lis-form-item ${isSelected ? 'is-selected' : ''} ${item.isFormVirtual ? 'is-form-reference' : ''}" data-lab-picker-card-index="${item.index}" title="${safeDesc || safeName}">
+      <input class="form-check-input shadow-none" type="checkbox" ${isSelected ? 'checked' : ''} onchange="window.toggleEMRLabPickerSelection(${item.index}, this.checked)">
+      <span class="emr-lis-form-item-number">${numberLabel}</span>
+      <span class="emr-lis-form-item-text">${safeName}${variantLabel}</span>
+    </label>`;
+  };
+
+  const renderSection = section => `<section class="emr-lis-form-section" data-form-section="${section.key}">
+    <div class="emr-lis-form-section-title">${window.escapeEmrPickerHtml(section.label)}</div>
+    <div class="emr-lis-form-checklist">${section.items.map(renderItem).join('')}</div>
+  </section>`;
+
+  return `<div class="emr-lis-form-pages">${pages.map(page => {
+    const itemCount = page.columns.reduce((total, column) => total + column.sections.reduce((sum, section) => sum + section.items.length, 0), 0);
+    if (!itemCount) return '';
+    const isSupplementalPage = page.page === 3;
+    return `<section class="emr-lis-form-page" data-form-page="${page.page}">
+      <header class="emr-lis-form-page-header">
+        <strong>${isSupplementalPage ? 'ລາຍການກວດເພີ່ມເຕີມ' : 'ໃບສັ່ງກວດ'}</strong>
+        <span>${isSupplementalPage ? 'Labs_Master' : `ໜ້າ ${page.page}/2`}</span>
+      </header>
+      <div class="emr-lis-form-page-columns">${page.columns.map(column => `<div class="emr-lis-form-page-column" data-form-column="${column.column}">${column.sections.map(renderSection).join('')}</div>`).join('')}</div>
+    </section>`;
+  }).join('')}</div>`;
+};
+
 window.renderEMRLabPicker = function () {
   const host = document.getElementById('labCheckboxContainer');
   if (!host) return;
+
+  const useOrderForm = window.isOpdTestLabOrderFormMode();
+  host.classList.toggle('is-order-form-layout', useOrderForm);
 
   const searchInput = document.getElementById('emrLabSearchInput');
   if (searchInput && searchInput.value.toLowerCase() !== currentEMRLabSearchQuery) {
@@ -2471,7 +2803,7 @@ window.renderEMRLabPicker = function () {
   }
 
   if (!labsMasterList.length) {
-    host.innerHTML = '<div class="emr-order-empty"><i class="fas fa-spinner fa-spin"></i><strong>ກຳລັງໂຫຼດລາຍການ Lab</strong><span>ກະລຸນາລໍຖ້າຊົ່ວຄູ່...</span></div>';
+    host.innerHTML = '<div class="emr-order-empty"><i class="fas fa-spinner fa-spin"></i><strong>ກຳລັງໂຫຼດລາຍການກວດ</strong><span>ກະລຸນາລໍຖ້າຊົ່ວຄູ່...</span></div>';
     window.updateEMRLabPickerSummary();
     return;
   }
@@ -2480,8 +2812,16 @@ window.renderEMRLabPicker = function () {
 
   if (!groups.length) {
     host.innerHTML = '<div class="emr-order-empty"><i class="fas fa-search"></i><strong>ບໍ່ພົບລາຍການກວດ</strong><span>ລອງປ່ຽນຄຳຄົ້ນຫາ ຫຼື ກົດ refresh</span></div>';
+  } else if (useOrderForm) {
+    host.innerHTML = window.renderEMRLabOrderFormPages(groups);
   } else {
-    host.innerHTML = `<div class="emr-lis-sheet-layout">${groups.map(group => {
+    const sheetColumns = Array.from({ length: 4 }, () => []);
+    groups.forEach(group => {
+      const columnIndex = Math.min(4, Math.max(1, Number(group.formColumn) || 4)) - 1;
+      sheetColumns[columnIndex].push(group);
+    });
+
+    const renderGroup = group => {
       const selectedMeta = group.selectedCount > 0 ? `<span class="emr-lis-sheet-section-selected">${group.selectedCount} ເລືອກ</span>` : '';
       return `<section class="emr-lis-sheet-section">
         <div class="emr-lis-sheet-section-head">
@@ -2503,6 +2843,11 @@ window.renderEMRLabPicker = function () {
           </label>`;
         }).join('')}</div>
       </section>`;
+    };
+
+    host.innerHTML = `<div class="emr-lis-sheet-layout">${sheetColumns.map((columnGroups, index) => {
+      if (!columnGroups.length) return '';
+      return `<div class="emr-lis-sheet-column" data-form-column="${index + 1}">${columnGroups.map(renderGroup).join('')}</div>`;
     }).join('')}</div>`;
   }
 
@@ -2545,7 +2890,7 @@ window.decorateDataTableUi = function (tableNode) {
 // ==========================================
 async function loadPartials() {
   const views = [
-    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_observation', 'opd_observation_list',
+    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
     'labs', 'services', 'locations', 'users', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
@@ -2895,6 +3240,10 @@ $(document).ready(async function () {
   });
 
   setTimeout(async () => {
+    if (window.isLocalOpdTestPreview?.()) {
+      window.initLocalOpdTestPreview();
+      return;
+    }
     const restored = !currentUser && await window.restoreAuthSession();
     if (restored) {
       await window.initApp();
@@ -2913,7 +3262,6 @@ $(document).ready(async function () {
 window.doLogin = async function () {
   let email = String($('#loginEmail').val() || '').trim();
   let pass = String($('#loginPass').val() || '');
-  let passTrimmed = pass.trim();
 
   if (!email || !pass) {
     Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາປ້ອນອີເມວ ແລະ ລະຫັດຜ່ານໃຫ້ຄົບ', 'warning');
@@ -2923,12 +3271,23 @@ window.doLogin = async function () {
   window.toggleLoading(true);
 
   try {
-    // 1. Fetch User from Custom Users Table directly (without Supabase Auth)
+    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password: pass
+    });
+
+    if (authError || !authData?.user?.id) {
+      window.toggleLoading(false);
+      $('body').removeClass('auth-checking');
+      Swal.fire('ແຈ້ງເຕືອນ', 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ', 'error');
+      return;
+    }
+
     const { data, error } = await supabaseClient
       .from(dbTable('Users'))
-      .select('*')
-      .ilike('Email', email)
-      .limit(1);  // ໃຊ້ limit(1) ແທນ .single() ເພື່ອຫຼີກລ່ຽງ error
+      .select('ID,Auth_User_ID,Name,Email,Role,Permissions,ButtonPermissions,Status,Must_Change_Password')
+      .eq('Auth_User_ID', authData.user.id)
+      .limit(1);
 
     window.toggleLoading(false);
     $('body').removeClass('auth-checking');
@@ -2936,39 +3295,39 @@ window.doLogin = async function () {
     // 2. Check if query has error or no data
     if (error) {
       console.error("Query Error:", error);
+      await supabaseClient.auth.signOut();
       Swal.fire('ແຈ້ງເຕືອນ', 'ເກີດຂໍ້ຜິດພາດໃນລະບົບ: ' + error.message, 'error');
       return;
     }
 
     if (!data || data.length === 0) {
-      console.error("Login Error: No user found with email", email);
-      Swal.fire('ແຈ້ງເຕືອນ', 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ', 'error');
+      await supabaseClient.auth.signOut();
+      Swal.fire('ແຈ້ງເຕືອນ', 'ບັນຊີ Auth ນີ້ຍັງບໍ່ໄດ້ຜູກກັບຂໍ້ມູນພະນັກງານ', 'error');
       return;
     }
 
-    // Get first user from array
     const user = data[0];
-
-    // 3. Check password (using Password_Hash only)
-    const passHash = await window.hashPassword(pass);
-    const passTrimmedHash = passTrimmed === pass ? passHash : await window.hashPassword(passTrimmed);
-    const storedPasswordHash = String(user.Password_Hash || '');
-    const passwordMatches =
-      storedPasswordHash === passHash ||
-      storedPasswordHash === passTrimmedHash;
-    if (!passwordMatches) {
-      Swal.fire('ແຈ້ງເຕືອນ', 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ', 'error');
-      return;
-    }
-
-    // 4. Check status
     if (user.Status !== 'active') {
+      await supabaseClient.auth.signOut();
       Swal.fire('ແຈ້ງເຕືອນ', 'ບັນຊີຂອງທ່ານບໍ່ພົບໃນລະບົບ ຫຼື ຖືກປິດໃຊ້ງານ', 'error');
       return;
     }
 
-    // 5. Save user info to currentUser
     currentUser = window.buildCurrentUserFromDbRow(user);
+    if (user.Must_Change_Password) {
+      const changed = await window.promptRequiredPasswordChange();
+      if (!changed) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        window.clearAuthSession();
+        return;
+      }
+    }
+
+    await supabaseClient
+      .from(dbTable('Users'))
+      .update({ Last_Login_At: new Date().toISOString() })
+      .eq('Auth_User_ID', authData.user.id);
     window.saveAuthSession();
     window.syncCurrentUserToMasterData(currentUser);
 
@@ -2987,8 +3346,6 @@ window.doLogin = async function () {
     $('#app-content').show();
     $('#sidebarUserName').text(currentUser.name);
 
-    console.log("Login ສຳເລັດ! ຂໍ້ມູນ User:", currentUser);
-
     window.initApp();
     
     // 9. Apply button permissions after app initializes
@@ -3001,6 +3358,40 @@ window.doLogin = async function () {
     console.error("System Error:", err);
     Swal.fire('ຂໍ້ຜິດພາດ', 'ການເຊື່ອມຕໍ່ມີບັນຫາ, ກະລຸນາກວດສອບອິນເຕີເນັດ!', 'error');
   }
+};
+
+window.promptRequiredPasswordChange = async function () {
+  const result = await Swal.fire({
+    title: 'ປ່ຽນລະຫັດຜ່ານໃໝ່',
+    text: `ນີ້ແມ່ນການເຂົ້າໃຊ້ຄັ້ງທຳອິດ. ລະຫັດໃໝ່ຕ້ອງມີຢ່າງໜ້ອຍ ${HIS_MIN_PASSWORD_LENGTH} ຕົວ.`,
+    input: 'password',
+    inputAttributes: { autocomplete: 'new-password', minlength: String(HIS_MIN_PASSWORD_LENGTH) },
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showCancelButton: true,
+    confirmButtonText: 'ປ່ຽນລະຫັດ',
+    cancelButtonText: 'ອອກຈາກລະບົບ',
+    inputValidator: value => String(value || '').length >= HIS_MIN_PASSWORD_LENGTH
+      ? undefined
+      : `ກະລຸນາໃສ່ຢ່າງໜ້ອຍ ${HIS_MIN_PASSWORD_LENGTH} ຕົວ`
+  });
+  if (!result.isConfirmed) return false;
+
+  const { error: passwordError } = await supabaseClient.auth.updateUser({ password: result.value });
+  if (passwordError) {
+    Swal.fire('ບໍ່ສຳເລັດ', passwordError.message, 'error');
+    return false;
+  }
+  const { error: profileError } = await supabaseClient
+    .from(dbTable('Users'))
+    .update({ Must_Change_Password: false })
+    .eq('Auth_User_ID', currentUser.authUserId);
+  if (profileError) {
+    Swal.fire('ບໍ່ສຳເລັດ', profileError.message, 'error');
+    return false;
+  }
+  currentUser.mustChangePassword = false;
+  return true;
 };
 
 // --- DOB helpers (DD/MM/YYYY UI <-> YYYY-MM-DD storage) ---
@@ -3226,6 +3617,7 @@ window.handleServiceSelectionChange = function () {
 window.logout = async function () {
   window.toggleLoading(true);
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
+  if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
   await supabaseClient.auth.signOut();
   window.logAction('Logout', 'ອອກຈາກລະບົບ', 'Auth');
   currentUser = null;
@@ -3304,12 +3696,17 @@ window.normalizeBooleanSetting = function (value) {
 
 window.buildCurrentUserFromDbRow = function (user) {
   if (!user) return null;
+  const email = String(user.Email || '').trim().toLowerCase();
+  const role = resolveHisEffectiveRole(user.Role, email);
   return {
     id: user.ID,
+    authUserId: user.Auth_User_ID || null,
+    email,
     name: user.Name,
-    role: user.Role,
-    permissions: user.Permissions,
-    buttonPermissions: user.ButtonPermissions || {}
+    role,
+    permissions: sanitizeHisPagePermissions(role, user.Permissions),
+    buttonPermissions: sanitizeHisActionPermissions(role, user.ButtonPermissions),
+    mustChangePassword: user.Must_Change_Password === true
   };
 };
 
@@ -3336,27 +3733,33 @@ window.clearAuthSession = function () {
 
 window.restoreAuthSession = async function () {
   try {
-    const raw = localStorage.getItem(HIS_AUTH_SESSION_KEY);
-    if (!raw) return false;
-    const session = JSON.parse(raw);
-    if (!session?.user?.id || !session?.expiresAt || Date.now() > Number(session.expiresAt)) {
-      window.clearAuthSession();
-      return false;
-    }
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    const authUserId = sessionData?.session?.user?.id;
+    if (sessionError || !authUserId) return false;
 
     const { data, error } = await supabaseClient
       .from(dbTable('Users'))
-      .select('ID,Name,Role,Permissions,ButtonPermissions,Status')
-      .eq('ID', session.user.id)
+      .select('ID,Auth_User_ID,Name,Email,Role,Permissions,ButtonPermissions,Status,Must_Change_Password')
+      .eq('Auth_User_ID', authUserId)
       .limit(1);
 
     if (error || !data || data.length === 0 || data[0].Status !== 'active') {
       if (error) console.warn('Restore login session failed:', error);
+      await supabaseClient.auth.signOut();
       window.clearAuthSession();
       return false;
     }
 
     currentUser = window.buildCurrentUserFromDbRow(data[0]);
+    if (currentUser.mustChangePassword) {
+      const changed = await window.promptRequiredPasswordChange();
+      if (!changed) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        window.clearAuthSession();
+        return false;
+      }
+    }
     window.saveAuthSession();
     window.syncCurrentUserToMasterData(currentUser);
     return true;
@@ -3369,11 +3772,38 @@ window.restoreAuthSession = async function () {
 
 window.canUserAccessView = function (view, perms) {
   if (!view) return false;
-  if (currentUser?.role === 'admin' || perms.includes('all')) return true;
-  if (view === 'dashboard') return perms.includes('dashboard');
-  if (view === 'opd_observation_list') return perms.includes('opd_observation');
-  const permissionKey = view.replace(/^ipd_/, 'ipd_');
-  return perms.includes(permissionKey) || perms.includes(view);
+  const role = normalizeHisRole(currentUser?.role);
+  if (role === 'admin') return true;
+  const permissionList = Array.isArray(perms) ? perms : parseHisPagePermissions(perms ?? currentUser?.permissions);
+  const permissionMap = {
+    opd_test: 'opd',
+    opd_observation_list: 'opd_observation',
+    ipd_chart: 'ipd_inpatient_list'
+  };
+  const permissionKey = permissionMap[view] || view;
+  return roleAllowsHisPage(role, permissionKey) && permissionList.includes(permissionKey);
+};
+
+window.applyNavigationPermissions = function () {
+  if (!currentUser) return;
+  const permissions = parseHisPagePermissions(currentUser.permissions);
+  const isAdmin = normalizeHisRole(currentUser.role) === 'admin';
+  $('#his-nav-items [id^="nav-"]').each(function () {
+    const routeKey = String(this.id || '').replace(/^nav-/, '');
+    const target = window.resolveHisRouteTarget?.(routeKey) || { view: routeKey };
+    $(this).toggle(window.canUserAccessView(target.view, permissions));
+  });
+  $('#his-nav-items > .his-dropdown').each(function () {
+    if (isAdmin) {
+      $(this).show();
+      return;
+    }
+    const hasAllowedChild = $(this).find('.his-dropdown-menu [id^="nav-"]').toArray()
+      .some(item => item.style.display !== 'none');
+    $(this).toggle(hasAllowedChild);
+  });
+  const canViewAppointments = window.canUserAccessView('appointments', permissions);
+  $('#nav-appointments_alert').toggle(canViewAppointments);
 };
 
 window.getPostLoginView = function (perms) {
@@ -3393,19 +3823,8 @@ window.initApp = async function () {
     $('#login-section').hide();
     $('#app-content').show();
     $('#sidebarUserName').text(currentUser.name);
-    $('.mnu-dashboard, .mnu-report, .mnu-patients, .mnu-triage, .mnu-opd, .mnu-opd_observation, .mnu-orgs, .mnu-users, .mnu-settings, .mnu-services, .mnu-locations, .mnu-appointments, .mnu-vaccines, .mnu-vaccine_master, .mnu-drugs, .mnu-labs, .mnu-ipd_ward_bed, .mnu-ipd_inpatient_list, .mnu-ipd_config').hide();
-
-    let perms = (currentUser.permissions || "").split(',');
-    if (currentUser.role === 'admin' || perms.includes('all')) {
-      $('.nav-item, .nav-header, .his-dropdown, .his-nav-link').show();
-    } else {
-      perms.forEach(p => {
-        $('.mnu-' + p.trim()).show();
-      });
-      if (perms.includes('triage') || perms.includes('opd')) {
-        $('.nav-header.mnu-opd').show();
-      }
-    }
+    let perms = parseHisPagePermissions(currentUser.permissions);
+    window.applyNavigationPermissions();
 
     if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
     if (typeof Chart !== 'undefined' && !window.dashboardNoDataPluginRegistered) {
@@ -3441,6 +3860,8 @@ window.initApp = async function () {
 
     // Subscribe to OPD queue changes so doctors get notified on new arrivals
     window.setupOpdQueueRealtime();
+    // Notify triage nurses and doctors when LIS uploads a completed result PDF.
+    window.setupLisResultNotifications?.();
 
     // Fetch all other data in parallel
     await Promise.all([
@@ -3492,7 +3913,7 @@ window.initApp = async function () {
     const intendedRoute = window.consumeIntendedRoute();
     const currentRoute = window.parseProtectedRoute(window.location.pathname);
     const routeToOpen = intendedRoute || currentRoute;
-    if (routeToOpen?.view === 'ipd_chart' && routeToOpen.admissionId) {
+    if (routeToOpen?.view === 'ipd_chart' && routeToOpen.admissionId && window.canUserAccessView('ipd_chart', perms)) {
       window.ipdCurrentChartAdmissionId = routeToOpen.admissionId;
       if (window.history?.replaceState) window.history.replaceState({ view: 'ipd_chart', admissionId: routeToOpen.admissionId }, '', routeToOpen.path || `/ipd/chart/${encodeURIComponent(routeToOpen.admissionId)}`);
       await window.fetchIpdWardBedData();
@@ -3512,11 +3933,6 @@ window.initApp = async function () {
     if (window.history?.replaceState) window.history.replaceState({ view: postLoginTarget.view, routeKey: postLoginTarget.routeKey }, '', postLoginTarget.path);
     window.loadView(postLoginView, { replace: true });
     
-    $('body').on('click', '.btn-timeline', function() {
-      let pid = $(this).attr('data-pid');
-      if (pid) window.showPatientTimeline(pid);
-    });
-
   } catch (e) {
     console.error("InitApp Error:", e);
     window.toggleLoading(false);
@@ -3524,6 +3940,18 @@ window.initApp = async function () {
     Swal.fire('ແຈ້ງເຕືອນ', 'ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດໜ້າຈໍ.', 'error');
   }
 };
+
+// Timeline buttons are rendered dynamically across OPD, Triage and patient
+// lists. Bind once at document level so direct-route login flows cannot skip
+// the handler before returning from initApp().
+$(document)
+  .off('click.patientTimeline', '.btn-timeline')
+  .on('click.patientTimeline', '.btn-timeline', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const patientId = $(this).attr('data-pid');
+    if (patientId) window.showPatientTimeline(patientId);
+  });
 
 // ---- View-load cache -----------------------------------------------------
 // Skip re-fetching for static-ish views when the user navigates back within
@@ -3551,8 +3979,42 @@ window.invalidateViewCache = function (view) {
 };
 
 window.loadView = function (v, options = {}) {
-  const routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
+  let routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
+  const requestedView = routeTarget.view;
+  const localPreviewAllowed = !currentUser && requestedView === 'opd_test' && window.isLocalOpdTestPreview?.();
+  if (!localPreviewAllowed && currentUser && !window.canUserAccessView(requestedView, currentUser.permissions)) {
+    const safeView = window.getPostLoginView(parseHisPagePermissions(currentUser.permissions));
+    if (!options.permissionRedirect && safeView && safeView !== requestedView) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ບໍ່ມີສິດເຂົ້າໜ້ານີ້',
+        text: 'ກະລຸນາຕິດຕໍ່ Admin ຖ້າຕ້ອງການເພີ່ມສິດ.',
+        timer: 2200,
+        showConfirmButton: false
+      });
+      window.loadView(safeView, { replace: true, permissionRedirect: true });
+    }
+    return;
+  }
+  if (routeTarget.view === 'opd_test' && !window.opdTestSelectedVisit) {
+    window.opdTestPatientSelectionMode = true;
+    routeTarget = { ...routeTarget, routeKey: 'opd_queue', view: 'opd', navId: 'opd', path: '/opd' };
+  } else if (routeTarget.view === 'opd') {
+    // OPD Test has graduated to the production consultation workspace. The
+    // OPD view remains the queue/patient selector and always opens the new EMR.
+    window.opdTestPatientSelectionMode = true;
+  }
+  if (
+    document.body.classList.contains('opd-test-workspace-active') &&
+    routeTarget.view !== 'opd_test' &&
+    window.opdTestState?.unsaved &&
+    !options.skipOpdTestGuard
+  ) {
+    window.opdTestRequestExit?.(routeTarget.view, options);
+    return;
+  }
   v = routeTarget.view;
+  document.body.classList.toggle('opd-test-workspace-active', v === 'opd_test');
   const _runLoad = (fn) => {
     if (window.shouldLoadView(v, options)) {
       fn();
@@ -3586,7 +4048,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -3628,6 +4090,9 @@ window.loadView = function (v, options = {}) {
       $('#opdEndDate').val(window.getLocalStr(today));
     }
     _runLoad(() => window.loadQueue());
+  }
+  if (v === 'opd_test') {
+    window.opdTestInit?.();
   }
   if (v === 'opd_observation') {
     _runLoad(() => window.loadObservationPage());
@@ -3799,8 +4264,9 @@ window.checkAlerts = async function () {
     opdActiveRoomAlerts = [];
   }
 
+  const lisResultAlerts = window.getLisResultNotificationAlerts?.() || [];
   (() => {
-    const count = appointmentAlerts.length + roomAlerts.length;
+    const count = appointmentAlerts.length + roomAlerts.length + lisResultAlerts.length;
     let badge = $('#bell-count');
     let header = $('#bell-header');
     let list = $('#bell-list');
@@ -3811,6 +4277,30 @@ window.checkAlerts = async function () {
       const roomLabel = window.getOpdMyRoom ? (window.getOpdMyRoom() || 'ທຸກຫ້ອງ') : 'ທຸກຫ້ອງ';
       header.html(`<span class="text-danger"><i class="fas fa-exclamation-circle"></i> ມີການແຈ້ງເຕືອນ ${count} ລາຍການ</span><div class="small text-muted mt-1">OPD: ${esc(roomLabel)}</div>`);
       let html = '';
+      lisResultAlerts.forEach(alert => {
+        const safeFileId = String(alert.fileId || '').replace(/[^A-Za-z0-9_-]/g, '');
+        html += `<div class="d-flex align-items-stretch border-bottom border-secondary border-opacity-25">
+                  <a href="#" class="his-dropdown-item py-2 flex-grow-1" onclick="window.openLisResultNotification('${safeFileId}'); return false;">
+                    <div class="d-flex align-items-center w-100">
+                      <div class="me-3">
+                        <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width:32px;height:32px;min-width:32px;font-size:11px;">
+                          <i class="fas fa-file-medical-alt"></i>
+                        </div>
+                      </div>
+                      <div class="flex-grow-1 overflow-hidden" style="line-height:1.2;">
+                        <h6 class="m-0 fw-bold mb-1" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">ຜົນກວດ HN ${esc(alert.patientId)}</h6>
+                        <div class="text-primary mb-1" style="font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          ຊື່ ${esc(alert.patientName)} — ສຳເລັດແລ້ວ
+                        </div>
+                        <div class="text-success" style="font-size:10.5px;font-weight:600;">
+                          <i class="fas fa-vial me-1" style="font-size:9px;"></i>${esc(alert.orderId)} · ${esc(window.opdTestLisFormatDateTime?.(alert.uploadedAt) || '')}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                  <button type="button" class="btn btn-sm btn-outline-success m-2 align-self-center" style="font-size:10px;white-space:nowrap;" onclick="event.stopPropagation();window.acknowledgeLisResultNotification('${safeFileId}')" title="ບັນທຶກວ່າຮັບຊາບຜົນແລ້ວ"><i class="fas fa-check me-1"></i>ຮັບຊາບ</button>
+                </div>`;
+      });
       roomAlerts.forEach(a => {
         html += `<a href="#" class="his-dropdown-item py-2 border-bottom border-secondary border-opacity-25" onclick="window.loadView('opd_queue'); return false;">
                             <div class="d-flex align-items-center w-100">
@@ -5013,7 +5503,7 @@ window.fetchVisitHistoryData = function () {
   let d = new Date();
   $('#visitRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   if ($.fn.DataTable.isDataTable('#visitHistoryTable')) $('#visitHistoryTable').DataTable().destroy();
-  $('#visitHistoryTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດປະຫວັດ...</td></tr>');
+  $('#visitHistoryTable tbody').html('<tr><td colspan="10" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດປະຫວັດ...</td></tr>');
   window._fetchVisitHistoryData(sDate, eDate);
 };
 
@@ -5026,6 +5516,25 @@ window._fetchVisitHistoryData = async function (sDate, eDate) {
     Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນປະຫວັດການກວດໄດ້: ' + err.message, 'error');
     window.renderVisitHistoryPage([]);
   }
+};
+
+// Insurance/organization pill: same name → same color across the whole table.
+// One neutral pill for "no organization" so it doesn't blend with real ones.
+window.renderInsuranceOrgBadge = function (row) {
+  const raw = String(row?.Insurance_Company || row?.Organization_Name || row?.Name_Org || '').trim();
+  if (!raw) return '<span class="badge bg-light text-muted border">—</span>';
+  const palette = [
+    { bg: '#e6f1fb', fg: '#0c447c' }, { bg: '#e1f5ee', fg: '#0f6e56' },
+    { bg: '#faece7', fg: '#993c1d' }, { bg: '#fbeaf0', fg: '#72243e' },
+    { bg: '#eeedfe', fg: '#3c3489' }, { bg: '#faeeda', fg: '#854f0b' },
+    { bg: '#eaf3de', fg: '#3b6d11' }, { bg: '#f1efe8', fg: '#444441' },
+    { bg: '#fcebeb', fg: '#791f1f' }
+  ];
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  const c = palette[Math.abs(hash) % palette.length];
+  const safe = window.opdTestHtml ? window.opdTestHtml(raw) : raw.replace(/[<>"']/g, '');
+  return `<span class="badge px-2 py-1" style="background:${c.bg};color:${c.fg};border:1px solid ${c.fg}22;font-weight:600;">${safe}</span>`;
 };
 
 window.renderVisitCountBadge = function (count) {
@@ -5050,6 +5559,75 @@ window.renderVisitCountBadge = function (count) {
   return `<span class="badge ${badgeClass} px-2 py-1"><i class="${iconClass} me-1"></i>${visitCount} ຄັ້ງ</span>`;
 };
 
+// Count distinct encounters for history-button badges. Visit_ID is used as the
+// unique key so legacy duplicate rows do not inflate the displayed number.
+window.fetchPatientVisitCountMap = async function (patientIds) {
+  const ids = [...new Set((patientIds || []).map(id => String(id || '').trim()).filter(Boolean))];
+  const countMap = {};
+  ids.forEach(id => { countMap[id] = 0; });
+  if (!ids.length) return countMap;
+
+  const patientIdSet = new Set(ids);
+  const visitKeysByPatient = new Map(ids.map(id => [id, new Set()]));
+  const collectRows = (rows, offset = 0) => {
+    (rows || []).forEach((row, rowIndex) => {
+      const patientId = String(row.Patient_ID || '');
+      if (!patientIdSet.has(patientId)) return;
+      const visitKey = String(row.Visit_ID || `${patientId}|${offset + rowIndex}`);
+      visitKeysByPatient.get(patientId).add(visitKey);
+    });
+  };
+
+  // Registration loads the full patient registry. Reading the compact Visits
+  // key list once is substantially faster than issuing one request per 100
+  // patients. Small queue screens still use a focused Patient_ID query below.
+  if (ids.length > 300) {
+    let rangeStart = 0;
+    while (true) {
+      const { data, error } = await supabaseClient.from(dbTable('Visits'))
+        .select('Visit_ID, Patient_ID')
+        .order('Patient_ID', { ascending: true })
+        .order('Visit_ID', { ascending: true })
+        .range(rangeStart, rangeStart + 999);
+      if (error) throw error;
+      const rows = data || [];
+      collectRows(rows, rangeStart);
+      if (rows.length < 1000) break;
+      rangeStart += 1000;
+    }
+    visitKeysByPatient.forEach((visitKeys, patientId) => {
+      countMap[patientId] = visitKeys.size;
+    });
+    return countMap;
+  }
+
+  for (let index = 0; index < ids.length; index += 100) {
+    const chunkIds = ids.slice(index, index + 100);
+    let rangeStart = 0;
+
+    while (true) {
+      const { data, error } = await supabaseClient.from(dbTable('Visits'))
+        .select('Visit_ID, Patient_ID')
+        .in('Patient_ID', chunkIds)
+        .order('Patient_ID', { ascending: true })
+        .order('Visit_ID', { ascending: true })
+        .range(rangeStart, rangeStart + 999);
+      if (error) throw error;
+
+      const rows = data || [];
+      collectRows(rows, rangeStart);
+      if (rows.length < 1000) break;
+      rangeStart += 1000;
+    }
+  }
+
+  visitKeysByPatient.forEach((visitKeys, patientId) => {
+    countMap[patientId] = visitKeys.size;
+  });
+
+  return countMap;
+};
+
 window.renderVisitHistoryPage = function (rows) {
   currentVisitHistoryData = rows || [];
   if ($.fn.DataTable.isDataTable('#visitHistoryTable')) $('#visitHistoryTable').DataTable().destroy();
@@ -5065,8 +5643,9 @@ window.renderVisitHistoryPage = function (rows) {
   let html = '';
   currentVisitHistoryData.forEach((row, index) => {
     const visitCountBadge = window.renderVisitCountBadge(row.visitCount);
+    const insuranceBadge = window.renderInsuranceOrgBadge(row);
     const departmentBadge = `<span class="badge bg-light text-dark border px-2 py-1">${row.department || row.type || 'OPD'}</span>`;
-    const actionBtn = `<button class="btn btn-sm btn-outline-info shadow-sm" onclick="window.showPatientTimeline('${row.id}')"><i class="fas fa-history me-1"></i>ເບິ່ງປະຫວັດ</button>`;
+    const actionBtn = `<button class="btn btn-sm btn-outline-info shadow-sm patient-history-button" onclick="window.showPatientTimeline('${row.id}')" title="ປະຫວັດການກວດ ${row.visitCount || 0} ຄັ້ງ"><i class="fas fa-history me-1"></i>ເບິ່ງປະຫວັດ<span class="patient-history-count">${row.visitCount || 0}</span></button>`;
 
     html += `<tr data-row-index="${index}">
       <td data-order="${row._sortDate || ''}">${row.date}</td>
@@ -5076,6 +5655,7 @@ window.renderVisitHistoryPage = function (rows) {
       <td>${row.gender}</td>
       <td>${row.age}</td>
       <td>${visitCountBadge}</td>
+      <td>${insuranceBadge}</td>
       <td>${departmentBadge}</td>
       <td class="text-center">${actionBtn}</td>
     </tr>`;
@@ -5085,7 +5665,7 @@ window.renderVisitHistoryPage = function (rows) {
   $('#visitHistoryTable').DataTable({
     pageLength: 15,
     order: [[0, 'desc']],
-    columnDefs: [{ orderable: false, targets: [8] }],
+    columnDefs: [{ orderable: false, targets: [9] }],
     language: {
       search: 'ຄົ້ນຫາ:',
       lengthMenu: 'ສະແດງ _MENU_',
@@ -5667,7 +6247,7 @@ window.initPatientTable = async function () {
   if ($.fn.DataTable.isDataTable('#patientTable')) {
     $('#patientTable').DataTable().destroy();
   }
-  $('#patientTable tbody').html(`<tr><td colspan="11" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ${window.t('patients.loading')}</td></tr>`);
+  $('#patientTable tbody').html(`<tr><td colspan="12" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ${window.t('patients.loading')}</td></tr>`);
 
   try {
     // Supabase/PostgREST returns 1000 rows by default, so load every page.
@@ -5690,6 +6270,13 @@ window.initPatientTable = async function () {
     if (errored) throw errored.error;
     const data = results.flatMap(r => r.data || []);
     console.log(`Patients loaded: ${data.length} rows in ${Math.round(performance.now() - t0)}ms (${numPages} parallel pages)`);
+
+    let patientVisitCountMap = {};
+    try {
+      patientVisitCountMap = await window.fetchPatientVisitCountMap(data.map(row => row.Patient_ID));
+    } catch (visitCountError) {
+      console.warn('Patient visit counts could not be loaded:', visitCountError);
+    }
 
     const $loadAllNotice = $('#patientLoadAllNotice');
     if ($loadAllNotice.length) $loadAllNotice.empty().hide();
@@ -5714,12 +6301,15 @@ window.initPatientTable = async function () {
       
       // ອາຍຸ: ຄິດຈາກ DOB ກ່ອນ (ຕ່ຳກວ່າ 1 ປີ → ເດືອນ/ວັນ), ບໍ່ມີ DOB ຈຶ່ງໃຊ້ Age ຈາກຖານຂໍ້ມູນ
       const ageText = window.formatAgeFromDob(r.Date_of_Birth, r.Age);
+      const visitCount = Number(patientVisitCountMap[r.Patient_ID] || 0);
+      const historyTitle = `ປະຫວັດການກວດ ${visitCount} ຄັ້ງ`;
+      const insuranceBadge = window.renderInsuranceOrgBadge(r);
 
       // Build action buttons based on permissions
       let acts = `<div class="d-flex gap-1 flex-nowrap justify-content-center">`;
 
       // Timeline button (always show)
-      acts += `<button class="btn btn-sm btn-outline-info shadow-sm fw-bold btn-timeline" data-pid="${r.Patient_ID}" title="${window.t('patients.timeline')}"><i class="fas fa-history"></i></button>`;
+      acts += `<button class="btn btn-sm btn-outline-info shadow-sm fw-bold btn-timeline patient-history-button" data-pid="${r.Patient_ID}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>`;
 
       // View button
       if (window.can('patients', 'view')) {
@@ -5764,6 +6354,7 @@ window.initPatientTable = async function () {
                     <td>${ageText || '-'}</td>
                     <td class="text-muted">${r.Phone_Number || '-'}</td>
                     <td class="small text-muted">${r.District || ''} ${r.Province || ''}</td>
+                    <td>${insuranceBadge}</td>
                     <td class="text-danger fw-bold small">${rowAllergyInfo.allergy || '-'}</td>
                     <td>${acts}</td>
                   </tr>`;
@@ -5782,7 +6373,7 @@ window.initPatientTable = async function () {
 
   } catch (err) {
     console.error("Error loading patients:", err);
-    $('#patientTable tbody').html(`<tr><td colspan="11" class="text-center text-danger py-4">${window.t('patients.loadError')}</td></tr>`);
+    $('#patientTable tbody').html(`<tr><td colspan="12" class="text-center text-danger py-4">${window.t('patients.loadError')}</td></tr>`);
   }
 };
 
@@ -6130,7 +6721,8 @@ window.printQRCard = async function (id) {
     id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
     lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '',
     phone: data.Phone_Number || '-', address: data.Address || '',
-    district: data.District || '', province: data.Province || ''
+    district: data.District || '', province: data.Province || '',
+    payer: data.Insurance_Company || data.Organization_Name || data.Name_Org || ''
   };
   const fullName = `${d.title} ${d.firstname} ${d.lastname}`.trim();
   const dobText = `${d.dob} (${window.formatAgeFromDob(d.dob, d.age) || '-'})`;
@@ -6138,7 +6730,13 @@ window.printQRCard = async function (id) {
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
   const phoneLine = (d.phone && `ເບີໂທ: ${d.phone}`) || '-';
+  const payerName = String(d.payer || '').trim();
   [1, 2, 3].forEach(i => {
+    const $card = $(`#pcard${i}`);
+    const $payerRow = $(`#printPayerRow${i}`);
+    $card.toggleClass('has-payer', !!payerName);
+    $payerRow.prop('hidden', !payerName).toggle(!!payerName);
+    $(`#printPayer${i}`).text(payerName).toggleClass('is-long', payerName.length > 34);
     $(`#printName${i}`).text(fullName);
     $(`#printDob${i}`).text(dobText);
     $(`#printAddr1${i}`).text(addrLine1);
@@ -6430,8 +7028,59 @@ window.openEMRLabModal = function () {
   $('#emrLabModal').modal('show');
 };
 
-window.addLabToEMRList = function () {
-  currentEMRLabs = window.normalizeEMRLabSelection(currentEMRLabPickerSelection).map(name => ({ name }));
+window.addLabToEMRList = async function () {
+  const selectedNames = window.normalizeEMRLabSelection(currentEMRLabPickerSelection);
+  const isEditingBatch = Boolean(window.opdTestEditingInvestigationBatch);
+  if (!selectedNames.length) {
+    window.Swal?.fire({
+      icon: 'warning',
+      title: 'ຍັງບໍ່ມີລາຍການກວດ',
+      text: 'ກະລຸນາເລືອກຢ່າງໜ້ອຍ 1 ລາຍການກ່ອນຢືນຢັນ.',
+      confirmButtonText: 'ຕົກລົງ'
+    });
+    return;
+  }
+
+  if (window.isOpdTestLabOrderFormMode?.() && window.Swal?.fire) {
+    const selectedRows = selectedNames.map((name, index) => `<li><b>${index + 1}.</b><span>${window.opdTestHtml(name)}</span></li>`).join('');
+    const confirmation = await window.Swal.fire({
+      icon: 'question',
+      title: isEditingBatch ? 'ຢືນຢັນການແກ້ໄຂ Order?' : 'ຢືນຢັນການສັ່ງກວດ?',
+      html: `<div class="opdt-confirm-order-alert">
+        <p>${isEditingBatch ? 'ລາຍການໃໝ່ຈະແທນຊຸດ Order ເກົ່າ ແລະບັນທຶກດ້ວຍເວລາປັດຈຸບັນ' : 'ກະລຸນາກວດລາຍການອີກຄັ້ງກ່ອນສ້າງ Order'}</p>
+        <div class="opdt-confirm-order-count"><i class="fas fa-clipboard-check"></i> ${selectedNames.length} ລາຍການ</div>
+        <ol>${selectedRows}</ol>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: isEditingBatch
+        ? '<i class="fas fa-check"></i> ບັນທຶກການແກ້ໄຂ'
+        : '<i class="fas fa-check"></i> ຢືນຢັນສັ່ງກວດ',
+      cancelButtonText: 'ກັບໄປແກ້ໄຂ',
+      reverseButtons: true,
+      focusCancel: true
+    });
+    if (!confirmation.isConfirmed) return;
+  }
+
+  currentEMRLabs = selectedNames.map(name => {
+    const masterItem = labsMasterList.find(item => String(item?.name || '').trim() === name);
+    const formReference = masterItem?.formReference || window.getEMRLabOrderFormReference?.(name);
+    const activePickerType = String(window.opdTestInvestigationPickerType || '').toLowerCase();
+    const investigationType = ['lab', 'ultrasound', 'xray'].includes(activePickerType)
+      ? activePickerType
+      : window.opdTestInvestigationTypeForItem(masterItem || { name, formReference });
+    const typeMeta = window.opdTestInvestigationTypeMeta(investigationType);
+    return {
+      name,
+      masterId: masterItem?.id || '',
+      category: masterItem?.category || formReference?.category || '',
+      categoryKey: masterItem?.categoryKey || formReference?.categoryKey || '',
+      investigationType,
+      orderType: investigationType,
+      destinationSystem: typeMeta.destinationSystem
+    };
+  });
+  window.emrLabPickerConfirmed = true;
   window.renderEMRLabTable();
   $('#emrLabModal').modal('hide');
 };
@@ -6440,9 +7089,9 @@ window.renderEMRLabTable = function () {
   let h = '';
   if (currentEMRLabs.length === 0) {
     h = `<div class="emr-order-empty">
-            <i class="fas fa-flask"></i>
-            <strong>ຍັງບໍ່ມີລາຍການ Lab</strong>
-            <span>ກົດປຸ່ມ "ເພີ່ມ Lab" ເພື່ອເລືອກລາຍການກວດ</span>
+            <i class="fas fa-microscope"></i>
+            <strong>ຍັງບໍ່ມີຄຳສັ່ງກວດ</strong>
+            <span>ກົດປຸ່ມ "ເພີ່ມການກວດ" ເພື່ອເລືອກ Lab, Ultrasound, X-Ray ຫຼືການກວດອື່ນໆ</span>
           </div>`;
   } else {
     currentEMRLabs.forEach((x, i) => {
@@ -6671,13 +7320,28 @@ window._fetchTriageQueue = async function (sDate, eDate) {
     if (pIds.length > 0) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
-        const { data: patients, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Old_Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Organization_ID, Name_Org')
+        const patientFields = 'Patient_ID, Old_Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Organization_ID, Name_Org';
+        let patientResponse = await supabaseClient.from(dbTable('Patients'))
+          .select(`${patientFields}, Insurance_Company`)
           .in('Patient_ID', chunkIds);
-        if (!pError && patients) {
+        if (patientResponse.error) {
+          console.warn('Triage insurance column is unavailable; loading legacy patient fields.', patientResponse.error);
+          patientResponse = await supabaseClient.from(dbTable('Patients'))
+            .select(patientFields)
+            .in('Patient_ID', chunkIds);
+        }
+        const patients = patientResponse.data;
+        if (patients) {
           patients.forEach(p => pMap[p.Patient_ID] = p);
         }
       }
+    }
+
+    let totalVisitCountMap = {};
+    try {
+      totalVisitCountMap = await window.fetchPatientVisitCountMap(pIds);
+    } catch (visitCountError) {
+      console.warn('Triage visit counts could not be loaded:', visitCountError);
     }
 
     // 3. Determine isNew - First visit = NEW, 2nd+ visit = RETURNING
@@ -6790,6 +7454,8 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           photoUrl: p?.Photo_URL || '',
           orgId: p?.Organization_ID || '',
           orgName: p?.Name_Org || '',
+          insuranceCompany: p?.Insurance_Company || '',
+          visitCount: Number(totalVisitCountMap[r.Patient_ID] || 0),
           doctor: r.Doctor_Name || '',
           type: r.Visit_Type || '',
           site: r.Site || '',
@@ -6891,14 +7557,28 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     if (pIds.length > 0) {
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
-        const { data: patients } = await supabaseClient.from(dbTable('Patients'))
-          .select('Patient_ID, Age, Date_of_Birth, Photo_URL, Gender, Drug_Allergy, Underlying_Disease, Organization_ID, Name_Org')
+        const patientFields = 'Patient_ID, Title, First_Name, Last_Name, Age, Date_of_Birth, Photo_URL, Gender, Phone_Number, Address, District, Province, Drug_Allergy, Underlying_Disease, Organization_ID, Name_Org';
+        let patientResponse = await supabaseClient.from(dbTable('Patients'))
+          .select(`${patientFields}, Insurance_Company, Insurance_Code`)
           .in('Patient_ID', chunkIds);
+        // Compatibility fallback for installations whose Patients table has not
+        // added the optional insurance columns yet. The queue must still load.
+        if (patientResponse.error) {
+          console.warn('OPD payer columns are unavailable; loading legacy patient fields.', patientResponse.error);
+          patientResponse = await supabaseClient.from(dbTable('Patients'))
+            .select(patientFields)
+            .in('Patient_ID', chunkIds);
+        }
+        const patients = patientResponse.data;
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
     }
 
     let hasPreviousVisitMap = {};
+    const totalVisitCountMap = {};
+    data.forEach(v => {
+      if (v.Patient_ID) totalVisitCountMap[v.Patient_ID] = (totalVisitCountMap[v.Patient_ID] || 0) + 1;
+    });
     if (pIds.length > 0) {
       // First: Count visits per patient in current batch
       const patientVisitCount = {};
@@ -6923,15 +7603,40 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       // Second: Check database for any other visits
       for (let i = 0; i < pIds.length; i += 100) {
         const chunkIds = pIds.slice(i, i + 100);
-        const { data: allPatientVisits, error: pvError } = await supabaseClient
-          .from(dbTable('Visits'))
-          .select('Visit_ID, Patient_ID, Date')
-          .in('Patient_ID', chunkIds)
-          .order('Date', { ascending: true });
+        let allPatientVisits = [];
+        let pvError = null;
+        let historyRangeStart = 0;
+        while (true) {
+          const response = await supabaseClient
+            .from(dbTable('Visits'))
+            .select('Visit_ID, Patient_ID, Date')
+            .in('Patient_ID', chunkIds)
+            .order('Date', { ascending: true })
+            .range(historyRangeStart, historyRangeStart + 999);
+          if (response.error) {
+            pvError = response.error;
+            break;
+          }
+          const historyChunk = response.data || [];
+          allPatientVisits.push(...historyChunk);
+          if (historyChunk.length < 1000) break;
+          historyRangeStart += 1000;
+        }
 
         if (pvError) {
           console.error('OPD Previous Visit Query Error:', pvError);
         } else if (allPatientVisits) {
+          const patientVisitKeys = {};
+          allPatientVisits.forEach(v => {
+            const patientId = String(v.Patient_ID || '');
+            if (!patientId) return;
+            if (!patientVisitKeys[patientId]) patientVisitKeys[patientId] = new Set();
+            patientVisitKeys[patientId].add(String(v.Visit_ID || `${patientId}|${v.Date || ''}`));
+          });
+          Object.entries(patientVisitKeys).forEach(([patientId, visitKeys]) => {
+            totalVisitCountMap[patientId] = visitKeys.size;
+          });
+
           const currentVisitKeys = new Set(
             data.map(v => `${v.Patient_ID}|${v.Date}`)
           );
@@ -6966,16 +7671,26 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         timeInput: r.Date ? window.formTimeFromIso(r.Date) : window.getLocalTimeStr(new Date()),
         date: r.Date ? dObj.toLocaleDateString('en-GB') : '-',
         time: r.Date ? dObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
-        patientId: r.Patient_ID, patientName: r.Patient_Name,
+        patientId: r.Patient_ID,
+        title: p?.Title || r.Title || '',
+        patientName: [p?.First_Name, p?.Last_Name].filter(Boolean).join(' ') || r.Patient_Name || '',
         status: window.normalizeVisitStatus(r.Status), department: r.Department || 'OPD',
         isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
+        visitCount: Math.max(1, Number(totalVisitCountMap[r.Patient_ID] || 0)),
         // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
         age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
         ageText: window.formatAgeFromDob(p?.Date_of_Birth || r.Date_of_Birth, r.Age || p?.Age),
+        dob: p?.Date_of_Birth || r.Date_of_Birth || '',
         gender: r.Gender || p?.Gender || '',
+        phone: p?.Phone_Number || r.Phone_Number || '',
+        address: p?.Address || r.Address || '',
+        district: p?.District || r.District || '',
+        province: p?.Province || r.Province || '',
         photoUrl: p?.Photo_URL || '',
         orgId: p?.Organization_ID || '',
         orgName: p?.Name_Org || '',
+        insuranceCompany: p?.Insurance_Company || r.Insurance_Company || '',
+        insuranceCode: p?.Insurance_Code || r.Insurance_Code || '',
         allergy: window.parsePatientAllergyInfo?.(p?.Drug_Allergy || '')?.allergy || p?.Drug_Allergy || '',
         disease: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.disease || p?.Underlying_Disease || '',
         regularMedicine: window.parsePatientDiseaseInfo?.(p?.Underlying_Disease || '')?.regularMedicine || '',
@@ -6984,7 +7699,10 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         symptoms: vital.symptoms, bp: vital.bp, temp: vital.temp, weight: vital.weight, height: vital.height,
         bmi: vital.bmi, pulse: vital.pulse, rr: vital.rr, spo2: vital.spo2,
         recordedBy: vital.recordedBy,
-        pe: r.Physical_Exam, diagnosis: r.Diagnosis, advice: r.Advice, followup: r.Follow_Up,
+        pe: r.Physical_Exam, diagnosis: r.Diagnosis, advice: r.Advice, followup: r.Follow_Up || r.Follow_Up_Date,
+        hpi: r.HPI, pastHistory: r.Past_History, treatment: r.Treatment,
+        clinicalNoteJson: r.Clinical_Note_JSON, emrRevision: r.EMR_Revision,
+        completedAt: r.Completed_At, completedBy: r.Completed_By,
         labOrdersStr: r.Lab_Orders_JSON, prescriptionStr: r.Prescription_JSON,
         site: r.Site, type: r.Visit_Type, services: r.Services_List
       };
@@ -6995,11 +7713,29 @@ window._fetchOpdQueue = async function (sDate, eDate) {
   }
 };
 
+window.triggerTriagePublicCall = function (index) {
+  const row = currentTriageData[Number(index)];
+  if (!row) return;
+  window.triggerPublicCall(row.visitId, row.patientId, 'ຊັກປະຫວັດ (Triage)');
+};
+
+window.deleteTriageVisitAt = function (index) {
+  const row = currentTriageData[Number(index)];
+  if (!row) return;
+  window.deleteVisitFlow(row.visitId, row.patientId);
+};
+
+window.printTriageQrAt = function (index) {
+  const row = currentTriageData[Number(index)];
+  if (!row) return;
+  window.printQRCard(row.patientId);
+};
+
 window.loadTriageQueue = async function () {
   let sDate = $('#triageStartDate').val();
   let eDate = $('#triageEndDate').val();
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
-  $('#triageTableBody').html('<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-danger spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#triageTableBody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-danger spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
   const q = await window._fetchTriageQueue(sDate, eDate);
   currentTriageData = q || [];
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
@@ -7008,12 +7744,18 @@ window.loadTriageQueue = async function () {
     q.forEach((r, i) => {
       const status = r.status || '';
       let isCalling = status === 'Calling Triage';
-      let sb = status === 'Triage' || isCalling ? '<span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half"></i> ລໍຖ້າວັດແທກ</span>' : `<span class="badge bg-success"><i class="fas fa-check-circle"></i> ໄປ ${r.department} ແລ້ວ</span>`;
+      let sb = status === 'Triage' || isCalling ? '<span class="badge bg-warning text-dark"><i class="fas fa-hourglass-half"></i> ລໍຖ້າວັດແທກ</span>' : `<span class="badge bg-success"><i class="fas fa-check-circle"></i> ໄປ ${escapeHisHtml(r.department)} ແລ້ວ</span>`;
       if (isCalling) sb = '<span class="badge bg-danger animate__animated animate__flash animate__infinite"><i class="fas fa-volume-up"></i> ກຳລັງເອີ້ນ...</span>';
       
       let nb = r.isNew
         ? '<span class="badge patient-badge patient-badge-new ms-2">ຄົນເຈັບໃໝ່</span>'
         : '<span class="badge patient-badge patient-badge-returning ms-2">ຄົນເຈັບເກົ່າ</span>';
+      const visitCount = Number(r.visitCount || 0);
+      const historyTitle = `ປະຫວັດການກວດ ${visitCount} ຄັ້ງ`;
+      const payerBadge = window.renderInsuranceOrgBadge({
+        Insurance_Company: r.insuranceCompany,
+        Name_Org: r.orgName
+      });
       let btnHtml = `<button class="btn btn-sm btn-triage-view-official me-1" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-file-medical-alt me-1"></i>ເບິ່ງ</button>`;
       if (r.status === 'Triage' || isCalling) {
         btnHtml += `<button class="btn btn-sm btn-danger fw-bold shadow-sm me-1" onclick="window.openTriage(${i})" title="ວັດແທກ"><i class="fas fa-stethoscope"></i> ວັດແທກ</button>`;
@@ -7021,21 +7763,22 @@ window.loadTriageQueue = async function () {
         btnHtml += `<button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.openTriage(${i})" title="ແກ້ໄຂ"><i class="fas fa-edit"></i></button>`;
       }
       // Add Call Button
-      btnHtml += `<button class="btn btn-sm btn-dark shadow-sm me-1" onclick="window.triggerPublicCall('${r.visitId}', '${r.patientId}', 'ຊັກປະຫວັດ (Triage)')" title="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>`;
+      btnHtml += `<button class="btn btn-sm btn-dark shadow-sm me-1" onclick="window.triggerTriagePublicCall(${i})" title="ເອີ້ນຄິວ" aria-label="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>`;
       
-      btnHtml += `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
-                         <button class="btn btn-sm btn-outline-danger shadow-sm me-1" onclick="window.deleteVisitFlow('${r.visitId}', '${r.patientId}')" title="ລຶບ"><i class="fas fa-trash"></i></button>
+      btnHtml += `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline patient-history-button" data-pid="${escapeHisHtml(r.patientId)}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>
+                         <button class="btn btn-sm btn-outline-danger shadow-sm me-1" onclick="window.deleteTriageVisitAt(${i})" title="ລຶບ" aria-label="ລຶບ"><i class="fas fa-trash"></i></button>
                          <button class="btn btn-sm btn-secondary text-white shadow-sm me-1" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
       if (window.can('patients', 'print_qr')) {
-        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printQRCard('${r.patientId}')" title="ພິມ Sticker"><i class="fas fa-qrcode"></i></button>`;
+        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printTriageQrAt(${i})" title="ພິມ Sticker" aria-label="ພິມ Sticker"><i class="fas fa-qrcode"></i></button>`;
       }
       h += `<tr class="${isCalling ? 'table-danger' : ''}">
-                    <td class="text-muted">${r.date}</td>
-                    <td class="fw-bold">${r.time}</td>
-                    <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div><div class="small"><span class="fw-bold text-dark">${r.patientId}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${r.oldId})</span>` : ''}</div></td>
-                    <td><span class="badge bg-secondary rounded-pill">${r.ageText || '-'}</span></td>
+                    <td class="text-muted">${escapeHisHtml(r.date)}</td>
+                    <td class="fw-bold">${escapeHisHtml(r.time)}</td>
+                    <td><div class="fw-bold text-primary">${escapeHisHtml(r.patientName)} ${nb}</div><div class="small"><span class="fw-bold text-dark">${escapeHisHtml(r.patientId)}</span>${r.oldId ? ` <span class="text-muted">(ເກົ່າ: ${escapeHisHtml(r.oldId)})</span>` : ''}</div></td>
+                    <td><span class="badge bg-secondary rounded-pill">${escapeHisHtml(r.ageText || '-')}</span></td>
+                    <td>${payerBadge}</td>
                     <td>${sb}</td>
-                    <td class="text-center opd-ipd-cell" data-t="${(String(r.type || '').trim().toUpperCase() || 'none')}">${(() => {
+                    <td class="text-center opd-ipd-cell" data-t="${escapeHisHtml(String(r.type || '').trim().toUpperCase() || 'none')}">${(() => {
                         const t = String(r.type || '').trim().toUpperCase();
                         if (t === 'IPD') return '<span class="badge bg-info text-dark rounded-pill px-3">IPD</span>';
                         if (t === 'OPD') return '<span class="badge bg-primary rounded-pill px-3">OPD</span>';
@@ -7309,7 +8052,7 @@ window.obsFrom = function (tableName) {
 };
 
 window.obsEscape = function (value) {
-  return window.ipdEscape ? window.ipdEscape(value) : String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  return window.ipdEscape ? window.ipdEscape(value) : escapeHisHtml(value);
 };
 
 window.obsActiveStatuses = ['WAITING', 'UNDER_OBSERVATION'];
@@ -7509,9 +8252,9 @@ window.renderObsBedBoard = async function () {
         <ul class="dropdown-menu dropdown-menu-end ipd-bed-action-menu" aria-labelledby="${menuId}">
           <li><a class="dropdown-item text-dark btn-obs-view" href="#" onclick="window.openObservationDetail(${obsIdArg}); return false;"><i class="fas fa-file-medical me-2"></i>${window.obsEscape(window.t('obs.openObservation'))}</a></li>
           <li><a class="dropdown-item text-primary btn-obs-view" href="#" onclick="window.openObservationTransferModal(${obsIdArg}); return false;"><i class="fas fa-exchange-alt me-2"></i>${window.obsEscape(window.t('ipd.transferBed'))}</a></li>
-          <li><a class="dropdown-item text-danger btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'VITAL_SIGN'); return false;"><i class="fas fa-heartbeat me-2"></i>${window.obsEscape(window.t('obs.addVital'))}</a></li>
-          <li><a class="dropdown-item text-primary btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'DOCTOR_NOTE'); return false;"><i class="fas fa-user-md me-2"></i>${window.obsEscape(window.t('obs.doctorNote'))}</a></li>
-          <li><a class="dropdown-item text-success btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'NURSING_NOTE'); return false;"><i class="fas fa-user-nurse me-2"></i>${window.obsEscape(window.t('obs.nursingNote'))}</a></li>
+          <li><a class="dropdown-item text-danger btn-obs-note btn-obs-vital" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'VITAL_SIGN'); return false;"><i class="fas fa-heartbeat me-2"></i>${window.obsEscape(window.t('obs.addVital'))}</a></li>
+          <li><a class="dropdown-item text-primary btn-obs-note btn-obs-doctor-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'DOCTOR_NOTE'); return false;"><i class="fas fa-user-md me-2"></i>${window.obsEscape(window.t('obs.doctorNote'))}</a></li>
+          <li><a class="dropdown-item text-success btn-obs-note btn-obs-nursing-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'NURSING_NOTE'); return false;"><i class="fas fa-user-nurse me-2"></i>${window.obsEscape(window.t('obs.nursingNote'))}</a></li>
           <li><a class="dropdown-item text-warning btn-obs-note" href="#" onclick="window.openObservationNoteFromBoard(${obsIdArg}, 'PROCEDURE'); return false;"><i class="fas fa-procedures me-2"></i>${window.obsEscape(window.t('obs.procedure'))}</a></li>
           <li><a class="dropdown-item text-warning btn-obs-convert" href="#" onclick="window.convertObservationToIpd(${obsIdArg}); return false;"><i class="fas fa-bed me-2"></i>${window.obsEscape(window.t('obs.convertToIpd'))}</a></li>
           <li><a class="dropdown-item text-secondary btn-obs-discharge" href="#" onclick="window.dischargeObservation(${obsIdArg}); return false;"><i class="fas fa-sign-out-alt me-2"></i>${window.obsEscape(window.t('ipd.dischargeReleaseBed'))}</a></li>
@@ -8109,9 +8852,16 @@ window.obsSelectedProviderNames = function (selector) {
 };
 
 window.openObservationNoteModal = async function (noteType) {
+  const type = String(noteType || 'NURSING_NOTE').toUpperCase();
+  const rolesByType = {
+    DOCTOR_NOTE: ['doctor'],
+    NURSING_NOTE: ['nurse'],
+    VITAL_SIGN: ['nurse'],
+    PROCEDURE: ['doctor', 'nurse']
+  };
+  if (!window.requireHisAction('opd_observation', 'note', rolesByType[type] || [])) return;
   const observationId = window.currentObservationId;
   if (!observationId) return;
-  const type = String(noteType || 'NURSING_NOTE').toUpperCase();
   const needsProviderDropdown = ['DOCTOR_NOTE', 'NURSING_NOTE', 'VITAL_SIGN'].includes(type);
   if (needsProviderDropdown) await window.ipdLoadProviders?.();
 
@@ -8436,6 +9186,13 @@ window.updateReportObservationStats = async function (sDate, eDate) {
 // ============================================================
 let opdQueueChannel = null;
 let opdQueuePollInterval = null;
+let lisResultPollInterval = null;
+let lisResultPollRunning = false;
+let lisResultNotificationsSeeded = false;
+const lisNotifiedResultFileIds = new Set();
+let lisReadResultFileIds = new Set();
+let lisActiveResultAlerts = [];
+let lisResultAcknowledgmentPersistence = 'unknown';
 // Set of Visit_IDs already notified. We alert ONCE per visit; the toast itself
 // is sticky (no auto-dismiss) and stays on screen until the doctor clicks it —
 // so we don't need a time-based repeat or a separate "dismissed" set.
@@ -8675,6 +9432,344 @@ window.showOpdDesktopNotification = function (patientName, department) {
   } catch (e) { /* ignore */ }
 };
 
+// ============================================================
+// LIS completed-result notifications — triage nurses + doctors
+// ============================================================
+window.isLisResultNotificationRecipient = function () {
+  const role = String(currentUser?.role || '').trim().toLowerCase();
+  if (window.isLocalOpdTestPreview?.()) return true;
+  return role === 'doctor'
+    || role === 'nurse'
+    || role.includes('doctor')
+    || role.includes('nurse')
+    || role.includes('ແພດ')
+    || role.includes('ໝໍ')
+    || role.includes('ຫມໍ')
+    || role.includes('ພະຍາບານ');
+};
+
+window.lisResultReadStorageKey = function () {
+  const recipient = String(currentUser?.id || currentUser?.name || currentUser?.role || 'local').trim();
+  return `his_lis_result_read_v1:${encodeURIComponent(recipient)}`;
+};
+
+window.loadLisResultReadState = function () {
+  try {
+    const parsed = JSON.parse(window.localStorage?.getItem(window.lisResultReadStorageKey()) || '[]');
+    lisReadResultFileIds = new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch (error) {
+    lisReadResultFileIds = new Set();
+  }
+};
+
+window.rememberLisResultRead = function (fileId) {
+  const key = String(fileId || '').trim();
+  if (!key) return;
+  lisReadResultFileIds.add(key);
+  try {
+    window.localStorage?.setItem(window.lisResultReadStorageKey(), JSON.stringify([...lisReadResultFileIds].slice(-500)));
+  } catch (error) {}
+};
+
+window.lisResultAcknowledgmentUserId = function () {
+  return String(currentUser?.id || currentUser?.name || currentUser?.role || '').trim();
+};
+
+window.loadLisResultAcknowledgments = async function () {
+  const userId = window.lisResultAcknowledgmentUserId();
+  if (!userId || window.isLocalOpdTestPreview?.()) {
+    window.loadLisResultReadState();
+    lisResultAcknowledgmentPersistence = 'local-fallback';
+    return;
+  }
+  // Clinical deployments must use the shared acknowledgement trail. Do not
+  // let stale browser-local state hide an unacknowledged result.
+  lisReadResultFileIds = new Set();
+  const { data, error } = await supabaseClient
+    .from(dbTable('Result_Acknowledgments'))
+    .select('Result_File_ID')
+    .eq('Acknowledged_By', userId)
+    .order('Acknowledged_At', { ascending: false })
+    .limit(1000);
+  if (error) {
+    lisResultAcknowledgmentPersistence = 'unavailable';
+    console.error('Result acknowledgement table unavailable:', error);
+    return;
+  }
+  (data || []).forEach(row => {
+    if (row?.Result_File_ID) lisReadResultFileIds.add(String(row.Result_File_ID));
+  });
+  lisResultAcknowledgmentPersistence = 'database';
+};
+
+window.getLisResultNotificationAlerts = function () {
+  return window.isLisResultNotificationRecipient() ? [...lisActiveResultAlerts] : [];
+};
+
+window.normalizeLisResultNotification = function (file, orderOverride) {
+  const order = orderOverride || file?.order || {};
+  const fileId = String(file?.id || file?.fileId || '').trim();
+  const orderId = String(file?.orderId || file?.order_id || order.order_id || '').trim();
+  const storagePath = String(file?.storagePath || file?.storage_path || '').trim();
+  const publicUrl = String(file?.publicUrl || file?.public_url || '').trim()
+    || window.opdTestLisPublicFileUrl?.(storagePath)
+    || '';
+  const severitySource = String(
+    file?.severity || file?.resultSeverity || file?.result_severity
+    || order?.severity || order?.resultSeverity || order?.result_severity
+    || order?.priority || ''
+  ).trim().toLowerCase();
+  const severity = /critical|panic|urgent|ວິກິດ/.test(severitySource)
+    ? 'critical'
+    : (/abnormal|high|low|ຜິດປົກກະຕິ/.test(severitySource) ? 'abnormal' : 'normal');
+  return {
+    fileId,
+    orderId,
+    patientId: String(order.patient_id || order.patientId || '').trim() || '—',
+    patientName: String(order.patient_name || order.patientName || '').trim() || '—',
+    doctor: String(order.doctor || '').trim(),
+    department: String(order.department || '').trim(),
+    testName: String(order.test_items || order.test_name || order.testName || '').trim(),
+    fileName: String(file?.fileName || file?.file_name || 'Laboratory report.pdf').trim(),
+    uploadedAt: file?.uploadedAt || file?.uploaded_at || new Date().toISOString(),
+    storagePath,
+    publicUrl,
+    severity
+  };
+};
+
+window.dismissLisResultNotification = function (fileId) {
+  const key = String(fileId || '');
+  const safeAttr = key.replace(/[^A-Za-z0-9_-]/g, '');
+  document.querySelectorAll(`.opd-lis-result-toast[data-lis-file-id="${safeAttr}"]`).forEach(element => element.remove());
+};
+
+window.acknowledgeLisResultNotification = async function (fileId) {
+  const key = String(fileId || '').trim();
+  const alert = lisActiveResultAlerts.find(item => item.fileId === key);
+  if (!key || !alert) return;
+  const userId = window.lisResultAcknowledgmentUserId();
+  const userName = String(currentUser?.name || currentUser?.id || '').trim();
+  const localPreview = Boolean(window.isLocalOpdTestPreview?.());
+  if (!localPreview && !userId) {
+    window.opdTestSimpleAlert?.('ບັນທຶກຮັບຊາບບໍ່ໄດ້', 'ບໍ່ພົບຜູ້ໃຊ້ທີ່ລັອກອິນ.', 'error');
+    return;
+  }
+  if (!localPreview) {
+    const payload = {
+      Result_File_ID: key,
+      Result_Type: 'lab',
+      Order_ID: alert.orderId || null,
+      Patient_ID: alert.patientId === '—' ? null : alert.patientId,
+      Patient_Name: alert.patientName === '—' ? null : alert.patientName,
+      Severity: alert.severity || 'normal',
+      Acknowledged_By: userId,
+      Acknowledged_By_Name: userName || null,
+      Acknowledged_At: new Date().toISOString()
+    };
+    const { error } = await supabaseClient
+      .from(dbTable('Result_Acknowledgments'))
+      .upsert(payload, { onConflict: 'Result_File_ID,Acknowledged_By' });
+    if (error) {
+      lisResultAcknowledgmentPersistence = 'unavailable';
+      console.error('Unable to persist result acknowledgement:', error);
+      window.opdTestSimpleAlert?.(
+        'ບັນທຶກຮັບຊາບບໍ່ສຳເລັດ',
+        'ຍັງບໍ່ສາມາດບັນທຶກຜູ້ຮັບຊາບເຂົ້າຖານຂໍ້ມູນ. ຜົນກວດຈະຍັງຄ້າງຢູ່ເພື່ອຄວາມປອດໄພ.',
+        'error'
+      );
+      return;
+    } else {
+      lisResultAcknowledgmentPersistence = 'database';
+    }
+  }
+  window.rememberLisResultRead(key);
+  lisActiveResultAlerts = lisActiveResultAlerts.filter(item => item.fileId !== key);
+  window.dismissLisResultNotification(key);
+  window.logAction?.('Acknowledge', `LIS result acknowledged - ${alert.orderId || key} / HN ${alert.patientId}`, 'Laboratory');
+  window.checkAlerts?.();
+};
+
+window.openLisResultNotification = function (fileId) {
+  const key = String(fileId || '');
+  const alert = lisActiveResultAlerts.find(item => item.fileId === key);
+  if (!alert?.publicUrl) return;
+  window.open(alert.publicUrl, '_blank', 'noopener,noreferrer');
+};
+
+window.showLisResultToast = function (alert) {
+  if (!alert?.fileId) return;
+  let container = document.getElementById('opdToastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'opdToastContainer';
+    container.className = 'opd-toast-container';
+    document.body.appendChild(container);
+  }
+  const safeAttr = String(alert.fileId).replace(/[^A-Za-z0-9_-]/g, '');
+  if (container.querySelector(`[data-lis-file-id="${safeAttr}"]`)) return;
+  const toastId = `lisResultToast_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const esc = window.opdTestHtml || (value => String(value ?? ''));
+  container.insertAdjacentHTML('beforeend',
+    `<div id="${toastId}" class="opd-toast opd-lis-result-toast is-${alert.severity || 'normal'}" data-lis-file-id="${safeAttr}" onclick="window.openLisResultNotification('${safeAttr}')">
+       <div class="opd-toast-icon"><i class="fas fa-file-medical-alt"></i></div>
+       <div class="opd-toast-body">
+         <div class="opd-toast-title">ຜົນກວດ HN ${esc(alert.patientId)}</div>
+         <div class="opd-toast-text">ຊື່ <strong>${esc(alert.patientName)}</strong> — ສຳເລັດແລ້ວ</div>
+         <div class="opd-lis-toast-order"><i class="fas fa-vial"></i> ${esc(alert.orderId)}${alert.testName ? ` · ${esc(alert.testName)}` : ''}</div>
+         <button type="button" class="opd-lis-ack-btn" onclick="event.stopPropagation();window.acknowledgeLisResultNotification('${safeAttr}')"><i class="fas fa-check"></i> ຮັບຊາບ</button>
+       </div>
+       <button class="opd-toast-close" onclick="event.stopPropagation();window.dismissLisResultNotification('${safeAttr}')" aria-label="ປິດ">&times;</button>
+     </div>`
+  );
+};
+
+window.showLisResultDesktopNotification = function (alert) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const notification = new Notification(`✅ ຜົນກວດ HN ${alert.patientId}`, {
+      body: `ຊື່ ${alert.patientName} — ສຳເລັດແລ້ວ\n${alert.orderId}`,
+      tag: `lis-result-${alert.fileId}`,
+      requireInteraction: false
+    });
+    notification.onclick = () => {
+      window.focus();
+      window.openLisResultNotification(alert.fileId);
+      notification.close();
+    };
+    window.setTimeout(() => { try { notification.close(); } catch (error) {} }, 12000);
+  } catch (error) {
+    console.warn('LIS desktop notification failed:', error);
+  }
+};
+
+window.handleLisResultNotificationFiles = function (files, options = {}) {
+  if (!window.isLisResultNotificationRecipient() || !Array.isArray(files)) return false;
+  const newAlerts = files
+    .map(file => window.normalizeLisResultNotification(file))
+    .filter(alert => alert.fileId
+      && alert.publicUrl
+      && alert.patientId !== '—'
+      && alert.patientName !== '—'
+      && !lisNotifiedResultFileIds.has(alert.fileId));
+  if (!newAlerts.length) return false;
+
+  newAlerts.forEach(alert => {
+    lisNotifiedResultFileIds.add(alert.fileId);
+    lisActiveResultAlerts = [alert, ...lisActiveResultAlerts.filter(item => item.fileId !== alert.fileId)].slice(0, 20);
+    window.showLisResultToast(alert);
+    window.showLisResultDesktopNotification(alert);
+  });
+  window.playOpdNotificationSound?.();
+  window.checkAlerts?.();
+  return true;
+};
+
+window.fetchRecentLisResultFiles = async function (limit = 100) {
+  const response = await window.opdTestLisRequest('/api/data', {
+    table: 'lis_one_order_result_files',
+    select: 'id,order_id,file_name,file_type,file_size,storage_path,uploaded_at',
+    order: 'uploaded_at.desc',
+    limit
+  });
+  return Array.isArray(response.data) ? response.data : [];
+};
+
+window.enrichLisResultFiles = async function (files) {
+  const source = Array.isArray(files) ? files : [];
+  const orderIds = [...new Set(source
+    .map(file => String(file?.order_id || file?.orderId || '').replace(/[^A-Za-z0-9_-]/g, ''))
+    .filter(Boolean))];
+  let orders = [];
+  if (orderIds.length) {
+    const orderResponse = await window.opdTestLisRequest('/api/data', {
+      table: 'lis_one_test_orders',
+      select: 'order_id,patient_id,patient_name,doctor,department,test_name,test_items,status,completed_at,order_datetime',
+      filter: `order_id=in.(${orderIds.join(',')})`,
+      limit: Math.max(20, orderIds.length)
+    });
+    orders = Array.isArray(orderResponse.data) ? orderResponse.data : [];
+  }
+  const orderById = new Map(orders.map(order => [String(order.order_id || ''), order]));
+  return source.map(file => ({
+    ...file,
+    order: file.order || orderById.get(String(file.order_id || file.orderId || '')) || null,
+    publicUrl: file.publicUrl || window.opdTestLisPublicFileUrl(file.storage_path || file.storagePath)
+  }));
+};
+
+window.seedLisResultNotifications = async function () {
+  lisNotifiedResultFileIds.clear();
+  await window.loadLisResultAcknowledgments();
+  const files = await window.fetchRecentLisResultFiles(200);
+  files.forEach(file => {
+    if (file?.id != null) lisNotifiedResultFileIds.add(String(file.id));
+  });
+  const enrichedFiles = await window.enrichLisResultFiles(files);
+  const recentCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  lisActiveResultAlerts = enrichedFiles
+    .map(file => window.normalizeLisResultNotification(file))
+    .filter(alert => {
+      const uploadedAt = new Date(alert.uploadedAt).getTime();
+      return alert.fileId
+        && alert.publicUrl
+        && alert.patientId !== '—'
+        && alert.patientName !== '—'
+        && !lisReadResultFileIds.has(alert.fileId)
+        && (!Number.isFinite(uploadedAt) || uploadedAt >= recentCutoff);
+    })
+    .slice(0, 20);
+  lisResultNotificationsSeeded = true;
+  lisActiveResultAlerts.slice(0, 3).reverse().forEach(alert => window.showLisResultToast?.(alert));
+  window.checkAlerts?.();
+};
+
+window.pollLisResultNotifications = async function () {
+  if (!window.isLisResultNotificationRecipient() || lisResultPollRunning) return;
+  lisResultPollRunning = true;
+  try {
+    if (!lisResultNotificationsSeeded) {
+      await window.seedLisResultNotifications();
+      return;
+    }
+    const files = await window.fetchRecentLisResultFiles(100);
+    const newFiles = files.filter(file => file?.id != null && !lisNotifiedResultFileIds.has(String(file.id)));
+    if (!newFiles.length) return;
+    const enrichedFiles = await window.enrichLisResultFiles(newFiles);
+    window.handleLisResultNotificationFiles(enrichedFiles, { source: 'global-poll' });
+  } catch (error) {
+    console.warn('LIS result notification poll failed:', error);
+  } finally {
+    lisResultPollRunning = false;
+  }
+};
+
+window.setupLisResultNotifications = async function () {
+  window.teardownLisResultNotifications();
+  if (!window.isLisResultNotificationRecipient()) return;
+  window.requestOpdNotificationPermission?.();
+  try {
+    await window.seedLisResultNotifications();
+  } catch (error) {
+    console.warn('Unable to seed LIS result notifications:', error);
+  }
+  lisResultPollInterval = window.setInterval(window.pollLisResultNotifications, 30000);
+};
+
+window.teardownLisResultNotifications = function () {
+  if (lisResultPollInterval) window.clearInterval(lisResultPollInterval);
+  lisResultPollInterval = null;
+  lisResultPollRunning = false;
+  lisResultNotificationsSeeded = false;
+  lisNotifiedResultFileIds.clear();
+  lisActiveResultAlerts = [];
+  document.querySelectorAll('.opd-lis-result-toast').forEach(element => element.remove());
+};
+
+window.getLisResultAcknowledgmentPersistence = function () {
+  return lisResultAcknowledgmentPersistence;
+};
+
 window.triggerOpdTestNotification = function () {
   window.unlockOpdAudio();
   window.showOpdQueueToast('ທົດສອບ — ນາງສາວ ສຸກ', window.getOpdMyRoom() || 'OPD ທົ່ວໄປ');
@@ -8682,12 +9777,69 @@ window.triggerOpdTestNotification = function () {
   window.showOpdDesktopNotification('ທົດສອບ — ນາງສາວ ສຸກ', window.getOpdMyRoom() || 'OPD ທົ່ວໄປ');
 };
 
+window.openSelectedOpdEncounter = function (index) {
+  window.openOPDTest(index);
+};
+
+window.triggerOpdQueuePublicCall = function (index) {
+  const row = queueDataStore[Number(index)];
+  if (!row) return;
+  window.triggerPublicCall(row.visitId, row.patientId, row.department || 'ຫ້ອງກວດ (OPD)');
+};
+
+window.renderOpdDoctorBadge = function (doctor) {
+  const doctorName = String(doctor || '').trim();
+  return doctorName
+    ? `<span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1"><i class="fas fa-user-md me-1"></i>${escapeHisHtml(doctorName)}</span>`
+    : '<span class="badge bg-light text-muted border px-2 py-1">ຍັງບໍ່ກຳນົດ</span>';
+};
+
+window.formatOpdQueueGender = function (gender) {
+  const value = String(gender || '').trim();
+  if (/^(M|Male|ຊາຍ)$/i.test(value)) return 'ຊາຍ';
+  if (/^(F|Female|ຍິງ)$/i.test(value)) return 'ຍິງ';
+  return value || '—';
+};
+
+window.openOpdQueueOrderWorkspace = function (index, requestedTab) {
+  const validTabs = ['lab', 'ultrasound', 'xray', 'medication'];
+  if (!validTabs.includes(requestedTab) || !queueDataStore[Number(index)]) return;
+  window.opdTestPendingOrderTab = requestedTab;
+  window.openOPDTest(Number(index));
+};
+
+window.renderOpdQueueOrderBadges = function (row, index) {
+  const summary = buildOpdQueueOrderSummary(row);
+  const stateLabels = {
+    pending: 'ສັ່ງແລ້ວ · ລໍຮັບ',
+    progress: 'ກຳລັງດຳເນີນການ',
+    ready: 'ມີຜົນ / ສຳເລັດ',
+    error: 'ມີບັນຫາ'
+  };
+  const types = [
+    { key: 'lab', label: 'Lab', icon: 'fa-vials' },
+    { key: 'ultrasound', label: 'US', icon: 'fa-wave-square' },
+    { key: 'xray', label: 'X-Ray', icon: 'fa-x-ray' },
+    { key: 'medication', label: 'Rx', icon: 'fa-pills' }
+  ];
+  const badges = types
+    .filter(type => summary[type.key]?.count > 0)
+    .map(type => {
+      const item = summary[type.key];
+      const stateLabel = stateLabels[item.state] || stateLabels.pending;
+      const accessibleLabel = `${type.label} ${item.count} ລາຍການ, ${stateLabel}`;
+      return `<button type="button" class="opd-queue-order-chip is-${item.state}" onclick="window.openOpdQueueOrderWorkspace(${Number(index)}, '${type.key}')" title="${escapeHisHtml(accessibleLabel)}" aria-label="${escapeHisHtml(accessibleLabel)}"><i class="fas ${type.icon}" aria-hidden="true"></i><span>${type.label}</span><b>${item.count}</b></button>`;
+    })
+    .join('');
+  return badges;
+};
+
 window.loadQueue = async function () {
   try {
     let sDate = $('#opdStartDate').val();
     let eDate = $('#opdEndDate').val();
     if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
-    $('#queueTableBody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+    $('#queueTableBody').html('<tr><td colspan="11" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
     window.populateOpdMyRoomFilter();
 
     const allQueueRows = await window._fetchOpdQueue(sDate, eDate);
@@ -8707,129 +9859,277 @@ window.loadQueue = async function () {
     if (q && q.length > 0) {
       q.forEach((r, i) => {
         const status = window.normalizeVisitStatus(r.status);
+        const testSelectionLabel = 'ເປີດກວດ';
+        const waitingLabLabel = 'ອ່ານຜົນແລັບ';
+        const visitHistoryCount = Math.max(1, Number(r.visitCount || 0));
+        const visitHistoryTitle = `ປະຫວັດການກວດ ${visitHistoryCount} ຄັ້ງ`;
 
         let b = '', a = '';
         let isCalling = status.startsWith('Calling');
-        
+
         if (status === 'Waiting OPD' || status === 'Calling OPD') {
           b = isCalling ? '<span class="badge bg-danger animate__animated animate__flash animate__infinite"><i class="fas fa-volume-up"></i> ກຳລັງເອີ້ນ...</span>' : '<span class="badge bg-warning text-dark"><i class="fas fa-user-clock"></i> ລໍຖ້າກວດ</span>';
-          a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
-                        <button class="btn btn-sm btn-info text-white fw-bold me-1" onclick="window.openEMR(${i})"><i class="fas fa-stethoscope"></i> ເປີດກວດ</button>
+          a = `<button class="btn btn-sm btn-info text-white fw-bold me-1" onclick="window.openSelectedOpdEncounter(${i})" title="${testSelectionLabel}"><i class="fas fa-stethoscope"></i> <span class="opd-action-label">${testSelectionLabel}</span></button>
+                        <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerOpdQueuePublicCall(${i})" title="ເອີ້ນຄິວ" aria-label="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
+                        <button class="btn btn-sm btn-secondary text-white me-1" onclick="window.printOPDCard('opd', ${i})" title="ພິມປີ້ OPD"><i class="fas fa-file-medical"></i> <span class="opd-action-label">ພິມ</span></button>
                         <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
-                        <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerPublicCall('${r.visitId}', '${r.patientId}', '${r.department || 'ຫ້ອງກວດ (OPD)'}')" title="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
-                        <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-file-medical"></i> ພິມ</button>`;
+                        <button class="btn btn-sm btn-outline-info shadow-sm btn-timeline opd-history-button patient-history-button" data-pid="${escapeHisHtml(r.patientId)}" title="${visitHistoryTitle}" aria-label="${visitHistoryTitle}"><i class="fas fa-history"></i><span class="opd-history-count patient-history-count">${visitHistoryCount}</span></button>`;
         } else if (status === 'Waiting Lab' || status === 'Calling Lab') {
           b = isCalling ? '<span class="badge bg-danger animate__animated animate__flash animate__infinite"><i class="fas fa-volume-up"></i> ກຳລັງເອີ້ນ...</span>' : '<span class="badge bg-primary"><i class="fas fa-flask"></i> ລໍຖ້າຜົນແລັບ</span>';
-          a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
-                        <button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openEMR(${i})"><i class="fas fa-edit"></i> ອ່ານຜົນແລັບ</button>
+          a = `<button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openSelectedOpdEncounter(${i})" title="${waitingLabLabel}"><i class="fas fa-edit"></i> <span class="opd-action-label">${waitingLabLabel}</span></button>
+                        <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerOpdQueuePublicCall(${i})" title="ເອີ້ນຄິວ" aria-label="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
+                        <button class="btn btn-sm btn-secondary text-white me-1" onclick="window.printOPDCard('opd', ${i})" title="ພິມປີ້ OPD"><i class="fas fa-file-medical"></i> <span class="opd-action-label">ພິມ</span></button>
                         <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
-                        <button class="btn btn-sm btn-dark text-white me-1" onclick="window.triggerPublicCall('${r.visitId}', '${r.patientId}', '${r.department || 'ຫ້ອງກວດ (OPD)'}')" title="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>
-                        <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-file-medical"></i> ພິມ</button>`;
+                        <button class="btn btn-sm btn-outline-info shadow-sm btn-timeline opd-history-button patient-history-button" data-pid="${escapeHisHtml(r.patientId)}" title="${visitHistoryTitle}" aria-label="${visitHistoryTitle}"><i class="fas fa-history"></i><span class="opd-history-count patient-history-count">${visitHistoryCount}</span></button>`;
         } else {
-          b = `<span class="badge bg-success"><i class="fas fa-check-circle"></i> ປິດຈົບ (${r.dischargeStatus || 'ກວດສຳເລັດ'})</span>`;
-          a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline" data-pid="${r.patientId}" title="ປະຫວັດການກວດ"><i class="fas fa-history"></i></button>
+          b = `<span class="badge bg-success"><i class="fas fa-check-circle"></i> ປິດຈົບ (${escapeHisHtml(r.dischargeStatus || 'ກວດສຳເລັດ')})</span>`;
+          a = `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline opd-history-button patient-history-button" data-pid="${escapeHisHtml(r.patientId)}" title="${visitHistoryTitle}" aria-label="${visitHistoryTitle}"><i class="fas fa-history"></i><span class="opd-history-count patient-history-count">${visitHistoryCount}</span></button>
                        <button class="btn btn-sm btn-success text-white fw-bold me-1" onclick="window.viewEMR(${i})" title="ເບິ່ງລາຍລະອຽດການກວດ"><i class="fas fa-eye"></i></button>
-                       <button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openEMR(${i})" title="ແກ້ໄຂການກວດ"><i class="fas fa-edit"></i></button>
+                       <button class="btn btn-sm btn-primary text-white fw-bold me-1" onclick="window.openSelectedOpdEncounter(${i})" title="ແກ້ໄຂການກວດ"><i class="fas fa-edit"></i></button>
                        <button class="btn btn-sm btn-outline-warning fw-bold me-1 btn-obs-add" onclick="window.openObservationFromVisit(${i})" title="${window.obsEscape(window.t('obs.startObservation'))}"><i class="fas fa-notes-medical"></i></button>
                        <button class="btn btn-sm btn-secondary text-white" onclick="window.printOPDCard('opd', ${i})"><i class="fas fa-print"></i></button>`;
         }
         let nb = r.isNew ? '<span class="badge bg-success ms-2">ໃໝ່</span>' : '<span class="badge bg-secondary ms-2">ເກົ່າ</span>';
         let dateTimeStr = (r.date ? r.date + ' ' : '') + r.time;
-        h += `<tr class="${isCalling ? 'table-danger' : ''}">
-                      <td class="text-muted small">${dateTimeStr}</td>
-                      <td class="text-dark fw-bold">${r.patientId}</td>
-                      <td><div class="fw-bold text-primary">${r.patientName} ${nb}</div></td>
-                      <td><span class="badge bg-light text-dark border px-2 py-1">${r.department}</span></td>
-                      <td>${b}</td>
-                      <td class="text-center"><div class="d-flex gap-1 justify-content-center">${a}</div></td>
+        const doctorBadge = window.renderOpdDoctorBadge(r.doctor);
+        const payerBadge = window.renderInsuranceOrgBadge({
+          Insurance_Company: r.insuranceCompany,
+          Name_Org: r.orgName
+        });
+        const orderBadges = window.renderOpdQueueOrderBadges(r, i);
+        h += `<tr class="${isCalling ? 'table-danger' : ''}" data-visit-id="${escapeHisHtml(r.visitId)}">
+                      <td class="text-muted small">${escapeHisHtml(dateTimeStr)}</td>
+                      <td class="text-dark fw-bold">${escapeHisHtml(r.patientId)}</td>
+                      <td class="text-nowrap">${escapeHisHtml(r.title || '—')}</td>
+                      <td>
+                        <div class="fw-bold text-primary">${escapeHisHtml(r.patientName)} ${nb}</div>
+                        <div class="opd-queue-mobile-details">
+                          <span><i class="fas fa-id-card"></i> ${escapeHisHtml(r.patientId)}</span>
+                          <span>${escapeHisHtml(r.title || '—')} · ${escapeHisHtml(r.ageText || (r.age ? `${r.age} ປີ` : '—'))} · ${escapeHisHtml(window.formatOpdQueueGender(r.gender))}</span>
+                          <span><i class="fas fa-door-open"></i> ${escapeHisHtml(r.department || '—')}</span>
+                          <span class="opd-queue-mobile-doctor">${doctorBadge}</span>
+                          <span class="opd-queue-mobile-payer">${payerBadge}</span>
+                        </div>
+                      </td>
+                      <td class="text-nowrap">${escapeHisHtml(r.ageText || (r.age ? `${r.age} ປີ` : '—'))}</td>
+                      <td class="text-nowrap">${escapeHisHtml(window.formatOpdQueueGender(r.gender))}</td>
+                      <td><span class="badge bg-light text-dark border px-2 py-1">${escapeHisHtml(r.department)}</span></td>
+                      <td data-opd-doctor>${doctorBadge}</td>
+                      <td>${payerBadge}</td>
+                      <td class="opd-queue-status-cell">
+                        <div class="opd-queue-status">
+                          <div class="opd-queue-visit-status">${b}</div>
+                          ${orderBadges ? `<div class="opd-queue-orders" aria-label="ສະຖານະຄຳສັ່ງ">${orderBadges}</div>` : ''}
+                        </div>
+                      </td>
+                      <td class="text-center"><div class="opd-queue-actions">${a}</div></td>
                     </tr>`;
       });
     }
     $('#queueTableBody').html(h);
-    $('#queueTable').DataTable({ responsive: true, pageLength: 10, order: [], language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວລໍຖ້າ" } });
+    $('#queueTable').DataTable({
+      responsive: true,
+      autoWidth: false,
+      pageLength: 10,
+      order: [],
+      columnDefs: [
+        { targets: 3, responsivePriority: 1 },
+        { targets: 10, orderable: false, responsivePriority: 1 },
+        { targets: 9, orderable: false, responsivePriority: 2 },
+        { targets: 1, responsivePriority: 3 },
+        { targets: 7, responsivePriority: 4 },
+        { targets: 6, responsivePriority: 5 },
+        { targets: 0, responsivePriority: 6 },
+        { targets: 8, responsivePriority: 7 },
+        { targets: [2, 4, 5], responsivePriority: 8 }
+      ],
+      language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຄິວລໍຖ້າ" }
+    });
     window.applyButtonPermissions?.();
   } catch (err) {
     console.error("Critical loadQueue Error:", err);
-    let msg = err.message || "Unknown error";
-    $('#queueTableBody').html(`<tr><td colspan="6" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
+    let msg = escapeHisHtml(err.message || "Unknown error");
+    $('#queueTableBody').html(`<tr><td colspan="11" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
   }
 };
 
 window.viewEMR = function (i) {
-  let q = queueDataStore[i];
+  const q = queueDataStore[i];
   if (!q) return;
 
-  let labList = "ບໍ່ມີການສັ່ງກວດ", drugList = "ບໍ່ມີການສັ່ງຢາ";
-  try {
-    let labs = q.labOrdersStr ? JSON.parse(q.labOrdersStr) : [];
-    if (labs.length > 0) {
-      labList = "<ul class='mb-0 text-start ps-3'>";
-      labs.forEach(l => labList += `<li>${l.name}</li>`);
-      labList += "</ul>";
+  const parseArray = (value) => {
+    if (!value) return [];
+    try {
+      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn('Invalid OPD view JSON:', error);
+      return [];
     }
-  } catch (e) { }
-
-  try {
-    let drugs = q.prescriptionStr ? JSON.parse(q.prescriptionStr) : [];
-    if (drugs.length > 0) {
-      drugList = "<ul class='mb-0 text-start ps-3'>";
-      drugs.forEach(d => drugList += `<li><b>${d.name}</b>: <span class="badge bg-secondary">${d.qty}</span> (${d.usage})</li>`);
-      drugList += "</ul>";
+  };
+  const text = (value, fallback = '—') => {
+    const normalized = String(value ?? '').trim();
+    return escapeHisHtml(normalized || fallback);
+  };
+  const multiline = (value, fallback = '—') => text(value, fallback).replace(/\r?\n/g, '<br>');
+  const metric = (value, suffix = '') => {
+    const normalized = String(value ?? '').trim();
+    return normalized ? `${text(normalized)}${suffix}` : '—';
+  };
+  const validPhotoUrl = (() => {
+    if (!q.photoUrl) return '';
+    try {
+      const url = new URL(String(q.photoUrl), window.location.href);
+      return ['http:', 'https:', 'blob:'].includes(url.protocol) ? escapeHisHtml(url.href) : '';
+    } catch (error) {
+      return '';
     }
-  } catch (e) { }
+  })();
 
-  let htmlBody = `
-        <div class="text-start" style="font-size: 14px; line-height: 1.6;">
-            <div class="row border-bottom pb-2 mb-2 align-items-center">
-                <div class="col-6 d-flex align-items-center gap-2">
-                    <div style="width: 45px; height: 45px; border-radius: 50%; overflow: hidden; background: #f1f5f9; border: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
-                        ${q.photoUrl ? `<img src="${q.photoUrl}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user text-muted"></i>`}
-                    </div>
-                    <div>
-                        <b><i class="fas fa-user text-primary"></i> ຄົນເຈັບ:</b> ${q.patientName} <br>
-                        <small class="text-muted">(${q.patientId}) - ${q.gender || '-'}, ${q.ageText || '-'}</small>
-                    </div>
-                </div>
-                <div class="col-6 text-end"><b><i class="far fa-clock text-info"></i> ເວລາ:</b> ${q.time}</div>
-            </div>
-            <p><b><i class="fas fa-user-md text-primary"></i> ແພດຜູ້ກວດ:</b> <span class="text-primary fw-bold">${q.doctor || '-'}</span> ${q.nurse ? `<span class="ms-3"><b><i class="fas fa-user-nurse text-info"></i> ພະຍາບານ:</b> ${q.nurse}</span>` : ''}</p>
-            <p><b><i class="fas fa-comment-medical text-danger"></i> ອາການເບື້ອງຕົ້ນ (CC):</b><br> ${q.symptoms || '-'}</p>
-            <div class="bg-light p-2 rounded mb-3 border">
-                <b><i class="fas fa-heartbeat text-danger"></i> Vitals:</b> 
-                BP: <span class="text-primary fw-bold">${q.bp || '-'}</span> | 
-                Temp: <span class="text-danger fw-bold">${q.temp ? q.temp + ' °C' : '-'}</span> | 
-                Wt: <span class="text-success fw-bold">${q.weight ? q.weight + ' kg' : '-'}</span>
-            </div>
-            <p><b><i class="fas fa-search text-dark"></i> ຜົນການກວດ (PE):</b><br> ${q.pe || '-'}</p>
-            <p><b><i class="fas fa-stethoscope text-danger"></i> ການວິນິດໄສ (Dx):</b><br> <span class="text-danger fw-bold">${q.diagnosis || '-'}</span></p>
-            <div class="row mt-3">
-                <div class="col-md-6 mb-2">
-                    <div class="border border-primary rounded p-2 h-100">
-                        <b class="text-primary"><i class="fas fa-flask"></i> ລາຍການແລັບ:</b>
-                        <div class="mt-1">${labList}</div>
-                    </div>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <div class="border border-success rounded p-2 h-100">
-                        <b class="text-success"><i class="fas fa-pills"></i> ລາຍການຢາ:</b>
-                        <div class="mt-1">${drugList}</div>
-                    </div>
-                </div>
-            </div>
-            <p class="mt-3 mb-1"><b><i class="fas fa-comment-dots text-warning"></i> ຄຳແນະນຳ:</b> ${q.advice || '-'}</p>
-            <p class="mb-1"><b><i class="fas fa-calendar-check text-info"></i> ນັດໝາຍ:</b> ${q.followup || '-'}</p>
-            <p class="mb-0"><b><i class="fas fa-clipboard-check text-success"></i> ສະຖານະ:</b> <span class="badge bg-success">${q.dischargeStatus || '-'}</span></p>
+  const labs = parseArray(q.labOrdersStr);
+  const drugs = parseArray(q.prescriptionStr);
+  const investigationMeta = {
+    lab: { label: 'Lab', icon: 'fa-flask', className: 'is-lab' },
+    ultrasound: { label: 'Ultrasound', icon: 'fa-wave-square', className: 'is-ultrasound' },
+    xray: { label: 'X-Ray', icon: 'fa-x-ray', className: 'is-xray' }
+  };
+  const investigationGroups = { lab: [], ultrasound: [], xray: [] };
+  labs.forEach((rawItem) => {
+    const item = typeof rawItem === 'string' ? { name: rawItem } : (rawItem || {});
+    const rawType = String(item.investigationType || item.type || item.category || 'lab').toLowerCase();
+    const type = rawType.includes('ultra') ? 'ultrasound' : (rawType.includes('x-ray') || rawType.includes('xray') || rawType.includes('radiology') ? 'xray' : 'lab');
+    investigationGroups[type].push(item);
+  });
+
+  const investigationHtml = Object.entries(investigationGroups)
+    .filter(([, items]) => items.length)
+    .map(([type, items]) => {
+      const meta = investigationMeta[type];
+      const rows = items.map((item) => {
+        const status = item.lisStatus || item.risStatus || item.status || '';
+        const secondary = [item.orderNo || item.localOrderId, status].filter(Boolean).map(value => text(value)).join(' · ');
+        return `<li><span>${text(item.name || item.label || item.testName)}</span>${secondary ? `<small>${secondary}</small>` : ''}</li>`;
+      }).join('');
+      return `<section class="opd-view-order-group ${meta.className}"><h5><i class="fas ${meta.icon}"></i>${meta.label}<span>${items.length}</span></h5><ul>${rows}</ul></section>`;
+    }).join('') || '<div class="opd-view-empty"><i class="fas fa-flask"></i><span>ບໍ່ມີການສັ່ງກວດ</span></div>';
+
+  const medicationHtml = drugs.length
+    ? `<ul class="opd-view-medication-list">${drugs.map((rawItem) => {
+      const item = typeof rawItem === 'string' ? { name: rawItem } : (rawItem || {});
+      const isFreeText = Boolean(item.isFreeText || item.freeText);
+      const name = item.freeText || item.name || item.label;
+      const instructions = item.instructions || item.instr || item.usage || [item.dose, item.route, item.frequency, item.duration].filter(Boolean).join(' · ');
+      const quantity = item.quantity || item.qty;
+      return `<li>
+        <div><strong>${text(name)}</strong>${isFreeText ? '<span class="opd-view-free-text">Free text</span>' : ''}</div>
+        <p>${text(instructions, 'ບໍ່ລະບຸວິທີໃຊ້')}${quantity ? ` <span>· Qty ${text(quantity)}</span>` : ''}</p>
+      </li>`;
+    }).join('')}</ul>`
+    : '<div class="opd-view-empty"><i class="fas fa-pills"></i><span>ບໍ່ມີການສັ່ງຢາ</span></div>';
+
+  const clinicalField = (label, shortLabel, value, emphasis = false) => `
+    <div class="opd-view-clinical-field${emphasis ? ' is-emphasis' : ''}">
+      <dt>${text(shortLabel)}</dt>
+      <dd><span>${text(label)}</span><p>${multiline(value)}</p></dd>
+    </div>`;
+  const patientLocation = [q.address, q.district, q.province].filter(value => String(value || '').trim()).join(', ');
+  const payer = q.insuranceCompany || q.orgName || q.insuranceCode || 'ຊຳລະເອງ';
+  const visitDateTime = [q.date, q.time].filter(Boolean).join(' ');
+
+  const htmlBody = `
+    <article class="opd-view-record">
+      <header class="opd-view-patient-header">
+        <div class="opd-view-avatar">
+          <i class="fas fa-user"></i>
+          ${validPhotoUrl ? `<img src="${validPhotoUrl}" alt="">` : ''}
         </div>
-    `;
+        <div class="opd-view-patient-identity">
+          <span>ຄົນເຈັບ / Patient</span>
+          <h3>${text(q.patientName)}</h3>
+          <div><b>HN ${text(q.patientId)}</b><span>${text(q.gender)}</span><span>${text(q.ageText || q.age)}</span></div>
+          ${patientLocation ? `<small><i class="fas fa-location-dot"></i>${text(patientLocation)}</small>` : ''}
+        </div>
+        <div class="opd-view-visit-time">
+          <span>ວັນ-ເວລາກວດ</span>
+          <strong><i class="far fa-clock"></i>${text(visitDateTime)}</strong>
+          <small>${text(q.visitId || q.type || q.site)}</small>
+        </div>
+      </header>
+
+      <section class="opd-view-meta-grid">
+        <div><i class="fas fa-user-doctor"></i><span>ແພດຜູ້ກວດ</span><strong>${text(q.doctor)}</strong></div>
+        <div><i class="fas fa-user-nurse"></i><span>ພະຍາບານ</span><strong>${text(q.nurse)}</strong></div>
+        <div><i class="fas fa-hospital"></i><span>ພະແນກ</span><strong>${text(q.department)}</strong></div>
+        <div><i class="fas fa-shield-halved"></i><span>ສິດການຮັກສາ / ອົງກອນ</span><strong>${text(payer)}</strong></div>
+      </section>
+
+      <section class="opd-view-vitals" aria-label="Vital signs">
+        <div><span>BP</span><strong>${metric(q.bp)}</strong></div>
+        <div><span>TEMP</span><strong>${metric(q.temp, ' °C')}</strong></div>
+        <div><span>PR</span><strong>${metric(q.pulse, ' bpm')}</strong></div>
+        <div><span>RR</span><strong>${metric(q.rr, ' /min')}</strong></div>
+        <div><span>SpO₂</span><strong>${metric(q.spo2, ' %')}</strong></div>
+        <div><span>WT</span><strong>${metric(q.weight, ' kg')}</strong></div>
+        <div><span>HT</span><strong>${metric(q.height, ' cm')}</strong></div>
+        <div><span>BMI</span><strong>${metric(q.bmi)}</strong></div>
+      </section>
+
+      <div class="opd-view-clinical-grid">
+        <section class="opd-view-panel">
+          <h4><i class="fas fa-notes-medical"></i>ປະຫວັດ ແລະ ການກວດ <small>History &amp; Examination</small></h4>
+          <dl>
+            ${clinicalField('ອາການສຳຄັນ', 'CC', q.symptoms)}
+            ${clinicalField('ປະຫວັດອາການປັດຈຸບັນ', 'H/O', q.hpi)}
+            ${clinicalField('ປະຫວັດພະຍາດເກົ່າ', 'PHE', q.pastHistory)}
+            ${clinicalField('ຜົນກວດຮ່າງກາຍ', 'PE', q.pe)}
+          </dl>
+        </section>
+        <section class="opd-view-panel">
+          <h4><i class="fas fa-stethoscope"></i>ການວິນິດໄສ ແລະ ການປິ່ນປົວ <small>Diagnosis &amp; Treatment</small></h4>
+          <dl>
+            ${clinicalField('ການວິນິດໄສ', 'Dx', q.diagnosis, true)}
+            ${clinicalField('ການປິ່ນປົວ', 'Tx', q.treatment)}
+            ${clinicalField('ຄຳແນະນຳ', 'Adv.', q.advice)}
+          </dl>
+        </section>
+      </div>
+
+      <section class="opd-view-orders">
+        <div class="opd-view-orders-panel">
+          <h4><i class="fas fa-microscope"></i>ລາຍການກວດ <small>Investigation Orders</small></h4>
+          <div class="opd-view-investigation-groups">${investigationHtml}</div>
+        </div>
+        <div class="opd-view-orders-panel is-medication">
+          <h4><i class="fas fa-prescription-bottle-medical"></i>ລາຍການຢາ <small>Medication Orders</small></h4>
+          ${medicationHtml}
+        </div>
+      </section>
+
+      <footer class="opd-view-footer-summary">
+        <div><span><i class="fas fa-calendar-check"></i>ນັດໝາຍຕໍ່ໄປ</span><strong>${text(q.followup)}</strong></div>
+        <div><span><i class="fas fa-clipboard-check"></i>ຜົນສະຫຼຸບການກວດ</span><strong>${text(q.dischargeStatus)}</strong></div>
+      </footer>
+    </article>`;
 
   Swal.fire({
-    title: '<i class="fas fa-file-medical-alt text-primary"></i> ຂໍ້ມູນການກວດພະຍາດ',
+    title: '<i class="fas fa-file-medical-alt"></i><span>ບັນທຶກການກວດ</span><small>Clinical Record</small>',
     html: htmlBody,
-    width: '700px',
+    width: 'calc(100vw - 20px)',
     showCloseButton: true,
     focusConfirm: false,
     confirmButtonText: 'ປິດ',
-    confirmButtonColor: '#64748b'
+    buttonsStyling: false,
+    didOpen: (popup) => {
+      const photo = popup.querySelector('.opd-view-avatar img');
+      photo?.addEventListener('error', () => photo.remove(), { once: true });
+    },
+    customClass: {
+      popup: 'opd-view-swal',
+      title: 'opd-view-swal-title',
+      htmlContainer: 'opd-view-swal-body',
+      actions: 'opd-view-swal-actions',
+      confirmButton: 'opd-view-close-button'
+    }
   });
 };
 
@@ -8913,6 +10213,18 @@ window.resolveVisitStatusFromDischarge = function (dischargeStatus) {
   if (normalized.includes('admit ipd') || value.includes('ນອນ IPD')) return 'Admit IPD';
   if (normalized.includes('pharmacy') || normalized.includes('rx') || value.includes('ຮັບຢາ')) return 'Pharmacy';
   return 'Completed';
+};
+
+window.openOPDTest = function (index) {
+  const visit = queueDataStore[index];
+  if (!visit) {
+    window.Swal?.fire('ບໍ່ພົບຂໍ້ມູນ', 'ກະລຸນາໂຫຼດຄິວ OPD ໃໝ່ ແລ້ວເລືອກຄົນເຈັບອີກຄັ້ງ.', 'warning');
+    return;
+  }
+  window.opdTestSelectedVisit = { ...visit };
+  window.opdTestPatientSelectionMode = false;
+  window.opdTestNeedsEncounterLoad = true;
+  window.loadView('opd_consultation', { path: '/opd/consultation', replace: true, force: true });
 };
 
 window.openEMR = function (i) {
@@ -9141,8 +10453,8 @@ window.handleEmrSendToIpd = async function ({ visitId, patientId, patientName, d
   }).then(() => window.loadView('ipd_ward_bed'));
 };
 
-window.printOPDCard = async function (s, i) {
-  let v = (s === 'triage') ? currentTriageData[i] : queueDataStore[i];
+window.printOPDCard = async function (s, i, overrideVisit = null) {
+  let v = overrideVisit || ((s === 'triage') ? currentTriageData[i] : queueDataStore[i]);
   if (!v) return;
 
   Swal.fire({ title: 'ກຳລັງສ້າງໃບ OPD...', didOpen: () => Swal.showLoading() });
@@ -9381,6 +10693,9 @@ window.printOPDCard = async function (s, i) {
     safeSetText('popd2_w', v.weight ? v.weight + ' kg' : '');
     safeSetText('popd2_h', v.height ? v.height + ' cm' : '');
     safeSetText('popd2_bmi', bmiText && bmiText !== '-' ? bmiText : '');
+    safeSetText('popd2_follow_symptoms', v.opdPrintSymptoms || v.symptoms || '');
+    safeSetText('popd2_follow_treatment', v.opdPrintTreatment || v.treatment || '');
+    safeSetText('popd2_follow_notes', v.opdPrintNotes || v.notes || v.advice || '');
 
     // Page 2 header assets (logo + red ID + barcode + date) — mirror Page 1.
     const p2logo = document.getElementById('print-opd-p2-logo');
@@ -10402,7 +11717,7 @@ window.submitDrugMasterForm = async function (e) {
 
 window.loadLabsMaster = async function () {
   if ($.fn.DataTable.isDataTable('#labTable')) $('#labTable').DataTable().destroy();
-  $('#labTable tbody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#labTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Labs_Master')).select('*');
@@ -10415,44 +11730,74 @@ window.loadLabsMaster = async function () {
 
     if ($.fn.DataTable.isDataTable('#labTable')) $('#labTable').DataTable().destroy();
     let h = '';
-    const rows = window.applyLabCategoriesToList((r || []).map(x => ({ ...x, id: x.Lab_ID, category: '' })));
+    const rows = window.applyLabCategoriesToList((r || []).map(x => ({ ...x, id: x.Lab_ID, category: '' })))
+      .sort((a, b) => Number(a.sortOrder || Number.MAX_SAFE_INTEGER) - Number(b.sortOrder || Number.MAX_SAFE_INTEGER)
+        || String(a.Lab_Name || '').localeCompare(String(b.Lab_Name || '')));
+    window.currentLabMasterRows = rows;
     if (rows.length > 0) {
       rows.forEach(x => {
         const safeName = encodeURIComponent(x.Lab_Name || '');
         const safeDesc = encodeURIComponent(x.Description || '');
         const safeCategory = encodeURIComponent(x.category || '');
+        const safeDisplayName = window.escapeEmrPickerHtml(x.Lab_Name || '');
+        const safeDisplayCategory = window.escapeEmrPickerHtml(x.category || '');
+        const safeDisplayDescription = window.escapeEmrPickerHtml(x.Description || '');
+        const sortOrder = Number.parseInt(x.sortOrder, 10) || '';
         h += `<tr>
                         <td class="text-center"><input type="checkbox" class="form-check-input bulk-check-labs" value="${x.Lab_ID}"></td>
-                        <td class="fw-bold text-primary">${x.Lab_Name}</td>
-                        <td>${x.category || '<span class="text-muted">-</span>'}</td>
-                        <td>${x.Description}</td>
+                        <td class="fw-bold text-primary">${safeDisplayName}</td>
+                        <td>${safeDisplayCategory || '<span class="text-muted">-</span>'}</td>
+                        <td>${safeDisplayDescription || '<span class="text-muted">-</span>'}</td>
+                        <td class="text-center" data-order="${sortOrder || 999999}"><span class="badge bg-light text-dark border">${sortOrder || '-'}</span></td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.editLabMaster('${x.Lab_ID}','${safeName}','${safeDesc}','${safeCategory}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.editLabMaster('${x.Lab_ID}','${safeName}','${safeDesc}','${safeCategory}','${sortOrder}')" title="ແກ້ໄຂ Lab, ໝວດ ແລະ ລຳດັບ"><i class="fas fa-edit"></i></button>
                             <button class="btn btn-sm btn-danger shadow-sm" onclick="window.delLabMaster('${x.Lab_ID}')"><i class="fas fa-trash"></i></button>
                         </td>
                       </tr>`;
       });
     }
     $('#labTable tbody').html(h);
-    $('#labTable').DataTable({ responsive: true, pageLength: 10, language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຂໍ້ມູນ" } });
+    $('#labTable').DataTable({
+      responsive: true,
+      pageLength: 10,
+      order: [[4, 'asc'], [1, 'asc']],
+      columnDefs: [{ orderable: false, targets: [0, 5] }],
+      language: { search: "ຄົ້ນຫາ:", emptyTable: "ບໍ່ມີຂໍ້ມູນ" }
+    });
   } catch (err) {
     console.error('System Error:', err);
     Swal.fire('Error', err.message, 'error');
   }
 };
 
+window.refreshLabCategorySelectOptions = function (selectedCategory = '') {
+  const categorySelect = document.getElementById('lb_category');
+  if (!categorySelect) return;
+  const normalizedSelected = String(selectedCategory || '').trim();
+  const options = window.getLabCategoryOptions();
+  if (normalizedSelected && !options.some(option => window.normalizeLabCategoryLabel(option) === window.normalizeLabCategoryLabel(normalizedSelected))) {
+    options.push(normalizedSelected);
+  }
+  categorySelect.innerHTML = '<option value="">-- ເລືອກໝວດ --</option>'
+    + options.map(option => `<option value="${window.escapeEmrPickerHtml(option)}">${window.escapeEmrPickerHtml(option)}</option>`).join('');
+  categorySelect.value = normalizedSelected;
+};
+
 window.openLabMasterModal = function () {
   $('#labMasterForm')[0].reset();
   $('#lb_id').val('');
-  $('#lb_category').val('');
+  window.refreshLabCategorySelectOptions('');
+  const nextSortOrder = Math.max(0, ...(window.currentLabMasterRows || []).map(item => Number.parseInt(item.sortOrder, 10) || 0)) + 1;
+  $('#lb_sort_order').val(nextSortOrder || 1);
   $('#labMasterModal').modal('show');
 };
 
-window.editLabMaster = function (id, n, d, category) {
+window.editLabMaster = function (id, n, d, category, sortOrder) {
   $('#lb_id').val(id);
   $('#lb_name').val(decodeURIComponent(n || ''));
   $('#lb_desc').val(decodeURIComponent(d || ''));
-  $('#lb_category').val(decodeURIComponent(category || ''));
+  window.refreshLabCategorySelectOptions(decodeURIComponent(category || ''));
+  $('#lb_sort_order').val(Number.parseInt(sortOrder, 10) || 1);
   $('#labMasterModal').modal('show');
 };
 
@@ -10473,6 +11818,7 @@ window.submitLabMasterForm = async function (e) {
 
   let isEdit = $('#lb_id').val() !== '';
   let category = ($('#lb_category').val() || '').trim();
+  let sortOrder = Number.parseInt($('#lb_sort_order').val(), 10);
   let row = {
     Lab_Name: $('#lb_name').val(), Description: $('#lb_desc').val()
   };
@@ -10489,7 +11835,7 @@ window.submitLabMasterForm = async function (e) {
       labId = data?.Lab_ID;
     }
 
-    const mappingResult = await window.saveLabCategoryMapping(labId, category);
+    const mappingResult = await window.saveLabCategoryMapping(labId, category, sortOrder);
     if (mappingResult.error) throw mappingResult.error;
 
     await window.loadMasterDataGlobal();
@@ -10508,7 +11854,9 @@ window.loadUsers = async function () {
 
   window.refreshDoctorUserList?.();
   try {
-    const { data: u, error } = await supabaseClient.from(dbTable('Users')).select('*');
+    const { data: u, error } = await supabaseClient
+      .from(dbTable('Users'))
+      .select('ID,Name,Email,Role,Permissions,ButtonPermissions,Status,Auth_User_ID,Must_Change_Password');
 
     // 🚨 ດັກຈັບ Error ຕາມ Antigravity
     if (error) {
@@ -10522,16 +11870,20 @@ window.loadUsers = async function () {
     if (u && u.length > 0) {
       u.forEach(x => {
         let sb = x.Status === 'active' ? '<span class="badge bg-success rounded-pill px-3">ເປີດໃຊ້ງານ</span>' : '<span class="badge bg-danger rounded-pill px-3">ປິດໃຊ້ງານ</span>';
+        const isProtectedAdmin = isHisProtectedAdminEmail(x.Email);
+        const actions = isProtectedAdmin
+          ? '<span class="badge bg-light text-primary border px-3 py-2" title="ບັນຊີ Admin ຫຼັກຖືກປ້ອງກັນ"><i class="fas fa-lock me-1"></i>ບັນຊີຫຼັກ</span>'
+          : `<button class="btn btn-sm btn-info text-white shadow-sm me-1" onclick="window.openButtonPermModal('${x.ID}','${x.Name}','${x.Email}')" title="ກຳນົດສິດປຸ່ມ"><i class="fas fa-fingerprint"></i></button>
+             <button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.openEditUserModal('${x.ID}','${x.Name}','${x.Email}','${x.Role}','${x.Permissions || ''}')"><i class="fas fa-edit"></i></button>
+             <button class="btn btn-sm btn-danger shadow-sm rounded" onclick="window.deleteUserRow('${x.ID}','${x.Email}')"><i class="fas fa-trash"></i></button>`;
         h += `<tr>
-                        <td class="text-center"><input type="checkbox" class="form-check-input bulk-check-users" value="${x.ID}"></td>
+                        <td class="text-center"><input type="checkbox" class="form-check-input bulk-check-users" value="${x.ID}" ${isProtectedAdmin ? 'disabled title="ບັນຊີ Admin ຫຼັກຖືກປ້ອງກັນ"' : ''}></td>
                         <td class="fw-bold">${x.Name}</td>
                         <td class="text-muted">${x.Email}</td>
                         <td><span class="badge ${x.Role === 'admin' ? 'bg-primary' : 'bg-secondary'} rounded-pill px-3 text-uppercase">${x.Role}</span></td>
                         <td>${sb}</td>
                         <td class="text-center">
-                            <button class="btn btn-sm btn-info text-white shadow-sm me-1" onclick="window.openButtonPermModal('${x.ID}','${x.Name}')" title="ກຳນົດສິດປຸ່ມ"><i class="fas fa-fingerprint"></i></button>
-                            <button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.openEditUserModal('${x.ID}','${x.Name}','${x.Email}','${x.Role}','${x.Permissions || ''}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-danger shadow-sm rounded" onclick="window.deleteUserRow('${x.ID}')"><i class="fas fa-trash"></i></button>
+                            ${actions}
                         </td>
                       </tr>`;
       });
@@ -10564,11 +11916,15 @@ window.openAddUserModal = function () {
   $('#u_id').val('');
   $('#userModalTitle').html('<i class="fas fa-user-plus me-2"></i>ເພີ່ມຜູ້ໃຊ້ລະບົບ');
   $('#u_pass').prop('required', true);
-  window.togglePermissionsBox();
+  window.togglePermissionsBox(true);
   $('#addUserModal').modal('show');
 };
 
 window.openEditUserModal = function (id, n, e, r, p) {
+  if (isHisProtectedAdminEmail(e)) {
+    Swal.fire('ບັນຊີຖືກປ້ອງກັນ', 'ບໍ່ສາມາດແກ້ໄຂ Admin ຫຼັກໄດ້', 'warning');
+    return;
+  }
   $('#u_id').val(id);
   $('#u_name').val(n);
   $('#u_email').val(e);
@@ -10589,12 +11945,12 @@ window.openEditUserModal = function (id, n, e, r, p) {
     $('.permission-check').prop('checked', true);
   }
   
-  window.togglePermissionsBox();
+  window.togglePermissionsBox(false);
   $('#addUserModal').modal('show');
 };
 
-window.togglePermissionsBox = function () {
-  let role = $('#u_role').val();
+window.togglePermissionsBox = function (applyDefaults = true) {
+  const role = normalizeHisRole($('#u_role').val());
   
   // Hide permissions for Admin (has all permissions)
   if (role === 'admin') {
@@ -10602,34 +11958,20 @@ window.togglePermissionsBox = function () {
     $('.permission-check').prop('checked', true);
     return;
   }
-  
+
   $('#permBox').show();
-  
-  // Preset permissions by role
-  const rolePermissions = {
-    'doctor': 'dashboard,report,patients,triage,opd,opd_observation,labs,drugs,appointments,vaccines,activity_log',
-    'nurse': 'dashboard,patients,triage,opd_observation,appointments,vaccines',
-    'lab': 'dashboard,report,labs',
-    'pharmacy': 'dashboard,report,drugs',
-    'reception': 'dashboard,patients,appointments,orgs',
-    'cashier': 'dashboard,report,patients',
-    'staff': 'dashboard,patients',
-    '': '' // No role selected
-  };
-  
-  // Auto-select permissions based on role
-  let perms = rolePermissions[role] || '';
-  $('.permission-check').prop('checked', false);
-  
-  if (perms) {
-    perms.split(',').forEach(perm => {
-      $(`.permission-check[value="${perm}"]`).prop('checked', true);
-    });
-  }
+  const allowedPages = new Set(HIS_ROLE_PAGE_DEFAULTS[role] || []);
+  if (applyDefaults) $('.permission-check').prop('checked', false);
+  $('.permission-check').each(function () {
+    const allowed = allowedPages.has(String(this.value));
+    $(this).prop('disabled', !allowed).closest('.form-check').toggleClass('opacity-50', !allowed);
+    if (!allowed) this.checked = false;
+    else if (applyDefaults) this.checked = true;
+  });
 };
 
 window.selectAllPermissions = function () {
-  $('.permission-check').prop('checked', true);
+  $('.permission-check:not(:disabled)').prop('checked', true);
 };
 
 window.deselectAllPermissions = function () {
@@ -10643,83 +11985,84 @@ window.deselectAllPermissions = function () {
 // Check if user has permission for a specific button
 window.can = function (module, action) {
   if (!currentUser) return false;
-  if (currentUser.role === 'admin' || currentUser.permissions === 'all') return true;
-  
+  const role = normalizeHisRole(currentUser.role);
+  if (role === 'admin') return true;
+  if (!roleAllowsHisAction(role, module, action)) return false;
   const buttonPerms = currentUser.buttonPermissions;
   if (!buttonPerms || !buttonPerms[module]) return false;
-  
   return buttonPerms[module][action] === true;
+};
+
+window.requireHisAction = function (moduleName, actionName, allowedRoles = []) {
+  const role = normalizeHisRole(currentUser?.role);
+  const roleAllowed = !allowedRoles.length || role === 'admin' || allowedRoles.includes(role);
+  if (roleAllowed && window.can(moduleName, actionName)) return true;
+  Swal.fire('ບໍ່ມີສິດ', 'ບັນຊີນີ້ບໍ່ສາມາດເຮັດລາຍການນີ້ໄດ້', 'warning');
+  return false;
 };
 
 // Hide/show buttons based on permissions
 window.applyButtonPermissions = function () {
-  if (!currentUser || currentUser.role === 'admin' || currentUser.permissions === 'all') return;
-  
-  const buttonPerms = currentUser.buttonPermissions;
-  if (!buttonPerms) return;
-  
-  // Patients buttons
-  if (!window.can('patients', 'view')) $('.btn-patient-view, .btn-view-patient').hide();
-  if (!window.can('patients', 'add')) $('.btn-add-patient, #btnAddPatient').hide();
-  if (!window.can('patients', 'edit')) $('.btn-patient-edit, .btn-edit-patient').hide();
-  if (!window.can('patients', 'delete')) $('.btn-patient-delete, .btn-delete-patient').hide();
-  if (!window.can('patients', 'triage')) $('.btn-triage, .btn-send-triage').hide();
-  if (!window.can('patients', 'print_qr')) $('.btn-print-qr, .btn-qr-card').hide();
-  
-  // Triage buttons
-  if (!window.can('triage', 'view')) $('.btn-triage-view').hide();
-  if (!window.can('triage', 'edit')) $('.btn-triage-edit, .btn-vital-signs').hide();
-  if (!window.can('triage', 'delete')) $('.btn-triage-delete').hide();
-  if (!window.can('triage', 'call')) $('.btn-call-triage, .btn-volume-up').hide();
-  
-  // OPD buttons
-  if (!window.can('opd', 'view')) $('.btn-opd-view, .btn-view-emr').hide();
-  if (!window.can('opd', 'edit')) $('.btn-opd-edit, .btn-open-emr').hide();
-  if (!window.can('opd', 'delete')) $('.btn-opd-delete').hide();
-  if (!window.can('opd', 'print')) $('.btn-opd-print, .btn-print-opd').hide();
+  if (!currentUser) return;
+  const rules = [
+    ['patients', 'view', '.btn-patient-view, .btn-view-patient'],
+    ['patients', 'add', '.btn-add-patient, #btnAddPatient'],
+    ['patients', 'edit', '.btn-patient-edit, .btn-edit-patient'],
+    ['patients', 'delete', '.btn-patient-delete, .btn-delete-patient'],
+    ['patients', 'triage', '.btn-triage, .btn-send-triage'],
+    ['patients', 'print_qr', '.btn-print-qr, .btn-qr-card'],
+    ['triage', 'view', '.btn-triage-view'],
+    ['triage', 'edit', '.btn-triage-edit, .btn-vital-signs'],
+    ['triage', 'delete', '.btn-triage-delete'],
+    ['triage', 'call', '.btn-call-triage, .btn-volume-up'],
+    ['opd', 'view', '.btn-opd-view, .btn-view-emr'],
+    ['opd', 'edit', '.btn-opd-edit, .btn-open-emr'],
+    ['opd', 'delete', '.btn-opd-delete'],
+    ['opd', 'print', '.btn-opd-print, .btn-print-opd'],
+    ['opd_observation', 'view', '.btn-obs-view'],
+    ['opd_observation', 'add', '.btn-obs-add'],
+    ['opd_observation', 'note', '.btn-obs-note'],
+    ['opd_observation', 'convert', '.btn-obs-convert'],
+    ['opd_observation', 'discharge', '.btn-obs-discharge'],
+    ['labs', 'view', '.btn-labs-view'],
+    ['labs', 'add', '.btn-labs-add'],
+    ['labs', 'edit', '.btn-labs-edit'],
+    ['labs', 'delete', '.btn-labs-delete'],
+    ['drugs', 'view', '.btn-drugs-view'],
+    ['drugs', 'add', '.btn-drugs-add'],
+    ['drugs', 'edit', '.btn-drugs-edit'],
+    ['drugs', 'delete', '.btn-drugs-delete'],
+    ['appointments', 'view', '.btn-appt-view'],
+    ['appointments', 'add', '.btn-add-appt'],
+    ['appointments', 'edit', '.btn-appt-edit'],
+    ['appointments', 'delete', '.btn-appt-delete, .btn-delete-appt'],
+    ['ipd', 'admit', '.btn-ipd-admit'],
+    ['ipd', 'transfer', '.btn-ipd-transfer'],
+    ['ipd', 'discharge', '.btn-ipd-discharge'],
+    ['ipd', 'chart_edit', '.btn-ipd-chart-edit'],
+    ['ipd_config', 'add', '.btn-ipd-config-add'],
+    ['ipd_config', 'edit', '.btn-ipd-config-edit'],
+    ['ipd_config', 'delete', '.btn-ipd-config-delete']
+  ];
+  rules.forEach(([moduleName, actionName, selector]) => $(selector).toggle(window.can(moduleName, actionName)));
 
-  // OPD Follow-up / Observation buttons
-  if (!window.can('opd_observation', 'view')) $('.btn-obs-view').hide();
-  if (!window.can('opd_observation', 'add')) $('.btn-obs-add').hide();
-  if (!window.can('opd_observation', 'note')) $('.btn-obs-note').hide();
-  if (!window.can('opd_observation', 'convert')) $('.btn-obs-convert').hide();
-  if (!window.can('opd_observation', 'discharge')) $('.btn-obs-discharge').hide();
-  
-  // Labs buttons
-  if (!window.can('labs', 'view')) $('.btn-labs-view').hide();
-  if (!window.can('labs', 'add')) $('.btn-labs-add').hide();
-  if (!window.can('labs', 'edit')) $('.btn-labs-edit').hide();
-  if (!window.can('labs', 'delete')) $('.btn-labs-delete').hide();
-  
-  // Drugs buttons
-  if (!window.can('drugs', 'view')) $('.btn-drugs-view').hide();
-  if (!window.can('drugs', 'add')) $('.btn-drugs-add').hide();
-  if (!window.can('drugs', 'edit')) $('.btn-drugs-edit').hide();
-  if (!window.can('drugs', 'delete')) $('.btn-drugs-delete').hide();
-  
-  // Appointments buttons
-  if (!window.can('appointments', 'view')) $('.btn-appt-view').hide();
-  if (!window.can('appointments', 'add')) $('.btn-add-appt').hide();
-  if (!window.can('appointments', 'edit')) $('.btn-appt-edit').hide();
-  if (!window.can('appointments', 'delete')) $('.btn-appt-delete, .btn-delete-appt').hide();
-
-  // IPD buttons (ward/bed board + chart)
-  if (!window.can('ipd', 'admit')) $('.btn-ipd-admit').hide();
-  if (!window.can('ipd', 'transfer')) $('.btn-ipd-transfer').hide();
-  if (!window.can('ipd', 'discharge')) $('.btn-ipd-discharge').hide();
-  if (!window.can('ipd', 'chart_edit')) $('.btn-ipd-chart-edit').hide();
-
-  // IPD Config buttons (Settings → Ward/Room/Bed CRUD)
-  if (!window.can('ipd_config', 'add')) $('.btn-ipd-config-add').hide();
-  if (!window.can('ipd_config', 'edit')) $('.btn-ipd-config-edit').hide();
-  if (!window.can('ipd_config', 'delete')) $('.btn-ipd-config-delete').hide();
+  const role = normalizeHisRole(currentUser.role);
+  $('.btn-obs-doctor-note').toggle(window.can('opd_observation', 'note') && (role === 'admin' || role === 'doctor'));
+  $('.btn-obs-nursing-note').toggle(window.can('opd_observation', 'note') && (role === 'admin' || role === 'nurse'));
+  $('.btn-obs-vital').toggle(window.can('opd_observation', 'note') && (role === 'admin' || role === 'nurse'));
+  $('.btn-ipd-doctor-note, .btn-ipd-discharge-summary').toggle(window.can('ipd', 'chart_edit') && (role === 'admin' || role === 'doctor'));
+  $('.btn-ipd-nursing-note').toggle(window.can('ipd', 'chart_edit') && (role === 'admin' || role === 'nurse'));
 };
 
 // ==========================================
 // BUTTON PERMISSIONS MANAGEMENT
 // ==========================================
 
-window.openButtonPermModal = async function (userId, userName) {
+window.openButtonPermModal = async function (userId, userName, userEmail = '') {
+  if (isHisProtectedAdminEmail(userEmail)) {
+    Swal.fire('ບັນຊີຖືກປ້ອງກັນ', 'Admin ຫຼັກມີສິດຄົບຖ້ວນ ແລະບໍ່ສາມາດປ່ຽນແປງໄດ້', 'warning');
+    return;
+  }
   $('#permUserId').val(userId);
   $('#permUserName').text(userName);
   
@@ -10730,7 +12073,7 @@ window.openButtonPermModal = async function (userId, userName) {
     // Fetch user's button permissions
     const { data, error } = await supabaseClient
       .from(dbTable('Users'))
-      .select('ButtonPermissions')
+      .select('Role,ButtonPermissions')
       .eq('ID', userId)
       .single();
     
@@ -10740,9 +12083,9 @@ window.openButtonPermModal = async function (userId, userName) {
       return;
     }
     
-    // Set checkboxes based on permissions
-    if (data && data.ButtonPermissions) {
-      const perms = data.ButtonPermissions;
+    window.permissionEditorRole = normalizeHisRole(data?.Role || 'staff');
+    const perms = sanitizeHisActionPermissions(window.permissionEditorRole, data?.ButtonPermissions);
+    if (perms) {
       
       // Iterate through all modules and their buttons
       Object.keys(perms).forEach(module => {
@@ -10754,6 +12097,7 @@ window.openButtonPermModal = async function (userId, userName) {
         });
       });
     }
+    window.applyButtonPermissionRoleCeiling();
     
     $('#buttonPermModal').modal('show');
     
@@ -10764,15 +12108,26 @@ window.openButtonPermModal = async function (userId, userName) {
 };
 
 window.selectAllButtonPermissions = function () {
-  $('.btn-perm-check').prop('checked', true);
+  $('.btn-perm-check:not(:disabled)').prop('checked', true);
 };
 
 window.deselectAllButtonPermissions = function () {
   $('.btn-perm-check').prop('checked', false);
 };
 
+window.applyButtonPermissionRoleCeiling = function () {
+  const role = normalizeHisRole(window.permissionEditorRole || 'staff');
+  $('.btn-perm-check').each(function () {
+    const [moduleName, actionName] = String(this.value || '').split('.');
+    const allowed = roleAllowsHisAction(role, moduleName, actionName);
+    $(this).prop('disabled', !allowed).closest('.form-check').toggleClass('opacity-50', !allowed);
+    if (!allowed) this.checked = false;
+  });
+  $('#buttonPermRoleLabel').text(role.toUpperCase());
+};
+
 window.resetToRoleDefaults = function () {
-  const role = $('#u_role').val() || 'staff';
+  const role = normalizeHisRole(window.permissionEditorRole || 'staff');
   
   const roleDefaults = {
     'admin': {
@@ -10792,7 +12147,7 @@ window.resetToRoleDefaults = function () {
       opd: { view: true, edit: true, delete: false, print: true },
       opd_observation: { view: true, add: true, note: true, convert: true, discharge: true },
       labs: { view: true, add: true, edit: true, delete: false },
-      drugs: { view: true, add: true, edit: true, delete: false },
+      drugs: { view: false, add: false, edit: false, delete: false },
       appointments: { view: true, add: true, edit: true, delete: false },
       ipd: { view: true, admit: true, transfer: true, discharge: true, chart_edit: true },
       ipd_config: { view: false, add: false, edit: false, delete: false }
@@ -10865,7 +12220,7 @@ window.resetToRoleDefaults = function () {
     }
   };
   
-  const defaults = roleDefaults[role] || {};
+  const defaults = HIS_ROLE_ACTION_DEFAULTS[role] || HIS_ROLE_ACTION_DEFAULTS.staff;
   
   // Reset all checkboxes
   $('.btn-perm-check').prop('checked', false);
@@ -10879,6 +12234,7 @@ window.resetToRoleDefaults = function () {
       }
     });
   });
+  window.applyButtonPermissionRoleCeiling();
 };
 
 window.saveButtonPermissions = async function () {
@@ -10946,15 +12302,17 @@ window.saveButtonPermissions = async function () {
       delete: $('#perm_ipd_config_delete').is(':checked')
     }
   };
+  const safePermissions = sanitizeHisActionPermissions(window.permissionEditorRole, permissions);
   
   try {
-    const { error } = await supabaseClient
-      .from(dbTable('Users'))
-      .update({ ButtonPermissions: permissions })
-      .eq('ID', userId);
-    
-    if (error) {
-      Swal.fire('Error', 'ບໍ່ສາມາດບັນທຶກສິດໄດ້: ' + error.message, 'error');
+    const resp = await window.authenticatedFetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(userId), buttonPermissions: safePermissions })
+    });
+    const result = await resp.json().catch(() => ({}));
+    if (!resp.ok || !result.success) {
+      Swal.fire('Error', 'ບໍ່ສາມາດບັນທຶກສິດໄດ້: ' + (result.error || `HTTP ${resp.status}`), 'error');
       return;
     }
     
@@ -10968,17 +12326,23 @@ window.saveButtonPermissions = async function () {
   }
 };
 
-window.deleteUserRow = async function (id) {
-  let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ລຶບ' });
+window.deleteUserRow = async function (id, email = '') {
+  if (isHisProtectedAdminEmail(email)) {
+    Swal.fire('ບັນຊີຖືກປ້ອງກັນ', 'ບໍ່ສາມາດປິດໃຊ້ງານ Admin ຫຼັກໄດ້', 'warning');
+    return;
+  }
+  let r = await Swal.fire({ title: 'ປິດໃຊ້ບັນຊີ?', text: 'ປະຫວັດການໃຊ້ງານຈະຍັງຖືກເກັບໄວ້', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ປິດໃຊ້' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from(dbTable('Users')).delete().eq('ID', id);
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
-      window.loadUsers();
-      window.logAction('Delete', 'Delete User ID: ' + id, 'Users');
-      Swal.fire('ສຳເລັດ!', 'ລຶບຜູ້ໃຊ້ແລ້ວ', 'success');
-    }
+    const resp = await window.authenticatedFetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: Number(id), status: 'inactive' })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.success) return Swal.fire('Error', data.error || 'ບໍ່ສາມາດປິດໃຊ້ບັນຊີ', 'error');
+    window.loadUsers();
+    window.logAction('Deactivate', 'Deactivate User ID: ' + id, 'Users');
+    Swal.fire('ສຳເລັດ!', 'ປິດໃຊ້ບັນຊີແລ້ວ', 'success');
   }
 };
 
@@ -10993,36 +12357,45 @@ window.submitUserForm = async function (e) {
   let role = $('#u_role').val();
   let perms = role === 'admin' ? 'all' : p.join(',');
 
-  let row = {
-    Name: $('#u_name').val(), Email: email, Role: role, Permissions: perms, Status: 'active'
+  if (role !== 'admin' && p.length === 0) {
+    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກຢ່າງໜ້ອຍ 1 ໜ້າໃຫ້ຜູ້ໃຊ້', 'warning');
+    return;
+  }
+
+  if (password.length > 0 && password.length < HIS_MIN_PASSWORD_LENGTH) {
+    Swal.fire('ແຈ້ງເຕືອນ', `ລະຫັດຜ່ານຕ້ອງມີຢ່າງໜ້ອຍ ${HIS_MIN_PASSWORD_LENGTH} ຕົວ`, 'warning');
+    return;
+  }
+  if (!isEdit && !password) {
+    Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາໃສ່ລະຫັດຜ່ານຊົ່ວຄາວ', 'warning');
+    return;
+  }
+
+  const payload = {
+    name: $('#u_name').val(),
+    email,
+    role,
+    permissions: perms,
+    status: 'active'
   };
-  if (password) {
-    const passwordHash = await window.hashPassword(password);
-    row.Password_Hash = passwordHash;
+  if (password) payload.password = password;
+  if (isEdit) payload.id = Number($('#u_id').val());
+
+  const resp = await window.authenticatedFetch('/api/admin/users', {
+    method: isEdit ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await resp.json().catch(() => ({}));
+  if (!resp.ok || !result.success) {
+    Swal.fire('Error', result.error || 'User API ບໍ່ພ້ອມ. ຕ້ອງ run ຜ່ານ Cloudflare Pages Functions.', 'error');
+    return;
   }
 
-  if (isEdit) {
-    let { error } = await supabaseClient.from(dbTable('Users')).update(row).eq('ID', $('#u_id').val());
-    if (error) { Swal.fire('Error', error.message, 'error'); return; }
-
-    $('#addUserModal').modal('hide');
-    window.logAction('Edit', 'Edit User: ' + $('#u_name').val() + ' (' + role + ')', 'Users');
-    window.loadUsers();
-    Swal.fire('ສຳເລັດ', 'ບັນທຶກແລ້ວ', 'success');
-  } else {
-    let { error } = await supabaseClient.from(dbTable('Users')).insert(row);
-    if (error) { Swal.fire('Error', error.message, 'error'); return; }
-
-    $('#addUserModal').modal('hide');
-    window.logAction('Add', 'Add User: ' + $('#u_name').val() + ' (' + role + ')', 'Users');
-    window.loadUsers();
-
-    Swal.fire({
-      title: 'ສຳເລັດ (ຂັ້ນຕອນທີ 1)',
-      html: `ສ້າງຂໍ້ມູນຜູ້ໃຊ້ໃນລະບົບແລ້ວ.<br><br><b class="text-danger">ສຳຄັນ:</b> ທ່ານຕ້ອງໄປທີ່ໜ້າຈໍ <b>Supabase Dashboard > Authentication > Add User</b> ເພື່ອສ້າງລະຫັດຜ່ານສຳລັບອີເມວ <b>${email}</b> ນີ້ ກ່ອນທີ່ພະນັກງານຈະເຂົ້າສູ່ລະບົບໄດ້.`,
-      icon: 'info'
-    });
-  }
+  $('#addUserModal').modal('hide');
+  window.logAction(isEdit ? 'Edit' : 'Add', `${isEdit ? 'Edit' : 'Add'} User: ${$('#u_name').val()} (${role})`, 'Users');
+  window.loadUsers();
+  Swal.fire('ສຳເລັດ', isEdit ? 'ບັນທຶກແລ້ວ' : 'ສ້າງ Auth ແລະກຳນົດສິດແລ້ວ', 'success');
 };
 
 window.fetchOrg = async function () {
@@ -11803,7 +13176,7 @@ window.excelImportTemplates = {
   labs: {
     fileName: 'HIS_Labs_Import_Template.xlsx',
     sheetName: 'Labs',
-    headers: ['Lab_Name', 'Description', 'Category']
+    headers: ['Lab_Name', 'Description', 'Category', 'Sort_Order']
   }
 };
 
@@ -12668,7 +14041,9 @@ window.handleLabExcelUpload = function (e) {
       let row = jd[i];
       if (row.length < 1 || !row[0]) continue;
       const category = String(row[2] || '').trim();
-      insertData.push({ Lab_Name: row[0], Description: row[1] || '', category });
+      const parsedSortOrder = Number.parseInt(row[3], 10);
+      const sortOrder = Number.isFinite(parsedSortOrder) && parsedSortOrder > 0 ? parsedSortOrder : i;
+      insertData.push({ Lab_Name: row[0], Description: row[1] || '', category, sortOrder });
       if (category) importCategories.push(category);
     }
 
@@ -12687,8 +14062,9 @@ window.handleLabExcelUpload = function (e) {
         const mappingRows = [];
         (insertedRows || []).forEach((inserted, index) => {
           const category = String(insertData[index]?.category || '').trim();
-          if (!category) return;
-          mappingRows.push({ Category: 'LabCategoryMapping', Value: JSON.stringify({ labId: inserted.Lab_ID, category }) });
+          const sortOrder = Number.parseInt(insertData[index]?.sortOrder, 10) || index + 1;
+          if (!category && !sortOrder) return;
+          mappingRows.push({ Category: 'LabCategoryMapping', Value: JSON.stringify({ labId: inserted.Lab_ID, category, sortOrder }) });
         });
 
         if (mappingRows.length > 0) {
@@ -12718,7 +14094,7 @@ window.handleLabExcelUpload = function (e) {
 // Bulk Delete Logic
 window.toggleAllCheckboxes = function (masterCheckbox, type) {
   const isChecked = $(masterCheckbox).is(':checked');
-  $(`.bulk-check-${type}`).prop('checked', !!isChecked);
+  $(`.bulk-check-${type}:not(:disabled)`).prop('checked', !!isChecked);
 };
 
 window.bulkDelete = async function (type) {
@@ -12745,6 +14121,36 @@ window.bulkDelete = async function (type) {
 
   const cfg = config[type];
   if (!cfg) return;
+
+  if (type === 'users') {
+    Swal.fire({
+      title: 'ຍືນຍັນການປິດໃຊ້ບັນຊີ?',
+      text: `ບັນຊີທີ່ເລືອກ ${ids.length} ບັນຊີຈະຖືກປິດໃຊ້ງານ ແຕ່ປະຫວັດຍັງຄົງຢູ່`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'ປິດໃຊ້',
+      cancelButtonText: 'ຍົກເລີກ'
+    }).then(async result => {
+      if (!result.isConfirmed) return;
+      try {
+        for (const id of ids) {
+          const response = await window.authenticatedFetch('/api/admin/users', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: Number(id), status: 'inactive' })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.success) throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        cfg.reload();
+        Swal.fire('ສຳເລັດ', 'ປິດໃຊ້ບັນຊີທີ່ເລືອກແລ້ວ', 'success');
+      } catch (error) {
+        Swal.fire('ຂໍ້ຜິດພາດ', error.message, 'error');
+      }
+    });
+    return;
+  }
 
   Swal.fire({
     title: 'ຍືນຍັນການລຶບ?',
@@ -13133,24 +14539,162 @@ window.speakQueue = function (cn, dept) {
   window.speechSynthesis.speak(localMsg);
 };
 
+window.patientTimelineParseArray = function (value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+window.patientTimelineParseObject = function (value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+};
+
+window.patientTimelineSafeResultUrl = function (value) {
+  const url = String(value || '').trim();
+  return /^(https?:\/\/|\/|blob:)/i.test(url) ? url : '';
+};
+
+window.fetchPatientLisTimelineBundle = async function (patientId) {
+  const safePatientId = String(patientId || '').replace(/[^A-Za-z0-9_-]/g, '');
+  if (!safePatientId) return { orders: [], files: [] };
+  try {
+    const orderResponse = await window.opdTestLisRequest('/api/data', {
+      table: 'lis_one_test_orders',
+      select: 'order_id,order_datetime,patient_id,patient_name,status,completed_at,test_name,test_items,category,doctor,department',
+      filter: `patient_id=eq.${safePatientId}`,
+      order: 'order_datetime.desc',
+      limit: 500
+    });
+    const rawOrders = Array.isArray(orderResponse.data) ? orderResponse.data : [];
+    const groupedOrders = new Map();
+    rawOrders.forEach(order => {
+      const orderId = String(order.order_id || '');
+      if (!orderId) return;
+      const existing = groupedOrders.get(orderId) || { ...order, timeline_test_names: [] };
+      const names = [];
+      if (Array.isArray(order.test_items)) names.push(...order.test_items);
+      else if (order.test_items) {
+        try {
+          const parsed = JSON.parse(order.test_items);
+          if (Array.isArray(parsed)) names.push(...parsed);
+          else names.push(order.test_items);
+        } catch (error) {
+          names.push(order.test_items);
+        }
+      }
+      if (order.test_name) names.push(order.test_name);
+      existing.timeline_test_names.push(...names.map(String).filter(Boolean));
+      if (order.completed_at && !existing.completed_at) existing.completed_at = order.completed_at;
+      groupedOrders.set(orderId, existing);
+    });
+    const orders = [...groupedOrders.values()].map(order => {
+      const names = [...new Set(order.timeline_test_names || [])];
+      return { ...order, test_name: names.join(', ') || order.test_name, test_items: names };
+    });
+    const orderIds = orders
+      .map(order => String(order.order_id || '').replace(/[^A-Za-z0-9_-]/g, ''))
+      .filter(Boolean);
+    let files = [];
+    for (let index = 0; index < orderIds.length; index += 80) {
+      const batch = orderIds.slice(index, index + 80);
+      const fileResponse = await window.opdTestLisRequest('/api/data', {
+        table: 'lis_one_order_result_files',
+        select: 'id,order_id,file_name,file_type,file_size,storage_path,uploaded_at',
+        filter: `order_id=in.(${batch.join(',')})`,
+        order: 'uploaded_at.desc',
+        limit: 500
+      });
+      if (Array.isArray(fileResponse.data)) files.push(...fileResponse.data);
+    }
+    return {
+      orders,
+      files: files.map(file => ({
+        ...file,
+        publicUrl: window.opdTestLisPublicFileUrl(file.storage_path)
+      })).filter(file => file.publicUrl)
+    };
+  } catch (error) {
+    console.warn('Patient timeline LIS load failed:', error);
+    return { orders: [], files: [] };
+  }
+};
+
+window.fetchPatientObservationTimeline = async function (patientId) {
+  try {
+    const { data: observations, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
+      .select('*')
+      .eq('patient_id', patientId)
+      .order('start_datetime', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    const ids = (observations || []).map(row => row.observation_id).filter(Boolean);
+    if (!ids.length) return { observations: observations || [], notes: [] };
+    const { data: notes, error: noteError } = await window.obsFrom(OPD_OBSERVATION_NOTES_TABLE)
+      .select('*')
+      .in('observation_id', ids)
+      .order('note_datetime', { ascending: false })
+      .limit(5000);
+    if (noteError) throw noteError;
+    return { observations: observations || [], notes: notes || [] };
+  } catch (error) {
+    console.warn('Patient timeline observation load failed:', error);
+    return { observations: [], notes: [] };
+  }
+};
+
+window.fetchPatientIpdNotes = async function (admissions) {
+  const ids = (admissions || []).map(row => row.Admission_ID).filter(Boolean);
+  if (!ids.length) return { doctorNotes: [], nursingNotes: [] };
+  const load = async (tableName) => {
+    const { data, error } = await supabaseClient.from(dbTable(tableName)).select('*').in('Admission_ID', ids).limit(5000);
+    if (error) {
+      if (window.ipdNeedsMigration?.(error)) return [];
+      throw error;
+    }
+    return data || [];
+  };
+  try {
+    const [doctorNotes, nursingNotes] = await Promise.all([
+      load('IPD_Doctor_Notes'),
+      load('IPD_Nursing_Notes')
+    ]);
+    return { doctorNotes, nursingNotes };
+  } catch (error) {
+    console.warn('Patient timeline IPD notes load failed:', error);
+    return { doctorNotes: [], nursingNotes: [] };
+  }
+};
+
 window.showPatientTimeline = async function (patientId) {
   if (!patientId) return;
   $('#patientTimelineModal').modal('show');
-  $('#timelineContent').html('<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">ກຳລັງໂຫຼດປະຫວັດ...</p></div>');
+  $('#timelineContent').html('<div class="patient-timeline-state"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><span>ກຳລັງໂຫຼດປະຫວັດ...</span></div>');
 
   try {
-    const { data: p } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', patientId).single();
-    if (p) {
-        $('#timeline_p_name').text(`${p.First_Name} ${p.Last_Name}`);
-        $('#timeline_p_id').text(p.Patient_ID);
-        $('#timeline_p_info').text(`${p.Gender} | ${window.formatAgeFromDob(p.Date_of_Birth, p.Age) || '-'} | ${p.Province || '-'}`);
-        if (p.Photo_URL) {
-            $('#timeline_p_photo').attr('src', p.Photo_URL).show();
-            $('#timeline_p_placeholder').hide();
-        } else {
-            $('#timeline_p_photo').hide();
-            $('#timeline_p_placeholder').show();
-        }
+    const { data: patient } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', patientId).single();
+    if (patient) {
+      $('#timeline_p_name').text(`${patient.Title || ''} ${patient.First_Name || ''} ${patient.Last_Name || ''}`.replace(/\s+/g, ' ').trim());
+      $('#timeline_p_id').text(patient.Patient_ID || patientId);
+      $('#timeline_p_info').text(`${patient.Gender || '-'} · ${window.formatAgeFromDob(patient.Date_of_Birth, patient.Age) || '-'} · ${patient.Province || '-'}`);
+      if (patient.Photo_URL) {
+        $('#timeline_p_photo').attr('src', patient.Photo_URL).show();
+        $('#timeline_p_placeholder').hide();
+      } else {
+        $('#timeline_p_photo').hide();
+        $('#timeline_p_placeholder').show();
+      }
     }
 
     let visits = [];
@@ -13161,38 +14705,41 @@ window.showPatientTimeline = async function (patientId) {
         .eq('Patient_ID', patientId)
         .order('Date', { ascending: false })
         .range(startRange, startRange + 999);
-      if (error) break;
-      if (!chunk || chunk.length === 0) break;
-      visits = visits.concat(chunk);
-      if (chunk.length < 1000) break;
+      if (error || !chunk?.length) break;
+      visits.push(...chunk);
+      if (chunk.length < 1000 || visits.length > 5000) break;
       startRange += 1000;
-      if (visits.length > 5000) break;
     }
 
     let admissions = [];
     try {
-      const { data: admissionRows, error: admissionError } = await supabaseClient
-        .from(dbTable('Admissions'))
+      const { data, error } = await supabaseClient.from(dbTable('Admissions'))
         .select('*')
         .eq('Patient_ID', patientId)
         .order('Created_At', { ascending: false })
         .limit(1000);
-      if (!admissionError) admissions = admissionRows || [];
-      else console.warn('Patient timeline admissions load error:', admissionError);
-    } catch (admissionErr) {
-      console.warn('Patient timeline admissions load failed:', admissionErr);
+      if (!error) admissions = data || [];
+      else console.warn('Patient timeline admissions load error:', error);
+    } catch (error) {
+      console.warn('Patient timeline admissions load failed:', error);
     }
+
+    const [lisBundle, observationBundle, ipdBundle] = await Promise.all([
+      window.fetchPatientLisTimelineBundle(patientId),
+      window.fetchPatientObservationTimeline(patientId),
+      window.fetchPatientIpdNotes(admissions)
+    ]);
 
     if (window.ipdWardBedState && admissions.length) {
       if (!Array.isArray(window.ipdWardBedState.admissions)) window.ipdWardBedState.admissions = [];
-      const existingIds = new Set(window.ipdWardBedState.admissions.map(a => String(a.Admission_ID || '')));
-      admissions.forEach(a => {
-        if (!existingIds.has(String(a.Admission_ID || ''))) window.ipdWardBedState.admissions.push(a);
+      const existingIds = new Set(window.ipdWardBedState.admissions.map(row => String(row.Admission_ID || '')));
+      admissions.forEach(row => {
+        if (!existingIds.has(String(row.Admission_ID || ''))) window.ipdWardBedState.admissions.push(row);
       });
     }
 
-    if (visits.length === 0 && admissions.length === 0) {
-      $('#timelineContent').html('<div class="text-center py-5 text-muted"><i class="fas fa-folder-open fa-3x mb-3"></i><p>ບໍ່ພົບປະຫວັດການກວດ</p></div>');
+    if (!visits.length && !admissions.length && !lisBundle.orders.length && !observationBundle.observations.length) {
+      $('#timelineContent').html('<div class="patient-timeline-state patient-timeline-state-empty"><i class="far fa-folder-open"></i><div><strong>ບໍ່ພົບປະຫວັດການກວດ</strong><span>ຍັງບໍ່ມີລາຍການຮັບບໍລິການຂອງຄົນເຈັບຄົນນີ້</span></div></div>');
       return;
     }
 
@@ -13209,105 +14756,249 @@ window.showPatientTimeline = async function (patientId) {
       const fallbackParsed = new Date(fallback || 0);
       return Number.isNaN(fallbackParsed.getTime()) ? new Date(0) : fallbackParsed;
     };
+    const localDay = (value) => {
+      const date = eventTime(value);
+      if (!date.getTime()) return '';
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+    const itemName = (item) => {
+      if (typeof item === 'string') return item;
+      const testItems = item?.test_items;
+      if (Array.isArray(testItems)) return testItems.join(', ');
+      return item?.name || item?.label || item?.testName || item?.test_name || item?.Lab_Name || testItems || '-';
+    };
+    const orderType = (item) => {
+      const resolved = window.resolveOpdTestInvestigationType?.(item)
+        || window.opdTestInvestigationTypeForItem?.(item)
+        || String(item?.type || item?.modality || item?.category || 'lab').toLowerCase();
+      if (/ultra|echo/.test(resolved)) return 'ultrasound';
+      if (/x.?ray|radio/.test(resolved)) return 'xray';
+      return 'lab';
+    };
+    const fileLink = (url, label, tone = 'primary') => {
+      const safeUrl = window.patientTimelineSafeResultUrl(url);
+      if (!safeUrl) return '';
+      return `<a class="timeline-result-file timeline-result-file-${tone}" href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-pdf me-1"></i>${esc(label || 'ເບິ່ງຜົນກວດ')}</a>`;
+    };
+    const noteLine = (label, value) => value ? `<div class="timeline-note-line"><b>${esc(label)}:</b> ${esc(value)}</div>` : '';
+    const providerLine = (role, value, icon) => value
+      ? `<div class="timeline-provider"><i class="fas ${icon} me-1"></i>${esc(role)}: <strong>${esc(value)}</strong></div>`
+      : '';
     const events = [];
 
-    visits.forEach(v => {
-      let meds = [];
-      try { if (v.Prescription_JSON) meds = JSON.parse(v.Prescription_JSON); } catch(e) {}
-      
-      let labs = [];
-      try { if (v.Lab_Orders_JSON) labs = JSON.parse(v.Lab_Orders_JSON); } catch(e) {}
+    const filesByOrderId = new Map();
+    lisBundle.files.forEach(file => {
+      const key = String(file.order_id || '');
+      if (!filesByOrderId.has(key)) filesByOrderId.set(key, []);
+      filesByOrderId.get(key).push(file);
+    });
+    const lisByVisitKey = new Map();
+    const unmatchedLisOrders = [];
+    const visitRefs = visits.map((visit, index) => ({ visit, key: String(visit.Visit_ID || `visit-${index}`), at: eventTime(visit.Date) }));
+    const visitOrdinalByKey = new Map(
+      [...visitRefs]
+        .sort((a, b) => a.at.getTime() - b.at.getTime())
+        .map((ref, index) => [ref.key, index + 1])
+    );
+    lisBundle.orders.forEach(order => {
+      const at = eventTime(order.order_datetime, order.completed_at);
+      const sameDay = visitRefs.filter(ref => localDay(ref.visit.Date) === localDay(at));
+      const nearest = sameDay.sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
+      const bundle = { order, files: filesByOrderId.get(String(order.order_id || '')) || [] };
+      if (!nearest) unmatchedLisOrders.push(bundle);
+      else {
+        if (!lisByVisitKey.has(nearest.key)) lisByVisitKey.set(nearest.key, []);
+        lisByVisitKey.get(nearest.key).push(bundle);
+      }
+    });
 
-      let vitals = [];
-      if (v.BP) vitals.push(`BP: ${v.BP}`);
-      if (v.Temp) vitals.push(`T: ${v.Temp}°C`);
-      if (v.Weight) vitals.push(`W: ${v.Weight}kg`);
+    let medicationCount = 0;
+    let imagingOrderCount = 0;
+    visitRefs.forEach(({ visit, key }) => {
+      const clinicalNote = window.patientTimelineParseObject(visit.Clinical_Note_JSON);
+      const meds = window.patientTimelineParseArray(visit.Prescription_JSON).length
+        ? window.patientTimelineParseArray(visit.Prescription_JSON)
+        : window.patientTimelineParseArray(clinicalNote.medications);
+      const investigationOrders = window.patientTimelineParseArray(visit.Lab_Orders_JSON).length
+        ? window.patientTimelineParseArray(visit.Lab_Orders_JSON)
+        : window.patientTimelineParseArray(clinicalNote.orders);
+      const grouped = { lab: [], ultrasound: [], xray: [] };
+      investigationOrders.forEach(order => grouped[orderType(order)].push(order));
+      medicationCount += meds.length;
+      imagingOrderCount += grouped.ultrasound.length + grouped.xray.length;
+
+      const vitals = [
+        visit.BP && `BP ${visit.BP}`,
+        visit.Temp && `T ${visit.Temp}°C`,
+        visit.Pulse && `PR ${visit.Pulse}/min`,
+        visit.Respiratory_Rate && `RR ${visit.Respiratory_Rate}/min`,
+        visit.SpO2 && `SpO₂ ${visit.SpO2}%`,
+        visit.Weight && `WT ${visit.Weight}kg`,
+        visit.Height && `HT ${visit.Height}cm`
+      ].filter(Boolean);
+      const doctor = visit.Doctor_Name || visit.Doctor || visit.Completed_By || clinicalNote.completedBy || '';
+      const nurse = visit.Recorded_By || clinicalNote.recordedBy || '';
+      const lisOrders = lisByVisitKey.get(key) || [];
+
+      const renderOrders = (type, title, icon, items, tone) => {
+        if (!items.length) return '';
+        return `<div class="timeline-section timeline-section-${tone}">
+          <div class="timeline-section-title"><i class="fas ${icon} me-1"></i>${title} <span class="badge rounded-pill">${items.length}</span></div>
+          ${items.map(item => {
+            const urls = [item?.resultPdfUrl, item?.result_pdf_url, item?.pdfUrl, item?.fileUrl, item?.result_url].filter(Boolean);
+            return `<div class="timeline-order-row"><span>${esc(itemName(item))}</span><span>${urls.map((url, index) => fileLink(url, index ? `File ${index + 1}` : 'ເບິ່ງຜົນ', tone)).join('')}</span></div>`;
+          }).join('')}
+        </div>`;
+      };
+
+      const lisHtml = lisOrders.length ? `<div class="timeline-section timeline-section-lab">
+        <div class="timeline-section-title"><i class="fas fa-flask me-1"></i>ຜົນກວດ Lab / LIS <span class="badge rounded-pill">${lisOrders.length}</span></div>
+        ${lisOrders.map(({ order, files }) => `<div class="timeline-order-row">
+          <div><strong>${esc(itemName(order))}</strong><div class="small text-muted">${esc(order.order_id || '')} · ${esc(files.length ? 'ມີຜົນແລ້ວ' : (order.status || 'Pending'))}</div></div>
+          <div>${files.length ? files.map(file => fileLink(file.publicUrl, file.file_name || 'ເບິ່ງ PDF', 'lab')).join('') : '<span class="timeline-result-pending">ຍັງບໍ່ມີ file ຜົນກວດ</span>'}</div>
+        </div>`).join('')}
+      </div>` : '';
 
       events.push({
         kind: 'opd',
-        at: eventTime(v.Date),
-        html: `
-        <div class="timeline-item">
-            <div class="timeline-dot"></div>
-            <div class="timeline-date"></div>
-            <div class="timeline-card">
-                <div class="timeline-title">
-                    <span><i class="fas fa-stethoscope text-primary me-2"></i>${esc(v.Department || 'OPD')}</span>
-                    <span class="badge ${(v.Status || '').includes('ສຳເລັດ') ? 'bg-success' : 'bg-warning'}">${esc(v.Status || '')}</span>
-                </div>
-                <div class="timeline-body">
-                    ${v.Symptoms ? `<div class="mb-2"><b>CC:</b> ${esc(v.Symptoms)}</div>` : ''}
-                    ${vitals.length > 0 ? `<div class="mb-2"><span class="timeline-tag timeline-tag-vitals"><i class="fas fa-heartbeat me-1"></i>${esc(vitals.join(' | '))}</span></div>` : ''}
-                    ${v.Diagnosis ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-user-md me-1"></i>Dx: ${esc(v.Diagnosis)}</span></div>` : ''}
-                    
-                    ${meds.length > 0 ? `
-                        <div class="mt-2">
-                            <div class="small fw-bold text-success mb-1"><i class="fas fa-pills me-1"></i>ລາຍການຢາ:</div>
-                            <div class="d-flex flex-wrap gap-1">
-                                ${meds.map(m => `<span class="timeline-tag timeline-tag-med">${esc(m.name)} (${esc(m.qty)} ${esc(m.unit)})</span>`).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    ${labs.length > 0 ? `
-                        <div class="mt-2">
-                            <div class="small fw-bold text-primary mb-1"><i class="fas fa-flask me-1"></i>ລາຍການ Lab:</div>
-                            <div class="d-flex flex-wrap gap-1">
-                                ${labs.map(l => `<span class="timeline-tag timeline-tag-lab">${esc(l.name || l)}</span>`).join('')}
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    ${v.Advice ? `<div class="mt-2 small text-muted font-italic"><b>Advice:</b> ${esc(v.Advice)}</div>` : ''}
-                </div>
+        at: eventTime(visit.Date),
+        html: `<div class="timeline-item">
+          <div class="timeline-dot"></div><div class="timeline-date"></div>
+          <div class="timeline-card timeline-card-opd">
+            <div class="timeline-title">
+              <span><i class="fas fa-stethoscope text-primary me-2"></i>ການຮັກສາຄັ້ງທີ ${visitOrdinalByKey.get(key) || 1} · ${esc(visit.Department || 'OPD')} <small>${esc(visit.Visit_ID || '')}</small></span>
+              <span class="badge ${(visit.Status || '').includes('ສຳເລັດ') ? 'bg-success' : 'bg-warning text-dark'}">${esc(visit.Status || 'Visit')}</span>
             </div>
+            <div class="timeline-body">
+              ${vitals.length ? `<div class="mb-2"><span class="timeline-tag timeline-tag-vitals"><i class="fas fa-heartbeat me-1"></i>${esc(vitals.join(' | '))}</span></div>` : ''}
+              ${(visit.Diagnosis || clinicalNote.diagnosis) ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-diagnoses me-1"></i>Dx: ${esc(visit.Diagnosis || clinicalNote.diagnosis)}</span></div>` : ''}
+              <div class="timeline-clinical-grid">
+                <div class="timeline-clinical-note">
+                  <div class="timeline-section-title"><i class="fas fa-user-md me-1"></i>ບັນທຶກໝໍ</div>
+                  ${noteLine('CC', visit.Chief_Complaint || visit.Symptoms || clinicalNote.chiefComplaint)}
+                  ${noteLine('HPI', visit.HPI || clinicalNote.hpi)}
+                  ${noteLine('Past history', visit.Past_History || clinicalNote.pastHistory)}
+                  ${noteLine('Physical exam', visit.Physical_Exam || clinicalNote.physicalExam)}
+                  ${noteLine('Treatment', visit.Treatment || clinicalNote.treatment)}
+                  ${noteLine('Advice', visit.Advice || clinicalNote.advice)}
+                  ${noteLine('Follow-up', visit.Follow_Up || clinicalNote.followUp)}
+                  ${providerLine('ໝໍ', doctor, 'fa-user-md')}
+                </div>
+                <div class="timeline-clinical-note timeline-clinical-note-nurse">
+                  <div class="timeline-section-title"><i class="fas fa-user-nurse me-1"></i>ບັນທຶກພະຍາບານ</div>
+                  ${noteLine('Triage / Notes', visit.Notes || clinicalNote.nurseNote)}
+                  ${vitals.length ? noteLine('Vital signs', vitals.join(' | ')) : ''}
+                  ${providerLine('ພະຍາບານ', nurse, 'fa-user-nurse')}
+                  ${!visit.Notes && !nurse ? '<div class="text-muted small">ບໍ່ມີບັນທຶກເພີ່ມເຕີມ</div>' : ''}
+                </div>
+              </div>
+              ${meds.length ? `<div class="timeline-section timeline-section-med"><div class="timeline-section-title"><i class="fas fa-pills me-1"></i>ຢາ / Medication <span class="badge rounded-pill">${meds.length}</span></div>${meds.map(med => `<div class="timeline-med-row"><strong>${esc(itemName(med))}</strong><span>${esc([med.instructions || med.usage, med.dose, med.route, med.frequency, med.duration, med.qty && `Qty ${med.qty}`].filter(Boolean).join(' · '))}</span></div>`).join('')}</div>` : ''}
+              ${renderOrders('lab', 'Lab Orders', 'fa-vials', grouped.lab, 'lab')}
+              ${lisHtml}
+              ${renderOrders('ultrasound', 'Ultrasound / Echo', 'fa-wave-square', grouped.ultrasound, 'ultrasound')}
+              ${renderOrders('xray', 'X-Ray / Radiology', 'fa-x-ray', grouped.xray, 'xray')}
+            </div>
+          </div>
         </div>`
       });
     });
 
-    admissions.forEach(a => {
-      const admitAtText = [a.Admission_Date, a.Admission_Time].filter(Boolean).join(' ');
-      const admitAt = eventTime(a.Admission_Date && `${a.Admission_Date}T${a.Admission_Time || '00:00'}`, a.Created_At);
-      const location = window.ipdAdmissionLocation ? window.ipdAdmissionLocation(a) : {};
-      const locationText = location.label || [a.Ward_ID, a.Room_ID, a.Bed_ID].filter(Boolean).join(' / ') || '-';
-      const isActive = window.ipdIsActiveAdmission ? window.ipdIsActiveAdmission(a) : !(a.Discharge_Date || a.Discharge_Status);
-      const am = a.Admission_ID || '-';
+    unmatchedLisOrders.forEach(({ order, files }) => {
+      events.push({
+        kind: 'lab',
+        at: eventTime(order.completed_at || order.order_datetime, files[0]?.uploaded_at),
+        html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-lab"></div><div class="timeline-date"></div>
+          <div class="timeline-card timeline-card-lab"><div class="timeline-title"><span><i class="fas fa-file-medical-alt text-primary me-2"></i>ຜົນກວດ Lab / LIS</span><span class="badge bg-primary">${esc(files.length ? 'ມີຜົນແລ້ວ' : (order.status || 'Pending'))}</span></div>
+          <div class="timeline-body"><div class="fw-bold mb-1">${esc(itemName(order))}</div><div class="small text-muted mb-2">${esc(order.order_id || '')} · ${esc(order.department || '')}</div>
+          ${files.length ? files.map(file => fileLink(file.publicUrl, file.file_name || 'ເບິ່ງ PDF', 'lab')).join('') : '<span class="timeline-result-pending">ຍັງບໍ່ມີ file ຜົນກວດ</span>'}${providerLine('ໝໍຜູ້ສັ່ງ', order.doctor, 'fa-user-md')}</div></div></div>`
+      });
+    });
+
+    admissions.forEach(admission => {
+      const admitAtText = [admission.Admission_Date, admission.Admission_Time].filter(Boolean).join(' ');
+      const admitAt = eventTime(admission.Admission_Date && `${admission.Admission_Date}T${admission.Admission_Time || '00:00'}`, admission.Created_At);
+      const location = window.ipdAdmissionLocation ? window.ipdAdmissionLocation(admission) : {};
+      const locationText = location.label || [admission.Ward_ID, admission.Room_ID, admission.Bed_ID].filter(Boolean).join(' / ') || '-';
+      const isActive = window.ipdIsActiveAdmission ? window.ipdIsActiveAdmission(admission) : !(admission.Discharge_Date || admission.Discharge_Status);
+      const admissionId = admission.Admission_ID || '-';
       events.push({
         kind: 'ipd',
         at: admitAt,
-        html: `
-        <div class="timeline-item">
-            <div class="timeline-dot timeline-dot-ipd"></div>
-            <div class="timeline-date"></div>
-            <div class="timeline-card timeline-card-ipd">
-                <div class="timeline-title">
-                    <span><i class="fas fa-procedures text-danger me-2"></i>IPD Admission</span>
-                    <span class="badge ${isActive ? 'bg-danger' : 'bg-secondary'}">${esc(isActive ? 'Admitted' : 'Discharged')}</span>
-                </div>
-                <div class="timeline-body">
-                    <div class="mb-2"><span class="timeline-tag timeline-tag-ipd"><i class="fas fa-id-card me-1"></i>AM: ${esc(am)}</span></div>
-                    <div class="mb-1"><b>HN:</b> ${esc(a.Patient_ID || '-')}</div>
-                    <div class="mb-1"><b>ເຂົ້ານອນ:</b> ${esc(admitAtText || '-')}</div>
-                    <div class="mb-1"><b>Ward/Bed:</b> ${esc(locationText)}</div>
-                    ${a.Diagnosis_Admission || a.Diagnosis ? `<div class="mb-2"><span class="timeline-tag timeline-tag-dx"><i class="fas fa-user-md me-1"></i>Dx: ${esc(a.Diagnosis_Admission || a.Diagnosis)}</span></div>` : ''}
-                    <button class="btn btn-sm btn-outline-danger mt-1" onclick="$('#patientTimelineModal').modal('hide'); window.viewIpdChart('${jsArg(am)}')"><i class="fas fa-file-medical me-1"></i>ເບິ່ງ AM</button>
-                </div>
-            </div>
-        </div>`
+        html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-ipd"></div><div class="timeline-date"></div>
+          <div class="timeline-card timeline-card-ipd"><div class="timeline-title"><span><i class="fas fa-procedures text-danger me-2"></i>IPD Admission</span><span class="badge ${isActive ? 'bg-danger' : 'bg-secondary'}">${esc(isActive ? 'Admitted' : 'Discharged')}</span></div>
+          <div class="timeline-body"><span class="timeline-tag timeline-tag-ipd"><i class="fas fa-id-card me-1"></i>AM: ${esc(admissionId)}</span>
+          <div class="mt-2"><b>ເຂົ້ານອນ:</b> ${esc(admitAtText || '-')}</div><div><b>Ward/Bed:</b> ${esc(locationText)}</div>
+          ${(admission.Diagnosis_Admission || admission.Diagnosis) ? `<div class="mt-2"><span class="timeline-tag timeline-tag-dx">Dx: ${esc(admission.Diagnosis_Admission || admission.Diagnosis)}</span></div>` : ''}
+          <button class="btn btn-sm btn-outline-danger mt-2" onclick="$('#patientTimelineModal').modal('hide'); window.viewIpdChart('${jsArg(admissionId)}')"><i class="fas fa-file-medical me-1"></i>ເບິ່ງ AM</button></div></div></div>`
       });
     });
 
+    ipdBundle.doctorNotes.forEach(note => {
+      const body = [
+        note.Chief_Complaint && `CC: ${note.Chief_Complaint}`,
+        note.Subjective && `S: ${note.Subjective}`,
+        note.Objective && `O: ${note.Objective}`,
+        note.Assessment && `A: ${note.Assessment}`,
+        note.Plan && `P: ${note.Plan}`
+      ].filter(Boolean);
+      events.push({ kind: 'doctor', at: eventTime(note.Note_Datetime, note.Created_At), html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-doctor"></div><div class="timeline-date"></div><div class="timeline-card timeline-card-doctor"><div class="timeline-title"><span><i class="fas fa-user-md text-primary me-2"></i>ບັນທຶກໝໍ (IPD)</span>${note.Diagnosis ? `<span class="timeline-tag timeline-tag-dx">Dx: ${esc(note.Diagnosis)}</span>` : ''}</div><div class="timeline-body">${body.map(line => `<div class="timeline-note-line">${esc(line)}</div>`).join('') || '<span class="text-muted">-</span>'}${providerLine('ໝໍ', note.Provider_Name || note.Created_By, 'fa-user-md')}</div></div></div>` });
+    });
+
+    ipdBundle.nursingNotes.forEach(note => {
+      const body = [
+        note.Patient_Condition && `Condition: ${note.Patient_Condition}`,
+        note.Observation && `Observation: ${note.Observation}`,
+        note.Nursing_Care_Given && `Care: ${note.Nursing_Care_Given}`,
+        note.Response_To_Treatment && `Response: ${note.Response_To_Treatment}`,
+        (note.Intake || note.Output) && `I/O: ${note.Intake || '-'} / ${note.Output || '-'}`,
+        note.Pain_Score !== null && note.Pain_Score !== undefined && note.Pain_Score !== '' && `Pain: ${note.Pain_Score}`,
+        note.Medication_Given && `Medication: ${note.Medication_Given}`,
+        note.Procedure_Done && `Procedure: ${note.Procedure_Done}`,
+        note.Notes
+      ].filter(Boolean);
+      events.push({ kind: 'nurse', at: eventTime(note.Note_Datetime, note.Created_At), html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-nurse"></div><div class="timeline-date"></div><div class="timeline-card timeline-card-nurse"><div class="timeline-title"><span><i class="fas fa-user-nurse text-success me-2"></i>ບັນທຶກພະຍາບານ (IPD)</span><span class="badge bg-success">${esc(note.Shift || 'Nursing')}</span></div><div class="timeline-body">${body.map(line => `<div class="timeline-note-line">${esc(line)}</div>`).join('') || '<span class="text-muted">-</span>'}${providerLine('ພະຍາບານ', note.Provider_Name || note.Created_By, 'fa-user-nurse')}</div></div></div>` });
+    });
+
+    const observationById = new Map(observationBundle.observations.map(row => [String(row.observation_id || ''), row]));
+    observationBundle.observations.forEach(row => {
+      events.push({ kind: 'observation', at: eventTime(row.start_datetime, row.created_at), html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-observation"></div><div class="timeline-date"></div><div class="timeline-card timeline-card-observation"><div class="timeline-title"><span><i class="fas fa-binoculars text-warning me-2"></i>OPD Observation</span><span class="badge bg-warning text-dark">${esc(row.status || 'Observation')}</span></div><div class="timeline-body">${noteLine('Diagnosis', row.diagnosis)}${noteLine('Bed', [row.ward_id, row.room_id, row.bed_id].filter(Boolean).join(' / '))}${providerLine('ໝໍ', row.doctor_id || row.created_by, 'fa-user-md')}</div></div></div>` });
+    });
+    observationBundle.notes.forEach(note => {
+      const type = String(note.note_type || '').toUpperCase();
+      const isDoctor = type === 'DOCTOR_NOTE';
+      const isNurse = type === 'NURSING_NOTE';
+      const isVital = type === 'VITAL_SIGN';
+      const parent = observationById.get(String(note.observation_id || ''));
+      const parts = [];
+      if (isDoctor) parts.push(note.diagnosis && `Dx: ${note.diagnosis}`, note.chief_complaint && `CC: ${note.chief_complaint}`, note.subjective && `S: ${note.subjective}`, note.objective && `O: ${note.objective}`, note.assessment && `A: ${note.assessment}`, note.plan && `P: ${note.plan}`);
+      else if (isNurse) parts.push(note.patient_condition && `Condition: ${note.patient_condition}`, note.observation_text && `Observation: ${note.observation_text}`, note.nursing_care_given && `Care: ${note.nursing_care_given}`, note.response_to_treatment && `Response: ${note.response_to_treatment}`, note.medication_given && `Medication: ${note.medication_given}`, note.procedure_done && `Procedure: ${note.procedure_done}`);
+      else if (isVital) parts.push(`T ${note.temp || '-'} | BP ${note.bp || `${note.bp_systolic || '-'}/${note.bp_diastolic || '-'}`} | PR ${note.pulse || '-'} | RR ${note.rr || '-'} | SpO₂ ${note.spo2 || '-'}`);
+      else parts.push(note.medication || note.procedure_name);
+      if (note.note_text) parts.push(note.note_text);
+      const tone = isDoctor ? 'doctor' : isNurse ? 'nurse' : isVital ? 'vitals' : 'observation';
+      const icon = isDoctor ? 'fa-user-md' : isNurse ? 'fa-user-nurse' : isVital ? 'fa-heartbeat' : 'fa-notes-medical';
+      const title = isDoctor ? 'ບັນທຶກໝໍ (Observation)' : isNurse ? 'ບັນທຶກພະຍາບານ (Observation)' : isVital ? 'Vital Signs (Observation)' : String(type || 'Observation').replace(/_/g, ' ');
+      events.push({ kind: tone, at: eventTime(note.note_datetime, parent?.start_datetime), html: `<div class="timeline-item"><div class="timeline-dot timeline-dot-${tone}"></div><div class="timeline-date"></div><div class="timeline-card timeline-card-${tone}"><div class="timeline-title"><span><i class="fas ${icon} me-2"></i>${title}</span><small>${esc(note.observation_id || '')}</small></div><div class="timeline-body">${parts.filter(Boolean).map(line => `<div class="timeline-note-line">${esc(line)}</div>`).join('') || '<span class="text-muted">-</span>'}${providerLine(isDoctor ? 'ໝໍ' : isNurse ? 'ພະຍາບານ' : 'ຜູ້ບັນທຶກ', note.recorded_by, icon)}</div></div></div>` });
+    });
+
     events.sort((a, b) => b.at.getTime() - a.at.getTime());
-    const h = events.map(event => {
-      const dateStr = event.at.getTime()
-        ? event.at.toLocaleDateString('en-GB') + ' ' + event.at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-        : '-';
-      return event.html.replace('<div class="timeline-date"></div>', `<div class="timeline-date">${dateStr}</div>`);
+    const timelineHtml = events.map(event => {
+      const hasDate = event.at.getTime();
+      const dateText = hasDate ? event.at.toLocaleDateString('en-GB') : '-';
+      const timeText = hasDate ? event.at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+      return event.html.replace('<div class="timeline-date"></div>', `<div class="timeline-date"><span>${dateText}</span>${timeText ? `<time>${timeText}</time>` : ''}</div>`);
     }).join('');
-    $('#timelineContent').html(h);
-  } catch (err) {
-    console.error("Timeline Error:", err);
-    $('#timelineContent').html('<div class="text-center py-5 text-danger"><p>ຂໍ້ຜິດພາດໃນການໂຫຼດປະຫວັດ</p></div>');
+    const summaryHtml = `<div class="patient-timeline-summary">
+      <div><i class="fas fa-stethoscope"></i><span>ການກວດ OPD</span><strong>${visits.length}</strong></div>
+      <div><i class="fas fa-file-medical-alt"></i><span>ເອກະສານ Lab</span><strong>${lisBundle.files.length}</strong></div>
+      <div><i class="fas fa-x-ray"></i><span>Ultrasound / X-Ray</span><strong>${imagingOrderCount}</strong></div>
+      <div><i class="fas fa-pills"></i><span>ລາຍການຢາ</span><strong>${medicationCount}</strong></div>
+      <div><i class="fas fa-notes-medical"></i><span>ບັນທຶກການຮັກສາ</span><strong>${ipdBundle.doctorNotes.length + ipdBundle.nursingNotes.length + observationBundle.notes.length}</strong></div>
+    </div>`;
+    $('#timelineContent').html(summaryHtml + timelineHtml);
+  } catch (error) {
+    console.error('Timeline Error:', error);
+    $('#timelineContent').html('<div class="patient-timeline-state patient-timeline-state-error"><i class="fas fa-exclamation-circle"></i><div><strong>ບໍ່ສາມາດໂຫຼດປະຫວັດໄດ້</strong><span>ກະລຸນາປິດໜ້າຕ່າງ ແລະ ລອງໃໝ່ອີກຄັ້ງ</span></div></div>');
   }
 };
 // ========================================================================
@@ -13332,7 +15023,7 @@ window.showPatientTimeline = async function (patientId) {
 window._backupApiFetch = async function (url, options) {
   let resp;
   try {
-    resp = await fetch(url, options);
+    resp = await window.authenticatedFetch(url, options);
   } catch (e) {
     // Network error / connection refused / blocked => not available locally
     return { unavailable: true };
@@ -13385,7 +15076,7 @@ window.runManualBackup = async function () {
   // Step 1: Get current latest run_id so we can detect a NEW run
   let knownRunId = null;
   try {
-    const preResp = await fetch('/api/backup/status');
+    const preResp = await window.authenticatedFetch('/api/backup/status');
     if (preResp.status !== 404) {
       const preData = await preResp.json();
       knownRunId = preData.run_id || null;
@@ -13474,7 +15165,7 @@ async function _pollForNewBackup(knownRunId) {
 
   while (waited < maxWait) {
     try {
-      const resp = await fetch('/api/backup/status');
+      const resp = await window.authenticatedFetch('/api/backup/status');
       if (resp.status === 200) {
         const data = await resp.json();
         const currentRunId = data.run_id;
@@ -13755,7 +15446,7 @@ window.formatBytes = function (bytes) {
 
 window.downloadBackupFile = async function (name) {
   try {
-    const resp = await fetch('/api/backup/signed-url', {
+    const resp = await window.authenticatedFetch('/api/backup/signed-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: name, expires: 600 })
@@ -13808,7 +15499,7 @@ window.confirmRestoreBackup = async function (name, opts) {
   if (source === 'gdrive') payload.gdrive_file_id = gdriveFileId;
 
   try {
-    const resp = await fetch('/api/backup/restore', {
+    const resp = await window.authenticatedFetch('/api/backup/restore', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -13852,8 +15543,10 @@ window.loadGdriveBackupList = async function () {
       return;
     }
     if (data && data.status === 'error') {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-danger small">' +
-        '<i class="fas fa-exclamation-circle me-2"></i>' + (data.error || 'Unknown error') + '</td></tr>';
+      const driveError = escapeHisHtml(data.error || 'Unknown error');
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-warning small">' +
+        '<i class="fas fa-exclamation-triangle me-2"></i>' + driveError +
+        '<div class="text-muted mt-1">Supabase backup ຍັງຮັນອັດຕະໂນມັດຕາມປົກກະຕິ</div></td></tr>';
       return;
     }
     const files = (data && data.files) || [];
@@ -16974,6 +18667,7 @@ window.viewIpdDoctorNote = function (noteId) {
 };
 
 window.openIpdDoctorNoteModal = async function (noteId) {
+  if (!window.requireHisAction('ipd', 'chart_edit', ['doctor'])) return;
   await window.ipdLoadProviders();
   const note = window.ipdClinicalState.doctorNotes.find(n => String(n.Note_ID) === String(noteId)) || {};
   const provDefault = window.ipdCurrentProviderDefault();
@@ -17042,6 +18736,7 @@ window.viewIpdNursingNote = function (noteId) {
 };
 
 window.openIpdNursingNoteModal = async function (noteId) {
+  if (!window.requireHisAction('ipd', 'chart_edit', ['nurse'])) return;
   await window.ipdLoadProviders();
   const note = window.ipdClinicalState.nursingNotes.find(n => String(n.Note_ID) === String(noteId)) || {};
   const provDefault = window.ipdCurrentProviderDefault();
@@ -17164,6 +18859,7 @@ window.renderIpdVitalsTrendChart = function (vitals) {
 };
 
 window.openIpdVitalModal = async function (vitalId) {
+  if (!window.requireHisAction('ipd', 'chart_edit', ['doctor', 'nurse'])) return;
   await window.ipdLoadProviders();
   const v = window.ipdClinicalState.vitals.find(row => String(row.Vital_ID) === String(vitalId)) || {};
   const result = await Swal.fire({
@@ -17538,6 +19234,7 @@ window.renderIpdDischargeSummary = function () {
 };
 
 window.openIpdDischargeSummaryModal = async function () {
+  if (!window.requireHisAction('ipd', 'discharge', ['doctor'])) return;
   const s = window.ipdClinicalState.dischargeSummary || {};
   const admission = window.ipdClinicalState.admission;
   const result = await Swal.fire({
@@ -17609,3 +19306,4748 @@ window.printIpdDischargeSummary = function () {
   win.focus();
   win.print();
 };
+
+
+// ==========================================
+// OPD TEST — Doctor EMR simplified workflow with department template engine
+// See docs/DOCTOR_EMR_SIMPLIFICATION_PHASE1_5.md
+// Local only, static demo data.
+// ==========================================
+window.opdTestSelectedVisit = window.opdTestSelectedVisit || null;
+window.opdTestPatientSelectionMode = Boolean(window.opdTestPatientSelectionMode);
+window.opdTestNeedsEncounterLoad = Boolean(window.opdTestNeedsEncounterLoad);
+
+window.opdTestState = {
+  locked: false,
+  submitting: false,
+  validationAttempted: false,
+  restoringDraft: false,
+  draftRestored: false,
+  draftSavedAt: '',
+  unsaved: false,
+  signedBy: '',
+  autoSaveTimer: null,
+  activeTab: 'clinical',
+  activeOrderTab: 'clinical',
+  orderFilter: 'Laboratory',
+  resultFilter: 'lab',
+  diagnoses: [],
+  recentDx: [], // codes, most recent first
+  orders: [],
+  results: [],
+  medications: [],
+  editingMedicationIndex: -1,
+  lisOrders: [],
+  lisResults: [],
+  lisResultPatientId: '',
+  lisResultsLoaded: false,
+  lisFetchInFlight: false,
+  lisPollTimer: null,
+  visitStatus: 'in-progress',
+  disposition: '',
+  patientAllergy: '',
+  signedAt: '',
+  persistedAt: '',
+  persistedRevision: 0,
+  persistenceMode: '',
+  auditMode: '',
+  dept: 'internal',
+  followupPreset: '',
+  hintsDismissed: []
+};
+
+window.opdTestParseStoredList = function (value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+window.opdTestDepartmentKey = function (department) {
+  const value = String(department || '').toLowerCase();
+  if (/cardio|ຫົວໃຈ/.test(value)) return 'cardio';
+  if (/ob|gyn|ແມ່|ຍິງ/.test(value)) return 'obgyn';
+  if (/ortho|ກະດູກ/.test(value)) return 'ortho';
+  if (/ent|ຫູ|ຄໍ|ດັງ/.test(value)) return 'ent';
+  if (/pediatric|ເດັກ/.test(value)) return 'peds';
+  if (/internal|ອາຍຸລະ/.test(value)) return 'im';
+  return 'general';
+};
+
+window.opdTestDispositionValue = function (value) {
+  const original = String(value || '').replace(/\s+/g, ' ').trim();
+  const normalized = original.toLowerCase();
+  if (/admit|ipd|ນອນ/.test(normalized)) return 'Admit';
+  if (/refer|transfer|ສົ່ງຕໍ່/.test(normalized)) return 'Refer';
+  if (/lama|ປະຕິເສດ/.test(normalized)) return 'LAMA';
+  if (/observe|observation|ຕິດຕາມ/.test(normalized)) return 'Observe';
+  if (/home|completed|pharmacy|ກັບບ້ານ|ຮັບຢາ/.test(normalized)) return 'Home';
+  return original;
+};
+
+window.opdTestDispositionDefaults = [
+  { value: 'Home', label: 'ກັບບ້ານ / Home' },
+  { value: 'Observe', label: 'ຕິດຕາມອາການ OPD / OPD Observation' },
+  { value: 'Admit', label: 'ເຂົ້ານອນ IPD / Admit' },
+  { value: 'Refer', label: 'ສົ່ງຕໍ່ໂຮງໝໍອື່ນ / Transfer' },
+  { value: 'LAMA', label: 'ປະຕິເສດການຮັກສາ / LAMA' }
+];
+window.opdTestDispositionHistoryStorageKey = 'his_opd_test_disposition_history_v1';
+window.opdTestSharedDispositionSuggestions = window.opdTestSharedDispositionSuggestions || [];
+
+window.opdTestReadDispositionHistory = function () {
+  try {
+    const parsed = JSON.parse(window.localStorage?.getItem(window.opdTestDispositionHistoryStorageKey) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(item => typeof item === 'string'
+        ? { value: String(item).replace(/\s+/g, ' ').trim(), useCount: 1, lastUsedAt: '' }
+        : {
+            value: String(item?.value || '').replace(/\s+/g, ' ').trim(),
+            useCount: Math.max(1, Number(item?.useCount) || 1),
+            lastUsedAt: String(item?.lastUsedAt || '')
+          })
+      .filter(item => item.value)
+      .sort((a, b) => String(b.lastUsedAt).localeCompare(String(a.lastUsedAt)) || b.useCount - a.useCount);
+  } catch (error) {
+    console.warn('Unable to read OPD disposition history:', error);
+    return [];
+  }
+};
+
+window.opdTestRememberDisposition = function (value) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return;
+  try {
+    const now = new Date().toISOString();
+    const entries = window.opdTestReadDispositionHistory();
+    const current = entries.find(item => item.value.toLocaleLowerCase() === normalized.toLocaleLowerCase());
+    if (current) {
+      current.value = normalized;
+      current.useCount += 1;
+      current.lastUsedAt = now;
+    } else {
+      entries.push({ value: normalized, useCount: 1, lastUsedAt: now });
+    }
+    entries.sort((a, b) => String(b.lastUsedAt).localeCompare(String(a.lastUsedAt)) || b.useCount - a.useCount);
+    window.localStorage?.setItem(window.opdTestDispositionHistoryStorageKey, JSON.stringify(entries.slice(0, 100)));
+    window.opdTestRenderDispositionSuggestions?.();
+  } catch (error) {
+    console.warn('Unable to remember OPD disposition:', error);
+  }
+};
+
+window.opdTestRenderDispositionSuggestions = function () {
+  const target = document.getElementById('opdTestDispositionSuggestions');
+  if (!target) return;
+  const entries = [];
+  const known = new Set();
+  const add = (value, label = '') => {
+    const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+    const key = normalized.toLocaleLowerCase();
+    if (!normalized || known.has(key)) return;
+    known.add(key);
+    entries.push({ value: normalized, label: String(label || '').trim() });
+  };
+  window.opdTestDispositionDefaults.forEach(item => add(item.value, item.label));
+  window.opdTestReadDispositionHistory().forEach(item => add(item.value, 'ລາຍການທີ່ເຄີຍບັນທຶກ'));
+  window.opdTestSharedDispositionSuggestions.forEach(value => add(value, 'ລາຍການທີ່ເຄີຍໃຊ້'));
+  target.innerHTML = entries.map(item =>
+    `<option value="${window.opdTestHtml(item.value)}">${window.opdTestHtml(item.label)}</option>`
+  ).join('');
+};
+
+window.opdTestLoadSharedDispositionSuggestions = async function () {
+  if (window.opdTestSharedDispositionSuggestionsLoaded || window.opdTestSharedDispositionSuggestionsLoading) return;
+  window.opdTestSharedDispositionSuggestionsLoading = true;
+  try {
+    const { data, error } = await supabaseClient
+      .from(dbTable('Visits'))
+      .select('Discharge_Status')
+      .not('Discharge_Status', 'is', null)
+      .order('Date', { ascending: false })
+      .limit(300);
+    if (error) throw error;
+    const known = new Set();
+    window.opdTestSharedDispositionSuggestions = (data || [])
+      .map(visit => window.opdTestDispositionValue(visit.Discharge_Status))
+      .filter(value => {
+        const key = String(value || '').toLocaleLowerCase();
+        if (!key || known.has(key)) return false;
+        known.add(key);
+        return true;
+      });
+    window.opdTestRenderDispositionSuggestions();
+  } catch (error) {
+    console.warn('Unable to load shared OPD disposition suggestions:', error);
+  } finally {
+    window.opdTestSharedDispositionSuggestionsLoading = false;
+    window.opdTestSharedDispositionSuggestionsLoaded = true;
+  }
+};
+
+window.opdTestMedicationMatchesAllergy = function (medicationName) {
+  const allergy = String(window.opdTestState.patientAllergy || '').trim();
+  if (!allergy || /^(none|no|ບໍ່ມີ|-)$/i.test(allergy)) return false;
+  const medicine = String(medicationName || '').toLowerCase();
+  const allergyLower = allergy.toLowerCase();
+  if (/penicillin|amoxicillin|ampicillin|cloxacillin/i.test(allergyLower)) {
+    return window.opdTestPatientAllergyPattern.test(medicationName);
+  }
+  return allergyLower
+    .split(/[,;/|]+/)
+    .map(item => item.trim())
+    .filter(item => item.length >= 4)
+    .some(item => medicine.includes(item));
+};
+
+window.opdTestApplySelectedVisit = function () {
+  const visit = window.opdTestSelectedVisit;
+  const root = document.getElementById('view-opd_test');
+  if (!visit || !root) return false;
+
+  window.opdTestStopLisPolling?.();
+  const state = window.opdTestState;
+  window.clearTimeout(state.autoSaveTimer);
+  const orders = window.opdTestParseStoredList(visit.labOrdersStr);
+  const medications = window.opdTestParseStoredList(visit.prescriptionStr);
+  let clinicalNote = {};
+  try {
+    clinicalNote = visit.clinicalNoteJson ? JSON.parse(visit.clinicalNoteJson) : {};
+  } catch (error) {
+    console.warn('Invalid OPD clinical note JSON:', error);
+  }
+  const disposition = window.opdTestDispositionValue(visit.dischargeStatus);
+  const rawAllergy = String(visit.allergy || '').trim();
+  const hasAllergy = Boolean(rawAllergy && !/^(none|no|ບໍ່ມີ|-)$/i.test(rawAllergy));
+  Object.assign(state, {
+    locked: false,
+    submitting: false,
+    validationAttempted: false,
+    restoringDraft: false,
+    draftRestored: false,
+    draftSavedAt: '',
+    unsaved: false,
+    signedBy: '',
+    activeTab: 'clinical',
+    activeOrderTab: 'clinical',
+    diagnoses: [],
+    orders,
+    results: [],
+    medications,
+    editingMedicationIndex: -1,
+    lisOrders: [],
+    lisResults: [],
+    lisResultPatientId: '',
+    lisResultsLoaded: false,
+    lisFetchInFlight: false,
+    visitStatus: /waiting lab/i.test(String(visit.status || '')) ? 'waiting-lab' : 'in-progress',
+    disposition,
+    patientAllergy: hasAllergy ? rawAllergy : '',
+    signedAt: '',
+    persistedAt: visit.completedAt || '',
+    persistedRevision: Number.parseInt(visit.emrRevision, 10) || Number.parseInt(clinicalNote.revision, 10) || 0,
+    persistenceMode: visit.clinicalNoteJson ? 'enhanced' : 'legacy',
+    auditMode: '',
+    dept: window.opdTestDepartmentKey(visit.department)
+  });
+
+  const setText = (id, value) => {
+    const target = document.getElementById(id);
+    if (target) target.textContent = value || '—';
+  };
+  const setValue = (id, value) => {
+    const control = document.getElementById(id);
+    if (control) control.value = value || '';
+  };
+  const displayDateTime = [visit.date, visit.time].filter(Boolean).join(' ').trim() || '—';
+  const bmi = visit.bmi || (() => {
+    const weight = Number.parseFloat(visit.weight);
+    const heightM = Number.parseFloat(visit.height) / 100;
+    return weight > 0 && heightM > 0 ? (weight / (heightM * heightM)).toFixed(1) : '';
+  })();
+  const allergy = hasAllergy ? state.patientAllergy : 'ບໍ່ມີ / None';
+
+  setText('opdTestPatientName', visit.patientName);
+  setText('opdTestPatientId', visit.patientId);
+  setText('opdTestPatientGenderAge', [visit.gender || '—', visit.ageText || (visit.age ? `${visit.age} ປີ` : '')].filter(Boolean).join(' · '));
+  setText('opdTestPatientDepartment', visit.department || 'OPD');
+  setText('opdTestVisitDateTime', displayDateTime);
+  setText('opdTestPatientAllergy', allergy);
+  setText('opdTestVitalBp', visit.bp || '—');
+  setText('opdTestVitalTemp', visit.temp ? `${visit.temp} °C` : '—');
+  setText('opdTestVitalPr', visit.pulse ? `${visit.pulse} bpm` : '—');
+  setText('opdTestVitalRr', visit.rr ? `${visit.rr} /min` : '—');
+  setText('opdTestVitalSpo2', visit.spo2 ? `${visit.spo2} %` : '—');
+  setText('opdTestVitalWeight', visit.weight ? `${visit.weight} kg` : '—');
+  setText('opdTestVitalHeight', visit.height ? `${visit.height} cm` : '—');
+  setText('opdTestVitalBmi', bmi || '—');
+  setText('opdTestAllergySafetyText', hasAllergy
+    ? `ແພ້ຢາ ${state.patientAllergy}: ລະບົບຈະເຕືອນກ່ອນເພີ່ມຢາ`
+    : 'ບໍ່ພົບປະຫວັດແພ້ຢາ; ກະລຸນາກວດຢືນຢັນກ່ອນສັ່ງຢາ');
+
+  const photo = document.getElementById('opdTestPatientPhoto');
+  if (photo) {
+    photo.onerror = () => {
+      photo.removeAttribute('src');
+      photo.onerror = null;
+    };
+    if (visit.photoUrl) photo.src = visit.photoUrl;
+    else photo.removeAttribute('src');
+  }
+
+  setValue('opdTestCc', visit.symptoms);
+  setValue('opdTestHpi', visit.hpi || clinicalNote.hpi || '');
+  const hasDisease = visit.disease && !/^(none|no|ບໍ່ມີ|-)$/i.test(String(visit.disease).trim());
+  const hasRegularMedicine = visit.regularMedicine && !/^(none|no|ບໍ່ມີ|-)$/i.test(String(visit.regularMedicine).trim());
+  setValue('opdTestPhe', visit.pastHistory || clinicalNote.pastHistory || [hasDisease && `Underlying disease: ${visit.disease}`, hasRegularMedicine && `Regular medicine: ${visit.regularMedicine}`].filter(Boolean).join('\n'));
+  setValue('opdTestPe', visit.pe);
+  setValue('opdTestPlan', visit.treatment || clinicalNote.treatment || '');
+  setValue('opdTestAdvice', visit.advice);
+  setValue('opdTestFollowUp', window.opdTestDateInputValue(visit.followup || visit.Follow_Up || visit.Follow_Up_Date || clinicalNote.followUp));
+  setValue('opdTestDischargeStatus', disposition);
+  setValue('opdTestDeptPicker', state.dept);
+
+  const doctor = document.getElementById('opdTestDoctor');
+  const doctorName = String(visit.doctor || currentUser?.name || '').trim();
+  if (doctor && doctorName) {
+    if (!Array.from(doctor.options).some(option => option.value === doctorName)) doctor.add(new Option(doctorName, doctorName));
+    doctor.value = doctorName;
+  }
+
+  const diagnosisSelect = document.getElementById('opdTestDiagnosis');
+  const diagnoses = String(visit.diagnosis || '')
+    .split(/[,;\n]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (diagnosisSelect) {
+    Array.from(diagnosisSelect.options).forEach(option => { option.selected = false; });
+    diagnoses.forEach(value => {
+      let option = Array.from(diagnosisSelect.options).find(item => item.value === value);
+      if (!option) {
+        option = new Option(value, value);
+        diagnosisSelect.add(option);
+      }
+      option.selected = true;
+    });
+  }
+
+  root.dataset.opdtVisitId = String(visit.visitId || visit.rowIdx || visit.patientId || '');
+  window.opdTestNeedsEncounterLoad = false;
+  return true;
+};
+
+window.opdTestSimpleAlert = function (title, text, icon = 'info') {
+  if (window.Swal?.fire) return window.Swal.fire(title, text, icon);
+  window.alert([title, text].filter(Boolean).join('\n'));
+};
+
+window.opdTestSimpleNow = function () {
+  return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+};
+
+window.opdTestHtml = function (value) {
+  return escapeHisHtml(value);
+};
+
+// LIS result bridge. The LIS Worker is the read boundary for the lis_one_* tables;
+// files themselves live in the public Supabase bucket `order-result-files`.
+window.opdTestLisApiBase = function () {
+  return String(window.LIS_API_BASE_URL || 'https://lis-lxh.muddy-hall-de4f.workers.dev').replace(/\/$/, '');
+};
+
+window.opdTestLisPatientId = function () {
+  const raw = String(
+    window.opdTestSelectedVisit?.patientId
+      || document.getElementById('opdTestPatientId')?.textContent
+      || ''
+  ).trim();
+  return /^[A-Za-z0-9_-]{2,40}$/.test(raw) ? raw : '';
+};
+
+window.opdTestLisVisitDateKey = function () {
+  const visit = window.opdTestSelectedVisit || {};
+  return window.getLocalDateKey(visit.dateInput || visit.rawDate || '')
+    || window.getLocalStr(new Date());
+};
+
+window.opdTestLisRequest = async function (path, payload) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${window.opdTestLisApiBase()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+      signal: controller.signal
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.success === false) {
+      throw new Error(body.error || `LIS request failed (${response.status})`);
+    }
+    return body;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+};
+
+window.opdTestLisFileKey = function (file) {
+  return String(file?.id || `${file?.orderId || ''}:${file?.storagePath || file?.fileName || ''}`);
+};
+
+window.opdTestLisPublicFileUrl = function (storagePath) {
+  const path = String(storagePath || '')
+    .split('/')
+    .filter(Boolean)
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+  return path ? `${SUPABASE_URL}/storage/v1/object/public/order-result-files/${path}` : '';
+};
+
+window.opdTestLisFormatDateTime = function (value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+};
+
+window.opdTestRenderLisResults = function (options = {}) {
+  const state = window.opdTestState;
+  const list = document.getElementById('opdTestLisResultsList');
+  const count = document.getElementById('opdTestLisResultCount');
+  const status = document.getElementById('opdTestLisSyncStatus');
+  const refresh = document.getElementById('opdTestLisRefreshBtn');
+  if (!list || !status) return;
+
+  const resultTimeValue = (file) => {
+    const date = new Date(file?.uploadedAt || file?.order?.completed_at || file?.order?.order_datetime || 0);
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+  };
+  const files = (Array.isArray(state.lisResults) ? [...state.lisResults] : [])
+    .sort((a, b) => resultTimeValue(b) - resultTimeValue(a));
+  state.lisResults = files;
+  if (count) count.textContent = files.length;
+  if (refresh) {
+    refresh.disabled = Boolean(options.loading);
+    refresh.querySelector('i')?.classList.toggle('fa-spin', Boolean(options.loading));
+  }
+
+  status.classList.remove('is-loading', 'is-ready', 'is-error');
+  if (options.loading) {
+    status.classList.add('is-loading');
+    status.innerHTML = '<i class="fas fa-circle"></i>ກຳລັງເຊື່ອມຕໍ່ LIS';
+    if (!state.lisResultsLoaded && !files.length) {
+      list.innerHTML = '<div class="opdt-lis-empty"><i class="fas fa-spinner fa-spin"></i><strong>ກຳລັງດຶງຜົນກວດ</strong><span>ກວດສອບ Order ແລະ PDF ຕາມ HN...</span></div>';
+    }
+    return;
+  }
+
+  if (options.error) {
+    status.classList.add('is-error');
+    status.innerHTML = '<i class="fas fa-circle"></i>ເຊື່ອມຕໍ່ LIS ບໍ່ສຳເລັດ';
+    if (!files.length) {
+      list.innerHTML = `<div class="opdt-lis-empty"><i class="fas fa-triangle-exclamation"></i><strong>ດຶງຜົນບໍ່ສຳເລັດ</strong><span>${window.opdTestHtml(options.error)}</span></div>`;
+    }
+    return;
+  }
+
+  const resultOrderIds = new Set(files.map(file => file.orderId));
+  const waitingCount = (state.lisOrders || []).filter(order => !resultOrderIds.has(order.order_id)).length;
+  status.classList.add('is-ready');
+  status.innerHTML = `<i class="fas fa-circle"></i>ເຊື່ອມຕໍ່ LIS ແລ້ວ${waitingCount ? ` · ລໍຜົນ ${waitingCount}` : ''}`;
+
+  if (!files.length) {
+    const hasOrders = (state.lisOrders || []).length > 0;
+    list.innerHTML = hasOrders
+      ? '<div class="opdt-lis-empty"><i class="fas fa-hourglass-half"></i><strong>ມີ Order ແຕ່ຍັງລໍຖ້າຜົນ</strong><span>ລະບົບຈະກວດຫາ PDF ໃໝ່ທຸກ 30 ວິນາທີ</span></div>'
+      : '<div class="opdt-lis-empty"><i class="fas fa-file-medical"></i><strong>ຍັງບໍ່ພົບຜົນ LIS ຂອງ HN ນີ້</strong><span>ເມື່ອຫ້ອງແລັບອັບໂຫຼດ ຜົນຈະສະແດງທີ່ນີ້</span></div>';
+    return;
+  }
+
+  const uniqueResultOrders = new Map();
+  files.forEach(file => {
+    const orderId = String(file.orderId || '');
+    if (!orderId || uniqueResultOrders.has(orderId)) return;
+    uniqueResultOrders.set(orderId, { orderId, at: resultTimeValue(file) });
+  });
+  const resultOccurrenceByOrderId = new Map();
+  [...uniqueResultOrders.values()]
+    .sort((a, b) => a.at - b.at || a.orderId.localeCompare(b.orderId))
+    .forEach((entry, index) => resultOccurrenceByOrderId.set(entry.orderId, { sequence: index + 1 }));
+
+  list.innerHTML = files.map((file, index) => {
+    const occurrence = resultOccurrenceByOrderId.get(String(file.orderId || ''));
+    const url = window.opdTestHtml(file.publicUrl);
+    return `<article class="opdt-lis-result-card">
+      <span class="opdt-lis-result-icon"><i class="fas fa-file-pdf"></i></span>
+      <div class="opdt-lis-result-main">
+        <strong title="${window.opdTestHtml(file.fileName)}">ຜົນກວດທີ່ ${occurrence?.sequence || index + 1}</strong>
+        <span class="opdt-lis-result-tests"><i class="fas fa-clock"></i> ເວລາ: ${window.opdTestHtml(window.opdTestLisFormatDateTime(file.uploadedAt))}</span>
+        <div class="opdt-lis-result-meta">
+          <span class="opdt-lis-result-chip is-ready"><i class="fas fa-circle-check"></i>ຜົນສຳເລັດ</span>
+          <span class="opdt-lis-result-chip"><i class="fas fa-hashtag"></i>${window.opdTestHtml(file.orderId)}</span>
+        </div>
+      </div>
+      <div class="opdt-lis-result-actions">
+        <button type="button" class="btn btn-primary" onclick="window.opdTestOpenLisResult(${index}, ${occurrence?.sequence || index + 1}); return false;" title="View ຜົນກວດ"><i class="fas fa-eye"></i><span class="d-none d-xl-inline ms-1">ເບິ່ງ</span></button>
+        <a class="btn btn-outline-secondary" href="${url}" target="_blank" rel="noopener" title="ເປີດເພື່ອດາວໂຫຼດ"><i class="fas fa-download"></i></a>
+      </div>
+    </article>`;
+  }).join('');
+};
+
+window.opdTestLisResultSequence = function (index) {
+  const files = Array.isArray(window.opdTestState.lisResults) ? window.opdTestState.lisResults : [];
+  const targetOrderId = String(files[Number(index)]?.orderId || '');
+  if (!targetOrderId) return Number(index) + 1;
+  const uniqueOrders = new Map();
+  files.forEach(file => {
+    const orderId = String(file.orderId || '');
+    if (!orderId || uniqueOrders.has(orderId)) return;
+    const date = new Date(file.uploadedAt || file.order?.completed_at || file.order?.order_datetime || 0);
+    uniqueOrders.set(orderId, Number.isNaN(date.getTime()) ? 0 : date.getTime());
+  });
+  const orderedIds = [...uniqueOrders.entries()]
+    .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+    .map(entry => entry[0]);
+  const sequenceIndex = orderedIds.indexOf(targetOrderId);
+  return sequenceIndex >= 0 ? sequenceIndex + 1 : Number(index) + 1;
+};
+
+window.opdTestOpenLisResult = function (index, displaySequence) {
+  const file = window.opdTestState.lisResults?.[Number(index)];
+  if (!file?.publicUrl) {
+    window.opdTestSimpleAlert('ບໍ່ພົບໄຟລ໌', 'ກະລຸນາກົດໂຫຼດໃໝ່ ແລ້ວລອງອີກຄັ້ງ.', 'warning');
+    return;
+  }
+  if (!window.Swal?.fire) {
+    window.open(file.publicUrl, '_blank', 'noopener');
+    return;
+  }
+  const resolvedSequence = Number(displaySequence) || window.opdTestLisResultSequence(index);
+  const visit = window.opdTestSelectedVisit || {};
+  const patientFields = [
+    ['HN', visit.patientId || document.getElementById('opdTestPatientId')?.textContent],
+    ['ຊື່-ນາມສະກຸນ', visit.patientName || document.getElementById('opdTestPatientName')?.textContent],
+    ['ອາຍຸ', visit.ageText || visit.age],
+    ['ບ້ານ', visit.address || visit.village],
+    ['ເມືອງ', visit.district],
+    ['ແຂວງ', visit.province]
+  ];
+  const patientMeta = patientFields.map(([label, value]) => `<div class="opdt-lis-patient-field">
+    <span>${window.opdTestHtml(label)}</span>
+    <strong>${window.opdTestHtml(String(value || '').trim() || '—')}</strong>
+  </div>`).join('');
+  window.Swal.fire({
+    title: `ຜົນກວດທີ່ ${resolvedSequence}`,
+    html: `<div class="opdt-lis-result-patient">${patientMeta}</div><iframe class="opdt-lis-pdf-frame" src="${window.opdTestHtml(file.publicUrl)}#toolbar=1&navpanes=0" title="${window.opdTestHtml(file.fileName)}"></iframe>`,
+    customClass: { popup: 'opdt-lis-pdf-dialog' },
+    showDenyButton: true,
+    confirmButtonText: '<i class="fas fa-times"></i> ປິດ',
+    denyButtonText: '<i class="fas fa-external-link-alt"></i> ເປີດໜ້າໃໝ່',
+    focusConfirm: false
+  }).then(result => {
+    if (result.isDenied) window.open(file.publicUrl, '_blank', 'noopener');
+  });
+};
+
+window.opdTestNotifyNewLisResults = function (files) {
+  if (!files?.length || !window.Swal?.fire) return;
+  if (window.handleLisResultNotificationFiles?.(files, { source: 'opd-test' })) return;
+  const newest = files[0];
+  window.Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon: 'success',
+    title: 'ຜົນກວດ LIS ສຳເລັດແລ້ວ',
+    text: files.length > 1 ? `ມີ PDF ໃໝ່ ${files.length} ໄຟລ໌` : `${newest.orderId} · ${newest.fileName}`,
+    showConfirmButton: true,
+    confirmButtonText: '<i class="fas fa-eye"></i> ເບິ່ງຜົນ',
+    timer: 12000,
+    timerProgressBar: true
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    const index = window.opdTestState.lisResults.findIndex(item => window.opdTestLisFileKey(item) === window.opdTestLisFileKey(newest));
+    if (index >= 0) window.opdTestOpenLisResult(index);
+  });
+};
+
+window.opdTestFetchLisResults = async function (options = {}) {
+  const root = document.getElementById('view-opd_test');
+  const state = window.opdTestState;
+  const patientId = window.opdTestLisPatientId();
+  const visitDateKey = window.opdTestLisVisitDateKey();
+  const resultScopeKey = `${patientId}:${visitDateKey}`;
+  if (!root || root.style.display === 'none' || !patientId || state.lisFetchInFlight) return;
+
+  if (state.lisResultPatientId !== resultScopeKey) {
+    state.lisOrders = [];
+    state.lisResults = [];
+    state.lisResultsLoaded = false;
+    state.lisResultPatientId = resultScopeKey;
+  }
+
+  state.lisFetchInFlight = true;
+  window.opdTestRenderLisResults({ loading: true });
+  try {
+    const orderResponse = await window.opdTestLisRequest('/api/data', {
+      table: 'lis_one_test_orders',
+      select: 'order_id,order_datetime,patient_id,patient_name,status,completed_at,test_name,test_items,category,lab_dest,out_in',
+      filter: `patient_id=eq.${patientId}`,
+      order: 'order_datetime.desc',
+      limit: 80
+    });
+    const orders = (Array.isArray(orderResponse.data) ? orderResponse.data : [])
+      .filter(order => window.getLocalDateKey(order?.order_datetime) === visitDateKey);
+    const safeOrderIds = orders
+      .map(order => String(order.order_id || '').replace(/[^A-Za-z0-9_-]/g, ''))
+      .filter(Boolean);
+    let rawFiles = [];
+    if (safeOrderIds.length) {
+      const fileResponse = await window.opdTestLisRequest('/api/data', {
+        table: 'lis_one_order_result_files',
+        select: 'id,order_id,file_name,file_type,file_size,storage_path,uploaded_at',
+        filter: `order_id=in.(${safeOrderIds.join(',')})`,
+        order: 'uploaded_at.desc',
+        limit: 200
+      });
+      rawFiles = Array.isArray(fileResponse.data) ? fileResponse.data : [];
+    }
+
+    const orderById = new Map(orders.map(order => [String(order.order_id || ''), order]));
+    const files = rawFiles.map(file => ({
+      id: file.id,
+      orderId: String(file.order_id || ''),
+      fileName: String(file.file_name || 'Laboratory report.pdf'),
+      fileType: String(file.file_type || 'application/pdf'),
+      fileSize: Number(file.file_size || 0),
+      storagePath: String(file.storage_path || ''),
+      uploadedAt: file.uploaded_at || '',
+      publicUrl: window.opdTestLisPublicFileUrl(file.storage_path),
+      order: orderById.get(String(file.order_id || '')) || null
+    })).filter(file => file.publicUrl);
+
+    const wasLoaded = state.lisResultsLoaded;
+    const previousKeys = new Set((state.lisResults || []).map(window.opdTestLisFileKey));
+    state.lisOrders = orders;
+    state.lisResults = files;
+    state.lisResultsLoaded = true;
+    window.opdTestRenderLisResults();
+
+    const newFiles = wasLoaded ? files.filter(file => !previousKeys.has(window.opdTestLisFileKey(file))) : [];
+    if (newFiles.length) window.opdTestNotifyNewLisResults(newFiles);
+    else if (options.manual && window.Swal?.fire) {
+      window.Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'ກວດສອບ LIS ແລ້ວ',
+        text: files.length ? `ພົບຜົນ ${files.length} ໄຟລ໌` : 'ຍັງບໍ່ມີ PDF ໃໝ່',
+        showConfirmButton: false,
+        timer: 2200
+      });
+    }
+  } catch (error) {
+    console.warn('Unable to load LIS results:', error);
+    const message = error?.name === 'AbortError'
+      ? 'LIS ຕອບກັບຊ້າເກີນໄປ'
+      : (error?.message || 'Unknown LIS error');
+    window.opdTestRenderLisResults({ error: message });
+    if (options.manual) window.opdTestSimpleAlert('ດຶງຜົນ LIS ບໍ່ສຳເລັດ', message, 'error');
+  } finally {
+    state.lisFetchInFlight = false;
+    document.getElementById('opdTestLisRefreshBtn')?.removeAttribute('disabled');
+    document.querySelector('#opdTestLisRefreshBtn i')?.classList.remove('fa-spin');
+  }
+};
+
+window.opdTestStopLisPolling = function () {
+  const timer = window.opdTestState?.lisPollTimer;
+  if (timer) window.clearInterval(timer);
+  if (window.opdTestState) window.opdTestState.lisPollTimer = null;
+  if (window.opdTestExternalPollTimer) window.clearInterval(window.opdTestExternalPollTimer);
+  window.opdTestExternalPollTimer = null;
+};
+
+window.opdTestStartLisPolling = function () {
+  window.opdTestStopLisPolling();
+  if (!window.opdTestLisPatientId()) return;
+  window.opdTestFetchLisResults();
+  ['ultrasound', 'xray', 'medication'].forEach(type => window.opdTestSyncExternalResults?.(type, { silent: true }));
+  window.opdTestState.lisPollTimer = window.setInterval(() => {
+    window.opdTestFetchLisResults();
+  }, 30000);
+  window.opdTestExternalPollTimer = window.setInterval(() => {
+    ['ultrasound', 'xray', 'medication'].forEach(type => window.opdTestSyncExternalResults?.(type, { silent: true }));
+  }, 30000);
+};
+
+// ==========================================
+// Catalogs (local demo; production ICD-10/drug data lives in Supabase Drugs_Master/Labs_Master
+// per docs/DOCTOR_EMR_SIMPLIFICATION_PHASE1_5.md — Phase 3 will wire them in)
+// ==========================================
+window.opdTestDiagnosisCatalog = [
+  { code: 'J18.9', name: 'ປອດອັກເສບ ບໍ່ລະບຸເຊື້ອ', keywords: 'pneumonia ໄຂ້ ໄອ ປອດ ຫອບ fever cough lung infection' },
+  { code: 'J06.9', name: 'ຕິດເຊື້ອທາງເດີນຫາຍໃຈສ່ວນເທິງ', keywords: 'uri ໄຂ້ ໄອ ນ້ຳມູກ ເຈັບຄໍ upper respiratory infection' },
+  { code: 'J02.9', name: 'ຄໍອັກເສບສ້ວຍແຫຼມ', keywords: 'pharyngitis sore throat ເຈັບຄໍ ໄຂ້' },
+  { code: 'I10', name: 'ຄວາມດັນເລືອດສູງ', keywords: 'hypertension ຄວາມດັນ high blood pressure' },
+  { code: 'K29.7', name: 'ກະເພາະອາຫານອັກເສບ', keywords: 'gastritis ເຈັບທ້ອງ ກະເພາະ stomach' },
+  { code: 'E11.9', name: 'ເບົາຫວານປະເພດ 2', keywords: 'diabetes ເບົາຫວານ dm' },
+  { code: 'I20.9', name: 'ອາການເຈັບໜ້າເອິກ ບໍ່ລະບຸ', keywords: 'angina chest pain ເຈັບໜ້າເອິກ' },
+  { code: 'I50.9', name: 'ຫົວໃຈລົ້ມເຫຼວ', keywords: 'heart failure ຫົວໃຈລົ້ມ chf' },
+  { code: 'M54.5', name: 'ເຈັບຫຼັງສ່ວນລຸ່ມ', keywords: 'low back pain ເຈັບຫຼັງ lumbago' },
+  { code: 'S52.9', name: 'ກະດູກແຂນຫັກ', keywords: 'fracture forearm ກະດູກແຂນຫັກ' },
+  { code: 'H66.9', name: 'ຫູອັກເສບ', keywords: 'otitis media ຫູອັກເສບ ear' },
+  { code: 'J31.0', name: 'ດັງອັກເສບຊຳເຮື້ອ', keywords: 'chronic rhinitis ດັງອັກເສບ nose' },
+  { code: 'N39.0', name: 'ຕິດເຊື້ອທາງເດີນຍ່ຽວ', keywords: 'uti urinary tract ຍ່ຽວ ຕິດເຊື້ອ' },
+  { code: 'O26.9', name: 'ອາການທີ່ກ່ຽວກັບການຖືພາ', keywords: 'pregnancy anc ຖືພາ' },
+  { code: 'J45.9', name: 'ຫອບຫືດ ບໍ່ລະບຸ', keywords: 'asthma ຫອບຫືດ wheeze' },
+  { code: 'A09', name: 'ຖອກທ້ອງເຊື້ອບໍ່ລະບຸ', keywords: 'diarrhea ຖອກທ້ອງ gastroenteritis' }
+];
+
+window.opdTestMedicationTemplates = {
+  paracetamol: { name: 'Paracetamol 500 mg', dose: '500 mg', route: 'PO', frequency: 'TID', duration: '5 days', quantity: '15' },
+  chlorpheniramine: { name: 'Chlorpheniramine 4 mg', dose: '4 mg', route: 'PO', frequency: 'TID', duration: '5 days', quantity: '15' },
+  amlodipine: { name: 'Amlodipine 5 mg', dose: '5 mg', route: 'PO', frequency: 'OD', duration: '30 days', quantity: '30' },
+  amoxicillin: { name: 'Amoxicillin 500 mg', dose: '500 mg', route: 'PO', frequency: 'TID', duration: '7 days', quantity: '21' },
+  metformin: { name: 'Metformin 500 mg', dose: '500 mg', route: 'PO', frequency: 'BID', duration: '30 days', quantity: '60' },
+  enalapril: { name: 'Enalapril 5 mg', dose: '5 mg', route: 'PO', frequency: 'OD', duration: '30 days', quantity: '30' },
+  isdn: { name: 'Isosorbide dinitrate 10 mg', dose: '10 mg', route: 'PO', frequency: 'TID', duration: '30 days', quantity: '90' },
+  ibuprofen: { name: 'Ibuprofen 400 mg', dose: '400 mg', route: 'PO', frequency: 'TID', duration: '5 days', quantity: '15' },
+  ors: { name: 'Oral Rehydration Salts', dose: '1 sachet in 200 mL', route: 'PO', frequency: 'PRN', duration: '3 days', quantity: '6' }
+};
+
+window.opdTestInvestigationCatalog = [
+  'CBC',
+  'CRP',
+  'Creatinine',
+  'LFT',
+  'Glucose',
+  'Lipid',
+  'UA',
+  'Troponin',
+  'X-Ray',
+  'Ultrasound',
+  'ECG',
+  'Echo'
+];
+
+// Demo allergy check: ຄົນເຈັບແພ້ Penicillin — ກຸ່ມ penicillin ທັງໝົດຕ້ອງເຕືອນ
+window.opdTestPatientAllergyPattern = /penicillin|amoxicillin|ampicillin|cloxacillin/i;
+
+// ==========================================
+// Department template engine — reusable config per department.
+// Add a dept later by appending an entry here; no HTML change needed.
+// ==========================================
+window.opdTestDeptTemplates = {
+  general: {
+    label: 'ກວດທົ່ວໄປ / General OPD',
+    quickSymptoms: ['ໄຂ້', 'ໄອ', 'ເຈັບຫົວ', 'ວິນຫົວ', 'ເຈັບທ້ອງ', 'ເຈັບໜ້າເອິກ', 'ຫາຍໃຈຫອບ'],
+    examSections: ['General', 'Heart', 'Lung', 'Abdomen', 'Neurological'],
+    commonDiagnoses: ['J06.9', 'J02.9', 'K29.7', 'A09', 'M54.5'],
+    commonInvestigations: ['CBC', 'CRP', 'Glucose', 'UA'],
+    commonMedications: ['paracetamol', 'chlorpheniramine', 'ors', 'ibuprofen']
+  },
+  im: {
+    label: 'ອາຍຸລະກຳ / Internal Medicine',
+    quickSymptoms: ['ໄຂ້', 'ອ່ອນເພຍ', 'ນ້ຳໜັກລົດ', 'ບວມ', 'ຫາຍໃຈຫອບ', 'ເຈັບໜ້າເອິກ'],
+    examSections: ['General', 'Heart', 'Lung', 'Abdomen', 'Neurological'],
+    commonDiagnoses: ['I10', 'E11.9', 'J45.9', 'N39.0'],
+    commonInvestigations: ['CBC', 'Creatinine', 'LFT', 'Glucose', 'Lipid'],
+    commonMedications: ['amlodipine', 'metformin', 'enalapril', 'paracetamol']
+  },
+  cardio: {
+    label: 'ຫົວໃຈ / Cardiology',
+    quickSymptoms: ['ເຈັບໜ້າເອິກ', 'ຫາຍໃຈຫອບ', 'ໃຈສັ່ນ', 'ເປັນລົມ', 'ຂາບວມ'],
+    examSections: ['General', 'Heart', 'Lung', 'Peripheral edema', 'Neurological'],
+    commonDiagnoses: ['I10', 'I20.9', 'I50.9'],
+    commonInvestigations: ['ECG', 'Troponin', 'Lipid', 'Echo', 'CBC'],
+    commonMedications: ['amlodipine', 'enalapril', 'isdn']
+  },
+  ortho: {
+    label: 'ກະດູກ / Orthopedic',
+    quickSymptoms: ['ເຈັບ', 'ບວມ', 'ຂຶ້ນຮອຍຊ້ຳ', 'ຂະຫຍັບບໍ່ໄດ້', 'ບາດເຈັບ', 'ຄາງ'],
+    examSections: ['General', 'Pain score', 'Range of motion', 'Swelling / Tenderness', 'Neurovascular'],
+    commonDiagnoses: ['M54.5', 'S52.9'],
+    commonInvestigations: ['X-Ray', 'CBC'],
+    commonMedications: ['ibuprofen', 'paracetamol']
+  },
+  ent: {
+    label: 'ຫູ-ຄໍ-ດັງ / ENT',
+    quickSymptoms: ['ເຈັບຫູ', 'ຫູອື້', 'ດັງອຸດ', 'ນ້ຳມູກ', 'ເຈັບຄໍ', 'ໄອ'],
+    examSections: ['Ear', 'Nose', 'Throat', 'Hearing', 'Endoscopy note'],
+    commonDiagnoses: ['H66.9', 'J31.0', 'J02.9'],
+    commonInvestigations: ['CBC'],
+    commonMedications: ['paracetamol', 'chlorpheniramine']
+  },
+  obgyn: {
+    label: 'ຍິງ / OB-GYN',
+    quickSymptoms: ['ເລືອດອອກທາງຊ່ອງຄອດ', 'ເຈັບທ້ອງນ້ອຍ', 'ຕົກຂາວ', 'ຄັນ', 'ຖືພາ'],
+    examSections: ['General', 'Abdomen', 'Pelvic (external)', 'Fetal (if pregnant)'],
+    commonDiagnoses: ['O26.9', 'N39.0'],
+    commonInvestigations: ['CBC', 'UA', 'Ultrasound'],
+    commonMedications: ['paracetamol']
+  },
+  peds: {
+    label: 'ເດັກ / Pediatrics',
+    quickSymptoms: ['ໄຂ້', 'ໄອ', 'ຖອກທ້ອງ', 'ຮາກ', 'ບໍ່ຢາກກິນ', 'ຜື່ນ'],
+    examSections: ['General', 'ENT', 'Heart', 'Lung', 'Abdomen'],
+    commonDiagnoses: ['J06.9', 'A09', 'J45.9'],
+    commonInvestigations: ['CBC', 'CRP'],
+    commonMedications: ['paracetamol', 'ors']
+  }
+};
+
+window.opdTestFollowupAdviceChips = ['ພັກຜ່ອນໃຫ້ພຽງພໍ', 'ດື່ມນ້ຳຫຼາຍ', 'ກັບມາທັນທີຖ້າອາການຮຸນແຮງ', 'ກິນຢາຕາມຄຳແນະນຳ'];
+
+window.opdTestHintsStorageKey = 'his_opd_test_hints_dismissed';
+
+// ==========================================
+// Utilities
+// ==========================================
+
+window.opdTestFocusSection = function (sectionId, focusId) {
+  const section = document.getElementById(sectionId);
+  const pane = section?.closest('[data-opdt-pane]');
+  if (pane?.dataset.opdtPane) window.opdTestSwitchTab(pane.dataset.opdtPane, false);
+  const step = section?.closest('[data-opdt-step]') || section;
+  if (step?.dataset?.opdtStep != null) window.opdTestOpenClinicalStep(Number(step.dataset.opdtStep), false);
+  section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (focusId) setTimeout(() => document.getElementById(focusId)?.focus(), 220);
+};
+
+window.opdTestSelectOrderTab = function (requestedTab = 'clinical', focus = true) {
+  const validTabs = ['clinical', 'lab', 'ultrasound', 'xray', 'medication'];
+  const tab = validTabs.includes(requestedTab) ? requestedTab : 'clinical';
+  const root = document.getElementById('view-opd_test');
+  window.opdTestState.activeOrderTab = tab;
+  if (root) root.dataset.opdtWorkspace = tab;
+  const home = root?.querySelector('[data-opdt-workspace-tab="clinical"]');
+  if (home) {
+    home.classList.toggle('active', tab === 'clinical');
+    home.setAttribute('aria-selected', String(tab === 'clinical'));
+    home.setAttribute('aria-current', tab === 'clinical' ? 'page' : 'false');
+  }
+  document.querySelectorAll('#view-opd_test [data-opdt-order-tab]').forEach(button => {
+    const active = button.dataset.opdtOrderTab === tab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = 0;
+  });
+  document.querySelectorAll('#view-opd_test [data-opdt-order-panel]').forEach(panel => {
+    const active = panel.dataset.opdtOrderPanel === tab;
+    panel.classList.toggle('active', active);
+    panel.hidden = !active;
+  });
+  const workspaceLabels = {
+    clinical: { icon: 'fa-notes-medical', title: 'ບັນທຶກການກວດ / Clinical Encounter' },
+    lab: { icon: 'fa-vials', title: 'Lab Orders & Results / ຫ້ອງແລັບ' },
+    ultrasound: { icon: 'fa-wave-square', title: 'Ultrasound Orders & Results' },
+    xray: { icon: 'fa-x-ray', title: 'X-Ray Orders & Results / Radiology' },
+    medication: { icon: 'fa-pills', title: 'Medication Orders / ສັ່ງຢາ' }
+  };
+  const workspace = workspaceLabels[tab];
+  const title = document.getElementById('opdTestWorkspaceTitle');
+  const icon = document.getElementById('opdTestWorkspaceIcon');
+  if (title) title.textContent = workspace.title;
+  if (icon) icon.className = `fas ${workspace.icon}`;
+  if (focus) {
+    const target = tab === 'clinical'
+      ? home
+      : document.querySelector(`#view-opd_test [data-opdt-order-tab="${tab}"]`);
+    target?.focus();
+    const emrBody = root?.querySelector('.opdt-emr-body');
+    if (emrBody) emrBody.scrollTop = 0;
+  }
+};
+
+window.opdTestDateInputValue = function (value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const local = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (local) return `${local[3]}-${local[2].padStart(2, '0')}-${local[1].padStart(2, '0')}`;
+  return '';
+};
+
+window.opdTestSelectedOrders = function () {
+  return Array.from(document.querySelectorAll('#view-opd_test input[name="opdtest-order"]:checked')).map(input => input.value);
+};
+
+window.opdTestSwitchTab = function (tab, focus = true) {
+  const root = document.getElementById('view-opd_test');
+  if (!root) return;
+  const target = root.querySelector(`[data-opdt-pane="${tab}"]`);
+  if (!target) return;
+  window.opdTestState.activeTab = tab;
+  root.querySelectorAll('[data-opdt-pane]').forEach(pane => {
+    const active = pane === target;
+    pane.classList.toggle('active', active);
+    pane.classList.toggle('show', active);
+  });
+  root.querySelectorAll('[data-opdt-tab]').forEach(button => {
+    const active = button.dataset.opdtTab === tab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  if (tab === 'summary') window.opdTestRenderSummaryPreview();
+  if (focus) {
+    const emrBody = root.querySelector('.opdt-emr-body');
+    if (emrBody) emrBody.scrollTop = 0;
+    else target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => target.querySelector('textarea:not(:disabled), input:not(:disabled), button:not(:disabled)')?.focus(), 180);
+  }
+};
+
+window.opdTestOpenClinicalStep = function (index, focus = true) {
+  const step = document.querySelector(`#view-opd_test [data-opdt-step="${index}"]`);
+  if (!step) return false;
+  if (step.id === 'opdTestSecDiagnosis' && !document.getElementById('opdTestCc')?.value?.trim()) {
+    window.opdTestFocusSection('opdTestSecAssessment', 'opdTestCc');
+    return false;
+  }
+  document.querySelectorAll('#view-opd_test .opdt-clinical-step').forEach(other => {
+    if (other === step) return;
+    other.classList.remove('is-open');
+    const otherIcon = other.querySelector('.opdt-step-head > i');
+    if (otherIcon) otherIcon.className = other.classList.contains('is-locked') ? 'fas fa-lock' : 'fas fa-chevron-down';
+  });
+  step.classList.remove('is-locked');
+  step.classList.add('is-open');
+  const icon = step.querySelector('.opdt-step-head > i');
+  if (icon) icon.className = 'fas fa-chevron-up';
+  if (focus) setTimeout(() => step.querySelector('textarea:not(:disabled), input:not([type="radio"]):not([type="checkbox"]):not(:disabled), button:not(:disabled)')?.focus(), 80);
+  return true;
+};
+
+window.opdTestToggleClinicalStep = function (index) {
+  const step = document.querySelector(`#view-opd_test [data-opdt-step="${index}"]`);
+  if (!step) return;
+  if (!step.classList.contains('is-open')) {
+    window.opdTestOpenClinicalStep(index);
+    return;
+  }
+  step.classList.remove('is-open');
+  const icon = step.querySelector('.opdt-step-head > i');
+  if (icon) icon.className = 'fas fa-chevron-down';
+};
+
+window.opdTestGoClinicalStep = function (index) {
+  const current = document.querySelector('#view-opd_test .opdt-clinical-step.is-open:focus-within');
+  if (current) {
+    current.classList.remove('is-open');
+    const icon = current.querySelector('.opdt-step-head > i');
+    if (icon) icon.className = 'fas fa-chevron-down';
+  }
+  if (window.opdTestOpenClinicalStep(index)) {
+    document.querySelector(`#view-opd_test [data-opdt-step="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+};
+
+window.opdTestToggleNoHpi = function (checked) {
+  const input = document.getElementById('opdTestHpi');
+  if (!input) return;
+  if (checked) input.value = '';
+  input.disabled = Boolean(checked || window.opdTestState.locked);
+  window.opdTestMarkDirty();
+  window.opdTestRefreshChecks();
+};
+
+window.opdTestExamChoice = function (radio) {
+  if (radio?.value !== 'abnormal') return;
+  const findings = radio.closest('[data-exam-row]')?.querySelector('input.form-control');
+  setTimeout(() => findings?.focus(), 0);
+};
+
+window.opdTestCreateAssessmentDraft = function () {
+  const assessment = document.getElementById('opdTestAssessment');
+  if (!assessment || assessment.disabled) return;
+  const cc = document.getElementById('opdTestCc')?.value?.trim() || '';
+  const diagnoses = window.opdTestState.diagnoses.map(item => `${item.code} ${item.name}`).join(', ');
+  const draft = [cc && `CC: ${cc}`, diagnoses && `Diagnosis: ${diagnoses}`].filter(Boolean).join('\n');
+  if (!draft) return window.opdTestSimpleAlert('ຍັງບໍ່ມີຂໍ້ມູນ', 'ກະລຸນາບັນທຶກ CC ຫຼື Diagnosis ກ່ອນ.', 'info');
+  assessment.value = draft;
+  assessment.dispatchEvent(new Event('input', { bubbles: true }));
+  assessment.focus();
+};
+
+window.opdTestToggleSummary = function (button) {
+  const summary = document.querySelector('#view-opd_test .opdt-clinical-summary');
+  if (!summary) return;
+  const open = summary.classList.toggle('is-open');
+  const icon = button?.querySelector('i');
+  if (icon) icon.className = `fas ${open ? 'fa-chevron-up' : 'fa-chevron-down'}`;
+};
+
+window.opdTestSetAllNormal = function () {
+  document.querySelectorAll('#opdTestExamGrid [data-exam-row]').forEach(row => {
+    const normal = row.querySelector('input[type="radio"][value="normal"]');
+    const findings = row.querySelector('input.form-control');
+    if (normal) normal.checked = true;
+    if (findings) findings.value = 'ປົກກະຕິ';
+  });
+  window.opdTestMarkDirty();
+  window.opdTestRefreshChecks();
+};
+
+// Append text to an input/textarea without replacing existing content
+window.opdTestAppendChip = function (inputId, text) {
+  const el = document.getElementById(inputId);
+  if (!el || el.disabled) return;
+  const cur = String(el.value || '').trim();
+  el.value = cur ? `${cur}, ${text}` : text;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.focus();
+};
+
+// ==========================================
+// Department engine
+// ==========================================
+window.opdTestApplyDept = function (key) {
+  const picker = document.getElementById('opdTestDeptPicker');
+  const fallback = picker?.querySelector('option[value="internal"]') ? 'internal' : (picker?.options?.[0]?.value || 'internal');
+  const nextKey = picker?.querySelector(`option[value="${key}"]`) ? key : fallback;
+  window.opdTestState.dept = nextKey;
+  if (picker && picker.value !== nextKey) picker.value = nextKey;
+  const header = document.getElementById('opdTestHeaderDepartment');
+  if (header) header.textContent = picker?.selectedOptions?.[0]?.textContent?.trim() || nextKey;
+  window.opdTestRenderSymptomChips();
+  window.opdTestRenderMedChips();
+  window.opdTestRenderDxCommonChips();
+  window.opdTestRenderExamGrid();
+  window.opdTestRenderSummaryPreview();
+};
+
+window.opdTestRenderSymptomChips = function () {
+  const target = document.getElementById('opdTestSymptomChips');
+  if (!target) return;
+  const chips = window.opdTestDeptTemplates[window.opdTestState.dept]?.quickSymptoms || [];
+  target.innerHTML = chips.map(chip =>
+    `<button type="button" class="opdt-chip" data-emr-action onclick="window.opdTestAppendChip('opdTestCc', decodeURIComponent('${encodeURIComponent(chip)}')); return false;">+ ${window.opdTestHtml(chip)}</button>`
+  ).join('');
+};
+
+window.opdTestRenderMedChips = function () {
+  const target = document.getElementById('opdTestMedChips');
+  if (!target) return;
+  const keys = window.opdTestDeptTemplates[window.opdTestState.dept]?.commonMedications || [];
+  target.innerHTML = keys.map(k => {
+    const item = window.opdTestMedicationTemplates[k];
+    if (!item) return '';
+    return `<button type="button" data-emr-action onclick="window.opdTestUseMedicationTemplate('${k}'); return false;"><i class="fas fa-plus me-1"></i>${window.opdTestHtml(item.name)}</button>`;
+  }).join('');
+};
+
+window.opdTestRenderDxCommonChips = function () {
+  const target = document.getElementById('opdTestDxCommonChips');
+  if (!target) return;
+  const codes = window.opdTestDeptTemplates[window.opdTestState.dept]?.commonDiagnoses || [];
+  target.innerHTML = codes.map(code => {
+    const item = window.opdTestDiagnosisCatalog.find(row => row.code === code);
+    if (!item) return '';
+    return `<button type="button" class="opdt-chip" data-emr-action onclick="window.opdTestAddDiagnosis('${code}'); return false;">+ ${window.opdTestHtml(code)} · ${window.opdTestHtml(item.name)}</button>`;
+  }).join('') || '<span class="opdt-empty-inline">ບໍ່ມີລາຍການທົ່ວໄປສຳລັບພະແນກນີ້</span>';
+
+  // Recent dx chips
+  const recentWrap = document.getElementById('opdTestDxRecentChips');
+  const recentTitle = document.getElementById('opdTestDxRecentTitle');
+  if (recentWrap && recentTitle) {
+    const recent = (window.opdTestState.recentDx || []).slice(0, 5);
+    if (!recent.length) {
+      recentTitle.style.display = 'none';
+      recentWrap.innerHTML = '';
+    } else {
+      recentTitle.style.display = '';
+      recentWrap.innerHTML = recent.map(code => {
+        const item = window.opdTestDiagnosisCatalog.find(row => row.code === code);
+        if (!item) return '';
+        return `<button type="button" class="opdt-chip" data-emr-action onclick="window.opdTestAddDiagnosis('${code}'); return false;">+ ${window.opdTestHtml(code)} · ${window.opdTestHtml(item.name)}</button>`;
+      }).join('');
+    }
+  }
+};
+
+window.opdTestRenderExamGrid = function () {
+  // Change the first five system labels to match the selected department.
+  const template = window.opdTestDeptTemplates[window.opdTestState.dept];
+  if (!template?.examSections) return;
+  const ids = ['opdTestExamGeneral', 'opdTestExamHeart', 'opdTestExamLung', 'opdTestExamAbdomen', 'opdTestExamNeuro'];
+  ids.forEach((id, i) => {
+    const heading = document.getElementById(id)?.closest('tr')?.querySelector('th');
+    if (heading && template.examSections[i]) heading.textContent = template.examSections[i];
+  });
+};
+
+// ==========================================
+// Diagnosis
+// ==========================================
+window.opdTestRenderDiagnosisSearch = function () {
+  const target = document.getElementById('opdTestDxSearchResults');
+  if (!target) return;
+  const query = String(document.getElementById('opdTestDxSearch')?.value || '').trim().toLowerCase();
+  if (!query) { target.innerHTML = ''; return; }
+  const matches = window.opdTestDiagnosisCatalog.filter(item => {
+    const searchable = `${item.code} ${item.name} ${item.keywords}`.toLowerCase();
+    return searchable.includes(query);
+  }).slice(0, 5);
+  target.innerHTML = matches.length
+    ? matches.map(item => `<button type="button" data-emr-action onclick="window.opdTestAddDiagnosis('${item.code}'); return false;"><span><b>${window.opdTestHtml(item.code)}</b>${window.opdTestHtml(item.name)}</span><i class="fas fa-plus"></i></button>`).join('')
+    : '<div class="opdt-empty-inline">ບໍ່ພົບລາຍການ. ລອງຄົ້ນຫາດ້ວຍອາການເຊັ່ນ ໄຂ້ ຫຼື ໄອ</div>';
+};
+
+window.opdTestSearchDiagnosis = function () { window.opdTestRenderDiagnosisSearch(); };
+
+window.opdTestDxSearchKeydown = function (event) {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const first = document.querySelector('#opdTestDxSearchResults button[data-emr-action]');
+  if (first) first.click();
+};
+
+window.opdTestAddDiagnosis = function (code) {
+  const state = window.opdTestState;
+  if (state.locked || state.diagnoses.some(item => item.code === code)) return;
+  const item = window.opdTestDiagnosisCatalog.find(row => row.code === code);
+  if (!item) return;
+  const certainty = state.diagnoses.length === 0 ? 'Primary' : 'Secondary';
+  state.diagnoses.push({ code: item.code, name: item.name, certainty });
+  window.opdTestMarkDirty();
+  state.recentDx = [code, ...state.recentDx.filter(c => c !== code)].slice(0, 8);
+  const search = document.getElementById('opdTestDxSearch');
+  if (search) { search.value = ''; search.focus(); }
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestToggleDxCertainty = function (index) {
+  const state = window.opdTestState;
+  if (state.locked || !state.diagnoses[index]) return;
+  const order = ['Primary', 'Secondary', 'Suspected'];
+  const cur = state.diagnoses[index].certainty || 'Primary';
+  state.diagnoses[index].certainty = order[(order.indexOf(cur) + 1) % order.length];
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestRemoveDiagnosis = function (index) {
+  if (window.opdTestState.locked) return;
+  window.opdTestState.diagnoses.splice(index, 1);
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestCertaintyLabel = function (certainty) {
+  return ({
+    Primary: 'ຫຼັກ',
+    Secondary: 'ຮ່ວມ',
+    Suspected: 'ສົງໄສ'
+  })[certainty] || 'ຫຼັກ';
+};
+
+window.opdTestRenderDiagnoses = function () {
+  const target = document.getElementById('opdTestDxRows');
+  if (!target) return;
+  const rows = window.opdTestState.diagnoses;
+  const rowsHtml = rows.length
+    ? rows.map((item, index) => `<tr>
+        <td><b>${window.opdTestHtml(item.code)}</b></td>
+        <td>${window.opdTestHtml(item.name)}</td>
+        <td><button type="button" class="opdt-dx-type" data-emr-action onclick="window.opdTestToggleDxCertainty(${index}); return false;" title="ກົດເພື່ອປ່ຽນ Primary, Secondary, Differential">${window.opdTestHtml(window.opdTestCertaintyLabel(item.certainty))} / ${window.opdTestHtml(item.certainty === 'Suspected' ? 'Differential' : item.certainty)}</button></td>
+        <td><button type="button" class="opdt-table-action" data-emr-action onclick="window.opdTestRemoveDiagnosis(${index}); return false;" title="ລຶບ"><i class="fas fa-times"></i></button></td>
+      </tr>`).join('')
+    : '<tr><td colspan="4" class="opdt-table-empty">ຍັງບໍ່ມີການວິນິດໄສ / No diagnosis selected.</td></tr>';
+  target.innerHTML = `<table class="opdt-clinical-table">
+    <thead><tr><th>ICD-10</th><th>ການວິນິດໄສ / Diagnosis</th><th>ປະເພດ / Type</th><th>ລຶບ / Remove</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+};
+
+// ==========================================
+// Orders + Results
+// ==========================================
+window.opdTestBuildLocalResults = function (items) {
+  const resultMap = {
+    CBC: { type: 'lab', name: 'CBC', status: 'ມີຜົນແລ້ວ', values: [
+      { label: 'WBC', value: '15.2', unit: '10³/µL', ref: '4.0–11.0', flag: 'high' },
+      { label: 'Hb', value: '12.0', unit: 'g/dL', ref: '12–16', flag: '' },
+      { label: 'Platelet', value: '150', unit: '10³/µL', ref: '150–400', flag: 'low' }
+    ] },
+    CRP: { type: 'lab', name: 'CRP', status: 'ມີຜົນແລ້ວ', values: [{ label: 'CRP', value: '18', unit: 'mg/L', ref: '<5', flag: 'high' }] },
+    Creatinine: { type: 'lab', name: 'Creatinine', status: 'ມີຜົນແລ້ວ', values: [{ label: 'Creatinine', value: '0.9', unit: 'mg/dL', ref: '0.6–1.2', flag: '' }] },
+    LFT: { type: 'lab', name: 'LFT', status: 'ມີຜົນແລ້ວ', values: [{ label: 'ALT', value: '28', unit: 'U/L', ref: '<40', flag: '' }, { label: 'AST', value: '24', unit: 'U/L', ref: '<40', flag: '' }] },
+    Glucose: { type: 'lab', name: 'Glucose', status: 'ມີຜົນແລ້ວ', values: [{ label: 'Glucose', value: '65', unit: 'mg/dL', ref: '70–110', flag: 'low' }] },
+    UA: { type: 'lab', name: 'Urinalysis', status: 'ມີຜົນແລ້ວ', values: [{ label: 'WBC', value: '5–10', unit: '/HPF', ref: '<5', flag: 'high' }] },
+    Troponin: { type: 'lab', name: 'Troponin', status: 'ມີຜົນແລ້ວ', values: [{ label: 'Troponin', value: '0.02', unit: 'ng/mL', ref: '<0.04', flag: '' }] },
+    Lipid: { type: 'lab', name: 'Lipid Profile', status: 'ມີຜົນແລ້ວ', values: [{ label: 'LDL', value: '145', unit: 'mg/dL', ref: '<130', flag: 'high' }, { label: 'HDL', value: '38', unit: 'mg/dL', ref: '>40', flag: 'low' }] },
+    'X-Ray': { type: 'radiology', name: 'X-Ray', status: 'ລໍຖ້າຜົນ', values: [] },
+    Ultrasound: { type: 'radiology', name: 'Ultrasound', status: 'ລໍຖ້າຜົນ', values: [] },
+    ECG: { type: 'radiology', name: 'ECG', status: 'ລໍຖ້າຜົນ', values: [] },
+    Echo: { type: 'radiology', name: 'Echocardiogram', status: 'ລໍຖ້າຜົນ', values: [] }
+  };
+  return items.map(item => ({ ...resultMap[item], receivedAt: resultMap[item]?.type === 'lab' ? '15/05/2025 10:22' : '' })).filter(r => r.name);
+};
+
+window.opdTestPriorityLabel = function (v) {
+  return v === 'STAT' ? 'STAT' : (v === 'Urgent' ? 'ດ່ວນ' : 'ປົກກະຕິ');
+};
+
+window.opdTestOrderType = function (name) {
+  if (['X-Ray', 'Ultrasound'].includes(name)) return 'Imaging';
+  if (['ECG', 'Echo'].includes(name)) return 'Other';
+  return 'Laboratory';
+};
+
+window.opdTestSetOrderFilter = function (filter) {
+  window.opdTestState.orderFilter = filter;
+  document.querySelectorAll('#view-opd_test [data-order-filter]').forEach(button => button.classList.toggle('active', button.dataset.orderFilter === filter));
+  window.opdTestRenderOrders();
+};
+
+// ຕິກແລ້ວກົດ ຢືນຢັນ = ສະແດງ confirm summary → push ເປັນລາຍການຖາວອນ
+window.opdTestSendOrders = function () {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  const items = window.opdTestSelectedOrders();
+  if (!items.length) return window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍການກວດ', 'ຕິກເລືອກ CBC, CRP ຫຼືການກວດອື່ນກ່ອນສົ່ງໄປ LIS.', 'warning');
+  const priorityValue = document.getElementById('opdTestOrderPriority')?.value || 'Routine';
+  const priorityLabel = window.opdTestPriorityLabel(priorityValue);
+  const push = () => {
+    const batchNo = `LIS-${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}`;
+    const at = new Date().toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+    const skipped = [];
+    items.forEach(name => {
+      if (state.orders.some(order => order.name === name)) { skipped.push(name); return; }
+      state.orders.push({
+        name,
+        at,
+        orderNo: batchNo,
+        priority: priorityLabel,
+        priorityValue,
+        indication: document.getElementById('opdTestOrderIndication')?.value?.trim() || '',
+        note: document.getElementById('opdTestOrderNote')?.value?.trim() || ''
+      });
+    });
+    document.querySelectorAll('#view-opd_test input[name="opdtest-order"]:checked').forEach(input => { input.checked = false; });
+    state.results = window.opdTestBuildLocalResults(state.orders.map(order => order.name));
+    window.opdTestMarkDirty();
+    window.opdTestRefreshSimple();
+    window.opdTestCloseInvestigationDrawer();
+    if (skipped.length) window.opdTestSimpleAlert('ບາງລາຍການສັ່ງແລ້ວ', `${skipped.join(', ')} ຖືກສັ່ງໄປກ່ອນໜ້ານີ້ແລ້ວ — ບໍ່ສັ່ງຊ້ຳ.`, 'info');
+  };
+  if (window.Swal?.fire) {
+    const listHtml = items.map(item => `<li style="text-align:left;">${window.opdTestHtml(item)}</li>`).join('');
+    window.Swal.fire({
+      title: 'ຢືນຢັນສົ່ງຄຳສັ່ງກວດ',
+      html: `<div style="text-align:left;"><b>ລາຍການ (${items.length}):</b><ul style="margin:6px 0 8px 20px;padding:0;">${listHtml}</ul><b>ຄວາມດ່ວນ:</b> ${window.opdTestHtml(priorityLabel)}</div>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ຢືນຢັນສົ່ງ',
+      cancelButtonText: 'ຍົກເລີກ'
+    }).then(result => { if (result.isConfirmed) push(); });
+    return;
+  }
+  if (window.confirm(`ຢືນຢັນສົ່ງ ${items.length} ລາຍການ (ຄວາມດ່ວນ: ${priorityLabel})?`)) push();
+};
+
+window.opdTestRemoveOrder = function (index) {
+  const state = window.opdTestState;
+  if (state.locked || !state.orders[index]) return;
+  state.orders.splice(index, 1);
+  state.results = window.opdTestBuildLocalResults(state.orders.map(order => order.name));
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestRenderOrders = function () {
+  const target = document.getElementById('opdTestOrderRows');
+  if (!target) return;
+  const rows = window.opdTestState.orders
+    .map((order, originalIndex) => ({ order, originalIndex }))
+    .filter(({ order }) => window.opdTestOrderType(order.name) === window.opdTestState.orderFilter);
+  const rowsHtml = rows.length
+    ? rows.map(({ order, originalIndex }) => {
+        const type = window.opdTestOrderType(order.name);
+        const priorityCls = order.priorityValue === 'STAT' ? 'text-danger fw-bold' : (order.priorityValue === 'Urgent' ? 'text-warning' : 'text-muted');
+        return `<tr>
+          <td><b>${window.opdTestHtml(order.name)}</b><span>${window.opdTestHtml(type)}</span></td>
+          <td>${window.opdTestHtml(order.at)}</td>
+          <td class="${priorityCls}">${window.opdTestHtml(order.priority)}</td>
+          <td><span class="opdt-status-pill is-ordered">Ordered</span></td>
+          <td>${window.opdTestHtml(order.orderNo || '-')}</td>
+          <td><button type="button" class="opdt-table-action" data-emr-action onclick="window.opdTestRemoveOrder(${originalIndex}); return false;" title="Cancel order"><i class="fas fa-times"></i></button></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="6" class="opdt-table-empty">ຍັງບໍ່ມີ ${window.opdTestHtml(window.opdTestState.orderFilter)} order / No orders in this category.</td></tr>`;
+  target.innerHTML = `<table class="opdt-clinical-table">
+    <thead><tr><th>ລາຍການ / Investigation</th><th>ວັນທີສັ່ງ / Ordered Date</th><th>ຄວາມດ່ວນ / Priority</th><th>ສະຖານະ / Status</th><th>ຜົນ / Result</th><th>ການດຳເນີນການ / Action</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+};
+
+window.opdTestSetResultFilter = function (filter) {
+  window.opdTestState.resultFilter = filter;
+  document.querySelectorAll('#view-opd_test [data-result-filter]').forEach(button => button.classList.toggle('active', button.dataset.resultFilter === filter));
+  window.opdTestRenderResults();
+};
+
+window.opdTestRenderResults = function () {
+  const target = document.getElementById('opdTestResultsPanel');
+  if (!target) return;
+  const state = window.opdTestState;
+  const labRows = [];
+  const imagingRows = [];
+  const otherRows = [];
+  state.results.forEach(result => {
+    if (result.type === 'lab' && result.values.length) {
+      result.values.forEach(value => {
+        const flagText = value.flag === 'high' ? '↑ High' : (value.flag === 'low' ? '↓ Low' : 'Normal');
+        const flagCls = value.flag ? `is-${value.flag}` : '';
+        labRows.push(`<tr class="${flagCls}">
+          <td>${window.opdTestHtml(result.name)} - ${window.opdTestHtml(value.label)}</td>
+          <td><b>${window.opdTestHtml(value.value)}</b></td>
+          <td>${window.opdTestHtml(value.unit)}</td>
+          <td>${window.opdTestHtml(value.ref || '-')}</td>
+          <td><span class="opdt-flag ${flagCls}">${window.opdTestHtml(flagText)}</span></td>
+          <td>Verified</td>
+          <td>${window.opdTestHtml(result.receivedAt || '-')}</td>
+          <td>Lab Unit</td>
+        </tr>`);
+      });
+    } else if (result.type === 'radiology') {
+      if (['ECG', 'Echo'].includes(result.name)) {
+        otherRows.push(`<tr>
+          <td>${window.opdTestHtml(result.name)}</td>
+          <td><span class="opdt-status-pill is-pending">${window.opdTestHtml(result.status)}</span></td>
+          <td>-</td><td>-</td><td>ດຣ. ສົມຊາຍ</td>
+          <td><button type="button" class="opdt-table-action" title="View report"><i class="far fa-file-alt"></i></button></td>
+        </tr>`);
+      } else {
+        imagingRows.push(`<tr>
+          <td>${window.opdTestHtml(result.name)}</td>
+          <td>Body part pending</td>
+          <td><span class="opdt-status-pill is-pending">${window.opdTestHtml(result.status)}</span></td>
+          <td>-</td><td>-</td><td>ດຣ. ສົມຊາຍ</td>
+          <td><button type="button" class="opdt-table-action" title="View report"><i class="far fa-file-alt"></i></button></td>
+        </tr>`);
+      }
+    }
+  });
+
+  const labTable = `<table class="opdt-clinical-table">
+    <thead><tr><th>Test</th><th>Result</th><th>Unit</th><th>Reference Range</th><th>Flag</th><th>Status</th><th>Result Date</th><th>Verified By</th></tr></thead>
+    <tbody>${labRows.join('') || '<tr><td colspan="8" class="opdt-table-empty">No laboratory results.</td></tr>'}</tbody>
+  </table>`;
+  const imagingTable = `<table class="opdt-clinical-table">
+    <thead><tr><th>Study</th><th>Body Part</th><th>Status</th><th>Impression</th><th>Report Date</th><th>Reporting Doctor</th><th>View Report</th></tr></thead>
+    <tbody>${imagingRows.join('') || '<tr><td colspan="7" class="opdt-table-empty">No imaging results.</td></tr>'}</tbody>
+  </table>`;
+  const otherTable = `<table class="opdt-clinical-table">
+    <thead><tr><th>Investigation</th><th>Status</th><th>Result Summary</th><th>Result Date</th><th>Verified By</th><th>View Report</th></tr></thead>
+    <tbody>${otherRows.join('') || '<tr><td colspan="6" class="opdt-table-empty">No ECG, Echo, Endoscopy, EEG, EMG, Spirometry, Audiometry, or Pathology results.</td></tr>'}</tbody>
+  </table>`;
+  target.innerHTML = window.opdTestState.resultFilter === 'imaging'
+    ? imagingTable
+    : (window.opdTestState.resultFilter === 'other' ? otherTable : labTable);
+};
+
+// ==========================================
+// Medications
+// ==========================================
+window.opdTestUseMedicationTemplate = function (key) {
+  const item = window.opdTestMedicationTemplates[key];
+  if (!item || window.opdTestState.locked) return;
+  const form = document.getElementById('opdTestMedicationForm');
+  if (form) form.hidden = false;
+  const values = {
+    opdTestMedName: item.name,
+    opdTestMedDose: item.dose,
+    opdTestMedRoute: item.route,
+    opdTestMedFrequency: item.frequency,
+    opdTestMedDuration: item.duration,
+    opdTestMedQuantity: item.quantity
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const input = document.getElementById(id);
+    if (input) input.value = value || '';
+  });
+  document.getElementById('opdTestMedQuantity')?.focus();
+};
+
+window.opdTestPushMedication = function (medication) {
+  const state = window.opdTestState;
+  const normalizedName = String(medication.name || '').trim().toLowerCase();
+  if (state.medications.some(row => String(row.name || '').trim().toLowerCase() === normalizedName)) {
+    window.opdTestSimpleAlert('ມີຢານີ້ແລ້ວ', `${medication.name} ຢູ່ໃນລາຍການແລ້ວ.`, 'info');
+    return false;
+  }
+  if (window.opdTestMedicationMatchesAllergy(medication.name)) {
+    const allergy = window.opdTestState.patientAllergy || 'ຢາທີ່ລະບຸ';
+    window.opdTestSimpleAlert(
+      'ບໍ່ສາມາດສັ່ງຢານີ້',
+      `ຄົນເຈັບມີປະຫວັດແພ້ ${allergy} ແລະ ${medication.name} ອາດຢູ່ໃນກຸ່ມທີ່ກ່ຽວຂ້ອງ. ກະລຸນາເລືອກຢາອື່ນ.`,
+      'error'
+    );
+    return false;
+  }
+  state.medications.push({ ...medication });
+  const form = document.getElementById('opdTestMedicationForm');
+  if (form) form.hidden = true;
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+  return true;
+};
+
+window.opdTestAddMedication = function () {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  const medication = {
+    name: document.getElementById('opdTestMedName')?.value?.trim() || '',
+    dose: document.getElementById('opdTestMedDose')?.value?.trim() || '',
+    route: document.getElementById('opdTestMedRoute')?.value || '',
+    frequency: document.getElementById('opdTestMedFrequency')?.value || '',
+    duration: document.getElementById('opdTestMedDuration')?.value?.trim() || '',
+    quantity: document.getElementById('opdTestMedQuantity')?.value?.trim() || '',
+    instr: document.getElementById('opdTestMedInstr')?.value?.trim() || ''
+  };
+  if (!medication.name || !medication.dose || !medication.duration) return window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', 'ກະລຸນາລະບຸຊື່ຢາ, Dose ແລະ Duration.', 'warning');
+  if (window.opdTestPushMedication(medication)) {
+    ['opdTestMedName', 'opdTestMedDose', 'opdTestMedDuration', 'opdTestMedQuantity', 'opdTestMedInstr'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }
+};
+
+window.opdTestRemoveMedication = function (index) {
+  if (window.opdTestState.locked) return;
+  window.opdTestState.medications.splice(index, 1);
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestRenderMedications = function () {
+  const target = document.getElementById('opdTestMedRows');
+  if (!target) return;
+  const rows = window.opdTestState.medications;
+  const rowsHtml = rows.length
+    ? rows.map((item, index) => {
+        if (item.isFreeText || item.freeText) {
+          return `<tr class="opdt-medication-text-row">
+            <td colspan="7"><b><i class="fas fa-align-left me-1"></i>Free-text Prescription</b><div class="opdt-medication-free-text">${window.opdTestHtml(item.freeText || item.name)}</div></td>
+            <td><button type="button" class="opdt-table-action" data-emr-action onclick="window.opdTestRemoveMedication(${index}); return false;" title="Remove"><i class="fas fa-times"></i></button></td>
+          </tr>`;
+        }
+        return `<tr>
+          <td><b>${window.opdTestHtml(item.name)}</b></td>
+          <td>${window.opdTestHtml(item.dose || '-')}</td>
+          <td>${window.opdTestHtml(item.route || '-')}</td>
+          <td>${window.opdTestHtml(item.frequency || '-')}</td>
+          <td>${window.opdTestHtml(item.duration || '-')}</td>
+          <td>${window.opdTestHtml(item.quantity || '-')}</td>
+          <td>${window.opdTestHtml(item.instructions || item.instr || '-')}</td>
+          <td><button type="button" class="opdt-table-action" data-emr-action onclick="window.opdTestRemoveMedication(${index}); return false;" title="Remove"><i class="fas fa-times"></i></button></td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="8" class="opdt-table-empty">No medication yet. Use the common medication buttons or Add Medication form.</td></tr>';
+  const procedures = Array.from(document.querySelectorAll('#view-opd_test input[name="opdtest-proc"]:checked')).map(input => input.value);
+  const procedureNote = document.getElementById('opdTestProcNote')?.value?.trim() || '-';
+  const procedureRows = procedures.length
+    ? procedures.map(item => `<tr><td>${window.opdTestHtml(item)}</td><td>Ordered</td><td>${window.opdTestHtml(procedureNote)}</td><td>ດຣ. ສົມຊາຍ</td></tr>`).join('')
+    : '<tr><td colspan="4" class="opdt-table-empty">No procedure selected.</td></tr>';
+  target.innerHTML = `<table class="opdt-clinical-table">
+    <thead><tr><th>Drug</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Duration</th><th>Quantity</th><th>Instruction</th><th>Action</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>`;
+  const procedureTarget = document.getElementById('opdTestProcedureRows');
+  if (procedureTarget) procedureTarget.innerHTML = `<table class="opdt-clinical-table"><thead><tr><th>Procedure</th><th>Status</th><th>Note</th><th>Doctor</th></tr></thead><tbody>${procedureRows}</tbody></table>`;
+};
+
+window.opdTestOpenInvestigationDrawer = function () {
+  const drawer = document.getElementById('opdTestInvestigationDrawer');
+  drawer?.classList.add('is-open');
+  drawer?.setAttribute('aria-hidden', 'false');
+  document.getElementById('opdTestInvestigationBackdrop')?.classList.add('is-open');
+  window.opdTestDrawerSelectionChanged();
+  setTimeout(() => document.getElementById('opdTestDrawerSearch')?.focus(), 50);
+};
+
+window.opdTestCloseInvestigationDrawer = function () {
+  const drawer = document.getElementById('opdTestInvestigationDrawer');
+  drawer?.classList.remove('is-open');
+  drawer?.setAttribute('aria-hidden', 'true');
+  document.getElementById('opdTestInvestigationBackdrop')?.classList.remove('is-open');
+};
+
+window.opdTestFilterDrawerOrders = function () {
+  const query = document.getElementById('opdTestDrawerSearch')?.value?.trim().toLowerCase() || '';
+  const category = document.getElementById('opdTestDrawerCategory')?.value || 'all';
+  document.querySelectorAll('#opdTestDrawerList label[data-category]').forEach(label => {
+    const matchesText = !query || label.textContent.toLowerCase().includes(query);
+    const matchesCategory = category === 'all' || label.dataset.category === category;
+    label.hidden = !(matchesText && matchesCategory);
+  });
+};
+
+window.opdTestDrawerSelectionChanged = function () {
+  const selected = window.opdTestSelectedOrders();
+  const selectedTarget = document.getElementById('opdTestDrawerSelected');
+  if (selectedTarget) selectedTarget.innerHTML = selected.length
+    ? selected.map(item => `<span>${window.opdTestHtml(item)}</span>`).join('')
+    : 'No items selected';
+  const duplicate = selected.some(item => window.opdTestState.orders.some(order => order.name === item));
+  const warning = document.getElementById('opdTestDuplicateWarning');
+  if (warning) warning.hidden = !duplicate;
+  const count = document.getElementById('opdTestSelectedOrderCount');
+  if (count) count.textContent = selected.length;
+};
+
+// ==========================================
+// Advice chips
+// ==========================================
+window.opdTestRenderAdviceChips = function () {
+  const target = document.getElementById('opdTestAdviceChips');
+  if (!target) return;
+  target.innerHTML = window.opdTestFollowupAdviceChips.map(phrase =>
+    `<button type="button" class="opdt-chip" data-emr-action onclick="window.opdTestAppendChip('opdTestAdvice', decodeURIComponent('${encodeURIComponent(phrase)}')); return false;">+ ${window.opdTestHtml(phrase)}</button>`
+  ).join('');
+};
+
+// ==========================================
+// Progress strip + Section checks
+// ==========================================
+window.opdTestMarkDirty = function () {
+  const state = window.opdTestState;
+  if (state.locked || state.restoringDraft) return;
+  state.unsaved = true;
+  const marker = document.getElementById('opdTestUnsaved');
+  if (marker) marker.hidden = false;
+  window.opdTestSetSaveStatus('unsaved', 'ຍັງບໍ່ບັນທຶກ');
+  window.opdTestScheduleAutosave();
+};
+
+window.opdTestRequiredMissing = function () {
+  const cc = document.getElementById('opdTestCc')?.value?.trim() || '';
+  const diagnosis = window.opdTestDiagnosisValues?.().join(', ') || '';
+  const doctor = document.getElementById('opdTestDoctor')?.value?.trim() || '';
+  const discharge = document.getElementById('opdTestDischargeStatus')?.value?.trim() || '';
+  const admitWard = document.getElementById('opdTestAdmitWard')?.value?.trim() || '';
+  const transferHospital = document.getElementById('opdTestTransferHospital')?.value?.trim() || '';
+  const transferReason = document.getElementById('opdTestTransferReason')?.value?.trim() || '';
+  const lamaReason = document.getElementById('opdTestLamaReason')?.value?.trim() || '';
+  const missing = [];
+  if (!cc) {
+    missing.push({ tab: 'clinical', id: 'opdTestSecCc', focus: 'opdTestCc', text: 'ອາການສຳຄັນ / Chief Complaint' });
+  }
+  if (!diagnosis) {
+    missing.push({ tab: 'clinical', id: 'opdTestSecDx', focus: 'opdTestDiagnosis', text: 'ການວິນິດໄສ / Diagnosis' });
+  }
+  if (!doctor) {
+    missing.push({ tab: 'clinical', id: 'opdTestSecDoctor', focus: 'opdTestDoctor', text: 'ແພດຜູ້ກວດ / Doctor' });
+  }
+  if (!discharge) {
+    missing.push({ tab: 'clinical', id: 'opdTestSecDischarge', focus: 'opdTestDischargeStatus', text: 'ຜົນສະຫຼຸບການກວດ / Visit Disposition' });
+  }
+  if (discharge === 'Admit' && !admitWard) {
+    missing.push({ tab: 'clinical', id: 'opdTestDispositionDetails', focus: 'opdTestAdmitWard', text: 'ພະແນກຮັບເຂົ້ານອນ / Receiving Ward' });
+  }
+  if (discharge === 'Refer' && !transferHospital) {
+    missing.push({ tab: 'clinical', id: 'opdTestDispositionDetails', focus: 'opdTestTransferHospital', text: 'ໂຮງໝໍປາຍທາງ / Destination Hospital' });
+  }
+  if (discharge === 'Refer' && !transferReason) {
+    missing.push({ tab: 'clinical', id: 'opdTestDispositionDetails', focus: 'opdTestTransferReason', text: 'ເຫດຜົນສົ່ງຕໍ່ / Transfer Reason' });
+  }
+  if (discharge === 'LAMA' && !lamaReason) {
+    missing.push({ tab: 'clinical', id: 'opdTestDispositionDetails', focus: 'opdTestLamaReason', text: 'ເຫດຜົນປະຕິເສດການຮັກສາ / LAMA Reason' });
+  }
+  return missing;
+};
+
+window.opdTestApplyValidation = function (missing = window.opdTestRequiredMissing()) {
+  const missingFocusIds = new Set(missing.map(item => item.focus));
+  const controls = [
+    'opdTestCc',
+    'opdTestDoctor',
+    'opdTestDischargeStatus',
+    'opdTestAdmitWard',
+    'opdTestTransferHospital',
+    'opdTestTransferReason',
+    'opdTestLamaReason'
+  ];
+  controls.forEach(id => {
+    const control = document.getElementById(id);
+    if (control) control.classList.toggle('is-invalid', missingFocusIds.has(id));
+  });
+  const diagnosisField = document.querySelector('#opdTestSecDx .opdt-emr-diagnosis-field');
+  if (diagnosisField) diagnosisField.classList.toggle('is-invalid', missingFocusIds.has('opdTestDiagnosis'));
+};
+
+window.opdTestUpdateCompletionState = function () {
+  const missing = window.opdTestRequiredMissing();
+  const button = document.getElementById('opdTestCompleteBtn');
+  const reason = document.getElementById('opdTestCompleteReason');
+  if (button) {
+    button.disabled = window.opdTestState.locked;
+    button.title = missing.length ? `Missing: ${missing.map(item => item.text).join(', ')}` : 'Required information is complete';
+  }
+  if (reason) reason.textContent = missing.length
+    ? `ກະລຸນາກວດສອບ: ${missing.map(item => item.text.split(' / ')[0]).join(', ')}`
+    : 'ຂໍ້ມູນພ້ອມບັນທຶກ / Ready to save';
+  if (window.opdTestState.validationAttempted) window.opdTestApplyValidation(missing);
+};
+
+window.opdTestPeComplete = function () {
+  const rows = Array.from(document.querySelectorAll('#opdTestExamGrid [data-exam-row]'));
+  return Boolean(rows.length) && rows.every(row => {
+    const selected = row.querySelector('input[type="radio"]:checked')?.value;
+    const findings = row.querySelector('input.form-control')?.value?.trim();
+    return selected === 'normal' || (selected === 'abnormal' && findings);
+  });
+};
+
+window.opdTestRefreshChecks = function () {
+  const state = window.opdTestState;
+  const setStatus = (id, complete, optional = false) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.classList.toggle('is-complete', Boolean(complete));
+    target.classList.toggle('is-optional', Boolean(optional && !complete));
+    target.textContent = complete ? 'ສຳເລັດ' : (optional ? 'ບໍ່ຈຳເປັນ' : 'ຍັງບໍ່ຄົບ');
+  };
+  const ccReady = Boolean(document.getElementById('opdTestCc')?.value?.trim());
+  const hpiReady = Boolean(document.getElementById('opdTestHpi')?.value?.trim() || document.getElementById('opdTestNoAdditionalHpi')?.checked);
+  const assessmentReady = Boolean(document.getElementById('opdTestAssessment')?.value?.trim());
+  setStatus('opdTestCheckCc', ccReady);
+  setStatus('opdTestCheckHpi', hpiReady, true);
+  setStatus('opdTestCheckPe', window.opdTestPeComplete(), true);
+  setStatus('opdTestCheckDx', (window.opdTestDiagnosisValues?.().length || state.diagnoses.length) > 0);
+  setStatus('opdTestCheckAssessment', assessmentReady);
+  setStatus('opdTestCheckDispo', Boolean(state.disposition));
+  setStatus('opdTestCheckSummary', window.opdTestSummaryReady());
+
+  const diagnosisStep = document.getElementById('opdTestSecDiagnosis');
+  if (diagnosisStep) {
+    diagnosisStep.classList.toggle('is-locked', !ccReady);
+    const icon = diagnosisStep.querySelector('.opdt-step-head > i');
+    if (!ccReady && icon) icon.className = 'fas fa-lock';
+    else if (icon && !diagnosisStep.classList.contains('is-open')) icon.className = 'fas fa-chevron-down';
+  }
+  window.opdTestUpdateCompletionState();
+};
+
+window.opdTestSummaryReady = function () {
+  return window.opdTestRequiredMissing().length === 0;
+};
+
+window.opdTestRenderProgress = function () {
+  const state = window.opdTestState;
+  const cc = document.getElementById('opdTestCc')?.value?.trim();
+  const assessment = document.getElementById('opdTestAssessment')?.value?.trim();
+  const plan = document.getElementById('opdTestPlan')?.value?.trim();
+  const diagnosisReady = (window.opdTestDiagnosisValues?.().length || state.diagnoses.length) > 0;
+  const steps = [
+    { done: Boolean(cc && diagnosisReady && assessment), empty: !cc && !diagnosisReady && !assessment, partial: Boolean(cc || diagnosisReady || assessment), optional: false },
+    { done: state.orders.length > 0, empty: state.orders.length === 0, partial: false, optional: true },
+    { done: Boolean(state.medications.length || plan), empty: !state.medications.length && !plan, partial: false, optional: true },
+    { done: window.opdTestSummaryReady(), empty: !window.opdTestSummaryReady(), partial: false, optional: false },
+    { done: state.locked, empty: !state.locked, partial: window.opdTestSummaryReady() && !state.locked, optional: false }
+  ];
+  document.querySelectorAll('#opdTestProgressStrip .opdt-progress-step').forEach((btn, i) => {
+    const s = steps[i]; if (!s) return;
+    btn.classList.remove('done', 'partial', 'empty');
+    btn.classList.add(s.done ? 'done' : (s.partial ? 'partial' : 'empty'));
+    const status = btn.querySelector('.opdt-progress-status');
+    if (status) {
+      status.textContent = s.done ? (i === 4 ? 'ສຳເລັດແລ້ວ' : 'ບັນທຶກແລ້ວ') : (s.partial ? 'ບໍ່ຄົບ' : (s.optional ? 'ຂ້າມໄດ້' : 'ຍັງບໍ່ບັນທຶກ'));
+    }
+  });
+};
+
+// ==========================================
+// Disposition
+// ==========================================
+window.opdTestVisitStatusLabel = function (status) {
+  return ({
+    'in-progress': 'ກຳລັງກວດ / In Progress',
+    'waiting-lab': 'ລໍຖ້າຜົນ Lab / Waiting Lab',
+    completed: 'ກວດສຳເລັດ / Completed'
+  })[status] || 'ກຳລັງກວດ / In Progress';
+};
+
+window.opdTestSetVisitStatus = function (status) {
+  const state = window.opdTestState;
+  if (state.locked || !['in-progress', 'waiting-lab'].includes(status)) return;
+  state.visitStatus = status;
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestUpdateDispositionDetails = function () {
+  const value = document.getElementById('opdTestDischargeStatus')?.value?.trim() || '';
+  const details = document.getElementById('opdTestDispositionDetails');
+  const sections = {
+    Admit: document.getElementById('opdTestAdmitFields'),
+    Refer: document.getElementById('opdTestTransferFields'),
+    LAMA: document.getElementById('opdTestLamaFields')
+  };
+  Object.entries(sections).forEach(([key, section]) => {
+    if (section) section.hidden = value !== key;
+  });
+  if (details) details.hidden = !sections[value];
+};
+
+window.opdTestSetDisposition = function (value) {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  state.disposition = String(value || '').trim();
+  window.opdTestUpdateDispositionDetails();
+  window.opdTestMarkDirty();
+  document.querySelectorAll('#opdTestDispoRow button').forEach(button => {
+    button.classList.toggle('active', button.dataset.dispo === state.disposition);
+  });
+  window.opdTestRefreshChecks();
+  window.opdTestRenderProgress();
+  window.opdTestRenderSummaryPreview();
+};
+
+// ==========================================
+// Summary preview + Sign-off
+// ==========================================
+window.opdTestDispositionLabel = function (v) {
+  return ({
+    Home: 'ກັບບ້ານ',
+    Observe: 'ສັງເກດອາການ',
+    Admit: 'ນອນໂຮງໝໍ',
+    Refer: 'ສົ່ງຕໍ່',
+    LAMA: 'ປະຕິເສດການຮັກສາ',
+    Deceased: 'ເສຍຊີວິດ'
+  })[v] || String(v || '').trim() || '—';
+};
+
+window.opdTestDispositionDetailText = function () {
+  const disposition = document.getElementById('opdTestDischargeStatus')?.value || '';
+  if (disposition === 'Admit') {
+    return document.getElementById('opdTestAdmitWard')?.value?.trim() || '';
+  }
+  if (disposition === 'Refer') {
+    const hospital = document.getElementById('opdTestTransferHospital')?.value?.trim() || '';
+    const reason = document.getElementById('opdTestTransferReason')?.value?.trim() || '';
+    return [hospital, reason].filter(Boolean).join(' · ');
+  }
+  if (disposition === 'LAMA') {
+    return document.getElementById('opdTestLamaReason')?.value?.trim() || '';
+  }
+  return '';
+};
+
+window.opdTestRenderSummaryPreview = function () {
+  const target = document.getElementById('opdTestSummaryPreview');
+  if (!target) return;
+  const state = window.opdTestState;
+  const cc = document.getElementById('opdTestCc')?.value?.trim() || '—';
+  const hpi = document.getElementById('opdTestHpi')?.value?.trim() || '—';
+  const assessment = document.getElementById('opdTestAssessment')?.value?.trim() || '—';
+  const plan = document.getElementById('opdTestPlan')?.value?.trim() || '—';
+  const advice = document.getElementById('opdTestAdvice')?.value?.trim() || '—';
+  const pmh = Array.from(document.querySelectorAll('#view-opd_test input[name="opdtest-pmh"]:checked')).map(input => input.value).join(', ') || '—';
+  const pe = Array.from(document.querySelectorAll('#opdTestExamGrid [data-exam-row]')).map(row => {
+    const label = row.querySelector('th')?.textContent?.trim() || '';
+    const selected = row.querySelector('input[type="radio"]:checked')?.value;
+    const findings = row.querySelector('input.form-control')?.value?.trim();
+    if (!selected) return '';
+    return `${label}: ${selected === 'normal' ? 'Normal' : findings || 'Abnormal'}`;
+  }).filter(Boolean).join('; ') || '—';
+  const dept = window.opdTestDeptTemplates[state.dept]?.label || state.dept;
+  const dxList = state.diagnoses.length
+    ? '<ul>' + state.diagnoses.map(d => `<li><b>${window.opdTestHtml(d.code)}</b> ${window.opdTestHtml(d.name)} <span class="opdt-summary-cert">(${window.opdTestHtml(window.opdTestCertaintyLabel(d.certainty))})</span></li>`).join('') + '</ul>'
+    : '<div class="text-muted">— ຍັງບໍ່ມີ —</div>';
+  const orderList = state.orders.length
+    ? '<ul>' + state.orders.map(o => `<li>${window.opdTestHtml(o.name)} <small>· ${window.opdTestHtml(o.priority)}</small></li>`).join('') + '</ul>'
+    : '<div class="text-muted">— ບໍ່ໄດ້ສັ່ງ —</div>';
+  const medList = state.medications.length
+    ? '<ul>' + state.medications.map(m => (m.isFreeText || m.freeText)
+      ? `<li class="opdt-summary-free-text"><b>Free-text:</b> <span>${window.opdTestHtml(m.freeText || m.name)}</span></li>`
+      : `<li>${window.opdTestHtml(m.name)} <small>${window.opdTestHtml(m.instructions || m.instr || window.opdTestMedicationInstructionText(m) || '-')}</small></li>`).join('') + '</ul>'
+    : '<div class="text-muted">— ບໍ່ໄດ້ສັ່ງຢາ —</div>';
+  const importantResults = state.results.flatMap(result => (result.values || []).filter(value => value.flag).map(value => `${result.name} ${value.label}: ${value.value} ${value.flag === 'high' ? '↑ High' : '↓ Low'}`)).join(', ') || '—';
+  const procedures = Array.from(document.querySelectorAll('#view-opd_test input[name="opdtest-proc"]:checked')).map(input => input.value).join(', ') || '—';
+  const disposition = state.disposition ? window.opdTestDispositionLabel(state.disposition) : '—';
+  const dispositionDetail = window.opdTestDispositionDetailText();
+  const visitStatus = window.opdTestVisitStatusLabel(state.locked ? 'completed' : state.visitStatus);
+  const doctor = window.opdTestSelectedDoctor?.() || state.signedBy || '—';
+  const required = window.opdTestRequiredMissing();
+  const requiredTarget = document.getElementById('opdTestRequiredSummary');
+  if (requiredTarget) requiredTarget.innerHTML = required.length
+    ? `<b>ຂໍ້ມູນຈຳເປັນຍັງບໍ່ຄົບ / Missing required information:</b> ${required.map(item => window.opdTestHtml(item.text)).join(' · ')}`
+    : '<b>ຂໍ້ມູນຈຳເປັນຄົບແລ້ວ / Required information complete</b>';
+
+  target.innerHTML = `
+    <div class="opdt-summary-grid">
+      <div>
+        <div class="opdt-summary-label">ພະແນກ</div><div class="opdt-summary-value">${window.opdTestHtml(dept)}</div>
+        <div class="opdt-summary-label mt-2">ອາການຫຼັກ (CC)</div><div class="opdt-summary-value">${window.opdTestHtml(cc)}</div>
+        <div class="opdt-summary-label mt-2">ປະຫວັດອາການ (HPI)</div><div class="opdt-summary-value">${window.opdTestHtml(hpi)}</div>
+        <div class="opdt-summary-label mt-2">Important PMH</div><div class="opdt-summary-value">${window.opdTestHtml(pmh)}</div>
+        <div class="opdt-summary-label mt-2">Physical Examination</div><div class="opdt-summary-value">${window.opdTestHtml(pe)}</div>
+        <div class="opdt-summary-label mt-2">ການປະເມີນ</div><div class="opdt-summary-value">${window.opdTestHtml(assessment)}</div>
+        <div class="opdt-summary-label mt-2">ແຜນການຮັກສາ</div><div class="opdt-summary-value">${window.opdTestHtml(plan)}</div>
+      </div>
+      <div>
+        <div class="opdt-summary-label">ວິນິດໄສ ICD-10</div><div class="opdt-summary-value">${dxList}</div>
+        <div class="opdt-summary-label mt-2">ຄຳສັ່ງກວດ</div><div class="opdt-summary-value">${orderList}</div>
+        <div class="opdt-summary-label mt-2">Important Results</div><div class="opdt-summary-value">${window.opdTestHtml(importantResults)}</div>
+        <div class="opdt-summary-label mt-2">ຢາ</div><div class="opdt-summary-value">${medList}</div>
+        <div class="opdt-summary-label mt-2">Procedures</div><div class="opdt-summary-value">${window.opdTestHtml(procedures)}</div>
+        <div class="opdt-summary-label mt-2">ຄຳແນະນຳ</div><div class="opdt-summary-value">${window.opdTestHtml(advice)}</div>
+        <div class="opdt-summary-label mt-2">Visit Status</div><div class="opdt-summary-value">${window.opdTestHtml(visitStatus)}</div>
+        <div class="opdt-summary-label mt-2">Visit Disposition</div><div class="opdt-summary-value">${disposition}${dispositionDetail ? ` · ${window.opdTestHtml(dispositionDetail)}` : ''}</div>
+        <div class="opdt-summary-label mt-2">Doctor / Date</div><div class="opdt-summary-value">${window.opdTestHtml(doctor)} · ${window.opdTestHtml(state.signedAt || new Date().toLocaleString('en-GB'))}</div>
+      </div>
+    </div>`;
+};
+
+window.opdTestPrintDoc = function (kind) {
+  const state = window.opdTestState;
+  const value = id => {
+    const control = document.getElementById(id);
+    if (!control) return '';
+    if (control instanceof HTMLSelectElement && control.multiple) {
+      return Array.from(control.selectedOptions).map(option => option.value.trim()).filter(Boolean).join(', ');
+    }
+    return control.value?.trim() || '';
+  };
+  const cc = document.getElementById('opdTestCc')?.value?.trim() || '';
+  const hpi = document.getElementById('opdTestHpi')?.value?.trim() || '';
+  const department = document.getElementById('opdTestDeptPicker')?.selectedOptions?.[0]?.textContent?.trim() || '';
+  const dischargeValue = value('opdTestDischargeStatus');
+  const discharge = dischargeValue ? window.opdTestDispositionLabel(dischargeValue) : '';
+  const dispositionDetail = window.opdTestDispositionDetailText();
+  const doctor = value('opdTestDoctor') || state.signedBy || '—';
+  const patientName = document.getElementById('opdTestPatientName')?.textContent?.trim() || '—';
+  const patientId = document.getElementById('opdTestPatientId')?.textContent?.trim() || '—';
+  const referTo = value('opdTestReferTo');
+  const section = (title, content) => content
+    ? `<h2>${title}</h2><div class="box">${window.opdTestHtml(content).replace(/\n/g, '<br>')}</div>`
+    : '';
+  const win = window.open('', '_blank', 'width=900,height=1100');
+  if (!win) return window.opdTestSimpleAlert('Print blocked', 'Please allow popups to preview the medical record.', 'warning');
+  win.document.write(`<!doctype html><html><head><title>Official Medical Record</title>
+    <style>
+      @page { size: A4; margin: 12mm; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #111; font: 12px "Times New Roman", "Phetsarath OT", serif; }
+      h1 { margin: 0; text-align: center; font-size: 18px; }
+      h2 { margin: 10px 0 4px; padding-bottom: 2px; border-bottom: 1px solid #111; font-size: 14px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+      th, td { border: 1px solid #111; padding: 4px 6px; vertical-align: top; }
+      th { background: #f2f2f2; }
+      .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 10px 0; }
+      .box { border: 1px solid #111; padding: 5px; min-height: 28px; }
+      .signature { margin-top: 28px; text-align: right; }
+      @media print { button { display: none; } }
+    </style></head><body>
+      <h1>Official Medical Record / ໃບບັນທຶກການກວດຮັກສາ</h1>
+      <div class="meta">
+        <div class="box"><b>Patient</b><br>${window.opdTestHtml(patientName)}</div>
+        <div class="box"><b>HN</b><br>${window.opdTestHtml(patientId)}</div>
+        <div class="box"><b>Department</b><br>${window.opdTestHtml(department)}</div>
+        <div class="box"><b>Allergy</b><br>${window.opdTestHtml(state.patientAllergy || 'None')}</div>
+      </div>
+      ${section('CC / Chief Complaint', cc)}
+      ${section('H/O / History of Present Illness', hpi)}
+      ${section('PHE / Past History', value('opdTestPhe'))}
+      ${section('PE / Physical Examination', value('opdTestPe'))}
+      ${section('Dx / Diagnosis', value('opdTestDiagnosis'))}
+      ${section('Service Department / Service', department)}
+      ${section('Treatment', value('opdTestPlan'))}
+      ${section('Advice', value('opdTestAdvice'))}
+      ${section('Note', value('opdTestAdditionalNote'))}
+      ${section('Visit Status', window.opdTestVisitStatusLabel(state.locked ? 'completed' : state.visitStatus))}
+      ${section('Visit Disposition', [discharge, dispositionDetail, referTo ? `Refer to: ${referTo}` : ''].filter(Boolean).join(' - '))}
+      <h2>Doctor Signature</h2>
+      <div class="signature">${window.opdTestHtml(doctor)}</div>
+      <button onclick="window.print()">Print</button>
+    </body></html>`);
+  win.document.close();
+  win.focus();
+};
+
+window.opdTestPrintOpdCard = async function () {
+  if (typeof window.can === 'function' && !window.can('opd', 'print')) {
+    window.requireHisAction?.('opd', 'print', ['doctor']);
+    return;
+  }
+
+  const visit = window.opdTestSelectedVisit;
+  if (!visit?.patientId) {
+    window.opdTestSimpleAlert('ບໍ່ສາມາດພິມໄດ້', 'ກະລຸນາເລືອກຄົນເຈັບຈາກຄິວ OPD ກ່ອນ.', 'warning');
+    return;
+  }
+
+  const value = id => document.getElementById(id)?.value?.trim() || '';
+  const chiefComplaint = value('opdTestCc') || visit.symptoms || '';
+  const history = value('opdTestHpi') || visit.hpi || '';
+  const pastHistory = value('opdTestPhe') || visit.pastHistory || '';
+  const physicalExam = value('opdTestPe') || visit.pe || '';
+  const treatment = value('opdTestPlan') || visit.treatment || '';
+  const advice = value('opdTestAdvice') || visit.advice || '';
+  const doctor = value('opdTestDoctor') || visit.doctor || currentUser?.name || '';
+  const department = document.getElementById('opdTestDeptPicker')?.selectedOptions?.[0]?.textContent?.trim()
+    || visit.department
+    || '';
+  const joinSections = sections => sections
+    .filter(([, content]) => String(content || '').trim())
+    .map(([label, content]) => `${label}: ${String(content).trim()}`)
+    .join('\n\n');
+  const medicationLines = (window.opdTestState.medications || []).map((medication, index) => {
+    const freeText = String(medication.freeText || '').trim();
+    if (medication.isFreeText || freeText) return `${index + 1}. ${freeText || medication.name || ''}`;
+    const instructions = medication.instructions
+      || medication.instr
+      || window.opdTestMedicationInstructionText?.(medication)
+      || '';
+    return `${index + 1}. ${String(medication.name || '').trim()}${instructions ? ` — ${instructions}` : ''}`;
+  }).filter(line => !/^\d+\.\s*$/.test(line));
+  const orderLabels = { lab: 'Lab Orders', ultrasound: 'Ultrasound Orders', xray: 'X-Ray Orders' };
+  const orderGroups = { lab: [], ultrasound: [], xray: [] };
+  (window.opdTestState.orders || []).forEach(order => {
+    const type = order.investigationType || window.opdTestInvestigationTypeForItem?.(order) || 'lab';
+    if (!orderGroups[type]) return;
+    const instructions = String(order.instructions || order.note || '').trim();
+    orderGroups[type].push(`${orderGroups[type].length + 1}. ${String(order.name || '').trim()}${instructions ? ` — ${instructions}` : ''}`);
+  });
+  const orderedInvestigations = Object.entries(orderGroups)
+    .filter(([, lines]) => lines.length)
+    .map(([type, lines]) => `${orderLabels[type]}:\n${lines.join('\n')}`)
+    .join('\n\n');
+  const printSymptoms = joinSections([
+    ['CC', chiefComplaint],
+    ['H/O', history],
+    ['PHE', pastHistory],
+    ['PE', physicalExam]
+  ]);
+  const printTreatment = joinSections([
+    ['Tx', treatment],
+    ['Adv.', advice],
+    ['Medication Orders', medicationLines.join('\n')]
+  ]);
+
+  const printVisit = {
+    ...visit,
+    symptoms: chiefComplaint,
+    treatment,
+    advice,
+    recordedBy: doctor,
+    doctor,
+    department,
+    opdPrintSymptoms: printSymptoms,
+    opdPrintTreatment: printTreatment,
+    opdPrintNotes: orderedInvestigations
+  };
+
+  await window.printOPDCard('opd', -1, printVisit);
+};
+
+window.opdTestSelectedDoctor = function () {
+  return document.getElementById('opdTestDoctor')?.value?.trim() || '';
+};
+
+window.opdTestDoctorAssignmentQueue = window.opdTestDoctorAssignmentQueue || Promise.resolve();
+window.opdTestAssignDoctor = function (value) {
+  const doctorName = String(value || '').trim();
+  const visit = window.opdTestSelectedVisit;
+  const visitId = String(visit?.visitId || visit?.rowIdx || '').trim();
+  const patientId = String(visit?.patientId || '').trim();
+  const previousDoctor = String(visit?.doctor || '').trim();
+  if (!doctorName || !visitId || doctorName === previousDoctor) return window.opdTestDoctorAssignmentQueue;
+
+  window.opdTestDoctorAssignmentQueue = window.opdTestDoctorAssignmentQueue
+    .catch(() => undefined)
+    .then(async () => {
+      window.opdTestSetSaveStatus?.('saving', 'ກຳລັງກຳນົດແພດ...');
+      if (!window.opdTestUsesMockPersistence?.()) {
+        let query = supabaseClient.from(dbTable('Visits'))
+          .update({ Doctor_Name: doctorName })
+          .eq('Visit_ID', visitId);
+        if (patientId) query = query.eq('Patient_ID', patientId);
+        const { error } = await query;
+        if (error) {
+          const doctorSelect = document.getElementById('opdTestDoctor');
+          if (doctorSelect && doctorSelect.value === doctorName) doctorSelect.value = previousDoctor;
+          window.opdTestSetSaveStatus?.('warning', 'ບັນທຶກຊື່ແພດບໍ່ສຳເລັດ');
+          window.opdTestSimpleAlert?.('ບັນທຶກຊື່ແພດບໍ່ສຳເລັດ', error.message || 'ກະລຸນາລອງໃໝ່.', 'error');
+          return null;
+        }
+      }
+
+      if (window.opdTestSelectedVisit && String(window.opdTestSelectedVisit.visitId || window.opdTestSelectedVisit.rowIdx || '') === visitId) {
+        window.opdTestSelectedVisit.doctor = doctorName;
+      }
+      [queueDataStore, currentTriageData].forEach(rows => {
+        const row = (rows || []).find(item => String(item?.visitId || item?.rowIdx || '') === visitId);
+        if (row) row.doctor = doctorName;
+      });
+      document.querySelectorAll('#queueTableBody tr[data-visit-id]').forEach(row => {
+        if (String(row.dataset.visitId || '') !== visitId) return;
+        const doctorCell = row.querySelector('[data-opd-doctor]');
+        if (doctorCell) doctorCell.innerHTML = window.renderOpdDoctorBadge(doctorName);
+      });
+      window.opdTestSetSaveStatus?.('saved', `ກຳນົດແພດແລ້ວ ${window.opdTestSimpleNow?.() || ''}`.trim());
+      window.logAction?.('Update', `OPD doctor assigned - Visit ${visitId}: ${doctorName}`, 'OPD');
+      return doctorName;
+    });
+  return window.opdTestDoctorAssignmentQueue;
+};
+
+window.opdTestSetSaveStatus = function (mode, text) {
+  const target = document.getElementById('opdTestSaveStatus');
+  if (!target) return;
+  target.className = `opdt-save-state${mode && mode !== 'idle' ? ` is-${mode}` : ''}`;
+  target.textContent = text;
+};
+
+window.opdTestDraftStorageKey = function () {
+  const root = document.getElementById('view-opd_test');
+  const patientId = root?.querySelector('.emr-his-chip-id')?.textContent?.trim() || 'demo-patient';
+  const visitStamp = Array.from(root?.querySelectorAll('.emr-his-chip') || [])
+    .map(chip => chip.textContent?.trim() || '')
+    .find(text => /\d{2}\/\d{2}\/\d{4}/.test(text)) || 'current-visit';
+  return `his_opd_test_draft_v3:${encodeURIComponent(patientId)}:${encodeURIComponent(visitStamp)}`;
+};
+
+window.opdTestDraftPayload = function () {
+  const fieldIds = [
+    'opdTestCc',
+    'opdTestHpi',
+    'opdTestPhe',
+    'opdTestPe',
+    'opdTestDeptPicker',
+    'opdTestPlan',
+    'opdTestAdvice',
+    'opdTestDoctor',
+    'opdTestFollowUp',
+    'opdTestDischargeStatus',
+    'opdTestAdmitWard',
+    'opdTestTransferHospital',
+    'opdTestTransferReason',
+    'opdTestLamaReason'
+  ];
+  const fields = {};
+  fieldIds.forEach(id => {
+    const control = document.getElementById(id);
+    if (control) fields[id] = control.value || '';
+  });
+  return {
+    version: 3,
+    savedAt: new Date().toISOString(),
+    fields,
+    diagnoses: window.opdTestDiagnosisValues?.() || [],
+    orders: Array.isArray(window.opdTestState.orders) ? window.opdTestState.orders : [],
+    medications: Array.isArray(window.opdTestState.medications) ? window.opdTestState.medications : [],
+    visitStatus: window.opdTestState.visitStatus || 'in-progress',
+    activeTab: window.opdTestState.activeTab || 'clinical',
+    activeOrderTab: window.opdTestState.activeOrderTab || 'clinical'
+  };
+};
+
+window.opdTestApplyDraft = function (payload) {
+  if (!payload || payload.version !== 3) return false;
+  const state = window.opdTestState;
+  state.restoringDraft = true;
+  try {
+    Object.entries(payload.fields || {}).forEach(([id, value]) => {
+      const control = document.getElementById(id);
+      if (!control) return;
+      if (control instanceof HTMLSelectElement && value && !Array.from(control.options).some(option => option.value === value)) {
+        control.add(new Option(value, value));
+      }
+      control.value = value;
+    });
+
+    const diagnosisSelect = document.getElementById('opdTestDiagnosis');
+    const diagnoses = Array.isArray(payload.diagnoses) ? payload.diagnoses.filter(Boolean) : [];
+    diagnoses.forEach(value => {
+      if (!Array.from(diagnosisSelect?.options || []).some(option => option.value === value)) {
+        diagnosisSelect?.add(new Option(value, value, true, true));
+      }
+    });
+    if (diagnosisSelect) {
+      Array.from(diagnosisSelect.options).forEach(option => { option.selected = diagnoses.includes(option.value); });
+      if (window.jQuery && $(diagnosisSelect).hasClass('select2-hidden-accessible')) {
+        $(diagnosisSelect).val(diagnoses).trigger('change.select2');
+      }
+    }
+
+    state.orders = Array.isArray(payload.orders) ? payload.orders : [];
+    state.medications = Array.isArray(payload.medications) ? payload.medications : [];
+    state.visitStatus = ['in-progress', 'waiting-lab'].includes(payload.visitStatus) ? payload.visitStatus : 'in-progress';
+    state.activeTab = 'clinical';
+    state.activeOrderTab = ['clinical', 'lab', 'ultrasound', 'xray', 'medication'].includes(payload.activeOrderTab)
+      ? payload.activeOrderTab
+      : 'clinical';
+    state.disposition = payload.fields?.opdTestDischargeStatus || '';
+    state.draftSavedAt = payload.savedAt
+      ? new Date(payload.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    state.unsaved = false;
+    window.opdTestSyncDiagnosisState?.();
+    window.opdTestUpdateDispositionDetails?.();
+    document.querySelectorAll('#view-opd_test textarea').forEach(window.opdTestAutosizeTextarea);
+    return true;
+  } finally {
+    state.restoringDraft = false;
+  }
+};
+
+window.opdTestRestoreDraft = function () {
+  const state = window.opdTestState;
+  if (state.draftRestored) return false;
+  state.draftRestored = true;
+  try {
+    const raw = window.sessionStorage?.getItem(window.opdTestDraftStorageKey());
+    if (!raw) return false;
+    return window.opdTestApplyDraft(JSON.parse(raw));
+  } catch (error) {
+    console.warn('Unable to restore OPD Test draft:', error);
+    return false;
+  }
+};
+
+window.opdTestScheduleAutosave = function () {
+  const state = window.opdTestState;
+  if (state.locked || state.restoringDraft) return;
+  window.clearTimeout(state.autoSaveTimer);
+  window.opdTestSetSaveStatus('saving', 'ກຳລັງບັນທຶກ...');
+  state.autoSaveTimer = window.setTimeout(() => window.opdTestSaveDraft({ silent: true }), 900);
+};
+
+window.opdTestSaveDraft = function (options = {}) {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  window.clearTimeout(state.autoSaveTimer);
+  try {
+    const payload = window.opdTestDraftPayload();
+    window.sessionStorage?.setItem(window.opdTestDraftStorageKey(), JSON.stringify(payload));
+    window.opdTestRememberDiagnoses?.(payload.diagnoses);
+    window.opdTestRememberDisposition?.(payload.fields?.opdTestDischargeStatus);
+    state.draftSavedAt = new Date(payload.savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    state.unsaved = false;
+    window.opdTestSetSaveStatus('saved', `ບັນທຶກແລ້ວ ${state.draftSavedAt}`);
+    window.opdTestRefreshSimple();
+    if (!options.silent) {
+      window.opdTestSimpleAlert('ບັນທຶກຮ່າງແລ້ວ', `ບັນທຶກໄວ້ໃນ session ເວລາ ${state.draftSavedAt}`, 'success');
+    }
+  } catch (error) {
+    console.error('Unable to save OPD Test draft:', error);
+    window.opdTestSetSaveStatus('unsaved', 'ບັນທຶກບໍ່ສຳເລັດ');
+    if (!options.silent) window.opdTestSimpleAlert('ບັນທຶກບໍ່ສຳເລັດ', 'ບໍ່ສາມາດບັນທຶກຮ່າງໃນ browser session ໄດ້', 'error');
+  }
+};
+
+window.opdTestPersistenceContext = function () {
+  const root = document.getElementById('view-opd_test');
+  const visit = window.opdTestSelectedVisit || {};
+  const department = document.getElementById('opdTestDeptPicker');
+  const disposition = document.getElementById('opdTestDischargeStatus')?.value?.trim() || '';
+  const resolvedDisposition = window.opdTestDispositionValue(disposition);
+  const dispositionCode = ['Home', 'Observe', 'Admit', 'Refer', 'LAMA'].includes(resolvedDisposition)
+    ? resolvedDisposition
+    : 'Other';
+  return {
+    visitId: String(visit.visitId || visit.rowIdx || root?.dataset.opdtVisitId || '').trim(),
+    patientId: String(visit.patientId || document.getElementById('opdTestPatientId')?.textContent || '').trim(),
+    doctor: window.opdTestSelectedDoctor(),
+    chiefComplaint: document.getElementById('opdTestCc')?.value?.trim() || '',
+    hpi: document.getElementById('opdTestHpi')?.value?.trim() || '',
+    pastHistory: document.getElementById('opdTestPhe')?.value?.trim() || '',
+    physicalExam: document.getElementById('opdTestPe')?.value?.trim() || '',
+    diagnoses: window.opdTestDiagnosisValues?.() || [],
+    departmentKey: department?.value || '',
+    department: department?.selectedOptions?.[0]?.textContent?.trim() || visit.department || '',
+    treatment: document.getElementById('opdTestPlan')?.value?.trim() || '',
+    advice: document.getElementById('opdTestAdvice')?.value?.trim() || '',
+    followUp: document.getElementById('opdTestFollowUp')
+      ? document.getElementById('opdTestFollowUp').value.trim()
+      : String(visit.followup || visit.Follow_Up || visit.Follow_Up_Date || '').trim(),
+    disposition,
+    dispositionCode,
+    dispositionNote: dispositionCode === 'Other' ? disposition : '',
+    dispositionDetails: {
+      receivingWard: document.getElementById('opdTestAdmitWard')?.value?.trim() || '',
+      destinationHospital: document.getElementById('opdTestTransferHospital')?.value?.trim() || '',
+      transferReason: document.getElementById('opdTestTransferReason')?.value?.trim() || '',
+      lamaReason: document.getElementById('opdTestLamaReason')?.value?.trim() || ''
+    },
+    orders: window.opdTestState.orders,
+    medications: window.opdTestState.medications,
+    completedAt: new Date().toISOString(),
+    revision: Math.max(1, Number(window.opdTestState.persistedRevision || visit.emrRevision || 0) + 1)
+  };
+};
+
+window.opdTestIsMissingPersistenceColumnError = function (error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+  return ['42703', 'PGRST204'].includes(code)
+    || message.includes('column') && (message.includes('does not exist') || message.includes('schema cache'));
+};
+
+window.opdTestMockPersistenceEnabled = Boolean(window.opdTestMockPersistenceEnabled);
+{
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(host);
+  if (isLoopback && new URLSearchParams(window.location.search).get('opdPersistence') === 'mock') {
+    window.opdTestMockPersistenceEnabled = true;
+  }
+}
+window.opdTestUsesMockPersistence = function () {
+  return Boolean(window.opdTestMockPersistenceEnabled);
+};
+
+window.opdTestUpdateVisitRow = async function (visitId, patientId, update, options = {}) {
+  const expectedRevision = Number.isInteger(options.expectedRevision) ? options.expectedRevision : null;
+  let query = supabaseClient
+    .from(dbTable('Visits'))
+    .update(update)
+    .eq('Visit_ID', visitId)
+    .eq('Patient_ID', patientId);
+  if (expectedRevision != null) query = query.eq('EMR_Revision', expectedRevision);
+  query = query.select(expectedRevision != null
+    ? 'Visit_ID,Patient_ID,Status,EMR_Revision'
+    : 'Visit_ID,Patient_ID,Status');
+  const { data, error } = await query;
+  if (error) throw error;
+  if (!Array.isArray(data) || !data.length) {
+    if (expectedRevision != null) {
+      const current = await supabaseClient
+        .from(dbTable('Visits'))
+        .select('Visit_ID,EMR_Revision')
+        .eq('Visit_ID', visitId)
+        .eq('Patient_ID', patientId)
+        .maybeSingle();
+      if (current.error) throw current.error;
+      if (current.data && Number(current.data.EMR_Revision || 0) !== expectedRevision) {
+        const conflict = new Error('Visit ນີ້ຖືກແກ້ໄຂໂດຍຜູ້ໃຊ້ອື່ນແລ້ວ. ກະລຸນາກັບໄປເປີດ Visit ໃໝ່ ແລ້ວກວດສອບຂໍ້ມູນກ່ອນບັນທຶກອີກຄັ້ງ.');
+        conflict.code = 'OPD_VISIT_CONFLICT';
+        conflict.currentRevision = Number(current.data.EMR_Revision || 0);
+        conflict.expectedRevision = expectedRevision;
+        throw conflict;
+      }
+    }
+    const notFound = new Error('ບໍ່ພົບ Visit ທີ່ຈະບັນທຶກ ຫຼືຜູ້ໃຊ້ບໍ່ມີສິດແກ້ໄຂ.');
+    notFound.code = 'OPD_VISIT_NOT_UPDATED';
+    throw notFound;
+  }
+  return data[0];
+};
+
+window.opdTestRecordEncounterRevision = async function (persistence) {
+  if (!persistence || persistence.persistenceMode !== 'enhanced') return 'not-applicable';
+  const payload = {
+    Visit_ID: persistence.visitId,
+    Patient_ID: persistence.patientId,
+    Revision: persistence.revision,
+    Status: persistence.disposition.mainStatus,
+    Discharge_Status: persistence.coreUpdate.Discharge_Status,
+    Clinical_Note_JSON: persistence.clinicalNote,
+    Changed_By: String(currentUser?.id || persistence.doctor || '').trim(),
+    Changed_By_Name: String(currentUser?.name || persistence.doctor || '').trim(),
+    Changed_At: persistence.completedAt
+  };
+  const { error } = await supabaseClient.from(dbTable('OPD_Encounter_Revisions')).insert(payload);
+  if (error) throw error;
+  return 'recorded';
+};
+
+window.opdTestPersistVisit = async function () {
+  const context = window.opdTestPersistenceContext();
+  if (!context.visitId || !context.patientId || context.patientId === '—') {
+    const error = new Error('ບໍ່ພົບ Visit ID ຫຼື Patient ID. ກະລຸນາກັບໄປເລືອກຄົນເຈັບຈາກຄິວ OPD ອີກຄັ້ງ.');
+    error.code = 'OPD_VISIT_CONTEXT_MISSING';
+    throw error;
+  }
+
+  const persistence = buildOpdTestVisitPersistence(context);
+  let persistenceMode = 'enhanced';
+  if (window.opdTestUsesMockPersistence()) {
+    persistenceMode = 'mock';
+  } else {
+    try {
+      await window.opdTestUpdateVisitRow(
+        persistence.visitId,
+        persistence.patientId,
+        persistence.enhancedUpdate,
+        { expectedRevision: persistence.revision - 1 }
+      );
+    } catch (error) {
+      if (!window.opdTestIsMissingPersistenceColumnError(error)) throw error;
+      persistenceMode = 'legacy';
+      await window.opdTestUpdateVisitRow(persistence.visitId, persistence.patientId, persistence.coreUpdate);
+    }
+  }
+
+  window.opdTestState.orders = persistence.orders;
+  window.opdTestState.medications = persistence.medications;
+  persistence.persistenceMode = persistenceMode;
+  persistence.auditMode = persistenceMode === 'enhanced' ? 'pending' : 'not-applicable';
+  if (persistenceMode === 'enhanced') {
+    try {
+      persistence.auditMode = await window.opdTestRecordEncounterRevision(persistence);
+    } catch (auditError) {
+      // The Visit update has already succeeded, so do not encourage a retry
+      // that could duplicate downstream orders. Surface this in logs/readiness.
+      persistence.auditMode = 'failed';
+      console.error('OPD encounter revision audit failed:', auditError);
+    }
+  }
+  window.opdTestState.persistedRevision = persistence.revision;
+  window.opdTestState.persistenceMode = persistenceMode;
+  window.opdTestState.persistedAt = persistence.completedAt;
+  if (window.opdTestSelectedVisit) {
+    Object.assign(window.opdTestSelectedVisit, {
+      status: persistence.disposition.mainStatus,
+      dischargeStatus: persistence.coreUpdate.Discharge_Status,
+      diagnosis: persistence.coreUpdate.Diagnosis,
+      doctor: persistence.doctor,
+      pe: persistence.coreUpdate.Physical_Exam,
+      advice: persistence.coreUpdate.Advice,
+      followup: persistence.coreUpdate.Follow_Up,
+      labOrdersStr: persistence.coreUpdate.Lab_Orders_JSON,
+      prescriptionStr: persistence.coreUpdate.Prescription_JSON,
+      emrRevision: persistence.revision
+    });
+  }
+
+  if (persistenceMode !== 'mock') {
+    window.logAction?.(
+      'Save',
+      `OPD EMR saved - Visit ${persistence.visitId} (${persistence.disposition.mainStatus}, revision ${persistence.revision}, ${persistenceMode})`,
+      'OPD'
+    );
+  }
+  return persistence;
+};
+
+window.opdTestRequestExit = function (target = 'opd', options = {}) {
+  const state = window.opdTestState;
+  const leave = () => {
+    window.opdTestStopLisPolling?.();
+    if (state.locked) {
+      Object.assign(state, {
+        locked: false,
+        submitting: false,
+        validationAttempted: false,
+        draftRestored: false,
+        visitStatus: 'in-progress',
+        signedAt: '',
+        signedBy: '',
+        auditMode: '',
+        diagnoses: [],
+        orders: [],
+        medications: [],
+        lisOrders: [],
+        lisResults: [],
+        lisResultsLoaded: false,
+        lisResultPatientId: ''
+      });
+    }
+    window.opdTestSelectedVisit = null;
+    window.opdTestNeedsEncounterLoad = false;
+    window.opdTestPatientSelectionMode = ['opd', 'opd_test', 'opd_consultation'].includes(target);
+    window.loadView?.(target, { ...options, skipOpdTestGuard: true });
+  };
+  if (state.locked || !state.unsaved) {
+    leave();
+    return;
+  }
+
+  const saveAndLeave = () => {
+    window.opdTestSaveDraft({ silent: true });
+    leave();
+  };
+  if (window.Swal?.fire) {
+    window.Swal.fire({
+      title: 'ບັນທຶກຮ່າງກ່ອນອອກ?',
+      text: 'ມີຂໍ້ມູນທີ່ກຳລັງພິມ ລະບົບຈະບັນທຶກໄວ້ໃນ browser session.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ບັນທຶກ ແລະ ອອກ',
+      cancelButtonText: 'ສືບຕໍ່ພິມ'
+    }).then(result => { if (result.isConfirmed) saveAndLeave(); });
+    return;
+  }
+  if (window.confirm('ບັນທຶກຮ່າງ ແລະ ອອກຈາກໜ້ານີ້ບໍ?')) saveAndLeave();
+};
+
+// Sign-off: only the fields marked required on the simplified form can block completion.
+window.opdTestCompleteVisit = function () {
+  const state = window.opdTestState;
+  if (state.locked || state.submitting) return;
+
+  const missing = window.opdTestRequiredMissing();
+  state.validationAttempted = true;
+  window.opdTestApplyValidation(missing);
+
+  if (missing.length) {
+    const first = missing[0];
+    window.opdTestSwitchTab(first.tab || 'clinical', false);
+    window.opdTestFocusSection(first.id, first.focus);
+    if (window.Swal?.fire) {
+      window.Swal.fire({
+        title: 'ຂໍ້ມູນຈຳເປັນຍັງບໍ່ຄົບ',
+        html: '<div style="text-align:left;">ກະລຸນາເພີ່ມ:<ul style="margin:6px 0 0 20px;padding:0;">' + missing.map(m => `<li>${window.opdTestHtml(m.text)}</li>`).join('') + '</ul></div>',
+        icon: 'warning',
+        confirmButtonText: 'ຮັບຊາບ'
+      });
+    } else {
+      window.alert('ຍັງບໍ່ຄົບ:\n' + missing.map(m => '• ' + m.text).join('\n'));
+    }
+    return;
+  }
+
+  const finish = async () => {
+    state.submitting = true;
+    window.opdTestRefreshSimple();
+    window.opdTestSetSaveStatus('saving', 'ກຳລັງບັນທຶກເຂົ້າຖານຂໍ້ມູນ...');
+    try {
+      const persistence = await window.opdTestPersistVisit();
+      state.auditMode = persistence.auditMode;
+      window.opdTestRememberDiagnoses?.(persistence.clinicalNote?.diagnoses);
+      window.opdTestRememberDisposition?.(persistence.clinicalNote?.disposition);
+      state.locked = true;
+      state.submitting = false;
+      state.unsaved = false;
+      state.visitStatus = 'completed';
+      state.signedBy = persistence.doctor;
+      state.signedAt = new Date(persistence.completedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+      try { window.sessionStorage?.removeItem(window.opdTestDraftStorageKey()); } catch (error) {}
+      window.opdTestSetSaveStatus(
+        persistence.auditMode === 'failed' ? 'warning' : 'completed',
+        persistence.auditMode === 'failed'
+          ? 'ບັນທຶກ Visit ແລ້ວ · Audit ລໍຖ້າ Sync'
+          : (persistence.persistenceMode === 'mock' ? 'ທົດສອບບັນທຶກສຳເລັດ (Mock)' : 'ບັນທຶກສຳເລັດ')
+      );
+      window.opdTestRefreshSimple();
+
+      if (persistence.persistenceMode !== 'mock' && persistence.disposition.mainStatus === 'OPD Observation') {
+        await window.handleEmrSendToObservation?.({
+          visitId: persistence.visitId,
+          patientId: persistence.patientId,
+          doctor: persistence.doctor,
+          diagnosis: persistence.coreUpdate.Diagnosis
+        });
+      } else if (persistence.persistenceMode !== 'mock' && persistence.disposition.mainStatus === 'Admit IPD') {
+        await window.handleEmrSendToIpd?.({
+          visitId: persistence.visitId,
+          patientId: persistence.patientId,
+          patientName: document.getElementById('opdTestPatientName')?.textContent?.trim() || persistence.patientId,
+          doctor: persistence.doctor,
+          diagnosis: persistence.coreUpdate.Diagnosis
+        });
+      }
+
+      const auditFailed = persistence.auditMode === 'failed';
+      window.opdTestSimpleAlert(
+        auditFailed ? 'ບັນທຶກ Visit ແລ້ວ — Audit ຍັງບໍ່ Sync' : 'ບັນທຶກແລ້ວ',
+        auditFailed
+          ? `Visit ${persistence.visitId} ຖືກບັນທຶກແລ້ວ ແຕ່ປະຫວັດການແກ້ໄຂຍັງບໍ່ສຳເລັດ. ຫ້າມບັນທຶກຊ້ຳ; ກະລຸນາແຈ້ງ Admin ເພື່ອກວດ Audit Sync.`
+          : (persistence.persistenceMode === 'mock'
+            ? `ທົດສອບ Visit ${persistence.visitId} ສຳເລັດໂດຍບໍ່ຂຽນຂໍ້ມູນຈິງ.`
+            : `ບັນທຶກ Visit ${persistence.visitId} ເຂົ້າຖານຂໍ້ມູນເວລາ ${state.signedAt}`),
+        auditFailed ? 'warning' : 'success'
+      );
+    } catch (error) {
+      console.error('Unable to persist OPD Test encounter:', error);
+      state.submitting = false;
+      state.locked = false;
+      state.unsaved = true;
+      window.opdTestSetSaveStatus('unsaved', 'ບັນທຶກເຂົ້າຖານຂໍ້ມູນບໍ່ສຳເລັດ');
+      window.opdTestRefreshSimple();
+      const conflict = error?.code === 'OPD_VISIT_CONFLICT';
+      window.opdTestSimpleAlert(
+        conflict ? 'ຂໍ້ມູນຖືກແກ້ໄຂແລ້ວ' : 'ບັນທຶກບໍ່ສຳເລັດ',
+        error?.message || 'ກະລຸນາກວດສອບ network ແລະສິດເຂົ້າຖານຂໍ້ມູນ.',
+        conflict ? 'warning' : 'error'
+      );
+    }
+  };
+
+  if (window.Swal?.fire) {
+    window.Swal.fire({
+      title: 'ຢືນຢັນບັນທຶກຜົນການກວດ',
+      html: '<div style="text-align:left;">ກະລຸນາກວດສອບ Diagnosis, Lab, Rx ແລະ Visit Disposition ກ່ອນບັນທຶກ.</div>',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ຢືນຢັນບັນທຶກ',
+      cancelButtonText: 'ຍົກເລີກ'
+    }).then(result => { if (result.isConfirmed) void finish(); });
+    return;
+  }
+  if (window.confirm('ຢືນຢັນບັນທຶກຜົນການກວດບໍ?')) void finish();
+};
+
+// ==========================================
+// Hints (localStorage-dismiss)
+// ==========================================
+window.opdTestLoadHints = function () {
+  try {
+    const raw = localStorage.getItem(window.opdTestHintsStorageKey);
+    const arr = raw ? JSON.parse(raw) : [];
+    window.opdTestState.hintsDismissed = Array.isArray(arr) ? arr : [];
+  } catch (e) { window.opdTestState.hintsDismissed = []; }
+};
+
+window.opdTestApplyHintsFromStorage = function () {
+  const dismissed = new Set(window.opdTestState.hintsDismissed || []);
+  document.querySelectorAll('#view-opd_test .opdt-hint[data-hint-id]').forEach(el => {
+    if (dismissed.has(el.dataset.hintId)) el.style.display = 'none';
+  });
+};
+
+window.opdTestDismissHint = function (id) {
+  const state = window.opdTestState;
+  if (!state.hintsDismissed.includes(id)) state.hintsDismissed.push(id);
+  try { localStorage.setItem(window.opdTestHintsStorageKey, JSON.stringify(state.hintsDismissed)); } catch (e) {}
+  const el = document.querySelector(`#view-opd_test .opdt-hint[data-hint-id="${id}"]`);
+  if (el) el.style.display = 'none';
+};
+
+// ==========================================
+// Full history — placeholder Swal (real fetch is Phase 2)
+// ==========================================
+window.opdTestShowFullHistory = function () {
+  const html = `
+    <div style="text-align:left;">
+      <b>ບັນທຶກປະຫວັດການເຂົ້າກວດ (demo)</b>
+      <ul style="margin:8px 0 0 20px;padding:0;">
+        <li>02/05/2025 — I10 ຄວາມດັນເລືອດສູງ (ດຣ. ວົງດີ) — Amlodipine 5 mg</li>
+        <li>18/03/2025 — K29.7 ກະເພາະອາຫານອັກເສບ (ດຣ. ສົມຊາຍ) — Omeprazole 20 mg</li>
+        <li>12/01/2025 — J06.9 ຕິດເຊື້ອທາງເດີນຫາຍໃຈສ່ວນເທິງ (ດຣ. ວົງດີ)</li>
+      </ul>
+      <small class="text-muted">* ຂໍ້ມູນຈິງຈາກ Supabase ຈະຕໍ່ໃນ Phase 2.</small>
+    </div>`;
+  if (window.Swal?.fire) window.Swal.fire({ title: 'ປະຫວັດການເຂົ້າກວດ', html, icon: 'info', confirmButtonText: 'ປິດ' });
+  else window.alert('ບັນທຶກປະຫວັດ (demo)');
+};
+
+// ==========================================
+// Legacy EMR layout adapters
+// ==========================================
+window.opdTestDiagnosisValues = function () {
+  const select = document.getElementById('opdTestDiagnosis');
+  if (!select) return [];
+  return Array.from(select.selectedOptions || [])
+    .map(option => String(option.value || '').trim())
+    .filter(Boolean);
+};
+
+window.opdTestDiagnosisHistoryStorageKey = 'his_opd_test_diagnosis_history_v1';
+
+window.opdTestNormalizeDiagnosisText = function (value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+};
+
+window.opdTestIsLegacyServiceDiagnosis = function (value) {
+  const normalized = window.opdTestNormalizeDiagnosisText(value).toLowerCase();
+  return new Set([
+    'opd consultation',
+    'internal medicine consultation',
+    'follow-up consultation'
+  ]).has(normalized);
+};
+
+window.opdTestSplitDiagnosisText = function (value) {
+  if (Array.isArray(value)) return value.flatMap(window.opdTestSplitDiagnosisText);
+  return String(value || '')
+    .split(/[\n;,]+/)
+    .map(window.opdTestNormalizeDiagnosisText)
+    .filter(Boolean);
+};
+
+window.opdTestReadDiagnosisHistory = function () {
+  try {
+    const parsed = JSON.parse(window.localStorage?.getItem(window.opdTestDiagnosisHistoryStorageKey) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(item => typeof item === 'string'
+        ? { value: window.opdTestNormalizeDiagnosisText(item), useCount: 1, lastUsedAt: '' }
+        : {
+            value: window.opdTestNormalizeDiagnosisText(item?.value),
+            useCount: Math.max(1, Number(item?.useCount) || 1),
+            lastUsedAt: String(item?.lastUsedAt || '')
+          })
+      .filter(item => item.value && !window.opdTestIsLegacyServiceDiagnosis(item.value))
+      .sort((a, b) => String(b.lastUsedAt).localeCompare(String(a.lastUsedAt)) || b.useCount - a.useCount);
+  } catch (error) {
+    console.warn('Unable to read OPD diagnosis history:', error);
+    return [];
+  }
+};
+
+window.opdTestRememberDiagnoses = function (values) {
+  const incoming = window.opdTestSplitDiagnosisText(values)
+    .filter(value => !window.opdTestIsLegacyServiceDiagnosis(value));
+  if (!incoming.length) return;
+
+  try {
+    const now = new Date().toISOString();
+    const entries = window.opdTestReadDiagnosisHistory();
+    const byKey = new Map(entries.map(item => [item.value.toLocaleLowerCase(), item]));
+    incoming.forEach(value => {
+      const key = value.toLocaleLowerCase();
+      const current = byKey.get(key);
+      if (current) {
+        current.value = value;
+        current.lastUsedAt = now;
+      } else {
+        const item = { value, useCount: 1, lastUsedAt: now };
+        entries.push(item);
+        byKey.set(key, item);
+      }
+    });
+    entries.sort((a, b) => String(b.lastUsedAt).localeCompare(String(a.lastUsedAt)) || b.useCount - a.useCount);
+    window.localStorage?.setItem(window.opdTestDiagnosisHistoryStorageKey, JSON.stringify(entries.slice(0, 200)));
+  } catch (error) {
+    console.warn('Unable to remember OPD diagnoses:', error);
+  }
+};
+
+window.opdTestSharedDiagnosisSuggestions = window.opdTestSharedDiagnosisSuggestions || [];
+
+window.opdTestLoadSharedDiagnosisSuggestions = async function () {
+  if (window.opdTestSharedDiagnosisSuggestionsLoaded || window.opdTestSharedDiagnosisSuggestionsLoading) return;
+  window.opdTestSharedDiagnosisSuggestionsLoading = true;
+  try {
+    const { data, error } = await supabaseClient
+      .from(dbTable('Visits'))
+      .select('Diagnosis')
+      .not('Diagnosis', 'is', null)
+      .order('Date', { ascending: false })
+      .limit(300);
+    if (error) throw error;
+
+    const suggestions = [];
+    const known = new Set();
+    (data || [])
+      .flatMap(visit => window.opdTestSplitDiagnosisText(visit.Diagnosis))
+      .filter(value => !window.opdTestIsLegacyServiceDiagnosis(value))
+      .forEach(value => {
+        const key = value.toLocaleLowerCase();
+        if (known.has(key)) return;
+        known.add(key);
+        suggestions.push(value);
+      });
+    window.opdTestSharedDiagnosisSuggestions = suggestions;
+
+    const select = document.getElementById('opdTestDiagnosis');
+    if (select) {
+      const existing = new Set(Array.from(select.options).map(option => option.value.toLocaleLowerCase()));
+      suggestions.forEach(value => {
+        if (existing.has(value.toLocaleLowerCase())) return;
+        const option = new Option(value, value);
+        option.dataset.source = 'shared';
+        select.add(option);
+        existing.add(value.toLocaleLowerCase());
+      });
+    }
+  } catch (error) {
+    console.warn('Unable to load shared OPD diagnosis suggestions:', error);
+  } finally {
+    window.opdTestSharedDiagnosisSuggestionsLoading = false;
+    window.opdTestSharedDiagnosisSuggestionsLoaded = true;
+  }
+};
+
+window.opdTestSyncDiagnosisState = function () {
+  window.opdTestState.diagnoses = window.opdTestDiagnosisValues().map(value => {
+    return { code: '', name: value, certainty: 'provisional' };
+  });
+};
+
+window.opdTestRenderDiagnosisOptions = function (force = false) {
+  const select = document.getElementById('opdTestDiagnosis');
+  if (!select) return;
+  const initialized = Boolean(window.jQuery && $(select).hasClass('select2-hidden-accessible'));
+  if (initialized && !force) {
+    window.opdTestSyncDiagnosisState();
+    return;
+  }
+  const selected = new Set(window.opdTestDiagnosisValues());
+  const entries = [];
+  const known = new Set();
+  const addEntry = (value, source, keywords = '') => {
+    const normalized = window.opdTestNormalizeDiagnosisText(value);
+    const key = normalized.toLocaleLowerCase();
+    if (!normalized || known.has(key)) return;
+    known.add(key);
+    entries.push({ value: normalized, source, keywords: String(keywords || '') });
+  };
+
+  window.opdTestReadDiagnosisHistory().forEach(item => addEntry(item.value, 'history'));
+  (window.opdTestSharedDiagnosisSuggestions || []).forEach(value => addEntry(value, 'shared'));
+  [window.opdTestSelectedVisit, ...(Array.isArray(window.currentVisitHistoryData) ? window.currentVisitHistoryData : [])]
+    .filter(Boolean)
+    .flatMap(visit => window.opdTestSplitDiagnosisText(visit.diagnosis || visit.Diagnosis))
+    .filter(value => !window.opdTestIsLegacyServiceDiagnosis(value))
+    .forEach(value => addEntry(value, 'history'));
+  (window.opdTestDiagnosisCatalog || []).forEach(item => {
+    const value = [item.code, item.name].filter(Boolean).join(' · ');
+    addEntry(value, 'catalog', `${item.code || ''} ${item.name || ''} ${item.keywords || ''}`);
+  });
+  selected.forEach(value => addEntry(value, 'selected'));
+
+  if (initialized) $(select).select2('destroy');
+  select.innerHTML = entries.map(item =>
+    `<option value="${window.opdTestHtml(item.value)}" data-source="${item.source}" data-keywords="${window.opdTestHtml(item.keywords)}"${selected.has(item.value) ? ' selected' : ''}>${window.opdTestHtml(item.value)}</option>`
+  ).join('');
+
+  if (window.jQuery && $.fn?.select2) {
+    $(select).select2({
+      dropdownParent: $('#view-opd_test'),
+      placeholder: 'ພິມ Diagnosis ແລ້ວກົດ Enter...',
+      tags: true,
+      allowClear: true,
+      minimumInputLength: 1,
+      width: '100%',
+      language: {
+        inputTooShort: () => 'ພິມຊື່ພະຍາດ ຫຼື ICD-10 ເພື່ອຄົ້ນຫາ',
+        noResults: () => 'ບໍ່ພົບລາຍການ — ກົດ Enter ເພື່ອໃຊ້ຂໍ້ຄວາມທີ່ພິມ'
+      },
+      createTag(params) {
+        const value = window.opdTestNormalizeDiagnosisText(params.term);
+        return value ? { id: value, text: value, newTag: true } : null;
+      },
+      insertTag(data, tag) {
+        data.unshift(tag);
+      },
+      matcher(params, data) {
+        const term = window.opdTestNormalizeDiagnosisText(params.term).toLocaleLowerCase();
+        if (!term) return data;
+        const keywords = String(data.element?.dataset?.keywords || '').toLocaleLowerCase();
+        const text = String(data.text || '').toLocaleLowerCase();
+        return `${text} ${keywords}`.includes(term) ? data : null;
+      }
+    }).on('change.opdtestdiagnosis', function () {
+      window.opdTestSyncDiagnosisState();
+      window.opdTestMarkDirty();
+      window.opdTestRefreshChecks();
+    });
+  }
+  window.opdTestSyncDiagnosisState();
+};
+
+window.opdTestRenderServiceOptions = function () {
+  const select = document.getElementById('opdTestService');
+  if (!select) return;
+  const selected = new Set(Array.from(select.selectedOptions || []).map(option => option.value));
+  const fallback = [
+    { service: 'OPD Consultation', specialist: 'General Practitioner', revenue: 'OPD' },
+    { service: 'Internal Medicine Consultation', specialist: 'Internal Medicine', revenue: 'OPD' },
+    { service: 'Follow-up Consultation', specialist: 'General Practitioner', revenue: 'OPD' }
+  ];
+  const source = (servicesDataStore || []).length ? servicesDataStore : fallback;
+  const options = [];
+  const seen = new Set();
+  source.forEach(item => {
+    const service = String(item.service || item.Services_List || '').trim();
+    if (!service || seen.has(service)) return;
+    seen.add(service);
+    options.push(`<option value="${window.opdTestHtml(service)}"${selected.has(service) ? ' selected' : ''}>${window.opdTestHtml(service)}</option>`);
+  });
+  select.innerHTML = options.join('');
+
+  if (window.jQuery && $.fn?.select2 && !$(select).hasClass('select2-hidden-accessible')) {
+    $(select).select2({
+      dropdownParent: $('#view-opd_test'),
+      placeholder: '-- ພິມຄົ້ນຫາບໍລິການ --',
+      allowClear: true,
+      width: '100%'
+    }).on('change.opdtest', window.opdTestHandleServiceSelection);
+  }
+};
+
+window.opdTestHandleServiceSelection = function () {
+  const select = document.getElementById('opdTestService');
+  const selected = Array.from(select?.selectedOptions || []).map(option => option.value);
+  const specialists = new Set();
+  const revenues = new Set();
+  const source = (servicesDataStore || []).length ? servicesDataStore : [
+    { service: 'OPD Consultation', specialist: 'General Practitioner', revenue: 'OPD' },
+    { service: 'Internal Medicine Consultation', specialist: 'Internal Medicine', revenue: 'OPD' },
+    { service: 'Follow-up Consultation', specialist: 'General Practitioner', revenue: 'OPD' }
+  ];
+  selected.forEach(service => {
+    const match = source.find(item => String(item.service || item.Services_List || '').trim() === service);
+    const specialist = String(match?.specialist || match?.Mapped_Specialist || '').trim();
+    const revenue = String(match?.revenue || match?.Revenue_Group || '').trim();
+    if (specialist && specialist !== '-') specialists.add(specialist);
+    if (revenue && revenue !== '-') revenues.add(revenue);
+  });
+  const specialistInput = document.getElementById('opdTestSpecialist');
+  const revenueInput = document.getElementById('opdTestRevenue');
+  if (specialistInput) specialistInput.value = Array.from(specialists).join(', ');
+  if (revenueInput) revenueInput.value = Array.from(revenues).join(', ');
+  window.opdTestMarkDirty();
+};
+
+window.opdTestPopulateInlineOrderCatalogs = function () {
+  const labCatalog = document.getElementById('opdTestLabCatalog');
+  if (labCatalog) {
+    const departmentItems = Object.values(window.opdTestDeptTemplates || {})
+      .flatMap(template => template.commonInvestigations || []);
+    const items = [...new Set([...(window.opdTestInvestigationCatalog || []), ...departmentItems])].sort();
+    labCatalog.innerHTML = items.map(name => `<option value="${window.opdTestHtml(name)}"></option>`).join('');
+  }
+
+  const drugCatalog = document.getElementById('opdTestDrugCatalog');
+  if (drugCatalog) {
+    drugCatalog.innerHTML = Object.values(window.opdTestMedicationTemplates || {})
+      .map(item => `<option value="${window.opdTestHtml(item.name)}"></option>`)
+      .join('');
+  }
+};
+
+window.opdTestShowOrdersSavedAlert = function (orders, options = {}) {
+  const savedOrders = (Array.isArray(orders) ? orders : [orders]).filter(Boolean);
+  if (!savedOrders.length) return;
+  if (options.edited) {
+    window.opdTestSimpleAlert(
+      'ແກ້ໄຂສຳເລັດແລ້ວ',
+      'ລາຍການ Order ແລະເວລາສັ່ງຖືກອັບເດດເປັນເວລາປັດຈຸບັນ.',
+      'success'
+    );
+    return;
+  }
+  const rows = savedOrders.map(order => `<div class="opdt-saved-order-alert-row">
+    <strong>${window.opdTestHtml(order.name)}</strong>
+    <span>${window.opdTestHtml(order.orderNo)}</span>
+    <small><i class="fas fa-clock"></i> ເວລາສັ່ງ: ${window.opdTestHtml(window.opdTestFormatExactOrderTime(order.orderedAt))}</small>
+    <small><i class="fas fa-calendar-check"></i> ເວລານັດກວດ: ${window.opdTestHtml(window.opdTestFormatInvestigationTime(order.scheduledAt || order.orderedAt))}</small>
+  </div>`).join('');
+  if (window.Swal?.fire) {
+    window.Swal.fire({
+      icon: 'success',
+      title: 'ບັນທຶກ Order ແລ້ວ',
+      html: `<div class="opdt-saved-order-alert">${rows}</div><p class="opdt-saved-order-hint">ກົດ “ເພີ່ມລາຍການກວດ” ອີກຄັ້ງເພື່ອສ້າງ Order ໃໝ່.</p>`,
+      confirmButtonText: 'ຕົກລົງ'
+    });
+  }
+};
+
+window.opdTestAddInlineLab = function (requestedType = 'lab') {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  const typeMeta = window.opdTestInvestigationTypeMeta(requestedType);
+  const inputId = ({
+    lab: 'opdTestInlineLabName',
+    ultrasound: 'opdTestInlineUltrasoundName',
+    xray: 'opdTestInlineXrayName'
+  })[typeMeta.type];
+  const input = document.getElementById(inputId);
+  const name = input?.value?.trim() || '';
+  if (!name) {
+    window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍການກວດ', 'ກະລຸນາພິມ ຫຼື ເລືອກລາຍການກວດກ່ອນ.', 'warning');
+    input?.focus();
+    return;
+  }
+  const priorityValue = document.getElementById('opdTestInlineLabPriority')?.value || 'Routine';
+  const scheduledControl = document.getElementById('opdTestInlineLabScheduledAt');
+  const instructionsControl = document.getElementById('opdTestInlineLabInstructions');
+  const scheduledValue = scheduledControl?.value || '';
+  const orderedDate = new Date();
+  const requestedDate = scheduledValue ? new Date(scheduledValue) : orderedDate;
+  const scheduledDate = Number.isNaN(requestedDate.getTime()) || requestedDate.getTime() < orderedDate.getTime()
+    ? orderedDate
+    : requestedDate;
+  const orderedAt = orderedDate.toISOString();
+  const scheduledAt = scheduledDate.toISOString();
+  const normalizedName = window.normalizeEMRLabFormMatchText(name);
+  const isCustom = !window.getEMRLabOrderFormReference(name)
+    && !labsMasterList.some(item => window.normalizeEMRLabFormMatchText(item?.name) === normalizedName);
+  const order = window.opdTestNormalizeLabOrder({
+    name,
+    at: orderedDate.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }),
+    orderedAt,
+    orderBatchId: `HIS-BATCH-${typeMeta.type}-${orderedDate.getTime()}`,
+    scheduledAt,
+    instructions: instructionsControl?.value?.trim() || '',
+    source: 'manual',
+    isCustom,
+    investigationType: typeMeta.type,
+    orderType: typeMeta.type,
+    categoryKey: typeMeta.type,
+    destinationSystem: typeMeta.destinationSystem,
+    priority: window.opdTestPriorityLabel(priorityValue),
+    priorityValue
+  }, state.orders.length, priorityValue);
+  state.orders.push(order);
+  state.results = window.opdTestBuildLocalResults(state.orders.map(order => order.name));
+  input.value = '';
+  if (instructionsControl) instructionsControl.value = '';
+  if (scheduledControl) scheduledControl.value = window.opdTestLocalDateTimeInputValue();
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+  window.opdTestShowOrdersSavedAlert(order);
+};
+
+window.opdTestFindMedicationTemplate = function (name) {
+  const normalized = String(name || '').trim().toLowerCase();
+  return Object.values(window.opdTestMedicationTemplates || {})
+    .find(item => String(item.name || '').trim().toLowerCase() === normalized);
+};
+
+window.opdTestApplyInlineDrugTemplate = function (name) {
+  const item = window.opdTestFindMedicationTemplate(name);
+  if (!item) return;
+  const values = {
+    opdTestInlineMedDose: item.dose,
+    opdTestInlineMedRoute: item.route,
+    opdTestInlineMedFrequency: item.frequency,
+    opdTestInlineMedDuration: item.duration,
+    opdTestInlineMedQuantity: item.quantity
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const control = document.getElementById(id);
+    if (control) control.value = value || '';
+  });
+};
+
+window.opdTestNormalizeMedicationOrder = function (item, index = 0) {
+  const source = item && typeof item === 'object' ? item : { name: String(item || '') };
+  const localMedicationId = source.localMedicationId
+    || source.prescriptionItemId
+    || source.orderNo
+    || `HIS-RX-${Date.now()}-${index + 1}`;
+  const prescribedAt = source.prescribedAt || source.orderedAt || new Date().toISOString();
+  const prescriptionBatchId = source.prescriptionBatchId || source.batchId
+    || `HIS-RX-BATCH-${String(prescribedAt).replace(/[^0-9]/g, '').slice(0, 17) || Date.now()}`;
+  return {
+    ...source,
+    name: source.name || String(item || ''),
+    localMedicationId,
+    prescriptionItemId: source.prescriptionItemId || localMedicationId,
+    orderNo: source.orderNo || localMedicationId,
+    prescribedAt,
+    orderedAt: source.orderedAt || prescribedAt,
+    prescriptionBatchId,
+    status: source.pharmacyStatus || source.status || 'prescribed',
+    pharmacyStatus: source.pharmacyStatus || source.status || 'prescribed',
+    dispensedAt: source.dispensedAt || source.dispensed_at || '',
+    dispensedBy: source.dispensedBy || source.dispensed_by || '',
+    allergyChecked: source.allergyChecked !== false,
+    duplicateChecked: source.duplicateChecked !== false,
+    source: source.source || 'opd-test'
+  };
+};
+
+window.opdTestMedicationBatchKey = function (item, index = 0) {
+  const medication = window.opdTestNormalizeMedicationOrder(item, index);
+  return medication.prescriptionBatchId || `rx:${medication.prescribedAt}`;
+};
+
+window.opdTestMedicationBatches = function () {
+  const groups = new Map();
+  (window.opdTestState.medications || []).forEach((rawItem, index) => {
+    const item = window.opdTestNormalizeMedicationOrder(rawItem, index);
+    const key = window.opdTestMedicationBatchKey(item, index);
+    if (!groups.has(key)) groups.set(key, { key, prescribedAt: item.prescribedAt, entries: [] });
+    const batch = groups.get(key);
+    batch.entries.push({ item, index });
+    if (new Date(item.prescribedAt).getTime() < new Date(batch.prescribedAt).getTime()) batch.prescribedAt = item.prescribedAt;
+  });
+  return [...groups.values()].sort((a, b) => {
+    const timeDifference = new Date(a.prescribedAt).getTime() - new Date(b.prescribedAt).getTime();
+    return timeDifference || a.entries[0].index - b.entries[0].index;
+  });
+};
+
+window.opdTestMedicationBatchForIndex = function (index) {
+  const targetIndex = Number(index);
+  const batches = window.opdTestMedicationBatches();
+  const batchIndex = batches.findIndex(batch => batch.entries.some(entry => entry.index === targetIndex));
+  return batchIndex < 0 ? null : { ...batches[batchIndex], sequence: batchIndex + 1, total: batches.length };
+};
+
+window.opdTestMedicationStatusMeta = function (item) {
+  const status = String(item?.pharmacyStatus || item?.status || 'prescribed').toLowerCase();
+  const map = {
+    prescribed: ['ລໍສົ່ງຫ້ອງຢາ', 'fa-clock', ''],
+    sent_to_pharmacy: ['ສົ່ງຫ້ອງຢາແລ້ວ', 'fa-paper-plane', 'is-progress'],
+    accepted: ['ຫ້ອງຢາຮັບແລ້ວ', 'fa-circle-check', 'is-progress'],
+    preparing: ['ກຳລັງຈັດຢາ', 'fa-spinner', 'is-progress'],
+    ready: ['ຢາພ້ອມຮັບ', 'fa-bag-shopping', 'is-ready'],
+    dispensed: ['ຈ່າຍຢາແລ້ວ', 'fa-circle-check', 'is-ready'],
+    cancelled: ['ຍົກເລີກແລ້ວ', 'fa-circle-xmark', 'is-error'],
+    rejected: ['ຫ້ອງຢາປະຕິເສດ', 'fa-circle-exclamation', 'is-error']
+  };
+  const [label, icon, className] = map[status] || [status, 'fa-clock', ''];
+  return { status, label, icon, className };
+};
+
+window.opdTestConfirmMedicationOrder = async function (medication, options = {}) {
+  if (!window.Swal?.fire) return true;
+  const duplicateNote = options.isDuplicate
+    ? '<div class="opdt-confirm-medication-warning"><i class="fas fa-copy"></i> ມີຊື່ຢານີ້ໃນລາຍການແລ້ວ; ການຢືນຢັນຈະສ້າງ Order ໃໝ່ແຍກກັນ.</div>'
+    : '';
+  const confirmation = await window.Swal.fire({
+    icon: 'question',
+    title: options.isUpdate ? 'ຢືນຢັນການແກ້ໄຂຢາ?' : 'ຢືນຢັນການສັ່ງຢາ?',
+    html: `<div class="opdt-confirm-order-alert opdt-confirm-medication-alert">
+      <p>ກະລຸນາກວດ prescription ອີກຄັ້ງກ່ອນບັນທຶກ Order</p>
+      ${duplicateNote}
+      <div class="opdt-confirm-medication-name"><i class="fas fa-pills"></i> ${window.opdTestHtml(medication.name)}</div>
+      <dl class="opdt-confirm-medication-grid">
+        <div><dt>Dose</dt><dd>${window.opdTestHtml(medication.dose)}</dd></div>
+        <div><dt>Route</dt><dd>${window.opdTestHtml(medication.route)}</dd></div>
+        <div><dt>Frequency</dt><dd>${window.opdTestHtml(medication.frequency)}</dd></div>
+        <div><dt>Duration</dt><dd>${window.opdTestHtml(medication.duration)}</dd></div>
+        <div><dt>Quantity</dt><dd>${window.opdTestHtml(medication.quantity)}</dd></div>
+      </dl>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: `<i class="fas fa-check"></i> ${options.isUpdate ? 'ຢືນຢັນແກ້ໄຂ' : 'ຢືນຢັນສັ່ງຢາ'}`,
+    cancelButtonText: 'ກັບໄປແກ້ໄຂ',
+    reverseButtons: true,
+    focusCancel: true
+  });
+  return confirmation.isConfirmed;
+};
+
+window.opdTestShowMedicationSavedAlert = function (medication, isUpdate = false) {
+  if (!window.Swal?.fire || !medication) return;
+  window.Swal.fire({
+    icon: 'success',
+    title: isUpdate ? 'ອັບເດດ Order ຢາແລ້ວ' : 'ບັນທຶກ Order ຢາແລ້ວ',
+    html: `<div class="opdt-saved-order-alert">
+      <div class="opdt-saved-order-alert-row">
+        <strong>${window.opdTestHtml(medication.name)}</strong>
+        <span>${window.opdTestHtml(medication.orderNo || medication.prescriptionItemId)}</span>
+        <small><i class="fas fa-prescription-bottle-medical"></i> ${window.opdTestHtml(medication.dose)} · ${window.opdTestHtml(medication.route)} · ${window.opdTestHtml(medication.frequency)} · ${window.opdTestHtml(medication.duration)} · Qty ${window.opdTestHtml(medication.quantity)}</small>
+        <small><i class="fas fa-clock"></i> ເວລາສັ່ງ: ${window.opdTestHtml(window.opdTestFormatExactOrderTime(medication.prescribedAt || medication.orderedAt))}</small>
+      </div>
+    </div>${isUpdate ? '' : '<p class="opdt-saved-order-hint">ກົດ “ບັນທຶກ Order” ອີກຄັ້ງເພື່ອສ້າງ Order ຢາໃໝ່.</p>'}`,
+    confirmButtonText: 'ຕົກລົງ'
+  });
+};
+
+window.opdTestMedicationPickerCatalog = [];
+window.opdTestMedicationPickerDraft = [];
+window.opdTestMedicationPickerEditingIndex = -1;
+window.opdTestEditingMedicationBatch = null;
+
+window.opdTestLoadMedicationPickerCatalog = async function () {
+  if (!drugsMasterList.length) {
+    try {
+      const rows = await window.fetchSupabaseRows('Drugs_Master', {
+        select: 'Drug_ID,Drug_Name,Description',
+        orderBy: 'Drug_Name',
+        ascending: true
+      });
+      drugsMasterList = (rows || []).map(row => ({
+        id: row.Drug_ID,
+        name: String(row.Drug_Name || '').trim(),
+        desc: row.Description || ''
+      })).filter(item => item.name);
+    } catch (error) {
+      console.error('Unable to load Drugs_Master for OPD Test:', error);
+    }
+  }
+
+  const merged = new Map();
+  const addItem = (item, source) => {
+    const name = String(item?.name || '').trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const previous = merged.get(key) || {};
+    merged.set(key, {
+      ...previous,
+      ...item,
+      name,
+      id: item.id || previous.id || `opd-med-${merged.size + 1}`,
+      desc: item.desc || previous.desc || '',
+      source: previous.source === 'database' ? previous.source : source
+    });
+  };
+  drugsMasterList.forEach(item => addItem(item, 'database'));
+  Object.values(window.opdTestMedicationTemplates || {}).forEach(item => addItem(item, 'template'));
+  window.opdTestMedicationPickerCatalog = Array.from(merged.values())
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return window.opdTestMedicationPickerCatalog;
+};
+
+window.opdTestRenderMedicationPickerCatalog = function (query = '') {
+  const target = document.getElementById('opdTestMedicationCatalog');
+  const count = document.getElementById('opdTestMedicationCatalogCount');
+  const datalist = document.getElementById('opdTestMedicationNameCatalog');
+  if (!target) return;
+  const needle = String(query || '').trim().toLowerCase();
+  const filtered = window.opdTestMedicationPickerCatalog
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !needle || `${item.name} ${item.desc || ''}`.toLowerCase().includes(needle));
+  if (count) count.textContent = filtered.length;
+  if (datalist) {
+    datalist.innerHTML = window.opdTestMedicationPickerCatalog
+      .map(item => `<option value="${window.opdTestHtml(item.name)}"></option>`)
+      .join('');
+  }
+  target.innerHTML = filtered.length
+    ? filtered.map(({ item, index }) => `<button type="button" class="opdt-med-catalog-item" onclick="window.opdTestSelectMedicationCatalog(${index})">
+        <span class="opdt-med-catalog-icon"><i class="fas fa-capsules"></i></span>
+        <span class="opdt-med-catalog-text"><strong>${window.opdTestHtml(item.name)}</strong><small>${window.opdTestHtml(item.desc || (item.source === 'database' ? 'Drug master' : 'Common medication'))}</small></span>
+        <i class="fas fa-plus opdt-med-catalog-add"></i>
+      </button>`).join('')
+    : `<div class="emr-order-empty"><i class="fas fa-search"></i><strong>ບໍ່ພົບຊື່ຢາ</strong><span>ສາມາດພິມຊື່ຢາເອງໃນຟອມຝັ່ງຂວາ</span></div>`;
+};
+
+window.opdTestFilterMedicationCatalog = function (query) {
+  window.opdTestRenderMedicationPickerCatalog(query);
+};
+
+window.opdTestMedicationInstructionText = function (medication = {}) {
+  const parts = [
+    medication.dose,
+    medication.route,
+    medication.frequency || medication.usage,
+    medication.duration
+  ].map(value => String(value || '').trim()).filter(Boolean);
+  return parts.join(' · ');
+};
+
+window.opdTestSetMedicationEditorValues = function (medication = {}) {
+  const values = {
+    opdTestMedicationName: medication.name,
+    opdTestMedicationInstruction: medication.instructions || medication.instr || window.opdTestMedicationInstructionText(medication),
+    opdTestMedicationDose: medication.dose,
+    opdTestMedicationRoute: medication.route,
+    opdTestMedicationFrequency: medication.frequency || medication.usage,
+    opdTestMedicationDuration: medication.duration,
+    opdTestMedicationQuantity: medication.quantity || medication.qty
+  };
+  Object.entries(values).forEach(([id, value]) => {
+    const control = document.getElementById(id);
+    if (control) control.value = value || '';
+  });
+};
+
+window.opdTestResetMedicationEditor = function () {
+  window.opdTestMedicationPickerEditingIndex = -1;
+  window.opdTestSetMedicationEditorValues({});
+  const title = document.getElementById('opdTestMedicationEditorTitle');
+  const button = document.getElementById('opdTestMedicationSaveItemBtn');
+  const cancel = document.getElementById('opdTestMedicationCancelEditBtn');
+  if (title) title.textContent = 'Add Medication';
+  if (button) button.innerHTML = '<i class="fas fa-plus me-1"></i><span>ເພີ່ມຢາ</span>';
+  if (cancel) cancel.hidden = true;
+};
+
+window.opdTestApplyMedicationPickerTemplate = function (name) {
+  const normalized = String(name || '').trim().toLowerCase();
+  const item = window.opdTestMedicationPickerCatalog
+    .find(entry => String(entry.name || '').trim().toLowerCase() === normalized);
+  if (!item) return;
+  const template = window.opdTestFindMedicationTemplate(item.name) || item;
+  ['dose', 'route', 'frequency', 'duration', 'quantity'].forEach(field => {
+    const id = `opdTestMedication${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+    const control = document.getElementById(id);
+    if (control && template[field]) control.value = template[field];
+  });
+  const instruction = document.getElementById('opdTestMedicationInstruction');
+  if (instruction && !instruction.value.trim()) instruction.value = window.opdTestMedicationInstructionText(template);
+};
+
+window.opdTestBuildInstructionFromDetails = function () {
+  const instruction = document.getElementById('opdTestMedicationInstruction');
+  if (!instruction) return;
+  const generated = window.opdTestMedicationInstructionText({
+    dose: document.getElementById('opdTestMedicationDose')?.value,
+    route: document.getElementById('opdTestMedicationRoute')?.value,
+    frequency: document.getElementById('opdTestMedicationFrequency')?.value,
+    duration: document.getElementById('opdTestMedicationDuration')?.value,
+    quantity: document.getElementById('opdTestMedicationQuantity')?.value
+  });
+  if (!generated) {
+    window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍລະອຽດ', 'ກະລຸນາລະບຸ Dose, Route, Frequency, Duration ຫຼື Qty ຢ່າງໜ້ອຍ 1 ຢ່າງ.', 'info');
+    return;
+  }
+  instruction.value = generated;
+  instruction.focus();
+};
+
+window.opdTestSelectMedicationCatalog = function (index) {
+  const item = window.opdTestMedicationPickerCatalog[index];
+  if (!item) return;
+  const template = window.opdTestFindMedicationTemplate(item.name) || {};
+  window.opdTestSetMedicationEditorValues({
+    name: item.name,
+    dose: template.dose || '',
+    route: template.route || '',
+    frequency: template.frequency || '',
+    duration: template.duration || '',
+    quantity: template.quantity || ''
+  });
+  document.getElementById('opdTestMedicationInstruction')?.focus();
+};
+
+window.opdTestRenderMedicationPickerDraft = function () {
+  const target = document.getElementById('opdTestMedicationDraftList');
+  const count = document.getElementById('opdTestMedicationDraftCount');
+  if (!target) return;
+  const draft = window.opdTestMedicationPickerDraft || [];
+  if (count) count.textContent = draft.length;
+  target.innerHTML = draft.length
+    ? draft.map((item, index) => {
+      const isFreeText = item.isFreeText || Boolean(item.freeText);
+      const detail = isFreeText
+        ? `<span class="opdt-med-free-text">${window.opdTestHtml(item.freeText || item.name)}</span><small class="opdt-med-text-badge"><i class="fas fa-align-left"></i> Free text ຂອງໝໍ</small>`
+        : `<strong>${window.opdTestHtml(item.name)}</strong><span>${window.opdTestHtml(item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '-')}</span>`;
+      return `<div class="opdt-med-draft-item${window.opdTestMedicationPickerEditingIndex === index ? ' is-editing' : ''}${isFreeText ? ' is-free-text' : ''}">
+        <div class="opdt-med-draft-number">${index + 1}</div>
+        <div class="opdt-med-draft-main">
+          ${detail}
+        </div>
+        <div class="opdt-med-draft-actions">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.opdTestEditMedicationDraftItem(${index})" title="ແກ້ໄຂ"><i class="fas fa-pen"></i></button>
+          <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.opdTestDeleteMedicationDraftItem(${index})" title="ລຶບ"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    }).join('')
+    : `<div class="emr-order-empty"><i class="fas fa-prescription-bottle-medical"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍ ຫຼື ພິມຊື່ຢາເອງ ແລ້ວກົດ “ເພີ່ມຢາ”</span></div>`;
+};
+
+window.opdTestEditMedicationDraftItem = function (index) {
+  const medication = window.opdTestMedicationPickerDraft[index];
+  if (!medication) return;
+  window.opdTestMedicationPickerEditingIndex = index;
+  const title = document.getElementById('opdTestMedicationEditorTitle');
+  const button = document.getElementById('opdTestMedicationSaveItemBtn');
+  const cancel = document.getElementById('opdTestMedicationCancelEditBtn');
+  const isFreeText = medication.isFreeText || Boolean(medication.freeText);
+  window.opdTestSetMedicationEditorValues(isFreeText ? {
+    ...medication,
+    name: medication.medicationName || 'ຄຳສັ່ງຢາຂອງໝໍ',
+    instructions: medication.freeText || medication.name || ''
+  } : medication);
+  if (title) title.textContent = 'Edit Medication';
+  if (button) button.innerHTML = '<i class="fas fa-check me-1"></i><span>ອັບເດດຢາ</span>';
+  if (cancel) cancel.hidden = false;
+  document.getElementById(isFreeText ? 'opdTestMedicationInstruction' : 'opdTestMedicationName')?.focus();
+  window.opdTestRenderMedicationPickerDraft();
+};
+
+window.opdTestDeleteMedicationDraftItem = function (index) {
+  if (!window.opdTestMedicationPickerDraft[index]) return;
+  window.opdTestMedicationPickerDraft.splice(index, 1);
+  if (window.opdTestMedicationPickerEditingIndex === index) window.opdTestResetMedicationEditor();
+  else if (window.opdTestMedicationPickerEditingIndex > index) window.opdTestMedicationPickerEditingIndex -= 1;
+  window.opdTestRenderMedicationPickerDraft();
+};
+
+window.opdTestSaveMedicationDraftItem = async function () {
+  const medication = {
+    name: document.getElementById('opdTestMedicationName')?.value?.trim() || '',
+    instructions: document.getElementById('opdTestMedicationInstruction')?.value?.trim() || '',
+    dose: document.getElementById('opdTestMedicationDose')?.value?.trim() || '',
+    route: document.getElementById('opdTestMedicationRoute')?.value || '',
+    frequency: document.getElementById('opdTestMedicationFrequency')?.value || '',
+    duration: document.getElementById('opdTestMedicationDuration')?.value?.trim() || '',
+    quantity: document.getElementById('opdTestMedicationQuantity')?.value?.trim() || ''
+  };
+  if (!medication.name || !medication.instructions) {
+    window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', 'ກະລຸນາລະບຸຊື່ຢາ ແລະ ວິທີໃຊ້. ລາຍລະອຽດອື່ນສາມາດເພີ່ມພາຍຫຼັງໄດ້.', 'warning');
+    return;
+  }
+  if (window.opdTestMedicationMatchesAllergy(medication.name)) {
+    const allergy = window.opdTestState.patientAllergy || 'ຢາທີ່ລະບຸ';
+    window.opdTestSimpleAlert('ບໍ່ສາມາດສັ່ງຢານີ້', `ຄົນເຈັບມີປະຫວັດແພ້ ${allergy} ແລະ ${medication.name} ອາດຢູ່ໃນກຸ່ມທີ່ກ່ຽວຂ້ອງ.`, 'error');
+    return;
+  }
+
+  const editingIndex = Number(window.opdTestMedicationPickerEditingIndex);
+  const isUpdate = editingIndex >= 0 && Boolean(window.opdTestMedicationPickerDraft[editingIndex]);
+  const duplicate = window.opdTestMedicationPickerDraft.some((item, index) => (
+    index !== editingIndex && String(item.name || '').trim().toLowerCase() === medication.name.toLowerCase()
+  ));
+  if (duplicate) {
+    const confirmed = await window.opdTestConfirmMedicationOrder(medication, { isDuplicate: true, isUpdate });
+    if (!confirmed) return;
+  }
+
+  const existing = isUpdate ? window.opdTestMedicationPickerDraft[editingIndex] : {};
+  const prescribedAt = existing.prescribedAt || existing.orderedAt || new Date().toISOString();
+  const catalogMatch = window.opdTestMedicationPickerCatalog.some(item => item.name.toLowerCase() === medication.name.toLowerCase());
+  const normalized = window.opdTestNormalizeMedicationOrder({
+    ...existing,
+    ...medication,
+    freeText: '',
+    isFreeText: false,
+    prescribedAt,
+    orderedAt: existing.orderedAt || prescribedAt,
+    source: catalogMatch ? 'catalog' : 'manual',
+    isCustom: !catalogMatch,
+    allergyChecked: true,
+    duplicateChecked: true
+  }, isUpdate ? editingIndex : window.opdTestMedicationPickerDraft.length);
+  if (isUpdate) window.opdTestMedicationPickerDraft[editingIndex] = normalized;
+  else window.opdTestMedicationPickerDraft.push(normalized);
+  window.opdTestResetMedicationEditor();
+  window.opdTestRenderMedicationPickerDraft();
+};
+
+window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
+  if (window.opdTestState.locked) return;
+  const requestedIndex = Number(editIndex);
+  const editBatch = Number.isInteger(requestedIndex) && requestedIndex >= 0
+    ? window.opdTestMedicationBatchForIndex(requestedIndex)
+    : null;
+  window.opdTestEditingMedicationBatch = editBatch
+    ? { key: editBatch.key, sequence: editBatch.sequence }
+    : null;
+  window.opdTestMedicationPickerDraft = editBatch
+    ? editBatch.entries.map(({ item }, index) => window.opdTestNormalizeMedicationOrder({ ...item }, index))
+    : [];
+  window.opdTestResetMedicationEditor();
+  const modalTitle = document.getElementById('opdTestMedicationModalTitle');
+  if (modalTitle) modalTitle.innerHTML = editBatch
+    ? `<i class="fas fa-pills me-2"></i>ແກ້ໄຂລາຍການສັ່ງຢາທີ່ ${editBatch.sequence}`
+    : '<i class="fas fa-pills me-2"></i>ເລືອກ ແລະ ສັ່ງຢາ / Medication Order';
+  const search = document.getElementById('opdTestMedicationSearch');
+  const catalog = document.getElementById('opdTestMedicationCatalog');
+  if (search) search.value = '';
+  if (catalog) catalog.innerHTML = '<p class="text-muted text-center small py-4"><i class="fas fa-spinner fa-spin me-1"></i>ກຳລັງໂຫຼດລາຍການຢາ...</p>';
+  window.opdTestRenderMedicationPickerDraft();
+  if (document.activeElement) document.activeElement.blur();
+  $('#opdTestMedicationModal').modal('show');
+  await window.opdTestLoadMedicationPickerCatalog();
+  window.opdTestRenderMedicationPickerCatalog();
+  document.getElementById('opdTestMedicationSearch')?.focus();
+};
+
+window.opdTestConfirmMedicationPicker = function () {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  if (!window.opdTestMedicationPickerDraft.length) {
+    window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍການຢາ', 'ກະລຸນາເພີ່ມຢາຢ່າງໜ້ອຍ 1 ລາຍການ.', 'warning');
+    return;
+  }
+  const editingBatch = window.opdTestEditingMedicationBatch;
+  const now = new Date().toISOString();
+  const prescriptionBatchId = `HIS-RX-BATCH-${Date.now()}`;
+  const newMedications = window.opdTestMedicationPickerDraft.map((item, index) => window.opdTestNormalizeMedicationOrder({
+    ...item,
+    localMedicationId: '',
+    prescriptionItemId: '',
+    orderNo: '',
+    prescriptionBatchId,
+    prescribedAt: now,
+    orderedAt: now,
+    status: 'prescribed',
+    pharmacyStatus: 'prescribed',
+    dispensedAt: '',
+    dispensedBy: ''
+  }, state.medications.length + index));
+  if (editingBatch) {
+    state.medications = state.medications.filter((item, index) => window.opdTestMedicationBatchKey(item, index) !== editingBatch.key);
+  }
+  state.medications.push(...newMedications);
+  state.editingMedicationIndex = -1;
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+  $('#opdTestMedicationModal').modal('hide');
+  window.opdTestEditingMedicationBatch = null;
+  if (editingBatch) {
+    window.opdTestSimpleAlert('ແກ້ໄຂສຳເລັດແລ້ວ', 'ລາຍການສັ່ງຢາ ແລະເວລາສັ່ງຖືກອັບເດດແລ້ວ.', 'success');
+  }
+};
+
+window.opdTestResetInlineMedication = function () {
+  ['opdTestInlineMedName', 'opdTestInlineMedDose', 'opdTestInlineMedDuration', 'opdTestInlineMedQuantity']
+    .forEach(id => {
+      const control = document.getElementById(id);
+      if (control) control.value = '';
+    });
+  const route = document.getElementById('opdTestInlineMedRoute');
+  const frequency = document.getElementById('opdTestInlineMedFrequency');
+  if (route) route.value = 'PO';
+  if (frequency) frequency.value = 'OD';
+  window.opdTestState.editingMedicationIndex = -1;
+  const button = document.getElementById('opdTestInlineMedAddBtn');
+  if (button) button.innerHTML = '<i class="fas fa-save"></i><span>ບັນທຶກ Order</span>';
+};
+
+window.opdTestAddInlineMedication = async function () {
+  const state = window.opdTestState;
+  if (state.locked) return;
+  const medication = {
+    name: document.getElementById('opdTestInlineMedName')?.value?.trim() || '',
+    dose: document.getElementById('opdTestInlineMedDose')?.value?.trim() || '',
+    route: document.getElementById('opdTestInlineMedRoute')?.value || '',
+    frequency: document.getElementById('opdTestInlineMedFrequency')?.value || '',
+    duration: document.getElementById('opdTestInlineMedDuration')?.value?.trim() || '',
+    quantity: document.getElementById('opdTestInlineMedQuantity')?.value?.trim() || ''
+  };
+  if (!medication.name || !medication.dose || !medication.route || !medication.frequency || !medication.duration || !medication.quantity) {
+    window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', 'ກະລຸນາລະບຸຊື່ຢາ, Dose, Route, Frequency, Duration ແລະ Quantity.', 'warning');
+    return;
+  }
+  if (window.opdTestMedicationMatchesAllergy(medication.name)) {
+    const allergy = window.opdTestState.patientAllergy || 'ຢາທີ່ລະບຸ';
+    window.opdTestSimpleAlert(
+      'ບໍ່ສາມາດສັ່ງຢານີ້',
+      `ຄົນເຈັບມີປະຫວັດແພ້ ${allergy} ແລະ ${medication.name} ອາດຢູ່ໃນກຸ່ມທີ່ກ່ຽວຂ້ອງ. ກະລຸນາເລືອກຢາອື່ນ.`,
+      'error'
+    );
+    return;
+  }
+
+  const editingIndex = Number(state.editingMedicationIndex);
+  const isUpdate = editingIndex >= 0 && Boolean(state.medications[editingIndex]);
+  const duplicate = state.medications.some((item, index) => (
+    index !== editingIndex &&
+    String(item.name || '').trim().toLowerCase() === medication.name.toLowerCase()
+  ));
+  const confirmed = await window.opdTestConfirmMedicationOrder(medication, { isDuplicate: duplicate, isUpdate });
+  if (!confirmed) return;
+
+  const prescribedAt = new Date().toISOString();
+  const order = isUpdate
+    ? window.opdTestNormalizeMedicationOrder({ ...state.medications[editingIndex], ...medication }, editingIndex)
+    : window.opdTestNormalizeMedicationOrder({
+      ...medication,
+      prescribedAt,
+      orderedAt: prescribedAt,
+      allergyChecked: true,
+      duplicateChecked: true
+    }, state.medications.length);
+  if (isUpdate) state.medications[editingIndex] = order;
+  else state.medications.push(order);
+  window.opdTestResetInlineMedication();
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+  window.opdTestShowMedicationSavedAlert(order, isUpdate);
+};
+
+window.opdTestEditLegacyDrug = function (index) {
+  const state = window.opdTestState;
+  const medication = state.medications[index];
+  if (state.locked || !medication) return;
+  window.opdTestOpenMedicationPicker(index);
+};
+
+window.opdTestViewMedicationOrder = function (index) {
+  const medication = window.opdTestNormalizeMedicationOrder(window.opdTestState.medications[index], index);
+  if (!medication?.name || !window.Swal?.fire) return;
+  const isFreeText = medication.isFreeText || Boolean(medication.freeText);
+  const instructions = medication.instructions || medication.instr || window.opdTestMedicationInstructionText(medication);
+  const structuredRows = [
+    ['Dose', medication.dose],
+    ['Route', medication.route],
+    ['Frequency', medication.frequency || medication.usage],
+    ['Duration', medication.duration],
+    ['Quantity', medication.quantity || medication.qty]
+  ].filter(([, value]) => String(value || '').trim())
+    .map(([label, value]) => `<div><dt>${label}</dt><dd>${window.opdTestHtml(value)}</dd></div>`).join('');
+  const medicationDetails = isFreeText
+    ? `<div class="opdt-medication-free-text-view"><span><i class="fas fa-align-left"></i> Free-text Prescription</span><p>${window.opdTestHtml(medication.freeText || medication.name)}</p></div>`
+    : `<div class="opdt-medication-instruction-view"><span>ວິທີໃຊ້ / Instructions</span><p>${window.opdTestHtml(instructions || '-')}</p></div>${structuredRows ? `<dl class="opdt-confirm-medication-grid">${structuredRows}</dl>` : ''}`;
+  window.Swal.fire({
+    title: isFreeText ? 'ຄຳສັ່ງຢາຂອງໝໍ' : `ລາຍລະອຽດ Order ຢາ · ${window.opdTestHtml(medication.name)}`,
+    width: 650,
+    html: `<div class="opdt-lab-schedule-view opdt-medication-order-view">
+      <div class="opdt-lab-order-time"><span>ເວລາສັ່ງ Order</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(medication.prescribedAt || medication.orderedAt))}</strong><small>Order ID: ${window.opdTestHtml(medication.orderNo || medication.prescriptionItemId)}</small></div>
+      ${medicationDetails}
+    </div>`,
+    confirmButtonText: 'ປິດ'
+  });
+};
+
+window.opdTestViewMedicationBatch = function (index) {
+  const batch = window.opdTestMedicationBatchForIndex(index);
+  if (!batch?.entries.length || !window.Swal?.fire) return;
+  const itemRows = batch.entries.map(({ item }, itemIndex) => {
+    const isFreeText = item.isFreeText || Boolean(item.freeText);
+    const directions = isFreeText
+      ? (item.freeText || item.name)
+      : (item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '-');
+    const status = window.opdTestMedicationStatusMeta(item);
+    return `<tr>
+      <td><b>${itemIndex + 1}</b></td>
+      <td class="opdt-batch-test-name">${window.opdTestHtml(isFreeText ? 'Free-text Prescription' : item.name)}</td>
+      <td>${window.opdTestHtml(directions)}</td>
+      <td><span class="opdt-occurrence-status ${status.className}">${window.opdTestHtml(status.label)}</span></td>
+    </tr>`;
+  }).join('');
+  window.Swal.fire({
+    title: `ລາຍການສັ່ງຢາທີ່ ${batch.sequence}`,
+    width: 900,
+    html: `<div class="opdt-lab-schedule-view">
+      <div class="opdt-order-batch-summary">
+        <div><span>ຈຳນວນ</span><strong>${batch.entries.length} ລາຍການ</strong></div>
+        <div><span>ເວລາສັ່ງ</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(batch.prescribedAt))}</strong></div>
+      </div>
+      <table><thead><tr><th>#</th><th>ຢາ</th><th>ວິທີໃຊ້</th><th>ສະຖານະ</th></tr></thead><tbody>${itemRows}</tbody></table>
+    </div>`,
+    confirmButtonText: 'ປິດ'
+  });
+};
+
+window.opdTestPrintOrderBatch = function (requestedType, index) {
+  if (typeof window.can === 'function' && !window.can('opd', 'print')) {
+    window.requireHisAction?.('opd', 'print', ['doctor']);
+    return;
+  }
+
+  const normalizedInvestigationType = window.opdTestInvestigationTypeMeta?.(requestedType)?.type;
+  const type = requestedType === 'medication' ? 'medication' : normalizedInvestigationType;
+  if (!['ultrasound', 'xray', 'medication'].includes(type)) {
+    window.opdTestSimpleAlert('ບໍ່ຮອງຮັບການພິມ', 'ປະເພດ Order ນີ້ຍັງບໍ່ມີແບບຟອມພິມ.', 'warning');
+    return;
+  }
+  const batch = type === 'medication'
+    ? window.opdTestMedicationBatchForIndex(index)
+    : window.opdTestInvestigationBatchForIndex(index);
+  if (!batch?.entries?.length || (type !== 'medication' && batch.type !== type)) {
+    window.opdTestSimpleAlert('ບໍ່ພົບ Order', 'ກະລຸນາເລືອກຊຸດ Order ທີ່ຕ້ອງການພິມ.', 'warning');
+    return;
+  }
+
+  const visit = window.opdTestSelectedVisit || {};
+  const diagnosis = window.opdTestDiagnosisValues?.().join(', ') || visit.diagnosis || '';
+  const doctor = document.getElementById('opdTestDoctor')?.value?.trim() || visit.doctor || currentUser?.name || '';
+  const recommendation = document.getElementById('opdTestAdvice')?.value?.trim() || visit.advice || '';
+  const orderNo = batch.key || batch.entries[0]?.item?.orderBatchId || batch.entries[0]?.item?.prescriptionBatchId || '';
+  const orderedAt = type === 'medication' ? batch.prescribedAt : batch.orderedAt;
+  const items = batch.entries.map(({ item }) => {
+    if (type !== 'medication') {
+      return {
+        name: item.name || '',
+        instructions: item.instructions || item.note || '',
+        priority: item.priority || item.priorityValue || ''
+      };
+    }
+    return normalizeMedicationPrintItem(item);
+  });
+
+  const popup = window.open('', '_blank', 'width=980,height=1100');
+  if (!popup) {
+    window.opdTestSimpleAlert('Print blocked', 'ກະລຸນາອະນຸຍາດ Pop-up ເພື່ອເປີດໜ້າພິມ.', 'warning');
+    return;
+  }
+  popup.document.open();
+  popup.document.write(buildOpdOrderPrintDocument({
+    type,
+    hospital: {
+      name: 'ໂຮງໝໍ ຫຼັກໄຊ',
+      englishName: 'Luckxay Hospital',
+      phone: '030 5138861, 030 5138287',
+      logoUrl: systemSettings.logoUrl || '/luckxay-logo.jpg'
+    },
+    patient: {
+      id: visit.patientId || document.getElementById('opdTestPatientId')?.textContent?.trim() || '',
+      title: visit.title || visit.patientTitle || visit.prefix || visit.prefixName || visit.Title || visit.Title_Name || '',
+      name: visit.patientName || document.getElementById('opdTestPatientName')?.textContent?.trim() || '',
+      dob: visit.dob || visit.dateOfBirth || '',
+      age: visit.ageText || (visit.age ? `${visit.age} ປີ` : ''),
+      gender: visit.gender || '',
+      phone: visit.phone || visit.phoneNumber || '',
+      address: visit.address || '',
+      district: visit.district || '',
+      province: visit.province || ''
+    },
+    encounter: { diagnosis, doctor, recommendation },
+    orderNo,
+    orderedAt,
+    items
+  }));
+  popup.document.close();
+};
+
+window.opdTestEditMedicationBatch = function (index) {
+  const batch = window.opdTestMedicationBatchForIndex(index);
+  if (!batch?.entries.length || window.opdTestState.locked) return;
+  const isSent = batch.entries.some(({ item }) => !['prescribed', 'draft'].includes(String(item.pharmacyStatus || item.status || 'prescribed').toLowerCase()));
+  if (isSent) {
+    window.opdTestSimpleAlert('ບໍ່ສາມາດ Edit Order ຢາໄດ້', 'Order ນີ້ຖືກສົ່ງໄປຫ້ອງຢາແລ້ວ. ກະລຸນາໃຊ້ຂັ້ນຕອນ Cancel ຂອງຫ້ອງຢາ.', 'warning');
+    return;
+  }
+  window.opdTestOpenMedicationPicker(index);
+};
+
+window.opdTestDeleteMedicationBatch = function (index) {
+  const state = window.opdTestState;
+  const batch = window.opdTestMedicationBatchForIndex(index);
+  if (!batch?.entries.length || state.locked) return;
+  const isSent = batch.entries.some(({ item }) => !['prescribed', 'draft'].includes(String(item.pharmacyStatus || item.status || 'prescribed').toLowerCase()));
+  if (isSent) {
+    window.opdTestSimpleAlert('ບໍ່ສາມາດ Delete Order ຢາໄດ້', 'Order ນີ້ຖືກສົ່ງໄປຫ້ອງຢາແລ້ວ. ກະລຸນາໃຊ້ຂັ້ນຕອນ Cancel ຂອງຫ້ອງຢາ.', 'warning');
+    return;
+  }
+  const removeBatch = () => {
+    state.medications = state.medications.filter((item, itemIndex) => window.opdTestMedicationBatchKey(item, itemIndex) !== batch.key);
+    window.opdTestMarkDirty();
+    window.opdTestRefreshSimple();
+  };
+  if (!window.Swal?.fire) return removeBatch();
+  window.Swal.fire({
+    icon: 'warning',
+    title: `Delete ລາຍການສັ່ງຢາທີ່ ${batch.sequence}?`,
+    text: `ລຶບທັງໝົດ ${batch.entries.length} ລາຍການໃນຊຸດນີ້`,
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    confirmButtonText: '<i class="fas fa-trash"></i> Delete',
+    cancelButtonText: 'ຍົກເລີກ'
+  }).then(result => { if (result.isConfirmed) removeBatch(); });
+};
+
+window.opdTestNormalizeLabOrder = function (item, index = 0, priorityValue = 'Routine') {
+  const source = item && typeof item === 'object' ? item : { name: String(item || '') };
+  const investigationType = window.opdTestInvestigationTypeForItem(source);
+  const typeMeta = window.opdTestInvestigationTypeMeta(investigationType);
+  const normalizedPriority = source.priorityValue || priorityValue || 'Routine';
+  const orderPrefix = ({ lab: 'LAB', ultrasound: 'US', xray: 'XR' })[investigationType] || 'INV';
+  const localOrderId = source.localOrderId || source.orderNo || `HIS-${orderPrefix}-${Date.now()}-${index + 1}`;
+  const orderedAt = source.orderedAt || new Date().toISOString();
+  const orderBatchId = source.orderBatchId || source.batchId
+    || `HIS-BATCH-${investigationType}-${String(orderedAt).replace(/[^0-9]/g, '').slice(0, 17) || Date.now()}`;
+  const scheduledAt = source.scheduledAt || source.scheduleAt || source.requestedAt || orderedAt;
+  const repeatSource = source.repeatScheduledAt || source.repeatTimes || source.additionalScheduledAt || [];
+  const repeatScheduledAt = [...new Set((Array.isArray(repeatSource) ? repeatSource : [repeatSource])
+    .map(value => {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? String(value || '').trim() : date.toISOString();
+    })
+    .filter(value => value && value !== scheduledAt))]
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const sourceOccurrences = Array.isArray(source.occurrences) ? source.occurrences : [];
+  const occurrences = [scheduledAt, ...repeatScheduledAt].map((time, occurrenceIndex) => {
+    const previous = sourceOccurrences.find(entry => {
+      const entryDate = new Date(entry?.scheduledAt);
+      return !Number.isNaN(entryDate.getTime()) && entryDate.toISOString() === new Date(time).toISOString();
+    }) || sourceOccurrences[occurrenceIndex] || {};
+    return {
+      ...previous,
+      occurrenceId: previous.occurrenceId || `${localOrderId}-OCC-${String(occurrenceIndex + 1).padStart(3, '0')}`,
+      sequence: occurrenceIndex + 1,
+      scheduledAt: time,
+      status: previous.status || 'planned'
+    };
+  });
+  return {
+    ...source,
+    name: source.name || String(item || ''),
+    investigationType,
+    orderType: investigationType,
+    destinationSystem: source.destinationSystem || typeMeta.destinationSystem,
+    localOrderId,
+    orderNo: source.orderNo || localOrderId,
+    externalOrderId: source.externalOrderId || source.lisOrderId || source.risOrderId || '',
+    orderBatchId,
+    orderedAt,
+    scheduledAt,
+    repeatScheduledAt,
+    occurrences,
+    instructions: source.instructions || source.note || '',
+    at: source.at || new Date().toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }),
+    priorityValue: normalizedPriority,
+    priority: source.priority || window.opdTestPriorityLabel(normalizedPriority),
+    lisStatus: investigationType === 'lab'
+      ? (source.lisStatus || source.status || 'pending-lis')
+      : (source.lisStatus || 'not-applicable'),
+    risStatus: investigationType === 'lab'
+      ? (source.risStatus || 'not-applicable')
+      : (source.risStatus || source.status || 'pending-ris'),
+    resultStatus: source.resultStatus || 'pending',
+    resultPdfUrl: source.resultPdfUrl || source.pdfUrl || source.result_pdf_url || '',
+    resultPdfDocumentId: source.resultPdfDocumentId || source.result_pdf_document_id || ''
+  };
+};
+
+window.opdTestLocalDateTimeInputValue = function (dateValue = new Date()) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return '';
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+};
+
+window.opdTestFormatInvestigationTime = function (dateValue) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  return date.toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+};
+
+window.opdTestFormatExactOrderTime = function (dateValue) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+  return date.toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
+};
+
+window.opdTestOccurrenceStatusLabel = function (status) {
+  const value = String(status || 'planned').toLowerCase();
+  return ({
+    planned: 'ວາງແຜນ / Planned',
+    'pending-lis': 'ລໍສົ່ງ LIS',
+    sent: 'ສົ່ງ LIS ແລ້ວ',
+    accepted: 'LIS ຮັບແລ້ວ',
+    collected: 'ເກັບຕົວຢ່າງແລ້ວ',
+    received: 'Lab ຮັບແລ້ວ',
+    running: 'ກຳລັງກວດ',
+    processing: 'ກຳລັງກວດ',
+    completed: 'ສຳເລັດ',
+    verified: 'ຢືນຢັນຜົນແລ້ວ',
+    cancelled: 'ຍົກເລີກ'
+  })[value] || value;
+};
+
+window.opdTestOrderTimeValue = function (item) {
+  const date = new Date(item?.scheduledAt || item?.orderedAt || item?.at || 0);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+window.opdTestOrderBatchKey = function (item, index = 0) {
+  const order = window.opdTestNormalizeLabOrder(item, index);
+  return order.orderBatchId || `${order.investigationType}:${order.orderedAt}`;
+};
+
+window.opdTestInvestigationBatches = function (requestedType) {
+  const type = window.opdTestInvestigationTypeMeta(requestedType).type;
+  const groups = new Map();
+  (window.opdTestState.orders || []).forEach((rawItem, index) => {
+    if (window.opdTestInvestigationTypeForItem(rawItem) !== type) return;
+    const item = window.opdTestNormalizeLabOrder(rawItem, index);
+    const key = window.opdTestOrderBatchKey(item, index);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        type,
+        orderedAt: item.orderedAt,
+        scheduledAt: item.scheduledAt,
+        entries: []
+      });
+    }
+    const batch = groups.get(key);
+    batch.entries.push({ item, index });
+    if (new Date(item.orderedAt).getTime() < new Date(batch.orderedAt).getTime()) batch.orderedAt = item.orderedAt;
+    if (new Date(item.scheduledAt).getTime() < new Date(batch.scheduledAt).getTime()) batch.scheduledAt = item.scheduledAt;
+  });
+  return [...groups.values()].sort((a, b) => {
+    const timeDifference = new Date(a.orderedAt).getTime() - new Date(b.orderedAt).getTime();
+    return timeDifference || a.entries[0].index - b.entries[0].index;
+  });
+};
+
+window.opdTestInvestigationBatchForIndex = function (index) {
+  const targetIndex = Number(index);
+  const target = window.opdTestState.orders?.[targetIndex];
+  if (!target) return null;
+  const batches = window.opdTestInvestigationBatches(window.opdTestInvestigationTypeForItem(target));
+  const batchIndex = batches.findIndex(batch => batch.entries.some(entry => entry.index === targetIndex));
+  if (batchIndex < 0) return null;
+  return { ...batches[batchIndex], sequence: batchIndex + 1, total: batches.length };
+};
+
+window.opdTestInvestigationOrderSequence = function (index) {
+  return window.opdTestInvestigationBatchForIndex(index)?.sequence || 1;
+};
+
+window.opdTestViewInvestigationBatch = function (index) {
+  const batch = window.opdTestInvestigationBatchForIndex(index);
+  if (!batch?.entries.length || !window.Swal?.fire) return;
+  const itemRows = batch.entries.map(({ item }, itemIndex) => {
+    const status = item.investigationType === 'lab'
+      ? (item.lisStatus || item.status || 'pending-lis')
+      : (item.risStatus || item.status || 'pending-ris');
+    return `<tr>
+      <td><b>${itemIndex + 1}</b></td>
+      <td class="opdt-batch-test-name">${window.opdTestHtml(item.name)}</td>
+      <td><code>${window.opdTestHtml(item.orderNo || item.localOrderId)}</code></td>
+      <td><span class="opdt-occurrence-status">${window.opdTestHtml(window.opdTestOccurrenceStatusLabel(status))}</span></td>
+    </tr>`;
+  }).join('');
+  window.Swal.fire({
+    title: `ລາຍການສັ່ງກວດທີ່ ${batch.sequence}`,
+    width: 860,
+    html: `<div class="opdt-lab-schedule-view">
+      <div class="opdt-order-batch-summary">
+        <div><span>ຈຳນວນ</span><strong>${batch.entries.length} ລາຍການ</strong></div>
+        <div><span>ເວລາສັ່ງ Order</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(batch.orderedAt))}</strong></div>
+        <div><span>ເວລາກວດ</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(batch.scheduledAt))}</strong></div>
+      </div>
+      <table><thead><tr><th>#</th><th>ລາຍການກວດ</th><th>Order ID</th><th>ສະຖານະ</th></tr></thead><tbody>${itemRows}</tbody></table>
+    </div>`,
+    confirmButtonText: 'ປິດ'
+  });
+};
+
+window.opdTestEditInvestigationBatch = function (index) {
+  const state = window.opdTestState;
+  const batch = window.opdTestInvestigationBatchForIndex(index);
+  if (state.locked || !batch?.entries.length) return;
+  if (batch.entries.some(({ item }) => !window.opdTestCanRemoveLabOrder(item))) {
+    const destination = batch.type === 'lab' ? 'LIS' : 'RIS';
+    window.opdTestSimpleAlert(
+      'ບໍ່ສາມາດ Edit ຊຸດ Order ໄດ້',
+      `ມີລາຍການໃນຊຸດນີ້ຖືກສົ່ງໄປ ${destination} ແລ້ວ. ກະລຸນາໃຊ້ຂັ້ນຕອນແກ້ໄຂ/Cancel ໃນ ${destination}.`,
+      'warning'
+    );
+    return;
+  }
+  window.opdTestOpenLabPicker(batch.type, { editBatch: batch });
+};
+
+window.opdTestViewLabSchedule = window.opdTestViewInvestigationBatch;
+window.opdTestEditLabSchedule = window.opdTestEditInvestigationBatch;
+
+window.opdTestLabStatusMeta = function (item) {
+  const status = String(item?.lisStatus || item?.status || 'pending-lis').toLowerCase();
+  if (item?.resultPdfUrl) {
+    return { label: 'PDF Ready', icon: 'fa-file-pdf', className: 'is-ready' };
+  }
+  if (['completed', 'verified', 'released', 'final'].includes(status)) {
+    return { label: 'ລໍ PDF / Waiting PDF', icon: 'fa-file-circle-question', className: 'is-progress' };
+  }
+  if (['sent', 'accepted', 'collected', 'received', 'running', 'processing'].includes(status)) {
+    const labels = {
+      sent: 'ສົ່ງ LIS / Sent',
+      accepted: 'LIS ຮັບ / Accepted',
+      collected: 'ເກັບຕົວຢ່າງ / Collected',
+      received: 'Lab ຮັບ / Received',
+      running: 'ກຳລັງກວດ / Running',
+      processing: 'ກຳລັງກວດ / Running'
+    };
+    return { label: labels[status], icon: 'fa-spinner', className: 'is-progress' };
+  }
+  if (['failed', 'rejected', 'cancelled'].includes(status)) {
+    const label = status === 'cancelled' ? 'ຍົກເລີກແລ້ວ / Cancelled' : 'LIS ບໍ່ຮັບ Order / Failed';
+    return { label, icon: 'fa-circle-exclamation', className: 'is-error' };
+  }
+  return { label: 'ລໍ LIS / Pending', icon: 'fa-clock', className: '' };
+};
+
+window.opdTestRisStatusMeta = function (item) {
+  const status = String(item?.risStatus || item?.status || 'pending-ris').toLowerCase();
+  if (item?.resultPdfUrl || item?.resultUrl || item?.report || item?.findings) {
+    return { label: 'ມີຜົນແລ້ວ', icon: 'fa-circle-check', className: 'is-ready', ready: true };
+  }
+  const map = {
+    'pending-ris': ['ລໍ RIS', 'fa-clock', ''],
+    ordered: ['ລໍ RIS', 'fa-clock', ''],
+    sent: ['ສົ່ງ RIS ແລ້ວ', 'fa-paper-plane', 'is-progress'],
+    accepted: ['RIS ຮັບແລ້ວ', 'fa-circle-check', 'is-progress'],
+    scheduled: ['ນັດກວດແລ້ວ', 'fa-calendar-check', 'is-progress'],
+    in_progress: ['ກຳລັງກວດ', 'fa-spinner', 'is-progress'],
+    processing: ['ກຳລັງອ່ານຜົນ', 'fa-spinner', 'is-progress'],
+    completed: ['ສຳເລັດ · ລໍລາຍງານ', 'fa-file-circle-question', 'is-progress'],
+    cancelled: ['ຍົກເລີກແລ້ວ', 'fa-circle-xmark', 'is-error'],
+    rejected: ['RIS ປະຕິເສດ', 'fa-circle-exclamation', 'is-error']
+  };
+  const [label, icon, className] = map[status] || [status, 'fa-clock', ''];
+  return { status, label, icon, className, ready: false };
+};
+
+window.opdTestSafeClinicalFileUrl = function (value) {
+  const url = String(value || '').trim();
+  return /^(https?:\/\/|\/|blob:)/i.test(url) ? url : '';
+};
+
+window.opdTestViewExternalResultBatch = function (index) {
+  const batch = window.opdTestInvestigationBatchForIndex(index);
+  if (!batch?.entries.length || !window.Swal?.fire) return;
+  const rows = batch.entries.map(({ item }, itemIndex) => {
+    const status = window.opdTestRisStatusMeta(item);
+    const report = item.report || item.findings || item.impression || '';
+    const resultUrl = window.opdTestSafeClinicalFileUrl(item.resultPdfUrl || item.resultUrl || item.fileUrl);
+    return `<div class="opdt-external-result-detail">
+      <div><b>${itemIndex + 1}. ${window.opdTestHtml(item.name)}</b><span class="opdt-lis-result-chip ${status.className}"><i class="fas ${status.icon}"></i>${window.opdTestHtml(status.label)}</span></div>
+      ${report ? `<p>${window.opdTestHtml(report)}</p>` : '<p class="text-muted">ຍັງບໍ່ມີລາຍງານຜົນ</p>'}
+      ${resultUrl ? `<a class="btn btn-sm btn-primary" href="${window.opdTestHtml(resultUrl)}" target="_blank" rel="noopener"><i class="fas fa-eye me-1"></i>ເບິ່ງໄຟລ໌ຜົນ</a>` : ''}
+    </div>`;
+  }).join('');
+  window.Swal.fire({
+    title: `ຜົນກວດທີ່ ${batch.sequence}`,
+    width: 820,
+    html: `<div class="opdt-external-result-modal"><div class="opdt-order-batch-summary"><div><span>ຈຳນວນ</span><strong>${batch.entries.length} ລາຍການ</strong></div><div><span>ເວລາສັ່ງ</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(batch.orderedAt))}</strong></div></div>${rows}</div>`,
+    confirmButtonText: 'ປິດ'
+  });
+};
+
+window.opdTestRenderExternalResultStates = function () {
+  const imagingConfig = {
+    ultrasound: { hostId: 'opdTestUltrasoundResultState', icon: 'fa-images', emptyTitle: 'ຍັງບໍ່ມີ Ultrasound Order' },
+    xray: { hostId: 'opdTestXrayResultState', icon: 'fa-x-ray', emptyTitle: 'ຍັງບໍ່ມີ X-Ray Order' }
+  };
+  Object.entries(imagingConfig).forEach(([type, config]) => {
+    const host = document.getElementById(config.hostId);
+    if (!host) return;
+    const batches = window.opdTestInvestigationBatches(type);
+    host.classList.toggle('has-order', batches.length > 0);
+    host.classList.add('opdt-external-result-list');
+    if (!batches.length) {
+      host.innerHTML = `<i class="fas ${config.icon}"></i><strong>${config.emptyTitle}</strong><span>ເລືອກ Order ເພື່ອເລີ່ມການກວດ</span>`;
+      return;
+    }
+    host.innerHTML = batches.slice().reverse().map(batch => {
+      const displaySequence = batches.findIndex(candidate => candidate.key === batch.key) + 1;
+      const firstIndex = batch.entries[0].index;
+      const statuses = batch.entries.map(({ item }) => window.opdTestRisStatusMeta(item));
+      const readyCount = statuses.filter(status => status.ready).length;
+      const displayStatus = readyCount === batch.entries.length
+        ? { label: 'ຜົນສຳເລັດ', icon: 'fa-circle-check', className: 'is-ready' }
+        : (statuses.find(status => status.className === 'is-progress') || statuses[0]);
+      return `<article class="opdt-external-result-card ${readyCount ? 'has-result' : ''}">
+        <span class="opdt-lis-result-icon"><i class="fas ${readyCount ? 'fa-file-circle-check' : 'fa-hourglass-half'}"></i></span>
+        <div class="opdt-lis-result-main">
+          <strong>${readyCount ? 'ຜົນກວດ' : 'ລາຍການສັ່ງກວດ'}ທີ່ ${displaySequence}</strong>
+          <span class="opdt-lis-result-tests"><i class="fas fa-clock"></i> ເວລາ: ${window.opdTestHtml(window.opdTestFormatInvestigationTime(batch.orderedAt))}</span>
+          <div class="opdt-lis-result-meta"><span class="opdt-lis-result-chip ${displayStatus.className || ''}"><i class="fas ${displayStatus.icon}"></i>${window.opdTestHtml(displayStatus.label)}</span><span class="opdt-lis-result-chip"><i class="fas fa-list-check"></i>${batch.entries.length} ລາຍການ</span></div>
+        </div>
+        <div class="opdt-lis-result-actions"><button type="button" class="btn btn-outline-primary" onclick="window.opdTestViewExternalResultBatch(${firstIndex}); return false;" title="ເບິ່ງສະຖານະ/ຜົນ"><i class="fas fa-eye"></i></button></div>
+      </article>`;
+    }).join('');
+  });
+
+  const pharmacyHost = document.getElementById('opdTestPharmacyResultState');
+  if (!pharmacyHost) return;
+  const medicationBatches = window.opdTestMedicationBatches();
+  pharmacyHost.classList.toggle('has-order', medicationBatches.length > 0);
+  pharmacyHost.classList.add('opdt-external-result-list');
+  if (!medicationBatches.length) {
+    pharmacyHost.innerHTML = '<i class="fas fa-prescription-bottle"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກລາຍການຢາເພື່ອສ້າງ Prescription</span>';
+    return;
+  }
+  pharmacyHost.innerHTML = medicationBatches.slice().reverse().map(batch => {
+    const displaySequence = medicationBatches.findIndex(candidate => candidate.key === batch.key) + 1;
+    const firstIndex = batch.entries[0].index;
+    const statuses = batch.entries.map(({ item }) => window.opdTestMedicationStatusMeta(item));
+    const displayStatus = statuses.find(status => ['is-progress', 'is-ready', 'is-error'].includes(status.className)) || statuses[0];
+    return `<article class="opdt-external-result-card">
+      <span class="opdt-lis-result-icon"><i class="fas fa-prescription-bottle-medical"></i></span>
+      <div class="opdt-lis-result-main"><strong>ສະຖານະຢາທີ່ ${displaySequence}</strong><span class="opdt-lis-result-tests"><i class="fas fa-clock"></i> ເວລາ: ${window.opdTestHtml(window.opdTestFormatInvestigationTime(batch.prescribedAt))}</span><div class="opdt-lis-result-meta"><span class="opdt-lis-result-chip ${displayStatus.className || ''}"><i class="fas ${displayStatus.icon}"></i>${window.opdTestHtml(displayStatus.label)}</span><span class="opdt-lis-result-chip"><i class="fas fa-list-check"></i>${batch.entries.length} ລາຍການ</span></div></div>
+      <div class="opdt-lis-result-actions"><button type="button" class="btn btn-outline-warning" onclick="window.opdTestViewMedicationBatch(${firstIndex}); return false;" title="ເບິ່ງສະຖານະຢາ"><i class="fas fa-eye"></i></button></div>
+    </article>`;
+  }).join('');
+};
+
+window.opdTestSyncExternalResults = async function (requestedType, options = {}) {
+  const type = requestedType === 'medication' ? 'medication' : window.opdTestInvestigationTypeMeta(requestedType).type;
+  const provider = type === 'medication'
+    ? (window.opdTestPharmacyStatusProvider || window.fetchOPDTestPharmacyStatuses)
+    : (window.opdTestRisResultProvider || window.fetchOPDTestRisResults);
+  if (typeof provider !== 'function') {
+    if (options.silent) return;
+    window.opdTestSimpleAlert(
+      type === 'medication' ? 'ຍັງບໍ່ໄດ້ຕໍ່ຫ້ອງຢາ' : 'ຍັງບໍ່ໄດ້ຕໍ່ RIS',
+      type === 'medication'
+        ? 'ໜ້າຈໍພ້ອມຮັບສະຖານະຈ່າຍຢາແລ້ວ; ຕ້ອງກຳນົດ Pharmacy API/provider ເພື່ອຮັບສະຖານະຈິງ.'
+        : 'ໜ້າຈໍພ້ອມຮັບສະຖານະ, ລາຍງານ ແລະໄຟລ໌ຜົນແລ້ວ; ຕ້ອງກຳນົດ RIS API/provider ເພື່ອຮັບຜົນຈິງ.',
+      'info'
+    );
+    return;
+  }
+  try {
+    const state = window.opdTestState;
+    const sourceItems = type === 'medication'
+      ? state.medications
+      : state.orders.filter(item => window.opdTestInvestigationTypeForItem(item) === type);
+    const response = await provider({ patientId: window.opdTestLisPatientId(), type, orders: sourceItems, medications: sourceItems });
+    const updates = Array.isArray(response) ? response : (response?.results || response?.orders || response?.medications || []);
+    let updated = 0;
+    updates.forEach(payload => {
+      const identifiers = [payload.localOrderId, payload.orderNo, payload.externalOrderId, payload.risOrderId, payload.prescriptionItemId].filter(Boolean).map(String);
+      const target = sourceItems.find(item => [item.localOrderId, item.orderNo, item.externalOrderId, item.risOrderId, item.prescriptionItemId].filter(Boolean).map(String).some(id => identifiers.includes(id)));
+      if (!target) return;
+      if (type === 'medication') {
+        target.pharmacyStatus = payload.pharmacyStatus || payload.status || target.pharmacyStatus;
+        target.status = target.pharmacyStatus;
+        target.dispensedAt = payload.dispensedAt || payload.dispensed_at || target.dispensedAt;
+        target.dispensedBy = payload.dispensedBy || payload.dispensed_by || target.dispensedBy;
+      } else {
+        target.risStatus = payload.risStatus || payload.status || target.risStatus;
+        target.resultStatus = payload.resultStatus || payload.status || target.resultStatus;
+        target.resultPdfUrl = payload.resultPdfUrl || payload.pdfUrl || payload.resultUrl || target.resultPdfUrl;
+        target.resultUrl = payload.resultUrl || target.resultUrl;
+        target.report = payload.report || payload.findings || target.report;
+        target.findings = payload.findings || target.findings;
+        target.releasedAt = payload.releasedAt || payload.released_at || target.releasedAt;
+      }
+      updated += 1;
+    });
+    if (updated) window.opdTestMarkDirty();
+    window.opdTestRenderLegacyOrders();
+    if (!options.silent) window.opdTestSimpleAlert('ອັບເດດສຳເລັດ', updated ? `ອັບເດດ ${updated} ລາຍການ.` : 'ຍັງບໍ່ມີຜົນ ຫຼືສະຖານະໃໝ່.', 'success');
+  } catch (error) {
+    console.error('OPD external result sync failed:', error);
+    if (!options.silent) window.opdTestSimpleAlert('ອັບເດດບໍ່ສຳເລັດ', error?.message || 'ກະລຸນາກວດສອບ API ແລະ network.', 'error');
+  }
+};
+
+window.opdTestCanRemoveLabOrder = function (item) {
+  const type = window.opdTestInvestigationTypeForItem(item);
+  const fallbackStatus = type === 'lab' ? 'pending-lis' : 'pending-ris';
+  const status = String(type === 'lab' ? (item?.lisStatus || item?.status || fallbackStatus) : (item?.risStatus || item?.status || fallbackStatus)).toLowerCase();
+  const hasExternalOrder = Boolean(item?.externalOrderId || item?.lisOrderId || item?.risOrderId);
+  return !hasExternalOrder && ['pending-lis', 'pending-ris', 'draft', 'ordered', 'planned'].includes(status);
+};
+
+window.opdTestUpdateOrderListControl = function (kind) {
+  const investigationTargets = {
+    lab: 'opdTestLabRows',
+    ultrasound: 'opdTestUltrasoundRows',
+    xray: 'opdTestXrayRows'
+  };
+  const isInvestigation = Boolean(investigationTargets[kind]);
+  const list = document.getElementById(isInvestigation ? investigationTargets[kind] : 'opdTestRxRows');
+  const total = isInvestigation
+    ? window.opdTestState.orders.filter(item => window.opdTestInvestigationTypeForItem(item) === kind).length
+    : window.opdTestState.medications.length;
+  if (!list) return;
+  list.hidden = total === 0;
+};
+
+window.opdTestToggleOrderList = function (kind) {
+  const investigationTargets = {
+    lab: 'opdTestLabRows',
+    ultrasound: 'opdTestUltrasoundRows',
+    xray: 'opdTestXrayRows'
+  };
+  const isInvestigation = Boolean(investigationTargets[kind]);
+  const list = document.getElementById(isInvestigation ? investigationTargets[kind] : 'opdTestRxRows');
+  const total = isInvestigation
+    ? window.opdTestState.orders.filter(item => window.opdTestInvestigationTypeForItem(item) === kind).length
+    : window.opdTestState.medications.length;
+  if (!list || !total) return;
+  list.hidden = false;
+};
+
+window.opdTestRenderLegacyOrders = function () {
+  const state = window.opdTestState;
+  state.orders = state.orders.map((item, index) => window.opdTestNormalizeLabOrder(item, index));
+  state.medications = state.medications.map((item, index) => window.opdTestNormalizeMedicationOrder(item, index));
+  const investigationTargets = {
+    lab: document.getElementById('opdTestLabRows'),
+    ultrasound: document.getElementById('opdTestUltrasoundRows'),
+    xray: document.getElementById('opdTestXrayRows')
+  };
+  const rxTarget = document.getElementById('opdTestRxRows');
+  const labCount = document.getElementById('opdTestLabTabCount');
+  const rxCount = document.getElementById('opdTestRxTabCount');
+  const medicationOrderButtonLabel = document.getElementById('opdTestMedicationOrderButtonLabel');
+  const investigationBatchesByType = {
+    lab: window.opdTestInvestigationBatches('lab'),
+    ultrasound: window.opdTestInvestigationBatches('ultrasound'),
+    xray: window.opdTestInvestigationBatches('xray')
+  };
+  const investigationCounts = Object.fromEntries(
+    Object.entries(investigationBatchesByType).map(([type, batches]) => [type, batches.length])
+  );
+  const investigationBatchTotal = Object.values(investigationCounts).reduce((total, count) => total + count, 0);
+
+  if (labCount) labCount.textContent = investigationBatchTotal;
+  const medicationBatches = window.opdTestMedicationBatches();
+  if (rxCount) rxCount.textContent = medicationBatches.length;
+  if (medicationOrderButtonLabel) {
+    medicationOrderButtonLabel.textContent = medicationBatches.length ? 'ເພີ່ມ Medication Order' : 'ເລືອກລາຍການຢາ';
+  }
+  document.querySelectorAll('#view-opd_test [data-opdt-lab-total]').forEach(target => { target.textContent = investigationBatchTotal; });
+  document.querySelectorAll('#view-opd_test [data-opdt-investigation-total]').forEach(target => {
+    target.textContent = investigationCounts[target.dataset.opdtInvestigationTotal] || 0;
+  });
+  document.querySelectorAll('#view-opd_test [data-opdt-rx-total]').forEach(target => { target.textContent = medicationBatches.length; });
+  const renderInvestigationZone = (type, target) => {
+    if (!target) return;
+    const chronologicalBatches = investigationBatchesByType[type] || [];
+    const newestFirstBatches = chronologicalBatches.slice().reverse();
+    target.innerHTML = newestFirstBatches.length
+      ? newestFirstBatches.map(batch => {
+        const displaySequence = chronologicalBatches.findIndex(candidate => candidate.key === batch.key) + 1;
+        const firstEntry = batch.entries[0];
+        const firstIndex = firstEntry.index;
+        const investigationMeta = window.opdTestInvestigationTypeMeta(type);
+        const itemCountChip = `<span class="emr-order-chip is-batch-count"><i class="fas fa-list-check"></i>${batch.entries.length} ລາຍການ</span>`;
+        const orderedChip = `<span class="emr-order-chip is-order-time"><i class="fas fa-clock"></i>ເວລາ: ${window.opdTestHtml(window.opdTestFormatInvestigationTime(batch.orderedAt))}</span>`;
+        const priorityLabels = [...new Set(batch.entries.map(({ item }) => String(item.priority || item.priorityValue || '').trim()).filter(label => {
+          const normalized = label.toLowerCase();
+          return label && !['routine', 'normal', 'ປົກກະຕິ'].includes(normalized);
+        }))];
+        const priorityChip = priorityLabels.length
+          ? `<span class="emr-order-chip"><i class="fas fa-bolt"></i>${window.opdTestHtml(priorityLabels.join(', '))}</span>`
+          : '';
+        return `<div class="emr-order-item opdt-simple-lab-item">
+            <div class="emr-order-item-main">
+              <div class="emr-order-item-title">
+                <span class="opdt-lab-order-number">${displaySequence}</span>
+                <i class="fas ${investigationMeta.icon}"></i>
+                <span>ລາຍການສັ່ງກວດທີ່ ${displaySequence}</span>
+              </div>
+              <div class="emr-order-meta">${itemCountChip}${orderedChip}${priorityChip}</div>
+            </div>
+            <div class="opdt-order-row-actions">
+              <button type="button" class="btn btn-outline-primary emr-order-delete" data-emr-action onclick="window.opdTestViewInvestigationBatch(${firstIndex}); return false;" title="View ລາຍການໃນຊຸດ" aria-label="View ລາຍການສັ່ງກວດທີ່ ${displaySequence}"><i class="fas fa-eye"></i></button>
+              ${['ultrasound', 'xray'].includes(type) ? `<button type="button" class="btn btn-outline-primary emr-order-delete" onclick="window.opdTestPrintOrderBatch('${type}', ${firstIndex}); return false;" title="Print ໃບສັ່ງກວດ ${type === 'xray' ? 'X-Ray' : 'Ultrasound'}" aria-label="Print ໃບສັ່ງກວດ ${type === 'xray' ? 'X-Ray' : 'Ultrasound'} ທີ່ ${displaySequence}"><i class="fas fa-print"></i></button>` : ''}
+              <button type="button" class="btn btn-outline-secondary emr-order-delete" data-emr-action onclick="window.opdTestEditInvestigationBatch(${firstIndex}); return false;" title="Edit ເວລາຂອງຊຸດ"><i class="fas fa-pen"></i></button>
+              <button type="button" class="btn btn-outline-danger emr-order-delete" data-emr-action onclick="window.opdTestDeleteInvestigationBatch(${firstIndex}); return false;" title="Delete ຊຸດຄຳສັ່ງ"><i class="fas fa-times"></i></button>
+            </div>
+          </div>`;
+      }).join('')
+      : '';
+  };
+  Object.entries(investigationTargets).forEach(([type, target]) => renderInvestigationZone(type, target));
+  if (rxTarget) {
+    const newestMedicationBatches = medicationBatches.slice().reverse();
+    rxTarget.innerHTML = newestMedicationBatches.length
+      ? newestMedicationBatches.map(batch => {
+        const displaySequence = medicationBatches.findIndex(candidate => candidate.key === batch.key) + 1;
+        const firstIndex = batch.entries[0].index;
+        const batchStatus = window.opdTestMedicationStatusMeta(batch.entries[0].item);
+        return `<div class="emr-order-item opdt-simple-medication-item">
+          <div class="emr-order-item-main">
+            <div class="emr-order-item-title"><span class="opdt-lab-order-number">${displaySequence}</span><i class="fas fa-pills"></i><span>ລາຍການສັ່ງຢາທີ່ ${displaySequence}</span></div>
+            <div class="emr-order-meta">
+              <span class="emr-order-chip is-batch-count"><i class="fas fa-list-check"></i>${batch.entries.length} ລາຍການ</span>
+              <span class="emr-order-chip is-order-time"><i class="fas fa-clock"></i>ເວລາ: ${window.opdTestHtml(window.opdTestFormatInvestigationTime(batch.prescribedAt))}</span>
+              <span class="emr-order-chip ${batchStatus.className}"><i class="fas ${batchStatus.icon}"></i>${window.opdTestHtml(batchStatus.label)}</span>
+            </div>
+          </div>
+          <div class="opdt-order-row-actions">
+            <button type="button" class="btn btn-outline-primary emr-order-delete" data-emr-action onclick="window.opdTestViewMedicationBatch(${firstIndex}); return false;" title="View ລາຍການຢາ"><i class="fas fa-eye"></i></button>
+            <button type="button" class="btn btn-outline-primary emr-order-delete" onclick="window.opdTestPrintOrderBatch('medication', ${firstIndex}); return false;" title="Print ໃບສັ່ງຢາ" aria-label="Print ໃບສັ່ງຢາທີ່ ${displaySequence}"><i class="fas fa-print"></i></button>
+            <button type="button" class="btn btn-outline-secondary emr-order-delete" data-emr-action onclick="window.opdTestEditMedicationBatch(${firstIndex}); return false;" title="Edit ລາຍການສັ່ງຢາ"><i class="fas fa-pen"></i></button>
+            <button type="button" class="btn btn-outline-danger emr-order-delete" data-emr-action onclick="window.opdTestDeleteMedicationBatch(${firstIndex}); return false;" title="Delete ຊຸດຄຳສັ່ງຢາ"><i class="fas fa-times"></i></button>
+          </div>
+        </div>`;
+      }).join('')
+      : `<div class="emr-order-empty"><i class="fas fa-pills"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ກົດ “ເລືອກລາຍການຢາ” ເພື່ອເລືອກຈາກລາຍການ ຫຼື ພິມຊື່ຢາເອງ</span></div>`;
+  }
+  window.opdTestRenderExternalResultStates();
+  window.opdTestUpdateOrderListControl('lab');
+  window.opdTestUpdateOrderListControl('ultrasound');
+  window.opdTestUpdateOrderListControl('xray');
+  window.opdTestUpdateOrderListControl('rx');
+};
+
+window.opdTestRemoveLegacyLab = function (index) {
+  if (window.opdTestState.locked) return;
+  const order = window.opdTestState.orders[index];
+  if (!window.opdTestCanRemoveLabOrder(order)) {
+    const destination = window.opdTestInvestigationTypeForItem(order) === 'lab' ? 'LIS' : 'RIS';
+    window.opdTestSimpleAlert('ບໍ່ສາມາດລຶບ Order ໄດ້', `Order ນີ້ຖືກສົ່ງໄປ ${destination} ແລ້ວ. ກະລຸນາໃຊ້ຂັ້ນຕອນ Cancel Order ໃນ ${destination} ເພື່ອຮັກສາປະຫວັດ.`, 'warning');
+    return;
+  }
+  window.opdTestState.orders.splice(index, 1);
+  window.opdTestState.results = [];
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestDeleteInvestigationBatch = function (index) {
+  const state = window.opdTestState;
+  const batch = window.opdTestInvestigationBatchForIndex(index);
+  if (state.locked || !batch?.entries.length) return;
+  const blockedEntry = batch.entries.find(({ item }) => !window.opdTestCanRemoveLabOrder(item));
+  if (blockedEntry) {
+    const destination = batch.type === 'lab' ? 'LIS' : 'RIS';
+    window.opdTestSimpleAlert(
+      'ບໍ່ສາມາດ Delete ຊຸດ Order ໄດ້',
+      `ມີລາຍການໃນຊຸດນີ້ຖືກສົ່ງໄປ ${destination} ແລ້ວ. ກະລຸນາໃຊ້ Cancel Order ໃນ ${destination} ເພື່ອຮັກສາປະຫວັດ.`,
+      'warning'
+    );
+    return;
+  }
+  const removeBatch = () => {
+    batch.entries
+      .map(entry => entry.index)
+      .sort((a, b) => b - a)
+      .forEach(itemIndex => state.orders.splice(itemIndex, 1));
+    state.results = [];
+    window.opdTestMarkDirty();
+    window.opdTestRefreshSimple();
+  };
+  if (!window.Swal?.fire) {
+    removeBatch();
+    return;
+  }
+  window.Swal.fire({
+    icon: 'warning',
+    title: `Delete ລາຍການສັ່ງກວດທີ່ ${batch.sequence}?`,
+    text: `ລຶບທັງໝົດ ${batch.entries.length} ລາຍການໃນຊຸດນີ້`,
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    confirmButtonText: '<i class="fas fa-trash"></i> Delete',
+    cancelButtonText: 'ຍົກເລີກ'
+  }).then(result => {
+    if (result.isConfirmed) removeBatch();
+  });
+};
+
+window.opdTestRemoveLegacyDrug = function (index) {
+  if (window.opdTestState.locked) return;
+  window.opdTestState.medications.splice(index, 1);
+  if (window.opdTestState.editingMedicationIndex === index) window.opdTestResetInlineMedication();
+  else if (window.opdTestState.editingMedicationIndex > index) window.opdTestState.editingMedicationIndex -= 1;
+  window.opdTestMarkDirty();
+  window.opdTestRefreshSimple();
+};
+
+window.opdTestLoadLabMasterList = async function () {
+  const hasDatabaseItems = labsMasterList.some(item => {
+    const itemId = String(item?.id || '');
+    return !itemId.startsWith('opd-test-local-') && !itemId.startsWith('opd-form-');
+  });
+  if (hasDatabaseItems) {
+    if (!window.opdTestLabFormCatalogApplied) {
+      labsMasterList = window.mergeEMRLabsWithOrderForm(labsMasterList.filter(item => !item.isFormVirtual));
+      window.opdTestLabFormCatalogApplied = true;
+    }
+    return { count: labsMasterList.length, source: 'cache' };
+  }
+
+  if (window.opdTestLabMasterLoadPromise) return window.opdTestLabMasterLoadPromise;
+
+  window.opdTestLabMasterLoadPromise = (async () => {
+    try {
+      const rows = await window.fetchSupabaseRows('Labs_Master', {
+        select: 'Lab_ID,Lab_Name,Description',
+        orderBy: 'Lab_ID',
+        ascending: true
+      });
+      const databaseItems = window.applyLabCategoriesToList((rows || []).map(row => ({
+        id: row.Lab_ID,
+        name: String(row.Lab_Name || '').trim(),
+        desc: row.Description || ''
+      })).filter(item => item.name));
+      labsMasterList = window.mergeEMRLabsWithOrderForm(databaseItems);
+      window.opdTestLabFormCatalogApplied = true;
+      return { count: labsMasterList.length, source: 'database' };
+    } catch (error) {
+      console.error('Unable to load Labs_Master for OPD Test:', error);
+      return { count: 0, source: 'error', error };
+    } finally {
+      window.opdTestLabMasterLoadPromise = null;
+    }
+  })();
+
+  return window.opdTestLabMasterLoadPromise;
+};
+
+window.opdTestBuildLocalLabFallback = function () {
+  const localItems = [
+    ...(window.opdTestInvestigationCatalog || []),
+    ...Object.values(window.opdTestDeptTemplates || {}).flatMap(template => template.commonInvestigations || [])
+  ];
+  return [...new Set(localItems)]
+    .filter(Boolean)
+    .sort()
+    .map((name, index) => ({
+      id: `opd-test-local-${index + 1}`,
+      name,
+      desc: 'Diagnostic investigation order'
+    }));
+};
+
+window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {}) {
+  if (window.opdTestState.locked) return;
+  const state = window.opdTestState;
+  const pickerMeta = window.opdTestSetInvestigationPickerMode(requestedType);
+  const editBatch = options?.editBatch?.entries?.length ? options.editBatch : null;
+  currentEMRLabs = editBatch
+    ? editBatch.entries.map(({ item }) => ({ ...item }))
+    : [];
+  window.opdTestEditingInvestigationBatch = editBatch
+    ? {
+      key: editBatch.key,
+      type: editBatch.type,
+      sequence: editBatch.sequence,
+      priorityValue: editBatch.entries[0]?.item?.priorityValue || editBatch.entries[0]?.item?.priority || 'Routine'
+    }
+    : null;
+  if (editBatch) {
+    const title = document.getElementById('emrLabModalTitleText');
+    if (title) title.textContent = `ແກ້ໄຂລາຍການສັ່ງກວດທີ່ ${editBatch.sequence}`;
+  }
+  window.emrLabPickerConfirmed = false;
+  $('#emrLabModal').off('hidden.bs.modal.opdtest').one('hidden.bs.modal.opdtest', function () {
+    if (!window.emrLabPickerConfirmed) {
+      currentEMRLabs = [];
+      window.opdTestEditingInvestigationBatch = null;
+      window.opdTestInvestigationPickerType = 'all';
+      window.opdTestRenderLegacyOrders();
+      return;
+    }
+    const priorityValue = window.opdTestEditingInvestigationBatch?.priorityValue
+      || document.getElementById('opdTestInlineLabPriority')?.value
+      || 'Routine';
+    const orderedDate = new Date();
+    const orderedAt = orderedDate.toISOString();
+    const orderBatchId = `HIS-BATCH-${pickerMeta.type}-${orderedDate.getTime()}`;
+    const newOrders = currentEMRLabs.map((item, index) => {
+      const name = item.name || String(item);
+      return window.opdTestNormalizeLabOrder({
+        ...item,
+        name,
+        source: editBatch ? 'picker-edit' : 'picker',
+        at: orderedDate.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }),
+        orderedAt,
+        orderBatchId,
+        scheduledAt: orderedAt,
+        investigationType: item.investigationType || pickerMeta.type,
+        orderType: item.orderType || pickerMeta.type,
+        destinationSystem: item.destinationSystem || pickerMeta.destinationSystem,
+        priority: window.opdTestPriorityLabel(priorityValue),
+        priorityValue
+      }, state.orders.length + index, priorityValue);
+    });
+    if (newOrders.length) {
+      if (editBatch) {
+        state.orders = state.orders.filter((item, index) => !(
+          window.opdTestInvestigationTypeForItem(item) === editBatch.type
+          && window.opdTestOrderBatchKey(item, index) === editBatch.key
+        ));
+      }
+      state.orders.push(...newOrders);
+      state.results = [];
+      window.opdTestMarkDirty();
+      window.opdTestRefreshSimple();
+      window.opdTestShowOrdersSavedAlert(newOrders, { edited: Boolean(editBatch) });
+    } else {
+      window.opdTestRenderLegacyOrders();
+    }
+    currentEMRLabs = [];
+    window.emrLabPickerConfirmed = false;
+    window.opdTestEditingInvestigationBatch = null;
+    window.opdTestInvestigationPickerType = 'all';
+  });
+
+  const needsDatabaseLoad = !labsMasterList.length
+    || labsMasterList.every(item => {
+      const itemId = String(item?.id || '');
+      return itemId.startsWith('opd-test-local-') || itemId.startsWith('opd-form-');
+    });
+  if (needsDatabaseLoad) {
+    labsMasterList = [];
+    window.opdTestLabFormCatalogApplied = false;
+    window.openEMRLabModal();
+    const loadResult = await window.opdTestLoadLabMasterList();
+    if (!loadResult.count) {
+      labsMasterList = window.mergeEMRLabsWithOrderForm(window.opdTestBuildLocalLabFallback());
+      window.opdTestLabFormCatalogApplied = true;
+    }
+    window.renderEMRLabPicker();
+    return;
+  }
+
+  await window.opdTestLoadLabMasterList();
+  window.openEMRLabModal();
+};
+
+window.opdTestOpenLisPdf = function (index) {
+  const order = window.opdTestState.orders[index];
+  const url = order?.resultPdfUrl || order?.pdfUrl || order?.result_pdf_url || '';
+  if (!url) {
+    window.opdTestSimpleAlert('ຍັງບໍ່ມີຜົນ PDF', 'LIS ຍັງບໍ່ໄດ້ສົ່ງຜົນກວດ PDF ກັບມາ.', 'info');
+    return;
+  }
+  const isSafeUrl = /^(https?:\/\/|\/|blob:)/i.test(String(url));
+  if (!isSafeUrl) {
+    window.opdTestSimpleAlert('ລິ້ງ PDF ບໍ່ຖືກຕ້ອງ', 'ກະລຸນາກວດສອບ PDF URL ທີ່ສົ່ງມາຈາກ LIS.', 'error');
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+window.opdTestApplyLisResult = function (payload, silent = false) {
+  if (!payload || typeof payload !== 'object') return false;
+  const state = window.opdTestState;
+  const identifiers = [
+    payload.localOrderId,
+    payload.orderNo,
+    payload.externalOrderId,
+    payload.lisOrderId
+  ].filter(Boolean).map(value => String(value));
+  let index = state.orders.findIndex(item => {
+    if (window.opdTestInvestigationTypeForItem(item) !== 'lab') return false;
+    const values = [item.localOrderId, item.orderNo, item.externalOrderId, item.lisOrderId].filter(Boolean).map(value => String(value));
+    return identifiers.some(id => values.includes(id));
+  });
+  if (index < 0 && payload.name) {
+    const matches = state.orders
+      .map((item, itemIndex) => ({ item, itemIndex }))
+      .filter(({ item }) => window.opdTestInvestigationTypeForItem(item) === 'lab'
+        && String(item.name || '').trim().toLowerCase() === String(payload.name).trim().toLowerCase());
+    if (matches.length === 1) index = matches[0].itemIndex;
+  }
+  if (index < 0) return false;
+
+  const current = window.opdTestNormalizeLabOrder(state.orders[index], index);
+  state.orders[index] = {
+    ...current,
+    externalOrderId: payload.externalOrderId || payload.lisOrderId || current.externalOrderId,
+    lisStatus: payload.lisStatus || payload.status || current.lisStatus,
+    resultStatus: payload.resultStatus || payload.status || current.resultStatus,
+    resultPdfUrl: payload.resultPdfUrl || payload.resultPdf || payload.pdfUrl || payload.result_pdf_url || payload.result_pdf || current.resultPdfUrl,
+    resultPdfDocumentId: payload.resultPdfDocumentId || payload.result_pdf_document_id || current.resultPdfDocumentId,
+    releasedAt: payload.releasedAt || payload.released_at || current.releasedAt || '',
+    lisUpdatedAt: payload.updatedAt || payload.updated_at || new Date().toISOString()
+  };
+  if (!silent) {
+    window.opdTestMarkDirty();
+    window.opdTestRenderLegacyOrders();
+  }
+  return true;
+};
+
+window.opdTestSyncLisResults = async function () {
+  const provider = window.opdTestLisResultProvider || window.fetchOPDTestLisResults;
+  if (typeof provider !== 'function') {
+    window.opdTestSimpleAlert(
+      'ຍັງບໍ່ໄດ້ຕໍ່ LIS',
+      'UI ພ້ອມຮັບ status ແລະ PDF ແລ້ວ, ແຕ່ຍັງຕ້ອງກຳນົດ LIS API/provider ເພື່ອດຶງຜົນຈິງ.',
+      'info'
+    );
+    return;
+  }
+
+  const button = document.getElementById('opdTestLisSyncBtn');
+  const previousHtml = button?.innerHTML || '';
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>ກຳລັງອັບເດດ...</span>';
+  }
+  try {
+    const patientId = document.querySelector('#view-opd_test .emr-his-chip-id')?.textContent?.trim() || '';
+    const response = await provider({
+      patientId,
+      orders: window.opdTestState.orders
+        .map((item, index) => window.opdTestNormalizeLabOrder(item, index))
+        .filter(item => item.investigationType === 'lab')
+    });
+    const results = Array.isArray(response) ? response : (response?.results || response?.orders || []);
+    const updated = results.reduce((count, item) => count + (window.opdTestApplyLisResult(item, true) ? 1 : 0), 0);
+    if (updated) {
+      window.opdTestMarkDirty();
+      window.opdTestRenderLegacyOrders();
+    }
+    window.opdTestSimpleAlert('ອັບເດດ LIS ສຳເລັດ', updated ? `ອັບເດດ ${updated} ລາຍການ.` : 'ຍັງບໍ່ມີຜົນໃໝ່ຈາກ LIS.', 'success');
+  } catch (error) {
+    console.error('OPD Test LIS sync failed:', error);
+    window.opdTestSimpleAlert('ອັບເດດ LIS ບໍ່ສຳເລັດ', error?.message || 'ກະລຸນາກວດສອບ LIS API ແລະ network.', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = previousHtml;
+    }
+  }
+};
+
+window.opdTestOpenDrugPicker = function () {
+  if (window.opdTestState.locked) return;
+  currentEMRDrugs = window.opdTestState.medications.map(item => ({
+    name: item.name || String(item),
+    qty: item.qty || item.quantity || '',
+    dose: item.dose || '',
+    usage: item.usage || item.frequency || ''
+  }));
+  $('#emrDrugModal').off('hidden.bs.modal.opdtest').one('hidden.bs.modal.opdtest', function () {
+    window.opdTestState.medications = currentEMRDrugs.map(item => ({ ...item }));
+    window.opdTestMarkDirty();
+    window.opdTestRenderLegacyOrders();
+  });
+  window.openEMRDrugModal();
+};
+
+window.opdTestAutosizeTextarea = function (textarea) {
+  if (!textarea || textarea.tagName !== 'TEXTAREA') return;
+  textarea.style.height = 'auto';
+  const style = window.getComputedStyle(textarea);
+  const minHeight = Number.parseFloat(style.minHeight) || 48;
+  const maxHeight = Number.parseFloat(style.maxHeight) || 112;
+  textarea.style.height = `${Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight))}px`;
+};
+
+window.opdTestSetupTabOrder = function () {
+  const visitStatus = document.getElementById('opdTestVisitStatus');
+  if (visitStatus) visitStatus.tabIndex = 1;
+  const order = [
+    'opdTestCc',
+    'opdTestHpi',
+    'opdTestPhe',
+    'opdTestPe',
+    'opdTestDiagnosis',
+    'opdTestDeptPicker',
+    'opdTestPlan',
+    'opdTestAdvice',
+    'opdTestInlineLabName',
+    'opdTestInlineUltrasoundName',
+    'opdTestInlineXrayName',
+    'opdTestInlineLabScheduledAt',
+    'opdTestInlineLabPriority',
+    'opdTestInlineLabInstructions',
+    'opdTestInlineMedName',
+    'opdTestInlineMedDose',
+    'opdTestInlineMedRoute',
+    'opdTestInlineMedFrequency',
+    'opdTestInlineMedDuration',
+    'opdTestInlineMedQuantity',
+    'opdTestDoctor',
+    'opdTestFollowUp',
+    'opdTestDischargeStatus',
+    'opdTestAdmitWard',
+    'opdTestTransferHospital',
+    'opdTestTransferReason',
+    'opdTestLamaReason'
+  ];
+  order.forEach((id, index) => {
+    const control = document.getElementById(id);
+    if (control) control.tabIndex = index + 2;
+  });
+
+  const diagnosis = document.getElementById('opdTestDiagnosis');
+  if (diagnosis && window.jQuery && $(diagnosis).hasClass('select2-hidden-accessible')) {
+    diagnosis.tabIndex = -1;
+    const selection = $(diagnosis).next('.select2').find('.select2-selection').get(0);
+    if (selection) selection.tabIndex = 6;
+  }
+
+  const draft = document.querySelector('#view-opd_test .opdt-emr-draft-btn');
+  const print = document.querySelector('#view-opd_test .btn-opd-print');
+  const cancel = document.querySelector('#view-opd_test .opdt-emr-cancel-btn');
+  const complete = document.getElementById('opdTestCompleteBtn');
+  const actionTabIndex = order.length + 2;
+  if (draft) draft.tabIndex = actionTabIndex;
+  if (print) print.tabIndex = actionTabIndex + 1;
+  if (cancel) cancel.tabIndex = actionTabIndex + 2;
+  if (complete) complete.tabIndex = actionTabIndex + 3;
+};
+
+window.opdTestEvaluateVitals = function () {
+  document.querySelectorAll('#view-opd_test .emr-his-vital-tile').forEach(tile => {
+    const key = tile.querySelector('.emr-his-vital-key')?.textContent?.trim().toLowerCase() || '';
+    const textValue = tile.querySelector('.emr-his-vital-val')?.textContent?.trim() || '';
+    const numeric = Number.parseFloat(textValue);
+    let level = '';
+
+    if (key === 'bp') {
+      const [systolic, diastolic] = textValue.split('/').map(Number);
+      if (systolic >= 180 || diastolic >= 120 || systolic < 90) level = 'critical';
+      else if (systolic >= 140 || diastolic >= 90) level = 'warning';
+    } else if (key === 'temp') {
+      if (numeric >= 40 || numeric < 35) level = 'critical';
+      else if (numeric >= 38) level = 'warning';
+    } else if (key === 'pr') {
+      if (numeric > 130 || numeric < 40) level = 'critical';
+      else if (numeric > 100 || numeric < 60) level = 'warning';
+    } else if (key === 'rr') {
+      if (numeric > 30 || numeric < 8) level = 'critical';
+      else if (numeric > 20 || numeric < 12) level = 'warning';
+    } else if (key.includes('spo')) {
+      if (numeric < 90) level = 'critical';
+      else if (numeric < 95) level = 'warning';
+    }
+
+    tile.classList.toggle('is-warning', level === 'warning');
+    tile.classList.toggle('is-critical', level === 'critical');
+    if (level) {
+      tile.title = level === 'critical'
+        ? 'ຄ່າຢູ່ໃນຊ່ວງວິກິດ: ກະລຸນາກວດຢືນຢັນ'
+        : 'ຄ່າຜິດປົກກະຕິ: ກະລຸນາກວດທົບທວນ';
+    } else {
+      tile.removeAttribute('title');
+    }
+  });
+};
+
+// ==========================================
+// Central refresh
+// ==========================================
+window.opdTestRefreshSimple = function () {
+  const root = document.getElementById('view-opd_test');
+  if (!root) return;
+  const state = window.opdTestState;
+  const selectedOrders = window.opdTestSelectedOrders();
+  const labScheduledAt = document.getElementById('opdTestInlineLabScheduledAt');
+  if (labScheduledAt && !labScheduledAt.value) labScheduledAt.value = window.opdTestLocalDateTimeInputValue();
+
+  const countEl = document.getElementById('opdTestSelectedOrderCount');
+  if (countEl) countEl.textContent = selectedOrders.length;
+
+  const orderStatus = document.getElementById('opdTestOrderStatus');
+  if (orderStatus) {
+    orderStatus.className = `opdt-order-status ms-auto ${state.orders.length ? 'is-sent' : ''}`;
+    orderStatus.innerHTML = state.orders.length
+      ? `<i class="fas fa-check-circle"></i>ບັນທຶກແລ້ວ ${state.orders.length} ລາຍການ`
+      : '<i class="far fa-clock"></i>ຍັງບໍ່ໄດ້ສົ່ງ';
+  }
+
+  const visitStatus = document.getElementById('opdTestVisitStatus');
+  if (visitStatus) {
+    const status = state.locked ? 'completed' : (state.visitStatus || 'in-progress');
+    visitStatus.className = `emr-his-status-pill${status === 'waiting-lab' ? ' is-waiting' : ''}${status === 'completed' ? ' is-completed' : ''}`;
+    const label = visitStatus.querySelector('[data-opdt-status-label]');
+    if (label) label.textContent = window.opdTestVisitStatusLabel(status).split(' / ')[0];
+    const chevron = visitStatus.querySelector('.opdt-status-chevron');
+    if (chevron) chevron.hidden = status === 'completed';
+    visitStatus.title = status === 'completed' ? 'ການກວດສຳເລັດແລ້ວ' : 'ປ່ຽນສະຖານະການກວດ';
+  }
+  document.querySelectorAll('#view-opd_test [data-opdt-visit-status]').forEach(button => {
+    button.classList.toggle('active', button.dataset.opdtVisitStatus === state.visitStatus);
+  });
+
+  root.querySelectorAll('input, textarea, select').forEach(control => { control.disabled = state.locked || state.submitting; });
+  root.querySelectorAll('[data-emr-action]').forEach(button => { button.disabled = state.locked || state.submitting; });
+  const completeButton = document.getElementById('opdTestCompleteBtn');
+  if (completeButton) {
+    completeButton.innerHTML = state.submitting
+      ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>ກຳລັງບັນທຶກ...</span>'
+      : '<i class="fas fa-save"></i><span>ບັນທຶກຜົນການກວດ</span>';
+  }
+
+  const signature = document.getElementById('opdTestSignatureLine');
+  const signedDoctor = state.signedBy || window.opdTestSelectedDoctor?.() || '—';
+  if (signature) signature.innerHTML = state.locked
+    ? `<i class="fas fa-check-circle text-success me-1"></i>${window.opdTestHtml(signedDoctor)} · ${window.opdTestHtml(state.signedAt)}`
+    : '<i class="far fa-clock text-warning me-1"></i>ລໍຖ້າລົງລາຍເຊັນ';
+  const auditUpdated = document.getElementById('opdTestAuditUpdated');
+  if (auditUpdated) auditUpdated.textContent = state.locked ? state.signedAt : (state.draftSavedAt || '—');
+  const lastSaved = document.getElementById('opdTestLastSaved');
+  if (lastSaved) lastSaved.textContent = state.draftSavedAt || '—';
+  const unsaved = document.getElementById('opdTestUnsaved');
+  if (unsaved) unsaved.hidden = !state.unsaved || state.locked;
+  const draftStatus = document.getElementById('opdTestDraftStatus');
+  if (draftStatus) draftStatus.textContent = state.locked ? 'ສຳເລັດ / Completed' : 'ຮ່າງ / Draft';
+  const printRow = document.getElementById('opdTestPrintRow');
+  if (printRow) printRow.style.display = state.locked ? '' : 'none';
+  if (state.locked) window.opdTestSetSaveStatus(
+    state.auditMode === 'failed' ? 'warning' : 'completed',
+    state.auditMode === 'failed'
+      ? 'ບັນທຶກ Visit ແລ້ວ · Audit ລໍຖ້າ Sync'
+      : (state.persistenceMode === 'mock' ? 'ທົດສອບບັນທຶກສຳເລັດ (Mock)' : 'ບັນທຶກສຳເລັດ')
+  );
+  else if (state.unsaved) window.opdTestSetSaveStatus('unsaved', 'ຍັງບໍ່ບັນທຶກ');
+  else if (state.draftSavedAt) window.opdTestSetSaveStatus('saved', `ບັນທຶກແລ້ວ ${state.draftSavedAt}`);
+  else window.opdTestSetSaveStatus('idle', 'ພ້ອມປ້ອນຂໍ້ມູນ');
+
+  window.opdTestRenderDiagnosisSearch();
+  window.opdTestRenderDiagnoses();
+  window.opdTestRenderDxCommonChips();
+  window.opdTestRenderOrders();
+  window.opdTestRenderResults();
+  window.opdTestRenderMedications();
+  window.opdTestRenderSummaryPreview();
+  window.opdTestRefreshChecks();
+  window.opdTestRenderProgress();
+  window.opdTestDrawerSelectionChanged();
+  window.opdTestRenderLegacyOrders();
+  window.opdTestSelectOrderTab(state.activeOrderTab || 'clinical', false);
+  window.opdTestUpdateDispositionDetails();
+  window.opdTestEvaluateVitals();
+  window.opdTestSetupTabOrder();
+};
+
+if (window.opdTestKeyHandler) document.removeEventListener('keydown', window.opdTestKeyHandler);
+window.opdTestKeyHandler = function (event) {
+  const root = document.getElementById('view-opd_test');
+  if (!root || root.style.display === 'none') return;
+  const investigationInputTypes = {
+    opdTestInlineLabName: 'lab',
+    opdTestInlineUltrasoundName: 'ultrasound',
+    opdTestInlineXrayName: 'xray'
+  };
+  if (!event.ctrlKey && event.key === 'Enter' && investigationInputTypes[event.target?.id]) {
+    event.preventDefault();
+    window.opdTestAddInlineLab(investigationInputTypes[event.target.id]);
+    return;
+  }
+  if (!event.ctrlKey && event.key === 'Enter' && event.target?.id === 'opdTestInlineMedQuantity') {
+    event.preventDefault();
+    window.opdTestAddInlineMedication();
+    return;
+  }
+  if (!event.ctrlKey && event.key === 'Enter' && event.target?.id === 'opdTestMedicationQuantity') {
+    event.preventDefault();
+    window.opdTestSaveMedicationDraftItem();
+    return;
+  }
+  if (!event.ctrlKey && event.key === 'Enter' && event.target?.id === 'opdTestMedicationInstruction') {
+    event.preventDefault();
+    window.opdTestSaveMedicationDraftItem();
+    return;
+  }
+  if (event.ctrlKey && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    window.opdTestSaveDraft();
+    return;
+  }
+  if (event.ctrlKey && event.key === 'Enter') {
+    event.preventDefault();
+    window.opdTestCompleteVisit();
+    return;
+  }
+};
+document.addEventListener('keydown', window.opdTestKeyHandler);
+
+if (window.opdTestBeforeUnloadHandler) window.removeEventListener('beforeunload', window.opdTestBeforeUnloadHandler);
+window.opdTestBeforeUnloadHandler = function (event) {
+  const root = document.getElementById('view-opd_test');
+  if (!root || root.style.display === 'none' || !window.opdTestState?.unsaved) return;
+  event.preventDefault();
+  event.returnValue = '';
+};
+window.addEventListener('beforeunload', window.opdTestBeforeUnloadHandler);
+
+// Initial bootstrap for the legacy EMR layout.
+window.opdTestInit = function () {
+  const root = document.getElementById('view-opd_test');
+  if (!root) return;
+  const pendingOrderTab = ['lab', 'ultrasound', 'xray', 'medication'].includes(window.opdTestPendingOrderTab)
+    ? window.opdTestPendingOrderTab
+    : '';
+  const shouldLoadEncounter = Boolean(window.opdTestSelectedVisit && window.opdTestNeedsEncounterLoad);
+  if (shouldLoadEncounter) window.opdTestApplySelectedVisit();
+  window.opdTestLoadHints();
+  window.opdTestApplyHintsFromStorage();
+  window.opdTestRenderDiagnosisOptions(shouldLoadEncounter);
+  void window.opdTestLoadSharedDiagnosisSuggestions();
+  window.opdTestRenderDispositionSuggestions();
+  void window.opdTestLoadSharedDispositionSuggestions();
+  window.opdTestPopulateInlineOrderCatalogs();
+  window.opdTestState.editingMedicationIndex = -1;
+  window.opdTestState.draftRestored = false;
+  const restored = window.opdTestRestoreDraft();
+  window.opdTestState.disposition = document.getElementById('opdTestDischargeStatus')?.value || '';
+  window.opdTestSwitchTab('clinical', false);
+  window.opdTestSelectOrderTab(pendingOrderTab || window.opdTestState.activeOrderTab || 'clinical', false);
+  window.opdTestPendingOrderTab = '';
+  root.querySelectorAll('textarea').forEach(window.opdTestAutosizeTextarea);
+  if (!root.dataset.opdtEventsBound) {
+    root.dataset.opdtEventsBound = 'true';
+    root.addEventListener('input', event => {
+      if (!event.target.matches('input, textarea, select')) return;
+      if (event.target.matches('textarea')) window.opdTestAutosizeTextarea(event.target);
+      window.opdTestMarkDirty();
+      window.opdTestRefreshChecks();
+      window.opdTestRenderProgress();
+      if (window.opdTestState.activeTab === 'summary') window.opdTestRenderSummaryPreview();
+    });
+    root.addEventListener('change', event => {
+      if (!event.target.matches('input, textarea, select')) return;
+      window.opdTestMarkDirty();
+      if (event.target.id === 'opdTestDiagnosis') window.opdTestSyncDiagnosisState();
+      window.opdTestRefreshChecks();
+      window.opdTestRenderProgress();
+    });
+  }
+  if (restored) window.opdTestSetSaveStatus('saved', `ກູ້ຄືນຮ່າງ ${window.opdTestState.draftSavedAt}`);
+  window.opdTestRefreshSimple();
+  window.opdTestStartLisPolling();
+};
+setTimeout(() => window.opdTestInit?.(), 0);

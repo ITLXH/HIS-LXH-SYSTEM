@@ -1,4 +1,5 @@
 import { ghRequest } from '../../_utils/gh-api.js';
+import { requireHisAdmin } from '../../_utils/his-auth.js';
 
 // GET /api/backup/status
 // Fetches latest workflow run from GitHub Actions
@@ -6,6 +7,8 @@ import { ghRequest } from '../../_utils/gh-api.js';
 
 export async function onRequestGet(ctx) {
   const { env } = ctx;
+  const auth = await requireHisAdmin(ctx);
+  if (auth.response) return auth.response;
 
   try {
     const owner = env.BACKUP_GH_OWNER || 'ITLXH';

@@ -145,13 +145,13 @@
                 <section class="emr-order-panel lab">
                   <div class="emr-order-panel-header">
                     <div class="emr-order-panel-title">
-                      <div class="emr-order-panel-icon"><i class="fas fa-flask"></i></div>
+                      <div class="emr-order-panel-icon"><i class="fas fa-microscope"></i></div>
                       <div>
-                        <h6>ລາຍການ Lab</h6>
+                        <h6>ການກວດວິນິດໄສ</h6>
                         <p>ຈັດການລາຍການກວດ ແລະ ກວດສອບ order ກ່ອນສົ່ງຕໍ່</p>
                       </div>
                     </div>
-                    <button type="button" class="btn btn-outline-primary bg-white emr-order-add-btn" onclick="window.openEMRLabModal()"><i class="fas fa-plus me-1"></i>ເພີ່ມ Lab</button>
+                    <button type="button" class="btn btn-outline-primary bg-white emr-order-add-btn" onclick="window.openEMRLabModal()"><i class="fas fa-plus me-1"></i>ເພີ່ມການກວດ</button>
                   </div>
                   <div class="emr-order-panel-body">
                     <div id="emrLabTableBody" class="emr-order-list"></div>
@@ -202,8 +202,8 @@
   <div class="modal-dialog modal-xl">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title fw-bold"><i class="fas fa-flask me-2"></i>ເລືອກລາຍການ Lab</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title fw-bold"><i class="fas fa-microscope me-2" id="emrLabModalTitleIcon"></i><span id="emrLabModalTitleText">ເລືອກການກວດວິນິດໄສ</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ປິດ"></button>
       </div>
       <div class="modal-body p-3 p-lg-4">
         <div class="emr-lis-shell">
@@ -211,13 +211,13 @@
             <section class="emr-lis-panel">
               <div class="emr-lis-panel-header">
                 <div class="emr-lis-panel-title">
-                  <i class="fas fa-vials"></i>
+                  <i class="fas fa-vials" id="emrLabModalPanelIcon"></i>
                   <div>
-                    <strong>Order Lab</strong>
-                    <span>ເລືອກລາຍການກວດຈາກ LIS ໂດຍບໍ່ສະແດງລາຄາ</span>
+                    <strong id="emrLabModalPanelTitle">Diagnostic Investigation</strong>
+                    <span id="emrLabModalPanelSubtitle">Lab • Ultrasound • X-Ray • ການກວດພິເສດອື່ນໆ</span>
                   </div>
                 </div>
-                <button type="button" class="btn btn-sm btn-light border emr-lis-refresh" onclick="window.renderEMRLabPicker()" title="Refresh list">
+                <button type="button" class="btn btn-sm btn-light border emr-lis-refresh" onclick="window.renderEMRLabPicker()" title="Refresh list" aria-label="ໂຫຼດລາຍການກວດໃໝ່">
                   <i class="fas fa-rotate-right"></i>
                 </button>
               </div>
@@ -228,7 +228,7 @@
                 </div>
               </div>
               <div id="labCheckboxContainer" class="emr-lis-test-container">
-                <p class="text-muted text-center small py-3"><i class="fas fa-spinner fa-spin me-1"></i>ກຳລັງໂຫຼດລາຍການ Lab...</p>
+                <p class="text-muted text-center small py-3"><i class="fas fa-spinner fa-spin me-1"></i>ກຳລັງໂຫຼດລາຍການກວດ...</p>
               </div>
             </section>
 
@@ -262,13 +262,99 @@
   </div>
 </div>
 
+<!-- OPD Test Medication Picker Modal -->
+<div class="modal fade" id="opdTestMedicationModal" tabindex="-1" aria-labelledby="opdTestMedicationModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title fw-bold" id="opdTestMedicationModalTitle"><i class="fas fa-pills me-2"></i>ເລືອກ ແລະ ສັ່ງຢາ / Medication Order</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ປິດ"></button>
+      </div>
+      <div class="modal-body p-3 p-lg-4">
+        <div class="opdt-med-picker-shell">
+          <div class="opdt-med-picker-layout">
+            <section class="emr-lis-panel opdt-med-catalog-panel">
+              <div class="emr-lis-panel-header">
+                <div class="emr-lis-panel-title">
+                  <i class="fas fa-capsules"></i>
+                  <div>
+                    <strong>Drug Catalog</strong>
+                    <span>ຄົ້ນຫາ ຫຼື ເລືອກຢາຈາກລາຍການ</span>
+                  </div>
+                </div>
+                <span class="emr-lis-summary-count" id="opdTestMedicationCatalogCount">0</span>
+              </div>
+              <div class="emr-lis-search-row">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-light"><i class="fas fa-search text-muted"></i></span>
+                  <input type="search" class="form-control" id="opdTestMedicationSearch" placeholder="ຄົ້ນຫາຊື່ຢາ..." oninput="window.opdTestFilterMedicationCatalog(this.value)">
+                </div>
+              </div>
+              <div class="opdt-med-catalog-list" id="opdTestMedicationCatalog" aria-live="polite"></div>
+            </section>
+
+            <section class="emr-lis-panel opdt-med-order-panel">
+              <div class="emr-lis-panel-header">
+                <div class="emr-lis-panel-title">
+                  <i class="fas fa-file-prescription"></i>
+                  <div>
+                    <strong id="opdTestMedicationEditorTitle">Add Medication</strong>
+                    <span>ເລືອກຈາກລາຍການ ຫຼື ພິມຊື່ຢາເອງໄດ້</span>
+                  </div>
+                </div>
+              </div>
+              <div class="opdt-med-editor" id="opdTestMedicationStructuredEditor">
+                <div class="opdt-med-name-field">
+                  <label class="form-label required" for="opdTestMedicationName">ຊື່ຢາ / Medication</label>
+                  <input class="form-control" id="opdTestMedicationName" list="opdTestMedicationNameCatalog" placeholder="ພິມຊື່ຢາເອງ ຫຼື ເລືອກຈາກຝັ່ງຊ້າຍ" oninput="window.opdTestApplyMedicationPickerTemplate(this.value)">
+                  <datalist id="opdTestMedicationNameCatalog"></datalist>
+                  <small><i class="fas fa-pen"></i> ເລືອກຈາກ Drug Catalog ຫຼືພິມຊື່ຢາເອງໄດ້</small>
+                </div>
+                <div class="opdt-med-instruction-field">
+                  <label class="form-label required" for="opdTestMedicationInstruction">ວິທີໃຊ້ / Instructions</label>
+                  <input class="form-control" id="opdTestMedicationInstruction" placeholder="ຕົວຢ່າງ: ຄັ້ງລະ 1 ເມັດ, ມື້ລະ 3 ຄັ້ງ, ຫຼັງອາຫານ, 5 ມື້">
+                  <small><i class="fas fa-wand-magic-sparkles"></i> ຖ້າຢາມີ template ລະບົບຈະຕື່ມໃຫ້ອັດຕະໂນມັດ</small>
+                </div>
+                <details class="opdt-med-advanced">
+                  <summary><i class="fas fa-sliders"></i>ລາຍລະອຽດເພີ່ມ <span>Optional</span></summary>
+                  <div class="opdt-med-fields-grid">
+                    <div><label class="form-label" for="opdTestMedicationDose">Dose</label><input class="form-control" id="opdTestMedicationDose" placeholder="500 mg"></div>
+                    <div><label class="form-label" for="opdTestMedicationRoute">Route</label><select class="form-select" id="opdTestMedicationRoute"><option value="">--</option><option value="PO">PO</option><option value="IV">IV</option><option value="IM">IM</option><option value="SC">SC</option><option value="Topical">Topical</option><option value="Inhaled">Inhaled</option></select></div>
+                    <div><label class="form-label" for="opdTestMedicationFrequency">Frequency</label><select class="form-select" id="opdTestMedicationFrequency"><option value="">--</option><option value="OD">OD</option><option value="BID">BID</option><option value="TID">TID</option><option value="QID">QID</option><option value="PRN">PRN</option><option value="STAT">STAT</option><option value="Once">Once</option></select></div>
+                    <div><label class="form-label" for="opdTestMedicationDuration">Duration</label><input class="form-control" id="opdTestMedicationDuration" placeholder="5 days / Continuous"></div>
+                    <div><label class="form-label" for="opdTestMedicationQuantity">Qty</label><input class="form-control" id="opdTestMedicationQuantity" inputmode="numeric" placeholder="15"></div>
+                  </div>
+                  <button type="button" class="opdt-med-build-instruction" onclick="window.opdTestBuildInstructionFromDetails()"><i class="fas fa-arrow-up"></i>ນຳລາຍລະອຽດໄປສ້າງວິທີໃຊ້</button>
+                </details>
+                <div class="opdt-med-editor-actions">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="opdTestMedicationCancelEditBtn" onclick="window.opdTestResetMedicationEditor()" hidden><i class="fas fa-times me-1"></i>ຍົກເລີກແກ້ໄຂ</button>
+                  <button type="button" class="btn btn-primary btn-sm fw-bold" id="opdTestMedicationSaveItemBtn" onclick="window.opdTestSaveMedicationDraftItem()"><i class="fas fa-plus me-1"></i><span>ເພີ່ມຢາ</span></button>
+                </div>
+              </div>
+              <div class="opdt-med-selected-header">
+                <div><i class="fas fa-receipt"></i><strong>Medication Orders</strong><span>ລາຍການທີ່ຈະບັນທຶກ</span></div>
+                <span class="emr-lis-summary-count" id="opdTestMedicationDraftCount">0</span>
+              </div>
+              <div class="opdt-med-selected-list" id="opdTestMedicationDraftList" aria-live="polite"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ຍົກເລີກ</button>
+        <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="window.opdTestConfirmMedicationPicker()"><i class="fas fa-check me-1"></i>ຢືນຢັນລາຍການຢາ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EMR Drug Modal -->
 <div class="modal fade" id="emrDrugModal" tabindex="-1">
   <div class="modal-dialog modal-xl">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-success text-white">
         <h5 class="modal-title fw-bold"><i class="fas fa-pills me-2"></i>ເພີ່ມລາຍການຢາ</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ປິດ"></button>
       </div>
       <div class="modal-body p-4">
         <div class="mb-3"><label class="form-label fw-bold required">ຊື່ຢາ</label><select class="form-select" id="emrAddDrugSelect" style="width:100%;"><option value="">-- ເລືອກຢາ --</option></select></div>

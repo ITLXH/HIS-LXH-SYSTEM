@@ -3,6 +3,10 @@
   <div class="print-card-grid">
     <div class="patient-card" id="pcard1">
       <div class="pcard-id" id="printID1"></div>
+      <div class="pcard-payer" id="printPayerRow1" hidden>
+        <span class="pcard-payer-label">ປະກັນ/ອົງກອນ:</span>
+        <span class="pcard-payer-name" id="printPayer1"></span>
+      </div>
       <div class="pcard-info">
         <div class="pcard-row pcard-row-name"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName1"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob1"></span></div>
@@ -13,6 +17,10 @@
     </div>
     <div class="patient-card" id="pcard2">
       <div class="pcard-id" id="printID2"></div>
+      <div class="pcard-payer" id="printPayerRow2" hidden>
+        <span class="pcard-payer-label">ປະກັນ/ອົງກອນ:</span>
+        <span class="pcard-payer-name" id="printPayer2"></span>
+      </div>
       <div class="pcard-info">
         <div class="pcard-row pcard-row-name"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName2"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob2"></span></div>
@@ -23,6 +31,10 @@
     </div>
     <div class="patient-card" id="pcard3">
       <div class="pcard-id" id="printID3"></div>
+      <div class="pcard-payer" id="printPayerRow3" hidden>
+        <span class="pcard-payer-label">ປະກັນ/ອົງກອນ:</span>
+        <span class="pcard-payer-name" id="printPayer3"></span>
+      </div>
       <div class="pcard-info">
         <div class="pcard-row pcard-row-name"><span class="pcard-label">ຊື່ ແລະ ນາມສະກຸນ:</span> <span class="pcard-name" id="printName3"></span></div>
         <div class="pcard-row"><span class="pcard-label">ວັນເດືອນປີເກີດ:</span> <span class="pcard-value" id="printDob3"></span></div>
@@ -205,7 +217,7 @@
           <img id="print-opd-p2-logo" class="opdref-logo" alt="Logo" />
         </div>
         <div class="opdref-header-center">
-          <div class="opdref-page2-title">ໃບຕິດຕາມອາການປິ່ນປົວ</div>
+          <div class="opdref-page2-title opdref-bilingual-stack"><span>ໃບຕິດຕາມການປິ່ນປົວ</span><span class="opdref-en-line">Treatment Follow-up Form</span></div>
         </div>
         <div class="opdref-header-right">
           <div class="opdref-cn-row">ID: <span id="popd2_cn" class="opdref-cn-value"></span></div>
@@ -270,19 +282,23 @@
         </colgroup>
         <thead>
           <tr>
-            <th>ອາການ</th>
-            <th>ປິ່ນປົວ</th>
-            <th>ໝາຍເຫດ</th>
+            <th>ອາການ/Symptoms</th>
+            <th>ປິ່ນປົວ/Treatment</th>
+            <th>ໝາຍເຫດ/Notes</th>
           </tr>
         </thead>
         <tbody>
-          <tr class="opdref-followlog-body"><td></td><td></td><td></td></tr>
+          <tr class="opdref-followlog-body">
+            <td id="popd2_follow_symptoms"></td>
+            <td id="popd2_follow_treatment"></td>
+            <td id="popd2_follow_notes"></td>
+          </tr>
         </tbody>
       </table>
 
       <div class="opdref-p2-sign-row">
-        <div class="opdref-p2-sign-left">ລາຍເຊັນພະຍາບານຮັບຜິດຊອບ</div>
-        <div class="opdref-p2-sign-right">ລາຍເຊັນທ່ານໝໍ</div>
+        <div class="opdref-p2-sign-left"><span>ລາຍເຊັນພະຍາບານຮັບຜິດຊອບ</span><span class="opdref-p2-sign-en">Responsible Nurse Signature</span></div>
+        <div class="opdref-p2-sign-right"><span>ລາຍເຊັນທ່ານໝໍ</span><span class="opdref-p2-sign-en">Doctor Signature</span></div>
       </div>
     </div>
   </div>

@@ -1,0 +1,410 @@
+<!-- Production OPD consultation workspace. Internal opdt IDs remain stable for compatibility. -->
+<div id="view-opd_test" style="display:none;">
+  <div class="opdt-emr-page">
+    <section class="opdt-emr-frame" aria-label="OPD Clinical EMR">
+      <header class="emr-his-titlebar opdt-emr-titlebar">
+        <div class="opdt-titlebar-workspace-tabs" role="tablist" aria-label="Clinical and order workspaces">
+          <button type="button" class="emr-his-titlebar-left opdt-workspace-home active" data-opdt-workspace-tab="clinical" role="tab" aria-selected="true" aria-current="page" onclick="window.opdTestSelectOrderTab('clinical'); return false;" title="ບັນທຶກການກວດ / Clinical Encounter">
+            <i class="fas fa-notes-medical"></i>
+            <div>
+              <div class="emr-his-titlebar-label">EMR / Clinical Encounter</div>
+              <h2 class="emr-his-titlebar-title">ບັນທຶກການກວດ</h2>
+            </div>
+          </button>
+          <nav class="opdt-titlebar-order-tabs" aria-label="Order workspaces">
+            <button type="button" class="opdt-titlebar-order-tab is-lab" id="opdTestOrderTabLab" role="tab" aria-selected="false" aria-controls="opdTestOrderPanelLab" data-opdt-order-tab="lab" onclick="window.opdTestSelectOrderTab('lab'); return false;">
+              <i class="fas fa-vials"></i><span>Lab</span><strong data-opdt-investigation-total="lab">0</strong>
+            </button>
+            <button type="button" class="opdt-titlebar-order-tab is-ultrasound" id="opdTestOrderTabUltrasound" role="tab" aria-selected="false" aria-controls="opdTestOrderPanelUltrasound" data-opdt-order-tab="ultrasound" onclick="window.opdTestSelectOrderTab('ultrasound'); return false;">
+              <i class="fas fa-wave-square"></i><span>Ultrasound</span><strong data-opdt-investigation-total="ultrasound">0</strong>
+            </button>
+            <button type="button" class="opdt-titlebar-order-tab is-xray" id="opdTestOrderTabXray" role="tab" aria-selected="false" aria-controls="opdTestOrderPanelXray" data-opdt-order-tab="xray" onclick="window.opdTestSelectOrderTab('xray'); return false;">
+              <i class="fas fa-x-ray"></i><span>X-Ray</span><strong data-opdt-investigation-total="xray">0</strong>
+            </button>
+            <button type="button" class="opdt-titlebar-order-tab is-medication" id="opdTestOrderTabMedication" role="tab" aria-selected="false" aria-controls="opdTestOrderPanelMedication" data-opdt-order-tab="medication" onclick="window.opdTestSelectOrderTab('medication'); return false;">
+              <i class="fas fa-pills"></i><span>ສັ່ງຢາ</span><strong data-opdt-rx-total>0</strong>
+            </button>
+          </nav>
+        </div>
+        <div class="emr-his-titlebar-meta">
+          <div class="dropdown opdt-visit-status-dropdown">
+            <button type="button" class="emr-his-status-pill" id="opdTestVisitStatus" data-emr-action data-bs-toggle="dropdown" aria-expanded="false" title="ປ່ຽນສະຖານະການກວດ">
+              <span class="emr-his-status-dot"></span>
+              <span data-opdt-status-label>ກຳລັງກວດ</span>
+              <i class="fas fa-chevron-down opdt-status-chevron"></i>
+            </button>
+            <div class="dropdown-menu dropdown-menu-end opdt-visit-status-menu" aria-labelledby="opdTestVisitStatus">
+              <button type="button" class="dropdown-item" data-emr-action data-opdt-visit-status="in-progress" onclick="window.opdTestSetVisitStatus('in-progress'); return false;">
+                <span class="opdt-status-option-dot is-progress"></span>
+                <span><b>ກຳລັງກວດ</b><small>In Progress</small></span>
+              </button>
+              <button type="button" class="dropdown-item" data-emr-action data-opdt-visit-status="waiting-lab" onclick="window.opdTestSetVisitStatus('waiting-lab'); return false;">
+                <span class="opdt-status-option-dot is-waiting"></span>
+                <span><b>ລໍຖ້າຜົນ Lab</b><small>Waiting Lab</small></span>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="opdt-emr-close" title="ກັບຄິວ OPD" aria-label="ກັບຄິວ OPD" onclick="window.opdTestRequestExit(); return false;">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </header>
+
+      <section class="emr-his-banner">
+        <div class="emr-his-banner-photo">
+          <img id="opdTestPatientPhoto" alt="" src="">
+          <i class="fas fa-user" id="opdTestPatientPhotoPlaceholder"></i>
+        </div>
+        <div class="emr-his-banner-main">
+          <div class="emr-his-banner-name-row">
+            <span class="emr-his-banner-name" id="opdTestPatientName">—</span>
+          </div>
+          <div class="emr-his-banner-chips">
+            <span class="emr-his-chip emr-his-chip-id" id="opdTestPatientId">—</span>
+            <span class="emr-his-chip"><i class="fas fa-venus-mars"></i><span id="opdTestPatientGenderAge">—</span></span>
+            <span class="emr-his-chip"><i class="fas fa-hospital"></i><span id="opdTestPatientDepartment">—</span></span>
+            <span class="emr-his-chip"><i class="far fa-clock"></i><span id="opdTestVisitDateTime">—</span></span>
+          </div>
+        </div>
+        <div class="emr-his-banner-alerts">
+          <div class="emr-his-allergy" role="status">
+            <i class="fas fa-allergies"></i>
+            <div>
+              <span class="emr-his-allergy-label">ALLERGY</span>
+              <span class="emr-his-allergy-value" id="opdTestPatientAllergy">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="emr-his-vitals-strip opdt-emr-vitals-only" aria-label="Vital signs">
+        <div class="emr-his-vital-tile"><i class="fas fa-heartbeat"></i><div><span class="emr-his-vital-key">BP</span><span class="emr-his-vital-val" id="opdTestVitalBp">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-thermometer-half"></i><div><span class="emr-his-vital-key">Temp</span><span class="emr-his-vital-val" id="opdTestVitalTemp">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-tint"></i><div><span class="emr-his-vital-key">PR</span><span class="emr-his-vital-val" id="opdTestVitalPr">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-lungs"></i><div><span class="emr-his-vital-key">RR</span><span class="emr-his-vital-val" id="opdTestVitalRr">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-wind"></i><div><span class="emr-his-vital-key">SpO₂</span><span class="emr-his-vital-val" id="opdTestVitalSpo2">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-weight"></i><div><span class="emr-his-vital-key">Wt</span><span class="emr-his-vital-val" id="opdTestVitalWeight">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-ruler-vertical"></i><div><span class="emr-his-vital-key">Ht</span><span class="emr-his-vital-val" id="opdTestVitalHeight">—</span></div></div>
+        <div class="emr-his-vital-tile"><i class="fas fa-calculator"></i><div><span class="emr-his-vital-key">BMI</span><span class="emr-his-vital-val" id="opdTestVitalBmi">—</span></div></div>
+      </section>
+
+      <div class="emr-his-body opdt-emr-body">
+        <form id="opdTestEmrForm" novalidate onsubmit="event.preventDefault(); window.opdTestCompleteVisit();">
+          <div class="emr-workflow-shell">
+            <div class="opdt-workspace-summary" aria-label="Visit workspace">
+              <div class="opdt-workspace-summary-title">
+                <i class="fas fa-notes-medical" id="opdTestWorkspaceIcon"></i>
+                <span id="opdTestWorkspaceTitle">ບັນທຶກການກວດ / Clinical Encounter</span>
+              </div>
+              <div class="opdt-workspace-counts" aria-label="Order counts">
+                <span><i class="fas fa-flask"></i>Lab <strong id="opdTestLabTabCount">0</strong></span>
+                <span><i class="fas fa-pills"></i>Rx <strong id="opdTestRxTabCount">0</strong></span>
+              </div>
+            </div>
+
+            <div class="tab-content emr-workflow-content">
+              <div class="tab-pane fade show active emr-workflow-tab-pane" data-opdt-pane="clinical" id="opdTestClinicalPane" role="tabpanel">
+                <div class="row g-3 opdt-paper-clinical-grid">
+                  <div class="col-12 opdt-clinical-column-heading opdt-clinical-column-heading-history">
+                    <span>ປະຫວັດ ແລະ ການກວດ</span>
+                    <small>History &amp; Examination</small>
+                  </div>
+                  <div class="col-12" id="opdTestSecCc">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestCc">
+                        <b>CC</b>
+                        <span>ອາການສຳຄັນ / Chief Complaint</span>
+                        <em>*</em>
+                      </label>
+                      <textarea class="form-control" id="opdTestCc" rows="2" placeholder="ອາການຫຼັກ ແລະ ໄລຍະເວລາ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecHo">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestHpi">
+                        <b>H/O</b>
+                        <span>ປະຫວັດອາການປັດຈຸບັນ / History of Present Illness</span>
+                      </label>
+                      <textarea class="form-control" id="opdTestHpi" rows="2" placeholder="ເລີ່ມມີອາການເມື່ອໃດ ແລະ ເປັນມາແນວໃດ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecPhe">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestPhe">
+                        <b>PHE</b>
+                        <span>ປະຫວັດພະຍາດເກົ່າ / Past History</span>
+                      </label>
+                      <textarea class="form-control" id="opdTestPhe" rows="2" placeholder="ພະຍາດປະຈຳຕົວ, ປະຫວັດຜ່າຕັດ ຫຼື ປະຫວັດການຮັກສາ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecPe">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestPe">
+                        <b>PE</b>
+                        <span>ຜົນກວດຮ່າງກາຍ / Physical Examination</span>
+                      </label>
+                      <textarea class="form-control" id="opdTestPe" rows="2" placeholder="ຜົນກວດຮ່າງກາຍ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12 opdt-clinical-column-heading opdt-clinical-column-heading-treatment">
+                    <span>ການບົ່ງມະຕິ ແລະ ການປິ່ນປົວ</span>
+                    <small>Diagnosis &amp; Treatment</small>
+                  </div>
+                  <div class="col-12" id="opdTestSecDx">
+                    <div class="opdt-emr-note-field opdt-emr-diagnosis-field">
+                      <label for="opdTestDiagnosis">
+                        <b>Dx</b>
+                        <span>ການບົ່ງມະຕິພະຍາດ / Diagnosis</span>
+                        <em>*</em>
+                      </label>
+                      <div>
+                        <select class="form-select" id="opdTestDiagnosis" multiple aria-describedby="opdTestDiagnosisHelp"></select>
+                        <small class="form-text text-muted" id="opdTestDiagnosisHelp"><i class="fas fa-keyboard me-1" aria-hidden="true"></i>ພິມ Diagnosis ເອງ ແລ້ວກົດ Enter; ລາຍການທີ່ເຄີຍບັນທຶກຈະສະແດງໃຫ້ເລືອກຄັ້ງຕໍ່ໄປ</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecServiceDepartment">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestDeptPicker">
+                        <b>Dept.</b>
+                        <span>ພະແນກ / Department</span>
+                      </label>
+                      <select class="form-select" id="opdTestDeptPicker">
+                        <option value="general">General OPD</option>
+                        <option value="cardio">Cardiology</option>
+                        <option value="im" selected>Internal Medicine</option>
+                        <option value="obgyn">OB &amp; GYN</option>
+                        <option value="ortho">Orthopedic</option>
+                        <option value="ent">Otorhinolaryngology (ENT)</option>
+                        <option value="ophthalmology">Ophthalmology</option>
+                        <option value="hematology">Hematology</option>
+                        <option value="gastroenterology">Gastroenterology</option>
+                        <option value="endocrinology">Endocrinology</option>
+                        <option value="dermatology">Dermatology</option>
+                        <option value="neurology">Neurology</option>
+                        <option value="nephrology">Nephrology</option>
+                        <option value="urology">Urology</option>
+                        <option value="oncology">Oncology</option>
+                        <option value="peds">Pediatrics</option>
+                        <option value="family">Family Medicine</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecTreatment">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestPlan">
+                        <b>Tx</b>
+                        <span>ການປິ່ນປົວ / Treatment</span>
+                      </label>
+                      <textarea class="form-control" id="opdTestPlan" rows="2" placeholder="ແຜນການປິ່ນປົວ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12" id="opdTestSecAdvice">
+                    <div class="opdt-emr-note-field">
+                      <label for="opdTestAdvice">
+                        <b>Adv.</b>
+                        <span>ຄຳແນະນຳ / Advice</span>
+                      </label>
+                      <textarea class="form-control" id="opdTestAdvice" rows="2" placeholder="ຄຳແນະນຳ ຫຼື ຄຳເຕືອນ..."></textarea>
+                    </div>
+                  </div>
+                  <div class="col-12 opdt-inline-orders-wrap">
+                    <div class="opdt-inline-orders-heading">
+                      <span>ຄຳສັ່ງການຮັກສາ</span>
+                      <small>Orders &amp; Prescription</small>
+                    </div>
+                    <div class="opdt-inline-orders-grid">
+                      <section class="opdt-inline-order-section opdt-order-zone opdt-order-tab-panel is-lab" id="opdTestOrderPanelLab" role="tabpanel" aria-labelledby="opdTestOrderTabLab" data-opdt-order-zone="lab" data-opdt-order-panel="lab" hidden>
+                        <div class="opdt-inline-order-header">
+                          <div>
+                            <h3 id="opdTestLabHeading"><i class="fas fa-vials"></i>Lab / Laboratory</h3>
+                            <p>ການກວດຫ້ອງແລັບ · LIS</p>
+                          </div>
+                          <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນ Lab Order">
+                            <i class="fas fa-list-check"></i><strong data-opdt-investigation-total="lab">0</strong>
+                          </span>
+                        </div>
+                        <button type="button" class="btn btn-primary opdt-zone-order-btn" data-emr-action onclick="window.opdTestOpenLabPicker('lab'); return false;">
+                          <i class="fas fa-plus"></i><span>ເລືອກ Lab Order</span>
+                        </button>
+                        <div class="opdt-manual-investigation opdt-manual-investigation-quick">
+                          <input class="form-control" id="opdTestInlineLabName" placeholder="Other Lab..." aria-label="Other Lab">
+                          <button type="button" class="btn btn-outline-primary opdt-inline-add-btn" data-emr-action onclick="window.opdTestAddInlineLab('lab'); return false;" title="ເພີ່ມ Other Lab"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div id="opdTestLabRows" class="emr-order-list opdt-inline-order-list" aria-live="polite"></div>
+                        <section class="opdt-lis-results-panel opdt-zone-results-panel" id="opdTestLisResultsPanel" aria-labelledby="opdTestLisResultsHeading">
+                          <div class="opdt-lis-results-header">
+                            <h3 id="opdTestLisResultsHeading"><i class="fas fa-file-medical-alt"></i>Lab Results / LIS</h3>
+                            <div class="opdt-lis-results-actions">
+                              <span class="opdt-lis-sync-status" id="opdTestLisSyncStatus"><i class="fas fa-circle"></i>ລໍຖ້າກວດສອບ</span>
+                              <span class="opdt-lis-result-count"><strong id="opdTestLisResultCount">0</strong></span>
+                              <button type="button" class="btn btn-outline-primary" id="opdTestLisRefreshBtn" onclick="window.opdTestFetchLisResults({ manual: true }); return false;" title="ໂຫຼດຜົນໃໝ່" aria-label="ໂຫຼດຜົນ Lab ໃໝ່"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                          </div>
+                          <div class="opdt-lis-results-list" id="opdTestLisResultsList" aria-live="polite">
+                            <div class="opdt-lis-empty"><i class="fas fa-file-circle-check"></i><strong>ຍັງບໍ່ມີຜົນ Lab</strong><span>ຜົນ PDF ຈາກ LIS ຈະສະແດງຢູ່ນີ້</span></div>
+                          </div>
+                        </section>
+                      </section>
+
+                      <section class="opdt-inline-order-section opdt-order-zone opdt-order-tab-panel is-ultrasound" id="opdTestOrderPanelUltrasound" role="tabpanel" aria-labelledby="opdTestOrderTabUltrasound" data-opdt-order-zone="ultrasound" data-opdt-order-panel="ultrasound" hidden>
+                        <div class="opdt-inline-order-header">
+                          <div>
+                            <h3 id="opdTestUltrasoundHeading"><i class="fas fa-wave-square"></i>Ultrasound</h3>
+                            <p>ການກວດອັນຕຣາຊາວ · RIS</p>
+                          </div>
+                          <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນ Ultrasound Order"><i class="fas fa-list-check"></i><strong data-opdt-investigation-total="ultrasound">0</strong></span>
+                        </div>
+                        <button type="button" class="btn btn-primary opdt-zone-order-btn" data-emr-action onclick="window.opdTestOpenLabPicker('ultrasound'); return false;"><i class="fas fa-plus"></i><span>ເລືອກ Ultrasound</span></button>
+                        <div class="opdt-manual-investigation opdt-manual-investigation-quick">
+                          <input class="form-control" id="opdTestInlineUltrasoundName" placeholder="Other Ultrasound..." aria-label="Other Ultrasound">
+                          <button type="button" class="btn btn-outline-primary opdt-inline-add-btn" data-emr-action onclick="window.opdTestAddInlineLab('ultrasound'); return false;" title="ເພີ່ມ Other Ultrasound"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div id="opdTestUltrasoundRows" class="emr-order-list opdt-inline-order-list" aria-live="polite"></div>
+                        <section class="opdt-zone-results-panel is-ris" aria-labelledby="opdTestUltrasoundResultsHeading">
+                          <div class="opdt-zone-results-header">
+                            <h3 id="opdTestUltrasoundResultsHeading"><i class="fas fa-image"></i>Ultrasound Results</h3>
+                            <div class="opdt-zone-results-actions"><span>RIS</span><button type="button" class="btn btn-outline-success" onclick="window.opdTestSyncExternalResults('ultrasound'); return false;" title="ໂຫຼດສະຖານະ/ຜົນ Ultrasound" aria-label="ໂຫຼດສະຖານະ ແລະ ຜົນ Ultrasound"><i class="fas fa-sync-alt"></i></button></div>
+                          </div>
+                          <div class="opdt-zone-result-state" id="opdTestUltrasoundResultState"><i class="fas fa-images"></i><strong>ຍັງບໍ່ມີຜົນ</strong><span>ຜົນຮູບພາບ/ລາຍງານຈະສະແດງຢູ່ນີ້</span></div>
+                        </section>
+                      </section>
+
+                      <section class="opdt-inline-order-section opdt-order-zone opdt-order-tab-panel is-xray" id="opdTestOrderPanelXray" role="tabpanel" aria-labelledby="opdTestOrderTabXray" data-opdt-order-zone="xray" data-opdt-order-panel="xray" hidden>
+                        <div class="opdt-inline-order-header">
+                          <div>
+                            <h3 id="opdTestXrayHeading"><i class="fas fa-x-ray"></i>X-Ray / Radiology</h3>
+                            <p>ການກວດລັງສີ · RIS</p>
+                          </div>
+                          <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນ X-Ray Order"><i class="fas fa-list-check"></i><strong data-opdt-investigation-total="xray">0</strong></span>
+                        </div>
+                        <button type="button" class="btn btn-primary opdt-zone-order-btn" data-emr-action onclick="window.opdTestOpenLabPicker('xray'); return false;"><i class="fas fa-plus"></i><span>ເລືອກ X-Ray</span></button>
+                        <div class="opdt-manual-investigation opdt-manual-investigation-quick">
+                          <input class="form-control" id="opdTestInlineXrayName" placeholder="Other X-Ray..." aria-label="Other X-Ray">
+                          <button type="button" class="btn btn-outline-primary opdt-inline-add-btn" data-emr-action onclick="window.opdTestAddInlineLab('xray'); return false;" title="ເພີ່ມ Other X-Ray"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div id="opdTestXrayRows" class="emr-order-list opdt-inline-order-list" aria-live="polite"></div>
+                        <section class="opdt-zone-results-panel is-ris" aria-labelledby="opdTestXrayResultsHeading">
+                          <div class="opdt-zone-results-header">
+                            <h3 id="opdTestXrayResultsHeading"><i class="fas fa-file-image"></i>X-Ray Results</h3>
+                            <div class="opdt-zone-results-actions"><span>RIS</span><button type="button" class="btn btn-outline-primary" onclick="window.opdTestSyncExternalResults('xray'); return false;" title="ໂຫຼດສະຖານະ/ຜົນ X-Ray" aria-label="ໂຫຼດສະຖານະ ແລະ ຜົນ X-Ray"><i class="fas fa-sync-alt"></i></button></div>
+                          </div>
+                          <div class="opdt-zone-result-state" id="opdTestXrayResultState"><i class="fas fa-images"></i><strong>ຍັງບໍ່ມີຜົນ</strong><span>ຮູບພາບ/ລາຍງານລັງສີຈະສະແດງຢູ່ນີ້</span></div>
+                        </section>
+                      </section>
+
+                      <section class="opdt-inline-order-section opdt-order-zone opdt-order-tab-panel is-medication" id="opdTestOrderPanelMedication" role="tabpanel" aria-labelledby="opdTestOrderTabMedication" data-opdt-order-zone="medication" data-opdt-order-panel="medication" hidden>
+                        <div class="opdt-inline-order-header">
+                          <div>
+                            <h3 id="opdTestRxHeading"><i class="fas fa-pills"></i>ສັ່ງຢາ / Medication</h3>
+                            <p>Prescription · Pharmacy</p>
+                          </div>
+                          <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນລາຍການຢາ">
+                            <i class="fas fa-list-check"></i><strong data-opdt-rx-total>0</strong>
+                          </span>
+                        </div>
+                        <div class="opdt-rx-order-controls is-simple">
+                          <button type="button" class="btn btn-primary opdt-zone-order-btn" id="opdTestMedicationOrderButton" data-emr-action onclick="window.opdTestOpenMedicationPicker(); return false;">
+                            <i class="fas fa-plus"></i>
+                            <span id="opdTestMedicationOrderButtonLabel">ເລືອກລາຍການຢາ</span>
+                          </button>
+                        </div>
+                        <div class="opdt-allergy-safety-note">
+                          <i class="fas fa-hand-paper"></i>
+                          <span id="opdTestAllergySafetyText">ກວດສອບປະຫວັດແພ້ຢາກ່ອນສັ່ງຢາ</span>
+                        </div>
+                        <div id="opdTestRxRows" class="emr-order-list opdt-inline-order-list" aria-live="polite"></div>
+                        <section class="opdt-zone-results-panel is-pharmacy" aria-labelledby="opdTestPharmacyStatusHeading">
+                          <div class="opdt-zone-results-header">
+                            <h3 id="opdTestPharmacyStatusHeading"><i class="fas fa-prescription-bottle-medical"></i>Pharmacy Status</h3>
+                            <div class="opdt-zone-results-actions"><span>Rx</span><button type="button" class="btn btn-outline-warning" onclick="window.opdTestSyncExternalResults('medication'); return false;" title="ໂຫຼດສະຖານະຈ່າຍຢາ" aria-label="ໂຫຼດສະຖານະຈ່າຍຢາ"><i class="fas fa-sync-alt"></i></button></div>
+                          </div>
+                          <div class="opdt-zone-result-state" id="opdTestPharmacyResultState"><i class="fas fa-prescription-bottle"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ສະຖານະຈ່າຍຢາຈະສະແດງຢູ່ນີ້</span></div>
+                        </section>
+                      </section>
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <div class="opdt-paper-closing-grid">
+                      <div id="opdTestSecDoctor">
+                        <label class="form-label fw-bold required" for="opdTestDoctor">ແພດຜູ້ກວດ / Doctor</label>
+                        <select class="form-select dyn-Doctor" id="opdTestDoctor" required onchange="window.opdTestAssignDoctor(this.value);">
+                          <option value="ດຣ. ສົມຊາຍ ວົງພະຈັນ" selected>ດຣ. ສົມຊາຍ ວົງພະຈັນ</option>
+                        </select>
+                      </div>
+                      <div id="opdTestSecFollowUp">
+                        <label class="form-label fw-bold" for="opdTestFollowUp">ນັດໝາຍຕໍ່ໄປ / Next Follow-up <span class="opdt-optional-label">ບໍ່ບັງຄັບ</span></label>
+                        <input type="date" class="form-control" id="opdTestFollowUp" autocomplete="off">
+                      </div>
+                      <div id="opdTestSecDischarge">
+                        <label class="form-label fw-bold text-danger required" for="opdTestDischargeStatus">ຜົນສະຫຼຸບການກວດ / Visit Disposition</label>
+                        <input type="text" class="form-control" id="opdTestDischargeStatus" list="opdTestDispositionSuggestions" autocomplete="off" placeholder="ພິມ ຫຼື ເລືອກຜົນສະຫຼຸບ..." required aria-required="true" oninput="window.opdTestSetDisposition(this.value)">
+                        <datalist id="opdTestDispositionSuggestions">
+                          <option value="Home">ກັບບ້ານ / Home</option>
+                          <option value="Observe">ຕິດຕາມອາການ OPD / OPD Observation</option>
+                          <option value="Admit">ເຂົ້ານອນ IPD / Admit</option>
+                          <option value="Refer">ສົ່ງຕໍ່ໂຮງໝໍອື່ນ / Transfer</option>
+                          <option value="LAMA">ປະຕິເສດການຮັກສາ / LAMA</option>
+                        </datalist>
+                      </div>
+                    </div>
+                    <div class="opdt-disposition-details" id="opdTestDispositionDetails" hidden>
+                      <div class="opdt-disposition-detail" id="opdTestAdmitFields" hidden>
+                        <label class="form-label fw-bold required" for="opdTestAdmitWard">ພະແນກຮັບເຂົ້ານອນ / Receiving Ward</label>
+                        <select class="form-select" id="opdTestAdmitWard">
+                          <option value="">-- ກະລຸນາເລືອກພະແນກ --</option>
+                          <option value="Medical Ward">Medical Ward</option>
+                          <option value="Surgical Ward">Surgical Ward</option>
+                          <option value="Pediatric Ward">Pediatric Ward</option>
+                          <option value="Maternity Ward">Maternity Ward</option>
+                          <option value="ICU">ICU</option>
+                        </select>
+                      </div>
+                      <div class="opdt-disposition-detail opdt-disposition-detail-grid" id="opdTestTransferFields" hidden>
+                        <div>
+                          <label class="form-label fw-bold required" for="opdTestTransferHospital">ໂຮງໝໍປາຍທາງ / Destination Hospital</label>
+                          <input type="text" class="form-control" id="opdTestTransferHospital" placeholder="ລະບຸໂຮງໝໍປາຍທາງ...">
+                        </div>
+                        <div>
+                          <label class="form-label fw-bold required" for="opdTestTransferReason">ເຫດຜົນສົ່ງຕໍ່ / Transfer Reason</label>
+                          <input type="text" class="form-control" id="opdTestTransferReason" placeholder="ລະບຸເຫດຜົນສົ່ງຕໍ່...">
+                        </div>
+                      </div>
+                      <div class="opdt-disposition-detail" id="opdTestLamaFields" hidden>
+                        <label class="form-label fw-bold required" for="opdTestLamaReason">ເຫດຜົນປະຕິເສດການຮັກສາ / LAMA Reason</label>
+                        <textarea class="form-control" id="opdTestLamaReason" rows="2" placeholder="ບັນທຶກເຫດຜົນ ແລະຄຳອະທິບາຍທີ່ໄດ້ໃຫ້ຄົນເຈັບ..."></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <footer class="emr-his-footer opdt-emr-footer">
+        <div class="emr-his-footer-meta">
+          <i class="fas fa-info-circle"></i>
+          <span id="opdTestCompleteReason">ການວິນິດໄສ ແລະ ຜົນສະຫຼຸບການກວດເປັນຂໍ້ບັງຄັບ.</span>
+          <span class="opdt-save-state is-unsaved" id="opdTestSaveStatus" role="status" aria-live="polite">ຍັງບໍ່ບັນທຶກ</span>
+        </div>
+        <div class="emr-his-footer-actions">
+          <button type="button" class="btn emr-his-btn-ghost opdt-emr-draft-btn" data-emr-action onclick="window.opdTestSaveDraft(); return false;" title="ບັນທຶກຮ່າງ" aria-label="ບັນທຶກຮ່າງ">
+            <i class="far fa-save"></i>
+          </button>
+          <button type="button" class="btn emr-his-btn-ghost btn-opd-print opdt-clinical-only" onclick="window.opdTestPrintOpdCard(); return false;" title="ພິມໃບ OPD">
+            <i class="fas fa-print me-1"></i>ພິມໃບ OPD
+          </button>
+          <button type="button" class="btn emr-his-btn-ghost opdt-emr-cancel-btn" onclick="window.opdTestRequestExit(); return false;">
+            <i class="fas fa-times me-1"></i>ຍົກເລີກ
+          </button>
+          <button type="submit" form="opdTestEmrForm" class="btn emr-his-btn-primary" id="opdTestCompleteBtn" data-emr-action>
+            <i class="fas fa-save me-2"></i>ບັນທຶກຜົນການກວດ
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+</div>

@@ -45,7 +45,7 @@
           <div class="row g-3 mt-1">
             <div class="col-md-6">
               <label class="form-label fw-bold">ລະຫັດຜ່ານ <span class="text-muted small fw-normal">(ຖ້າແກ້ໄຂ ປ່ອຍວ່າງໄດ້)</span></label>
-              <input type="password" class="form-control" id="u_pass" placeholder="ລະຫັດຜ່ານ...">
+              <input type="password" class="form-control" id="u_pass" minlength="6" placeholder="ຢ່າງໜ້ອຍ 6 ຕົວ...">
             </div>
             <div class="col-md-6">
               <label class="form-label fw-bold required">ສິດ (Role)</label>
@@ -55,7 +55,7 @@
                 <option value="doctor">👨‍⚕️ Doctor (ແພດ)</option>
                 <option value="nurse">👩‍⚕️ Nurse (ພະຍາບານ)</option>
                 <option value="lab">🔬 Lab Technician</option>
-                <option value="pharmacy">💊 Pharmacy (ເຈົ້າໜ້າທີ່ຢາ)</option>
+                <option value="pharmacy" disabled>💊 Pharmacy (ຈະເປີດໃຊ້ໃນລຸ້ນຕໍ່ໄປ)</option>
                 <option value="reception">📋 Reception (ຝ່າຍຕ້ອນຮັບ)</option>
                 <option value="cashier">💰 Cashier (ຝ່າຍການເງິນ)</option>
                 <option value="staff">👤 Staff (ພະນັກງານທົ່ວໄປ)</option>
@@ -83,8 +83,15 @@
               <div class="col-md-3">
                 <div class="form-check p-2 border rounded bg-white">
                   <input class="form-check-input permission-check" type="checkbox" value="report" id="perm_report">
-                  <label class="form-check-label fw-bold" for="perm_report">📋 Report</label>
-                  <div class="small text-muted">ເບິ່ງລາຍງານ</div>
+                  <label class="form-check-label fw-bold" for="perm_report">📋 ຄິວຄົນເຈັບ</label>
+                  <div class="small text-muted">ເບິ່ງຄິວປະຈຳວັນ</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check p-2 border rounded bg-white">
+                  <input class="form-check-input permission-check" type="checkbox" value="visit_history" id="perm_visit_history">
+                  <label class="form-check-label fw-bold" for="perm_visit_history">🕘 ປະຫວັດການກວດ</label>
+                  <div class="small text-muted">ເບິ່ງ Timeline ຄົນເຈັບ</div>
                 </div>
               </div>
               <div class="col-md-3">
@@ -106,6 +113,13 @@
                   <input class="form-check-input permission-check" type="checkbox" value="opd" id="perm_opd">
                   <label class="form-check-label fw-bold" for="perm_opd">🩺 OPD</label>
                   <div class="small text-muted">ຫ້ອງກວດ/EMR</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check p-2 border rounded bg-white">
+                  <input class="form-check-input permission-check" type="checkbox" value="opd_observation" id="perm_opd_observation">
+                  <label class="form-check-label fw-bold" for="perm_opd_observation">🛏️ ນອນ OPD</label>
+                  <div class="small text-muted">ຕິດຕາມອາການ OPD</div>
                 </div>
               </div>
               <div class="col-md-3">
@@ -134,6 +148,20 @@
                   <input class="form-check-input permission-check" type="checkbox" value="vaccines" id="perm_vaccines">
                   <label class="form-check-label fw-bold" for="perm_vaccines">💉 Vaccines</label>
                   <div class="small text-muted">ວັກຊີນ</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check p-2 border rounded bg-white">
+                  <input class="form-check-input permission-check" type="checkbox" value="ipd_ward_bed" id="perm_ipd_ward_bed">
+                  <label class="form-check-label fw-bold" for="perm_ipd_ward_bed">🏥 IPD Ward/Bed</label>
+                  <div class="small text-muted">ເບິ່ງຫວອດ ແລະ ຕຽງ</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check p-2 border rounded bg-white">
+                  <input class="form-check-input permission-check" type="checkbox" value="ipd_inpatient_list" id="perm_ipd_inpatient_list">
+                  <label class="form-check-label fw-bold" for="perm_ipd_inpatient_list">📋 IPD Patients</label>
+                  <div class="small text-muted">ລາຍຊື່ ແລະ Chart IPD</div>
                 </div>
               </div>
               <div class="col-md-3">

@@ -1,8 +1,12 @@
+import { requireHisAdmin } from '../../_utils/his-auth.js';
+
 // POST /api/backup/signed-url  { path: "backup-2026-06-28.zip", expires?: 3600 }
 // Returns a one-time signed download URL for a backup ZIP in Supabase Storage.
 
 export async function onRequestPost(ctx) {
   const { request, env } = ctx;
+  const auth = await requireHisAdmin(ctx);
+  if (auth.response) return auth.response;
 
   const supabaseUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || '';

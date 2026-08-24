@@ -1,4 +1,5 @@
 import { ghRequest } from '../../_utils/gh-api.js';
+import { requireHisAdmin } from '../../_utils/his-auth.js';
 
 // GET /api/backup/runs?limit=10
 // Returns the last N workflow runs for the backup workflow — used by the
@@ -7,6 +8,8 @@ import { ghRequest } from '../../_utils/gh-api.js';
 
 export async function onRequestGet(ctx) {
   const { request, env } = ctx;
+  const auth = await requireHisAdmin(ctx);
+  if (auth.response) return auth.response;
 
   try {
     const url = new URL(request.url);

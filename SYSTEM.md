@@ -589,3 +589,87 @@ Regression I introduced: commit 64372f6 ("ship pending work") unintentionally ca
 
 ### 2026-07-17 (v2) — sticker font enlargement reverted per user
 User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exactly as the last-good version, no font changes. Reverted .pcard-label/.pcard-value/.pcard-time/.pcard-name and .pcard-info gap to 26/30/30/32px + 2.2mm — the pcard CSS block, sticker markup in print-areas.html, and printQRCard now match commit 70514f3 byte-for-byte except the intentional formatAgeFromDob age line (infants show months/days). Verified with git diff against 70514f3. Awaiting user print-preview test before commit.
+
+## 2026-07-22 — OPD Test EMR: consolidated JS/CSS + first-time-doctor UX (local, not committed)
+
+- `src/main.js` tail: OPD Test now has ONE block (`window.opdTestState`, `opdTestKeyHandler`); the stacked v10-followup + Phase 1 + Phase 1.5 duplicate blocks (~840 lines of dead code) were deleted. File 18,401 → 17,932 lines. Entry point unchanged: `loadView('opd_test')` calls `opdTestRefreshSimple()`.
+- `src/style.css`: pruned ~600 lines of orphan `.emrt-*/.opdt-*` rules from old v1–v10 layouts (kept everything referenced by current opd_test.html/JS); added `.opdt-step-nav`.
+- `public/partials/views/opd_test.html`: added prev/next buttons per step (`opdTestGoStep`), Enter-to-pick in ICD-10 search (`opdTestDxSearchKeydown`), one-click medication templates (add directly to list), skip note on orders step, CC `oninput` live step checkmark. `opdTestCompleteVisit` now jumps to the missing step and allows 0 medications after a Swal confirm.
+- Details: docs/DOCTOR_EMR_SIMPLIFICATION_PHASE1_5.md (2026-07-22 section). Tested in live app via logged-in Chrome; NOT committed/pushed per user instruction.
+
+## 2026-07-22 (v2) — OPD Test EMR collapsed to single-page workflow (local, not committed)
+
+- Feedback "ບັນທຶກຄົນເຈັບ 1 ຄົນດົນເກີນໄປ": removed the 5-pane step navigation entirely. opd_test.html is now ONE scrollable page with 4 numbered sections (ອາການ / ວິນິດໄສ / ສັ່ງກວດ optional / ຢາ) + collapsed assessment-plan + big complete button. Common case = 3 clicks.
+- main.js opdTest block rewritten again: no SwitchTab/GoStep/StepPanes/EncounterReview; new `opdTestFocusSection` (failed validation scrolls+focuses the missing section) and `opdTestRefreshChecks` (green ✓ per section head). LIS send no longer pops a modal — inline status badge only.
+- style.css: second prune pass + new `.opdt-flow-*`/`.opdt-order-inline` styles; restored `.opdt-med-list > div` grid row lost in first prune.
+- Details: docs/DOCTOR_EMR_SIMPLIFICATION_PHASE1_5.md (2026-07-22 v2). Tested in live Chrome; NOT committed per user instruction.
+
+## 2026-07-22 (v3) — OPD Test EMR Phase 3A: formal 8-section single page (local, not committed)
+
+- Per user-approved plan (docs/DOCTOR_EMR_FORMAL_PLAN.md): opd_test.html rebuilt as 8 numbered sections — S(CC/HPI/PMH/family/social) · O(PE required + ROS collapsed) · Dx(+certainty toggle) · Orders(+priority) · Meds+procedures · Advice/follow-up · Disposition (6 big buttons, Refer needs destination) · Sign-off (doctor+license+timestamp, audit note, post-lock print bar with 5 placeholder docs for Phase 3C).
+- main.js: opdTestPushMedication with penicillin-group allergy confirm (Amoxicillin template demos it), opdTestSetDisposition, opdTestToggleDxCertainty, opdTestPrintDoc placeholder, sign/audit rendering in refreshSimple; state adds disposition/signedAt.
+- style.css: .opdt-check-row/.opdt-dispo-row/.opdt-order-side/.opdt-sign-strip/.opdt-audit-note/.opdt-print-row/.opdt-dx-cert; selected-list grid now 5 columns; med-list/empty-inline grid exclusion fixes.
+- Full flow tested in live Chrome (dx Enter, allergy warning confirm/cancel, dispo, sign → lock → print bar). NOT committed per user instruction.
+
+## 2026-07-22 (v4) — OPD Test EMR: patient info moved into left column (local, not committed)
+
+- Removed the top patient header entirely from opd_test.html; new `.opdt-side-patient` block at the top of the left column holds avatar/name/HN-VN, age/sex/chronic/status rows, allergy box (.opdt-side-allergy), and the action buttons (save draft icon, complete, back) — ids unchanged so main.js needed no edits.
+- style.css: third prune pass removed old header rules (opdt-fixed-patient/s15-header/patient-facts/header-actions); added .opdt-side-* styles.
+- Verified in live Chrome: layout correct, complete-button validation still scrolls+focuses missing section. NOT committed.
+
+## 2026-07-22 (v5) — OPD Test EMR: sticky patient sidebar (local, not committed)
+
+- User couldn't see patient info when scrolled to sections 5-8. `.opdt-clinical-summary` is now sticky (top:70px, max-height:calc(100vh-86px), internal thin scrollbar) at >=992px. Root cause of first attempt failing: `.opdt-s15-layout` uses align-items:flex-start so the left col was only as tall as the aside — fixed with `align-self: stretch` on the first col. Verified in live Chrome at full scroll depth.
+
+## 2026-07-22 (v6) — OPD Test EMR: lab orders are now a persistent recorded list (local, not committed)
+
+- Ticked tests + ສົ່ງ LIS now append to `opdTestState.orders` rows (name, time, LIS batch no, priority, cancel button) rendered in #opdTestOrderRows with .opdt-med-list styling; checkboxes clear after send so multiple batches work; duplicates skipped with an info alert. state ordersSent/orderNo/sentOrderItems removed; new opdTestRemoveOrder/opdTestRenderOrders; results derived from all recorded orders ("x/n ມີຜົນ" summary); sign-off warns on ticked-but-unsent boxes. Tested live: 2-batch order (CBC+CRP then X-Ray) records 3 rows with 2 batch numbers.
+
+## 2026-07-22 (v7) — OPD Card: insurance badge under logo + equal-size logos (local, not committed)
+
+- print-areas.html: added `#popd_insurance_badge` (label + name) inside `.opdref-header-left` of OPD Card page 1; hidden by default.
+- main.js printOPDCard: after setting popd_coverage, toggle badge visible when printOrg.name is non-empty.
+- style.css: `.opdref-header-row` uses `align-items: start` + `.opdref-header-left` uses `flex-direction: column; padding-top: 0` (both pages) — logo sits at top of the sheet with room for the badge underneath. `.opdref-p2-header-row` logo/columns normalized to page-1 sizes (44mm×34mm, cols 48mm/1fr/64mm). New `.opdref-insurance-badge/-label/-name` styles (blue tinted box).
+- Docs: docs/PATIENT_STICKER.md (2026-07-22 section). NOT committed — awaiting print-preview test by user.
+
+## 2026-07-22 (v8) — OPD Card insurance line + page-2 mirror + logos pulled up (local)
+
+- Replaced the blue badge with a plain-font line: `.opdref-insurance-line` (label 10pt black `ປະກັນໄພ/Insurance:` + name 10pt red `#c62828` bold). Same element rendered on page 2 (`#popd2_insurance_badge/#popd2_insurance_name`); printOPDCard JS loop sets both prefixes. Header rows get `margin-top: -3mm` on both pages/media so logos sit near the top edge. NOT committed.
+
+## 2026-07-22 (v9) — OPD Card insurance now a normal patient-info row (local, not committed)
+
+- Reverted the -3mm header-row shift that clipped page-1 top content. Insurance moved from under the logo to a full-width patient-info row inside `.opdref-sheet` right above "Client's Profile" (page 1) and inside `.opdref-p2-header` above the name row (page 2). Row uses .opdref-row + .opdref-fill so font matches ຄຳນຳໜ້າ (Times 12.5pt with underline); only `.opdref-insurance-name` remains red bold. Page-2 header-right (ID/barcode/date) gets margin-top:3mm so it isn't clipped. JS id renamed from *_insurance_badge → *_insurance_row.
+
+## 2026-07-22 (v10) — Patient view modal: flat clinical redesign (local, not committed)
+
+- User: "ປັບໜ້າ View ນີ້ນຳໃຫ້ເປັນ desing ດຽວກັນກັບລະບົບ ມັນຄື AI ໂພດ" — the profile modal used a purple/blue gradient header, giant circular avatar, rounded-pill buttons, per-section colours (primary/danger/success/warning/secondary on each card).
+- Rewrote #patientProfileModal in patient-modal.html to match repo house style: solid `bg-primary` header with a compact 52px square photo + name + HN badge inline; `card card-outline card-primary shadow-sm` per section with uniform `text-dark` headings and single `text-info` icon accent (matches OPD view pattern per docs/PATIENT_ORG_DROPDOWN_FIX.md); simple `.btn-outline-secondary`/`.btn-primary` footer.
+- New CSS block appended to style.css scoped to `#patientProfileModal`: `.patient-view-photo` (square avatar), `.patient-view-grid .pvg-label/.pvg-value` (compact key-value pairs). All ids preserved so viewPatientDetail JS in main.js needed no edit.
+- NOT committed — awaiting user visual check.
+
+## 2026-07-23 — OPD Test EMR Phase 2: dept template engine + progress strip + summary preview (local, not committed)
+
+- `public/partials/views/opd_test.html` rewritten: sticky 5-step progress strip on top of workspace card; dept picker in sidebar (7 depts); symptom/med/dx chip rows driven by `opdTestDeptTemplates`; STAT priority + `ຢືນຢັນສົ່ງຄຳສັ່ງກວດ` label; new #opdTestSecSummary between sections 6 and 7; hint bubbles per section (localStorage-dismiss key `his_opd_test_hints_dismissed`); expanded lab options; `ເບິ່ງທັງໝົດ` history button; follow-up preset row (None/3d/7d/14d/Custom); Advice quick-chip row.
+- `src/main.js` opdTest block rewritten (~600 lines): new `opdTestDeptTemplates` (7 depts × 5 lists), `opdTestApplyDept`, `opdTestAppendChip`, `opdTestSetFollowup`, `opdTestRenderSummaryPreview`, `opdTestRenderProgress`, `opdTestDismissHint`, `opdTestShowFullHistory`, `opdTestInit`. Certainty toggle now 3-way (Primary→Secondary→Suspected); sendOrders shows Swal confirm summary; completeVisit collects missing[] into one Swal (REQUIRED = CC + ≥1 Dx + (Assessment or Plan) + Disposition); results render ↑/↓ arrows + reference ranges. `main.js:3592` hook now calls `opdTestInit` (was `opdTestRefreshSimple`) so chip rendering happens after partial loads.
+- `src/style.css` appended: `.opdt-progress-strip/.opdt-progress-step` (done/partial/empty), `.opdt-chip`, `.opdt-hint`, `.opdt-dx-cert.is-primary/is-secondary/is-suspected`, `.opdt-result-card .is-low`, `.opdt-followup-presets`, `.opdt-summary-grid`.
+- Verified via Chrome tab (localhost:5175/opd/test) 20-step beginner scenario — all pass. `npm run build` OK (761 KB / 179 KB gzip). NOT committed.
+
+## 2026-07-23 (v2) — OPD Test EMR compact fit-to-screen pass (local, not committed)
+
+- Feedback "ໃຫ້ພໍດີໜ້າ": halved padding/margins and dropped font sizes by 1–2pt across the workspace. `.opdt-flow-section` padding 12→8px, head circles 24→20px, h5 15→13px, card-body 16→10px. Progress strip flipped from vertical column to compact 2-column grid (number + label/status) and shrank from ~90px tall to ~52px. Chips 12→11.5px, hints 12.5→11.5px, form-controls default 30px min-height with 12.5px text, textareas start at 42px. Full detail table in docs/DOCTOR_EMR_SIMPLIFICATION_PHASE1_5.md. Verified in Chrome; NOT committed.
+
+## 2026-07-23 (v3) — Visit History: add Insurance/Organization column (local, not committed)
+
+- `public/partials/views/visit_history.html`: added `<th>ປະກັນໄພ/ອົງກອນ</th>` between "ຈຳນວນຄັ້ງມາກວດ" and "ພະແນກຫຼ້າສຸດ".
+- `src/main.js`:
+  - New `window.renderInsuranceOrgBadge(row)` (~line 4996): reads `row.Insurance_Company || row.Organization_Name || row.Name_Org`, renders a colored pill; same name → same color via a 9-color palette hashed off the string. Empty rows render a neutral dash.
+  - `renderVisitHistoryPage` now inserts the badge cell between visit count and department; `colspan` loader row 9→10, DataTable non-sortable target 8→9. Existing `buildPatientVisitSummaryData` spreads `...p` so the insurance fields are already on each row — no extra Supabase fetch.
+- Not committed. Manual verify pending (my new browser tab isn't logged in).
+
+## 2026-08-24 — Production release: OPD EMR cutover and backup hardening
+
+- Promoted the tested OPD clinical EMR to the production OPD flow. `/opd` remains the patient queue, selected encounters open at `/opd/consultation`, and `/opd/test` remains only as a compatibility alias. The separate OPD Test navigation item was removed.
+- Kept the secure index-based public-call control in the OPD queue and normalized the queue action labels for new, waiting-Lab, and previously examined encounters.
+- Upgraded Wrangler to v4, cleared all npm audit findings, and removed the obsolete Pages `_redirects` SPA rule; Wrangler/Pages now serves direct application routes through its built-in SPA fallback.
+- Hardened scheduled backup behavior: Supabase Storage remains the required primary backup, Google Drive is reported as an optional secondary copy, revoked OAuth can fall back to a configured service account, and backup Cloudflare APIs require an active Admin session.
+- Release evidence and verification results are recorded in `docs/RELEASE_READINESS_2026-08-24.md`.

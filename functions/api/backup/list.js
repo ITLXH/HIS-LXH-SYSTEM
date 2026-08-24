@@ -1,9 +1,52 @@
+import { requireHisAdmin } from '../../_utils/his-auth.js';
+
 // GET /api/backup/list
 // Lists backup ZIP files in the Supabase Storage bucket so the UI can show
 // real artifact history and offer a restore picker.
 
+export async function collectBackupZipFiles(listPrefix) {
+  const zips = [];
+
+  async function collectZips(prefix, depth) {
+    if (depth > 4) return;
+    const items = await listPrefix(prefix);
+    for (const it of items) {
+      if (!it || !it.name) continue;
+      const full = prefix ? `${prefix}/${it.name}` : it.name;
+      const isFolder = it.id === null || it.id === undefined;
+      if (isFolder) {
+        await collectZips(full, depth + 1);
+      } else if (it.name.toLowerCase().endsWith('.zip')) {
+        zips.push({
+          name: full,
+          size: it.metadata?.size ?? null,
+          created_at: it.created_at || it.updated_at || it.metadata?.lastModified || null,
+          path: full,
+        });
+      }
+    }
+  }
+
+  const rootItems = await listPrefix('');
+  for (const it of rootItems) {
+    if (!it || !it.name || it.id === null || it.id === undefined) continue;
+    if (!it.name.toLowerCase().endsWith('.zip')) continue;
+    zips.push({
+      name: it.name,
+      size: it.metadata?.size ?? null,
+      created_at: it.created_at || it.updated_at || it.metadata?.lastModified || null,
+      path: it.name,
+    });
+  }
+
+  await collectZips('backups', 0);
+  return zips;
+}
+
 export async function onRequestGet(ctx) {
   const { env } = ctx;
+  const auth = await requireHisAdmin(ctx);
+  if (auth.response) return auth.response;
 
   const supabaseUrl = (env.SUPABASE_URL || '').replace(/\/+$/, '');
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -49,33 +92,12 @@ export async function onRequestGet(ctx) {
     return Array.isArray(items) ? items : [];
   }
 
-  // Recursively collect .zip files. Depth cap guards against runaway loops.
-  async function collectZips(prefix, depth, acc) {
-    if (depth > 5) return;
-    const items = await listPrefix(prefix);
-    for (const it of items) {
-      if (!it || !it.name) continue;
-      const full = prefix ? `${prefix}/${it.name}` : it.name;
-      const isFolder = it.id === null || it.id === undefined;
-      if (isFolder) {
-        await collectZips(full, depth + 1, acc);
-      } else if (it.name.toLowerCase().endsWith('.zip')) {
-        acc.push({
-          name: full,
-          size: it.metadata?.size ?? null,
-          created_at: it.created_at || it.updated_at || it.metadata?.lastModified || null,
-          // Full object path — used by signed-url / restore endpoints
-          path: full,
-        });
-      }
-    }
-  }
-
+  // Recursively collect .zip files only inside the backup archive tree.
+  // The bucket also contains content-addressed application Storage blobs under
+  // blobs/sha256. Walking from the bucket root used to traverse those blobs and
+  // exceed the Cloudflare Worker subrequest limit.
   try {
-    const zips = [];
-    // Walk from the root so both legacy root-level zips and the current
-    // backups/YYYY/MM/ layout are covered.
-    await collectZips('', 0, zips);
+    const zips = await collectBackupZipFiles(listPrefix);
     zips.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
     return new Response(

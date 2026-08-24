@@ -6,12 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:opd": "node scripts/test-opd-persistence.mjs",
+    "test:opd-print": "node scripts/test-opd-order-print.mjs",
+    "render:opd-print": "node scripts/render-opd-order-print-samples.mjs",
+    "test:auth": "node scripts/test-auth-guards.mjs",
+    "test:security": "node scripts/test-security-hardening.mjs",
+    "test:backup": "node scripts/test-backup-automation.mjs",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --compatibility-date=2024-01-01"
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.125.0"
   },
   "overrides": {
     "vite": "^6.0.0"
