@@ -10693,9 +10693,12 @@ window.printOPDCard = async function (s, i, overrideVisit = null) {
     safeSetText('popd2_w', v.weight ? v.weight + ' kg' : '');
     safeSetText('popd2_h', v.height ? v.height + ' cm' : '');
     safeSetText('popd2_bmi', bmiText && bmiText !== '-' ? bmiText : '');
-    safeSetText('popd2_follow_symptoms', v.opdPrintSymptoms || v.symptoms || '');
-    safeSetText('popd2_follow_treatment', v.opdPrintTreatment || v.treatment || '');
-    safeSetText('popd2_follow_notes', v.opdPrintNotes || v.notes || v.advice || '');
+    // A card printed by triage is a blank follow-up sheet for later clinical notes.
+    // Clear every cell explicitly so a previous doctor print cannot leak into it.
+    const isTriagePrint = s === 'triage';
+    safeSetText('popd2_follow_symptoms', isTriagePrint ? '' : (v.opdPrintSymptoms || v.symptoms || ''));
+    safeSetText('popd2_follow_treatment', isTriagePrint ? '' : (v.opdPrintTreatment || v.treatment || ''));
+    safeSetText('popd2_follow_notes', isTriagePrint ? '' : (v.opdPrintNotes || v.notes || v.advice || ''));
 
     // Page 2 header assets (logo + red ID + barcode + date) — mirror Page 1.
     const p2logo = document.getElementById('print-opd-p2-logo');
