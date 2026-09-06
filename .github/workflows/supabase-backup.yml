@@ -12,7 +12,7 @@ on:
         default: 'manual'
 
 env:
-  RETENTION_DAYS: 30
+  RETENTION_DAYS: 36500
 
 permissions:
   contents: read
