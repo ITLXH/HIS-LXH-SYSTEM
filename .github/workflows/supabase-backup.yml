@@ -24,7 +24,9 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # The first Drive seed transfers the existing application Storage once.
+    # Later runs upload only new content-addressed blobs.
+    timeout-minutes: 360
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,17 +74,19 @@ jobs:
           echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
 
       - name: Upload to Google Drive
-        # Destination 2 — database/settings ZIP only. Supabase remains the
-        # complete destination for application Storage files. Drive is an
-        # optional secondary copy, so credential expiry must not mark a
-        # verified Supabase backup as failed.
+        # Destination 2 — complete independent backup. The manifest ZIP is
+        # uploaded daily; application Storage blobs are deduplicated by SHA-256.
+        # This step only reads the Supabase backup bucket.
         id: gdrive
         continue-on-error: true
         env:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          GDRIVE_STORAGE_WORKERS: '6'
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
+          OUTPUT_DIR: output
         run: |
           if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
             echo "::notice::Google Drive upload skipped — credentials not set"
@@ -137,6 +141,8 @@ jobs:
           echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
           echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
           echo "drive_sidecars=${{ steps.gdrive.outputs.drive_sidecars || '0' }}" >> $GITHUB_OUTPUT
+          echo "drive_uploaded_sidecars=${{ steps.gdrive.outputs.drive_uploaded_sidecars || '0' }}" >> $GITHUB_OUTPUT
+          echo "drive_uploaded_bytes=${{ steps.gdrive.outputs.drive_uploaded_bytes || '0' }}" >> $GITHUB_OUTPUT
           echo "drive_scope=${{ steps.gdrive.outputs.drive_scope || '' }}" >> $GITHUB_OUTPUT
 
       - name: Backup summary
@@ -167,7 +173,7 @@ jobs:
           if [[ "${{ steps.gdrive.outcome }}" == "failure" ]]; then
             echo "| Destination 2 (Google Drive) | ⚠️ Optional copy failed; primary Supabase backup remains valid |" >> "$GITHUB_STEP_SUMMARY"
           elif [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
-            echo "| Destination 2 (Google Drive) | [Open database-only copy ↗](${{ steps.outputs.outputs.drive_url }}) — application Storage stays in Supabase |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Destination 2 (Google Drive) | [Open complete backup ↗](${{ steps.outputs.outputs.drive_url }}) — ${{ steps.outputs.outputs.drive_sidecars || '0' }} Storage objects indexed; ${{ steps.outputs.outputs.drive_uploaded_sidecars || '0' }} new blobs / ${{ steps.outputs.outputs.drive_uploaded_bytes || '0' }} bytes uploaded |" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"
           fi
