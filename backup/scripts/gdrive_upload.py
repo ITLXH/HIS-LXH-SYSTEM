@@ -17,6 +17,8 @@ import mimetypes
 import os
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import quote
 
@@ -280,19 +282,30 @@ def upload_complete_bundle(zip_path, root_folder_id):
         unique_objects.setdefault(obj["sha256"], (bucket_id, obj))
         objects_by_sha.setdefault(obj["sha256"], []).append((bucket_id, obj))
 
+    upload_workers = max(1, int(os.environ.get("GDRIVE_UPLOAD_WORKERS", "1")))
+    thread_context = threading.local()
+
     with tempfile.TemporaryDirectory(prefix="his-drive-") as temp_dir:
-        for completed, (sha, (bucket_id, obj)) in enumerate(unique_objects.items(), start=1):
+        def handle_blob(item):
+            sha, (bucket_id, obj) = item
             expected_size = int(obj["size_bytes"])
             candidates = existing.get(sha, [])
             drive_blob = next(
                 (item for item in candidates if int(item.get("size", -1)) == expected_size),
                 None,
             )
+            created = False
             if not drive_blob:
                 local_path = _materialize_blob(output_dir, bucket_id, obj, temp_dir)
                 content_type = obj.get("content_type") or mimetypes.guess_type(obj["name"])[0]
+                worker_drive = drive
+                if upload_workers > 1:
+                    worker_drive = getattr(thread_context, "drive", None)
+                    if worker_drive is None:
+                        worker_drive = build_drive()
+                        thread_context.drive = worker_drive
                 drive_blob = upload_binary(
-                    drive,
+                    worker_drive,
                     local_path,
                     {
                         "name": f"blob-{sha}",
@@ -306,23 +319,30 @@ def upload_complete_bundle(zip_path, root_folder_id):
                     },
                     content_type,
                 )
-                existing.setdefault(sha, []).append(drive_blob)
-                uploaded_count += 1
-                uploaded_bytes += expected_size
+                created = True
                 if local_path.parent == Path(temp_dir):
                     local_path.unlink(missing_ok=True)
+            return sha, drive_blob, created, expected_size
 
-            for _source_bucket, source_obj in objects_by_sha[sha]:
-                sidecar_index[source_obj["backup_object"]] = {
-                    "file_id": drive_blob["id"],
-                    "size_bytes": int(source_obj["size_bytes"]),
-                    "sha256": sha,
-                }
-            if completed % 25 == 0 or completed == len(unique_objects):
-                print(
-                    f"    Drive Storage verified: {completed}/{len(unique_objects)} unique blobs "
-                    f"({uploaded_count} uploaded)"
-                )
+        with ThreadPoolExecutor(max_workers=upload_workers) as pool:
+            futures = [pool.submit(handle_blob, item) for item in unique_objects.items()]
+            for completed, future in enumerate(as_completed(futures), start=1):
+                sha, drive_blob, created, expected_size = future.result()
+                if created:
+                    uploaded_count += 1
+                    uploaded_bytes += expected_size
+                    existing.setdefault(sha, []).append(drive_blob)
+                for _source_bucket, source_obj in objects_by_sha[sha]:
+                    sidecar_index[source_obj["backup_object"]] = {
+                        "file_id": drive_blob["id"],
+                        "size_bytes": int(source_obj["size_bytes"]),
+                        "sha256": sha,
+                    }
+                if completed % 25 == 0 or completed == len(unique_objects):
+                    print(
+                        f"    Drive Storage verified: {completed}/{len(unique_objects)} unique blobs "
+                        f"({uploaded_count} uploaded, {upload_workers} workers)"
+                    )
 
         index_payload = {
             "format_version": 1,
