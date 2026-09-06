@@ -176,6 +176,51 @@ class RestoreRestTests(unittest.TestCase):
         )
         self.assertIn("drive/v3/files/drive-sidecar-id", request.call_args.args[1])
 
+    def test_drive_dry_run_streams_snapshot_without_retaining_bytes(self):
+        backup_object = "snapshots/2026/07/id/order-result-files/patient/result.pdf"
+        payload = b"patient-file"
+        manifest = {
+            "storage": {
+                "buckets": [
+                    {
+                        "id": "order-result-files",
+                        "objects": [
+                            {
+                                "name": "patient/result.pdf",
+                                "size_bytes": len(payload),
+                                "sha256": hashlib.sha256(payload).hexdigest(),
+                                "backup_object": backup_object,
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        storage = {("order-result-files", "patient/result.pdf"): None}
+        index = {
+            backup_object: {
+                "file_id": "drive-sidecar-id",
+                "size_bytes": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+        }
+        response = Mock(status_code=200)
+        response.iter_content.return_value = [payload[:4], payload[4:]]
+        with patch.object(restore_rest, "BACKUP_SOURCE", "gdrive"), patch.object(
+            restore_rest, "GDRIVE_SIDECAR_INDEX", index
+        ), patch.object(
+            restore_rest, "GDRIVE_ACCESS_TOKEN", "access-token"
+        ), patch.object(
+            restore_rest, "DRY_RUN", True
+        ), patch.object(
+            restore_rest, "request_with_retry", return_value=response
+        ) as request:
+            hydrated = restore_rest.hydrate_storage_snapshots(manifest, storage)
+
+        self.assertIsNone(hydrated[("order-result-files", "patient/result.pdf")])
+        self.assertTrue(request.call_args.kwargs["stream"])
+        response.iter_content.assert_called_once_with(chunk_size=1024 * 1024)
+
     def test_database_only_drive_restore_skips_storage_hydration_and_writes(self):
         with patch.object(restore_rest, "BACKUP_SOURCE", "gdrive"), patch.object(
             restore_rest, "GDRIVE_DATABASE_ONLY", True

@@ -285,6 +285,7 @@ def hydrate_storage_snapshots(manifest, storage_files):
                 "?alt=media&supportsAllDrives=true",
                 headers={"Authorization": f"Bearer {GDRIVE_ACCESS_TOKEN}"},
                 timeout=(15, 180),
+                stream=DRY_RUN,
             )
         else:
             response = request_with_retry(
@@ -293,13 +294,26 @@ def hydrate_storage_snapshots(manifest, storage_files):
                 f"{quote(backup_object, safe='/')}",
                 headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
                 timeout=(15, 180),
+                stream=DRY_RUN,
             )
         if response.status_code != 200:
             raise RuntimeError(
                 f"Storage snapshot download failed for {key[0]}/{key[1]}: HTTP {response.status_code}"
             )
-        raw = response.content
-        if len(raw) != int(obj["size_bytes"]) or sha256_bytes(raw) != obj["sha256"]:
+        if DRY_RUN:
+            size = 0
+            digest = hashlib.sha256()
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    size += len(chunk)
+                    digest.update(chunk)
+            raw = None
+            actual_hash = digest.hexdigest()
+        else:
+            raw = response.content
+            size = len(raw)
+            actual_hash = sha256_bytes(raw)
+        if size != int(obj["size_bytes"]) or actual_hash != obj["sha256"]:
             raise RuntimeError(f"Storage snapshot verification failed for {key[0]}/{key[1]}")
         return key, raw
 
