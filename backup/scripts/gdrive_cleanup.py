@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Delete complete Google Drive backup bundles older than retention."""
+"""Delete expired Drive manifests and indexes while retaining shared blobs."""
 
 import os
 import sys
@@ -42,11 +42,13 @@ def cleanup(folder_id, retention_days):
         created = datetime.fromisoformat(item["createdTime"].replace("Z", "+00:00"))
         if created >= cutoff:
             continue
-        sidecar_folder_id = (item.get("appProperties") or {}).get(
-            "his_sidecar_folder_id"
+        # Storage blobs are content-addressed and shared by retained manifests.
+        # Only the index dedicated to this expired manifest may be removed.
+        sidecar_index_id = (item.get("appProperties") or {}).get(
+            "his_sidecar_index_id"
         )
-        if sidecar_folder_id:
-            drive_delete(drive, sidecar_folder_id)
+        if sidecar_index_id:
+            drive_delete(drive, sidecar_index_id)
         drive_delete(drive, item["id"])
         print(f"Deleted Drive backup bundle: {item['name']} ({item['createdTime']})")
         deleted += 1
