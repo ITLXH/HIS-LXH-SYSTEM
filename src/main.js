@@ -6914,11 +6914,6 @@ window.submitTriageForm = function (e) {
   new FormData($('#triageForm')[0]).forEach((v, k) => fd[k] = v);
   fd.v_resp = String(fd.v_resp || '').trim() || '20';
 
-  if (!String(fd.v_clinical_department || '').trim()) {
-    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
-    return;
-  }
-  
   if (!String(fd.v_department || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
@@ -6978,10 +6973,6 @@ window.executeTriageSave = async function (fd) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   fd.v_clinical_department = String(fd.v_clinical_department || '').trim();
   fd.v_department = String(fd.v_department || '').trim();
-  if (!fd.v_clinical_department) {
-    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
-    return;
-  }
   if (!fd.v_department) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
