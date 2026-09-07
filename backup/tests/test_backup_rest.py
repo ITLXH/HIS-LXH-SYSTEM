@@ -34,6 +34,19 @@ class BackupRestTests(unittest.TestCase):
         self.assertEqual(request.call_count, 2)
         sleep.assert_called_once_with(1)
 
+    def test_storage_listing_retries_a_transient_timeout(self):
+        success = Mock(status_code=200)
+        success.json.return_value = []
+        with patch.object(
+            backup_rest.requests,
+            "post",
+            side_effect=[backup_rest.requests.Timeout("slow Storage list"), success],
+        ) as request, patch.object(backup_rest.time, "sleep") as sleep:
+            self.assertEqual(backup_rest.list_storage_objects("clinical-files"), [])
+
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
     def test_refuses_empty_table_discovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(backup_rest, "OUTPUT", Path(tmp)), patch.object(

@@ -156,11 +156,12 @@ def list_storage_objects(bucket):
         found = []
         offset = 0
         while True:
-            resp = requests.post(
+            resp = request_with_retry(
+                "post",
                 list_url,
                 headers=storage_headers(),
                 data=json.dumps({"prefix": prefix, "limit": 1000, "offset": offset}),
-                timeout=60,
+                timeout=(15, 120),
             )
             if resp.status_code != 200:
                 raise RuntimeError(
