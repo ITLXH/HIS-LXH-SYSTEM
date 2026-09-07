@@ -1,177 +1,86 @@
 <!-- ===== BACKUP & RESTORE VIEW ===== -->
-<div id="view-backup" style="display:none;">
-  <div class="mb-4">
-    <h3 class="fw-bold m-0 text-dark"><i class="fas fa-database text-success me-2"></i>ສຳຮອງຂໍ້ມູນ</h3>
-    <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">Supabase ສຳຮອງຂໍ້ມູນທັງໝົດ; Google Drive ສຳຮອງສະເພາະ database/settings</p>
-  </div>
-
-  <!-- Production Info Banner -->
-  <div class="row mb-3">
-    <div class="col-12">
-      <div class="alert alert-info d-flex align-items-center py-2 ps-3">
-        <i class="fas fa-info-circle me-2"></i>
-        <span class="small mb-0">Backup ຮັນຜ່ານ GitHub Actions — ອັດຕະໂນມັດທຸກມື້ 07:00 ໂມງ (ເວລາລາວ), ບໍ່ຕ້ອງກົດຫຍັງ. ປຸ່ມ <strong>Backup Now</strong> ໃຊ້ສະເພາະເວລາຕ້ອງການສຳຮອງເພີ່ມ.</span>
-      </div>
+<div id="view-backup" class="backup-compact-view" style="display:none;">
+  <div class="backup-page-heading">
+    <div>
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-database text-success me-2"></i>ສຳຮອງຂໍ້ມູນ</h3>
+      <p class="text-muted mb-0 mt-1">Supabase ເປັນ backup ຫຼັກ; Google Drive ເປັນສຳເນົາ database/settings ເພີ່ມເຕີມ</p>
+    </div>
+    <div class="backup-heading-actions">
+      <button id="btnBackupNow" class="btn btn-success fw-bold" onclick="window.runManualBackup()"><i class="fas fa-play-circle me-1"></i>Backup Now</button>
+      <button class="btn btn-outline-secondary" onclick="window.showRestoreGuide()"><i class="fas fa-book me-1"></i>Restore Guide</button>
+      <button class="btn btn-outline-secondary" onclick="window.showBackupLogs()"><i class="fas fa-file-alt me-1"></i>View Logs</button>
     </div>
   </div>
 
-  <!-- Backup Actions -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card card-outline card-success">
-        <div class="card-header bg-success text-white">
-          <h5 class="mb-0"><i class="fas fa-cloud-upload-alt me-2"></i>ສຳຮອງຂໍ້ມູນ</h5>
-        </div>
-        <div class="card-body">
-          <div class="row g-3 align-items-stretch justify-content-center">
-            <!-- Backup Now -->
-            <div class="col-md-4">
-              <button id="btnBackupNow" class="btn btn-lg btn-success w-100 py-3 shadow" onclick="window.runManualBackup()">
-                <i class="fas fa-play-circle fa-2x mb-2 d-block"></i>
-                <strong>Backup Now</strong>
-                <div class="small mt-1">Trigger backup ຢູ່ຂ້າງຫຼັງ</div>
-              </button>
-            </div>
-          </div>
-          <!-- Restore Guide row -->
-          <div class="row g-3 mt-2 justify-content-center">
-            <div class="col-md-3">
-              <button class="btn btn-outline-secondary w-100 py-2" onclick="window.showRestoreGuide()">
-                <i class="fas fa-book me-1"></i> Restore Guide
-              </button>
-            </div>
-            <div class="col-md-3">
-              <button class="btn btn-outline-secondary w-100 py-2" onclick="window.showBackupLogs()">
-                <i class="fas fa-file-alt me-1"></i> View Logs
-              </button>
-            </div>
-          </div>
-        </div>
+  <div class="backup-overview-grid">
+    <section class="card card-outline card-success mb-0 backup-status-card" aria-label="ສະຖານະ backup ລ່າສຸດ">
+      <div id="latestBackupInfo">
+        <div class="his-data-loader his-data-loader--compact" role="status" aria-live="polite"><span class="his-data-loader__logo-shell" aria-hidden="true"><img class="his-data-loader__logo" src="/luckxay-logo.jpg" alt=""></span><span class="his-data-loader__copy"><strong>ກຳລັງໂຫລດຂໍ້ມູນ</strong></span></div>
       </div>
+    </section>
+    <div class="alert alert-info backup-schedule-note mb-0">
+      <i class="fas fa-clock"></i><div><strong>Backup ອັດຕະໂນມັດ 07:00</strong><span>Backup Now ໃຊ້ເມື່ອຕ້ອງການສຳເນົາເພີ່ມ</span></div>
     </div>
   </div>
 
-  <!-- Latest Backup Status -->
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card card-outline card-info">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>ສະຖານະ backup ລ່າສຸດ</h5>
-        </div>
-        <div class="card-body p-0">
-          <div id="latestBackupInfo">
-            <div class="text-center py-4 text-muted">
-              <i class="fas fa-database fa-3x mb-2 d-block"></i>
-              <p class="mb-0">ຍັງບໍ່ມີການ backup. ກົດ <strong>Backup Now</strong> ເພື່ອເລີ່ມສຳຮອງ.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="alert alert-warning backup-restore-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i><span><strong>ເຕືອນ:</strong> Restore ຈະຂຽນທັບຂໍ້ມູນ HIS ໂດຍ match Primary Key. ຄວນສ້າງ backup ໃໝ່ກ່ອນ.</span>
   </div>
 
-  <!-- Restore Section -->
-  <div class="row mb-3">
-    <div class="col-12">
-      <div class="alert alert-warning d-flex align-items-center py-2 px-3 mb-3">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <span class="small mb-0"><strong>ເຕືອນ:</strong> Restore ຈະ <u>ຂຽນທັບ</u> ຂໍ້ມູນ HIS ໂດຍ match Primary Key. ຄວນສ້າງ backup ໃໝ່ກ່ອນ.</span>
-      </div>
+  <section class="card card-outline card-primary backup-workspace-card mb-0">
+    <div class="card-header backup-tabs-header">
+      <ul class="nav nav-pills backup-source-tabs" id="backupSourceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="backupTabSupabase" type="button" role="tab" aria-controls="backupPaneSupabase" aria-selected="true" onclick="window.showBackupTab('supabase')"><i class="fas fa-cloud me-1"></i>Supabase Storage <span class="badge bg-success-subtle text-success ms-1">ຫຼັກ</span></button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="backupTabGdrive" type="button" role="tab" aria-controls="backupPaneGdrive" aria-selected="false" onclick="window.showBackupTab('gdrive')"><i class="fab fa-google-drive me-1"></i>Google Drive</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="backupTabHistory" type="button" role="tab" aria-controls="backupPaneHistory" aria-selected="false" onclick="window.showBackupTab('history')"><i class="fas fa-history me-1"></i>Workflow History</button>
+        </li>
+      </ul>
     </div>
-  </div>
 
-  <div class="row mb-4">
-    <!-- Supabase Storage source -->
-    <div class="col-md-6 mb-3">
-      <div class="card card-outline card-success h-100">
-        <div class="card-header bg-success text-white d-flex align-items-center justify-content-between">
-          <h6 class="mb-0"><i class="fas fa-cloud me-2"></i>Supabase Storage — ຂໍ້ມູນທັງໝົດ</h6>
-          <button class="btn btn-sm btn-light border" onclick="window.loadBackupFileList()" title="Refresh">
-            <i class="fas fa-sync-alt"></i>
-          </button>
+    <div class="card-body p-0 tab-content" id="backupSourceTabContent">
+      <div class="tab-pane fade show active backup-tab-pane" id="backupPaneSupabase" role="tabpanel" aria-labelledby="backupTabSupabase" tabindex="0">
+        <div class="backup-pane-toolbar">
+          <div><strong>Supabase Storage</strong><small>database/settings ແລະ application Storage</small></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="window.loadBackupFileList()" title="Refresh"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
         </div>
-        <div class="card-body p-0">
-          <table class="table table-hover table-sm mb-0">
-            <thead class="bg-light">
-              <tr>
-                <th>ໄຟ​ລ໌</th>
-                <th style="width:130px;">ວັນທີ</th>
-                <th style="width:80px;">SIZE</th>
-                <th class="text-end" style="width:140px;">ການກະທຳ</th>
-              </tr>
-            </thead>
-            <tbody id="backupFileListBody">
-              <tr><td colspan="4" class="text-center py-4 text-muted small">
-                <i class="fas fa-cloud-download-alt me-1"></i>ກົດ <i class="fas fa-sync-alt"></i> ເພື່ອໂຫຼດ
-              </td></tr>
-            </tbody>
+        <div class="backup-scroll-region">
+          <table class="table table-hover table-sm mb-0 backup-data-table">
+            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:160px;">ວັນທີ</th><th style="width:90px;">SIZE</th><th class="text-end" style="width:190px;">ການກະທຳ</th></tr></thead>
+            <tbody id="backupFileListBody"><tr class="his-data-loading-row"><td colspan="4" class="his-data-loader-cell"><div class="his-data-loader his-data-loader--compact" role="status" aria-live="polite"><span class="his-data-loader__logo-shell" aria-hidden="true"><img class="his-data-loader__logo" src="/luckxay-logo.jpg" alt=""></span><span class="his-data-loader__copy"><strong>ກຳລັງໂຫລດຂໍ້ມູນ</strong></span></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-pane fade backup-tab-pane" id="backupPaneGdrive" role="tabpanel" aria-labelledby="backupTabGdrive" tabindex="0">
+        <div class="backup-pane-toolbar">
+          <div><strong>Google Drive</strong><small>ສຳເນົາ database/settings ເພີ່ມເຕີມ</small></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="window.loadGdriveBackupList()" title="Refresh"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+        </div>
+        <div class="backup-scroll-region">
+          <table class="table table-hover table-sm mb-0 backup-data-table">
+            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:160px;">ວັນທີ</th><th style="width:90px;">SIZE</th><th class="text-end" style="width:190px;">ການກະທຳ</th></tr></thead>
+            <tbody id="backupGdriveListBody"><tr><td colspan="4" class="text-center py-4 text-muted small"><i class="fab fa-google-drive me-1"></i>ເປີດແຖບນີ້ເພື່ອໂຫຼດ</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab-pane fade backup-tab-pane" id="backupPaneHistory" role="tabpanel" aria-labelledby="backupTabHistory" tabindex="0">
+        <div class="backup-pane-toolbar">
+          <div><strong>ປະຫວັດ Backup</strong><small>GitHub Actions workflow runs 15 ຄັ້ງລ່າສຸດ</small></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="window.renderBackupHistory()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+        </div>
+        <div class="backup-scroll-region">
+          <table id="backupHistoryTable" class="table table-hover table-sm mb-0 backup-data-table">
+            <thead class="bg-light"><tr><th style="width:190px;">ວັນທີ/ເວລາ</th><th style="width:120px;">Run #</th><th style="width:140px;">STATUS</th><th style="width:140px;">TRIGGER</th><th style="width:120px;">DURATION</th><th class="text-end">LINK</th></tr></thead>
+            <tbody id="backupHistoryBody"><tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-history me-2"></i>ເປີດແຖບນີ້ເພື່ອໂຫຼດ</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
-
-    <!-- Google Drive source -->
-    <div class="col-md-6 mb-3">
-      <div class="card card-outline h-100" style="border-color:#4285F4;">
-        <div class="card-header text-white d-flex align-items-center justify-content-between" style="background:#4285F4;">
-          <h6 class="mb-0"><i class="fab fa-google-drive me-2"></i>Google Drive — Database ເທົ່ານັ້ນ</h6>
-          <button class="btn btn-sm btn-light border" onclick="window.loadGdriveBackupList()" title="Refresh">
-            <i class="fas fa-sync-alt"></i>
-          </button>
-        </div>
-        <div class="card-body p-0">
-          <table class="table table-hover table-sm mb-0">
-            <thead class="bg-light">
-              <tr>
-                <th>ໄຟ​ລ໌</th>
-                <th style="width:130px;">ວັນທີ</th>
-                <th style="width:80px;">SIZE</th>
-                <th class="text-end" style="width:140px;">ການກະທຳ</th>
-              </tr>
-            </thead>
-            <tbody id="backupGdriveListBody">
-              <tr><td colspan="4" class="text-center py-4 text-muted small">
-                <i class="fab fa-google-drive me-1"></i>ກົດ <i class="fas fa-sync-alt"></i> ເພື່ອໂຫຼດ
-              </td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Backup History Table -->
-  <div class="row">
-    <div class="col-12">
-      <div class="card card-outline card-secondary">
-        <div class="card-header bg-secondary text-white d-flex align-items-center justify-content-between">
-          <h5 class="mb-0"><i class="fas fa-history me-2"></i>ປະຫວັດ Backup (Workflow runs)</h5>
-          <button class="btn btn-sm btn-light border" onclick="window.renderBackupHistory()">
-            <i class="fas fa-sync-alt me-1"></i> Refresh
-          </button>
-        </div>
-        <div class="card-body p-0">
-          <table id="backupHistoryTable" class="table table-hover mb-0">
-            <thead class="bg-light">
-              <tr>
-                <th style="width:160px;">ວັນທີ/ເວລາ</th>
-                <th style="width:140px;">Run #</th>
-                <th style="width:140px;">STATUS</th>
-                <th style="width:140px;">TRIGGER</th>
-                <th style="width:120px;">DURATION</th>
-                <th class="text-end">LINK</th>
-              </tr>
-            </thead>
-            <tbody id="backupHistoryBody">
-              <tr>
-                <td colspan="6" class="text-center py-4 text-muted">
-                  <i class="fas fa-inbox me-2"></i>ຍັງບໍ່ມີປະຫວັດ backup
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
+  </section>
 </div>

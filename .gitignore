@@ -66,3 +66,6 @@ output/
 # OPD visual-test artifacts
 /tmp-opd-*.png
 /tmp-opd-*.pdf
+
+# Local OCR experiment model (large binary, not used by the application)
+/eng.traineddata

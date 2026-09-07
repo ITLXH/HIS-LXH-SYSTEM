@@ -264,7 +264,9 @@ class BackupRestTests(unittest.TestCase):
 
     def test_cleanup_preserves_blobs_referenced_by_retained_manifests(self):
         old = "2020-01-01T00:00:00Z"
-        current = "2026-08-01T00:00:00Z"
+        # Keep the retained manifest inside the rolling retention window so
+        # this safety test remains valid regardless of the date it is run.
+        current = backup_rest.datetime.now().astimezone().isoformat()
         listings = {
             "backups": [("backups/current.zip", {"created_at": current})],
             "snapshots": [],

@@ -38,6 +38,9 @@ assert.equal(calls.some((prefix) => prefix.startsWith('snapshots')), false);
 const workflow = fs.readFileSync(new URL('../.github/workflows/supabase-backup.yml', import.meta.url), 'utf8');
 assert.match(workflow, /cron:\s*['"]0 0 \* \* \*['"]/);
 assert.match(workflow, /- name: Upload to Google Drive[\s\S]*?continue-on-error:\s*true/);
-assert.match(workflow, /RETENTION_DAYS:\s*['"]?30['"]?/);
+// Cleanup is intentionally paused until the independent Drive copy and a
+// restore dry-run have both been verified. Keep the long retention guard in
+// place so a routine workflow run cannot delete the current backup set.
+assert.match(workflow, /RETENTION_DAYS:\s*['"]?36500['"]?/);
 
 console.log('Backup automation checks passed.');

@@ -19,6 +19,261 @@
   --patient-photo-size: 85px;
 }
 
+/* Registration: server-paged table feedback -------------------------------- */
+#view-patients .patient-fast-load-note {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 8px;
+  padding: 5px 9px;
+  border: 1px solid #cfe2ff;
+  border-radius: 4px;
+  background: #f4f8fc;
+  color: #36566f;
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+#view-patients .dataTables_processing {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  z-index: 1060;
+  width: 220px !important;
+  min-width: 220px;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#view-patients .dataTables_processing .his-data-loader {
+  display: flex !important;
+}
+
+#view-patients .dataTables_processing .his-data-loader__logo {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Backup: one-screen workspace with internally scrolling data tabs ---------- */
+#view-backup.backup-compact-view {
+  max-width: 100%;
+}
+
+.backup-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.backup-page-heading h3 {
+  font-size: 20px;
+}
+
+.backup-page-heading p {
+  font-size: 11.5px;
+}
+
+.backup-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.backup-heading-actions .btn {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.backup-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.backup-status-card,
+.backup-schedule-note {
+  min-height: 68px;
+}
+
+.backup-status-card #latestBackupInfo > .p-3 {
+  padding: 10px 12px !important;
+}
+
+.backup-status-card #latestBackupInfo h5 {
+  font-size: 15px;
+}
+
+.backup-status-card #latestBackupInfo .fa-2x {
+  font-size: 24px;
+}
+
+.backup-status-empty,
+.backup-schedule-note {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 13px;
+}
+
+.backup-status-empty > i,
+.backup-schedule-note > i {
+  flex: 0 0 auto;
+  font-size: 22px;
+}
+
+.backup-status-empty div,
+.backup-schedule-note div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.backup-status-empty strong,
+.backup-schedule-note strong {
+  color: #1d2939;
+  font-size: 13px;
+}
+
+.backup-status-empty small,
+.backup-schedule-note span {
+  color: #667085;
+  font-size: 11.5px;
+}
+
+.backup-restore-warning {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  margin-bottom: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.backup-workspace-card {
+  overflow: hidden;
+}
+
+#backupSourceTabContent > .backup-tab-pane:not(.active) {
+  display: none !important;
+}
+
+#backupSourceTabContent > .backup-tab-pane.active {
+  display: block !important;
+}
+
+.backup-tabs-header {
+  padding: 7px 10px;
+  background: #fff;
+}
+
+.backup-source-tabs {
+  gap: 6px;
+}
+
+.backup-source-tabs .nav-link {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid #d8e1e9;
+  border-radius: 4px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.backup-source-tabs .nav-link.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.backup-pane-toolbar {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #e1e7ec;
+  background: #f8fafc;
+}
+
+.backup-pane-toolbar > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.backup-pane-toolbar strong {
+  color: #203040;
+  font-size: 13px;
+}
+
+.backup-pane-toolbar small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.backup-scroll-region {
+  height: clamp(260px, calc(100vh - 420px), 560px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.backup-data-table {
+  min-width: 760px;
+}
+
+.backup-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 9px 10px;
+  border-bottom: 1px solid #d7e0e7;
+  background: #eef2f6 !important;
+  color: #344054;
+  font-size: 11.5px;
+}
+
+.backup-data-table tbody td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.backup-data-table tbody code {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .backup-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .backup-heading-actions {
+    justify-content: flex-start;
+  }
+
+  .backup-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-scroll-region {
+    height: 360px;
+  }
+}
+
 body {
   background: #ffffff !important;
 }
@@ -6984,7 +7239,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 .dashboard-export-sheet .dashboard-report-grid--spread-summary .dashboard-report-chart--medium {
-  height: 118px;
+  height: 148px;
 }
 
 .dashboard-export-sheet .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
@@ -7014,7 +7269,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 #dashboardPrintArea.dashboard-export-mode .dashboard-report-grid--spread-summary .dashboard-report-chart--medium {
-  height: 118px;
+  height: 148px;
 }
 
 #dashboardPrintArea.dashboard-export-mode .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
@@ -7107,12 +7362,12 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 .dashboard-report-grid--spread-summary .dashboard-report-chart--hero,
 .dashboard-report-grid--spread-summary .dashboard-report-panel--time .dashboard-report-chart--short {
-  height: 198px;
+  height: 184px;
 }
 
 .dashboard-report-grid--spread-summary .dashboard-report-chart--medium,
 .dashboard-report-grid--spread-summary .dashboard-report-chart--compact {
-  height: 160px;
+  height: 184px;
 }
 
 .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
@@ -7700,19 +7955,19 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--feature {
-  grid-column: span 7;
+  grid-column: span 6;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--time {
-  grid-column: span 5;
+  grid-column: span 6;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--soft {
-  grid-column: span 4;
+  grid-column: span 6;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--accent {
-  grid-column: span 8;
+  grid-column: span 6;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel {
@@ -7747,11 +8002,11 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--hero,
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--time .dashboard-report-chart--short {
-  height: 206px;
+  height: 184px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--medium {
-  height: 168px;
+  height: 184px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
@@ -8139,7 +8394,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
   .dashboard-report-grid--spread-summary .dashboard-report-chart--medium,
   .dashboard-report-grid--spread-summary .dashboard-report-chart--compact {
-    height: 118px;
+    height: 150px;
   }
 
   .dashboard-report-grid--spread-detail .dashboard-report-chart--compact {
@@ -8201,6 +8456,110 @@ body {
 
 #loading .spinner-border {
   color: var(--primary) !important;
+}
+
+/* Hospital-branded data loading ------------------------------------------- */
+.his-data-loader {
+  width: min(220px, 100%);
+  min-height: 0;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 18px;
+  border: 1px solid #cbd8e3;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 8px 24px rgba(20, 42, 66, .16);
+  color: #23413d;
+  text-align: center;
+}
+
+.his-data-loader__logo-shell {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid #d9e5ee;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(15, 95, 154, .12);
+}
+
+.his-data-loader__logo-shell::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid rgba(var(--primary-rgb), .16);
+  border-top-color: var(--accent-red);
+  border-radius: 50%;
+  animation: his-loader-ring .9s linear infinite;
+}
+
+.his-data-loader__logo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #fff;
+  transform: scale(1.1);
+}
+
+.his-data-loader__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.his-data-loader__copy strong {
+  color: #174f78;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.his-data-loader__copy small {
+  color: #708090;
+  font-size: 11px;
+}
+
+.his-data-loader--compact,
+.his-data-loader--inline {
+  width: min(220px, 100%);
+  min-height: 0;
+  margin: 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 18px;
+  text-align: center;
+}
+
+.his-data-loader-cell {
+  padding: 14px !important;
+  background: #fff !important;
+  border-bottom-color: #e6edf3 !important;
+}
+
+.his-system-loader {
+  width: min(220px, calc(100vw - 32px));
+}
+
+@keyframes his-loader-ring {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .his-data-loader__logo-shell::after { animation-duration: 1.8s; }
 }
 
 body.auth-checking #login-section,
@@ -8864,6 +9223,69 @@ small,
   background: #eef5fb !important;
   border-color: #7fa6cb !important;
   color: #173f66 !important;
+}
+
+/* Triage action rail: one calm, predictable row for every patient record. */
+#triageTable th.triage-action-column,
+#triageTable td.triage-action-cell {
+  width: 1%;
+  min-width: 352px;
+  white-space: nowrap;
+}
+
+#triageTable tbody > tr > td {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.triage-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: max-content;
+  padding: 1px 0;
+  vertical-align: middle;
+}
+
+.triage-actions .triage-action-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-width: 34px;
+  margin: 0 !important;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  line-height: 1;
+}
+
+.triage-actions .triage-action-btn--icon {
+  width: 34px;
+  padding: 0;
+}
+
+.triage-actions .triage-action-btn--view {
+  min-width: 76px;
+}
+
+.triage-actions .triage-action-btn--clinical {
+  min-width: 78px;
+}
+
+.triage-actions .patient-history-count {
+  top: -6px;
+  right: -6px;
+}
+
+@media (max-width: 1199.98px) {
+  #view-triage .card-body.table-responsive {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
 }
 
 .triage-view-popup {
@@ -12233,31 +12655,11 @@ small,
   background: #dc2626;
 }
 
-.opd-lis-ack-btn {
-  margin-top: 7px;
-  padding: 3px 9px;
-  border: 1px solid #16a34a;
-  border-radius: 5px;
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 10.5px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.opd-lis-ack-btn:hover {
-  background: #16a34a;
-  color: #fff;
-}
-
-.opd-lis-toast-order {
-  overflow: hidden;
+.opd-lis-toast-ready {
   margin-top: 4px;
-  color: #526175;
+  color: #168657;
   font-size: 10.5px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 700;
 }
 
 @keyframes opdToastSlideIn {

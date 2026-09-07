@@ -674,3 +674,13 @@ User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exac
 - Hardened scheduled backup behavior: Supabase Storage remains the required primary backup, Google Drive is reported as an optional secondary copy, revoked OAuth can fall back to a configured service account, and backup Cloudflare APIs require an active Admin session.
 - Release evidence and verification results are recorded in `docs/RELEASE_READINESS_2026-08-24.md`.
 - Post-push workflow run 32723129751 verified the primary backup: 63,057 rows / 57 tables / 0 failures and 938 Storage objects. The optional Drive copy still reports `invalid_grant` because no `GOOGLE_SERVICE_ACCOUNT_JSON` repository secret is configured; primary Supabase backup remains valid.
+
+## 2026-09-07 — Clinical workflow, dashboard, and deployment refresh release
+
+- Registration no longer loads the complete patient registry and complete Visits index before first render. It now uses Supabase/DataTables server-side pagination, fetches only 10/25/50 visible rows, counts visits only for the visible patients, and runs debounced database-backed search/filter requests.
+- Backup destinations and workflow history now share one tabbed card with an internally scrolling table; Google Drive/history load only when opened, keeping the document from becoming a long vertically scrolling page.
+- Triage now keeps Clinical Department as the fixed six clinical services, keeps the examination-room selector separate, excludes the synthetic OPD room, and loads real doctor names from Master Data and active doctor accounts.
+- Pulse, respiratory rate, and SpO2 share one row. Dashboard charts use an equal 50/50 grid, equal heights, full data labels, and a six-department breakdown.
+- The existing registration paging and compact Backup UI remain included; details are in `docs/REGISTRATION_BACKUP_LOCAL_OPTIMIZATION.md`.
+- Production builds publish `version.json`; active screens check it every minute and reload when a new deployment is available. Reload waits while a modal, focused input, or edited form is active so unsaved clinical work is protected.
+- Automated checks cover authentication, security, OPD flows, backup automation, registration/backup UI, loading UI, clinical notifications, Triage actions/CRUD wiring, build-version refresh, and the production build.

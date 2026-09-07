@@ -8,6 +8,7 @@ import {
   resolveOpdTestInvestigationType
 } from './opdTestPersistence.js';
 import { escapeHisHtml } from '../shared/his-html.js';
+import { HIS_BUILD_ID, startBuildVersionRefresh } from './versionRefresh.js';
 import { mergeDoctorOptions } from './doctorOptions.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
@@ -1394,6 +1395,8 @@ Object.assign(window.appTranslations.en, {
 });
 
 Object.assign(window.appTranslations.en, {
+  'loading.data': 'Loading data',
+  'loading.wait': 'Loading data',
   'datatable.search': 'Search:',
   'datatable.lengthMenu': 'Show _MENU_',
   'datatable.info': 'Showing _START_ to _END_ of _TOTAL_ entries',
@@ -1434,6 +1437,8 @@ Object.assign(window.appTranslations.en, {
 });
 
 Object.assign(window.appTranslations.lo, {
+  'loading.data': 'ກຳລັງໂຫລດຂໍ້ມູນ',
+  'loading.wait': 'ກຳລັງໂຫລດຂໍ້ມູນ',
   'datatable.search': 'ຄົ້ນຫາ:',
   'datatable.lengthMenu': 'ສະແດງ _MENU_',
   'datatable.info': 'ສະແດງ _START_ ຫາ _END_ ຈາກ _TOTAL_ ລາຍການ',
@@ -1480,6 +1485,41 @@ window.getAppLanguage = function () {
 window.t = function (key) {
   const lang = window.getAppLanguage();
   return window.appTranslations?.[lang]?.[key] || window.appTranslations?.en?.[key] || (key.startsWith('option.') ? key.slice(7) : key);
+};
+
+// One official loading state for every data-driven HIS screen. Keeping the
+// markup here prevents individual modules from drifting back to unrelated
+// spinners and gives staff a consistent, hospital-branded wait state.
+window.getHospitalDataLoaderHtml = function (options = {}) {
+  const escapeText = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+  const configuredLogo = String(systemSettings?.logoUrl || '').trim();
+  const logoUrl = /^(https?:\/\/|\/|data:image\/)/i.test(configuredLogo)
+    ? configuredLogo
+    : '/luckxay-logo.jpg';
+  // Keep one calm, predictable loading label throughout the HIS. Page-specific
+  // loading copy made the interface noisy and inconsistent for staff.
+  const message = escapeText(window.t('loading.data'));
+  const classes = [
+    'his-data-loader',
+    options.compact ? 'his-data-loader--compact' : '',
+    options.inline ? 'his-data-loader--inline' : ''
+  ].filter(Boolean).join(' ');
+
+  return `<div class="${classes}" role="status" aria-live="polite">
+    <span class="his-data-loader__logo-shell" aria-hidden="true">
+      <img class="his-data-loader__logo" src="${escapeText(logoUrl)}" alt="" onerror="this.onerror=null;this.src='/luckxay-logo.jpg';">
+    </span>
+    <span class="his-data-loader__copy">
+      <strong>${message}</strong>
+    </span>
+  </div>`;
+};
+
+window.getHospitalTableLoadingRow = function (colspan, message, options = {}) {
+  const safeColspan = Math.max(1, Number.parseInt(colspan, 10) || 1);
+  return `<tr class="his-data-loading-row"><td colspan="${safeColspan}" class="his-data-loader-cell">${window.getHospitalDataLoaderHtml({ ...options, message })}</td></tr>`;
 };
 
 window.getDataTableLanguage = function (overrides = {}) {
@@ -2804,7 +2844,7 @@ window.renderEMRLabPicker = function () {
   }
 
   if (!labsMasterList.length) {
-    host.innerHTML = '<div class="emr-order-empty"><i class="fas fa-spinner fa-spin"></i><strong>ກຳລັງໂຫຼດລາຍການກວດ</strong><span>ກະລຸນາລໍຖ້າຊົ່ວຄູ່...</span></div>';
+    host.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດລາຍການກວດ...', compact: true });
     window.updateEMRLabPickerSummary();
     return;
   }
@@ -2906,7 +2946,7 @@ async function loadPartials() {
     'emr-modals'
   ];
 
-  const PARTIAL_CACHE_BUST = '2026-07-31-resilient-loader-v1';
+  const PARTIAL_CACHE_BUST = HIS_BUILD_ID;
   const partialRequests = [
     { type: 'navbar', name: 'navbar', url: '/partials/navbar.html' },
     ...views.map(name => ({ type: 'view', name, url: `/partials/views/${name}.html` })),
@@ -3005,6 +3045,7 @@ window.formatOpdPrintPatientId = function (patientId) {
 };
 
 $(document).ready(async function () {
+  startBuildVersionRefresh();
   // Load all HTML partials first, then init the app
   await loadPartials();
   window.applyAppLanguage();
@@ -4280,6 +4321,7 @@ window.checkAlerts = async function () {
       let html = '';
       lisResultAlerts.forEach(alert => {
         const safeFileId = String(alert.fileId || '').replace(/[^A-Za-z0-9_-]/g, '');
+        const readyTime = window.formatLisResultReadyTime?.(alert.readyAt || alert.uploadedAt) || '—';
         html += `<div class="d-flex align-items-stretch border-bottom border-secondary border-opacity-25">
                   <a href="#" class="his-dropdown-item py-2 flex-grow-1" onclick="window.openLisResultNotification('${safeFileId}'); return false;">
                     <div class="d-flex align-items-center w-100">
@@ -4289,12 +4331,12 @@ window.checkAlerts = async function () {
                         </div>
                       </div>
                       <div class="flex-grow-1 overflow-hidden" style="line-height:1.2;">
-                        <h6 class="m-0 fw-bold mb-1" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">ຜົນກວດ HN ${esc(alert.patientId)}</h6>
+                        <h6 class="m-0 fw-bold mb-1" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">HN ${esc(alert.patientId)}</h6>
                         <div class="text-primary mb-1" style="font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          ຊື່ ${esc(alert.patientName)} — ສຳເລັດແລ້ວ
+                          ${esc(alert.patientName)}
                         </div>
                         <div class="text-success" style="font-size:10.5px;font-weight:600;">
-                          <i class="fas fa-vial me-1" style="font-size:9px;"></i>${esc(alert.orderId)} · ${esc(window.opdTestLisFormatDateTime?.(alert.uploadedAt) || '')}
+                          <i class="far fa-clock me-1" style="font-size:9px;"></i>ເວລາພ້ອມ ${esc(readyTime)}
                         </div>
                       </div>
                     </div>
@@ -4467,7 +4509,7 @@ window.fetchDashboardData = async function (rangeType) {
   $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
   let d = new Date();
   $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp').html('<i class="fas fa-spinner fa-spin"></i>');
+  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp').html(window.getHospitalDataLoaderHtml({ compact: true, detail: false }));
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -4620,7 +4662,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
+window.dashboardChartIds = ['chartTopServices', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4654,15 +4696,16 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const compactDashboardCharts = new Set(['chartTopServices', 'chartRevenue', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
+  const showZeroCategories = ctxId === 'chartSpecialist' && safeLabels.length === 6;
+  const compactDashboardCharts = new Set(['chartTopServices', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
   const legendFontSize = isCompactDashboardChart ? 11 : 12;
   const tickFontSize = isCompactDashboardChart ? 11 : 12;
   const yTickFontSize = isCompactDashboardChart ? 12 : 13;
   const dataLabelSize = isCompactDashboardChart ? 11 : 12;
   const layoutPadding = isCompactDashboardChart
-    ? { right: isHorizontal ? 30 : 8, top: isHorizontal ? 6 : 16, left: 4, bottom: 4 }
-    : { right: isHorizontal ? 60 : 15, top: isHorizontal ? 10 : 35, left: 10, bottom: 10 };
+    ? { right: isHorizontal ? 40 : 10, top: isHorizontal ? 8 : 26, left: 4, bottom: 4 }
+    : { right: isHorizontal ? 70 : 18, top: isHorizontal ? 12 : 42, left: 10, bottom: 10 };
 
   let options = {
     responsive: true, maintainAspectRatio: false,
@@ -4674,7 +4717,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
         labels: { boxWidth: isCompactDashboardChart ? 8 : 10, padding: isCompactDashboardChart ? 8 : 15, font: { size: legendFontSize, family: "'Noto Sans Lao', sans-serif" } }
       },
       tooltip: {
-        enabled: hasUsableData,
+        enabled: hasUsableData || showZeroCategories,
         backgroundColor: 'rgba(2, 6, 23, 0.95)',
         padding: 10,
         titleFont: { size: 13, weight: '600' },
@@ -4684,9 +4727,9 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
       },
       datalabels: {
         display: (ctx) => {
-          if (!hasUsableData) return false;
+          if (!hasUsableData && !showZeroCategories) return false;
           const value = ctx.dataset.data[ctx.dataIndex];
-          if (!(value > 0)) return false;
+          if (!(value > 0)) return showZeroCategories;
           if (isCompactDashboardChart) return safeData.length <= (isHorizontal ? 12 : 8);
           return true;
         },
@@ -4697,32 +4740,34 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
         offset: isCompactDashboardChart ? 4 : 8
       },
       dashboardNoDataOverlay: {
-        enabled: !hasUsableData,
+        enabled: !hasUsableData && !showZeroCategories,
         message: 'ບໍ່ພົບຂໍ້ມູນ',
         submessage: 'ລອງປ່ຽນວັນທີ ຫຼື ຊ່ວງເວລາ'
       }
     },
     scales: type === 'bar' ? {
       x: isHorizontal ? { 
-          beginAtZero: true, 
-          display: hasUsableData,
-          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData }, 
-          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData } 
+          beginAtZero: true,
+          grace: '12%',
+          display: hasUsableData || showZeroCategories,
+          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData || showZeroCategories },
+          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData || showZeroCategories }
         } : { 
-          display: hasUsableData,
+          display: hasUsableData || showZeroCategories,
           grid: { display: false },
-          ticks: { font: { size: tickFontSize }, display: hasUsableData }
+          ticks: { font: { size: tickFontSize }, display: hasUsableData || showZeroCategories }
         },
       y: isHorizontal ? { 
-          display: hasUsableData,
+          display: hasUsableData || showZeroCategories,
           grid: { display: false },
-          ticks: { font: { size: yTickFontSize }, autoSkip: false, display: hasUsableData },
+          ticks: { font: { size: yTickFontSize }, autoSkip: false, display: hasUsableData || showZeroCategories },
           position: 'left'
         } : { 
-          beginAtZero: true, 
-          display: hasUsableData,
-          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData }, 
-          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData } 
+          beginAtZero: true,
+          grace: '15%',
+          display: hasUsableData || showZeroCategories,
+          grid: { color: '#f1f5f9', drawBorder: false, display: hasUsableData || showZeroCategories },
+          ticks: { precision: 0, font: { size: tickFontSize }, display: hasUsableData || showZeroCategories }
         }
     } : {
       x: { display: false },
@@ -4827,7 +4872,10 @@ window.renderDashboardCharts = function (visits) {
     evening: '16:00 - 21:00',
     night: '21:00 - 08:00'
   };
-  let services = {}, revenue = {}, specialist = {}, gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
+  const clinicalDepartmentLabels = ['Internal Medicine', 'Pediatrics', 'OB-GYN', 'General / ER', 'IPD', 'Health Checkup'];
+  const clinicalDepartmentLookup = new Map(clinicalDepartmentLabels.map(label => [label.toLowerCase(), label]));
+  const clinicalDepartments = Object.fromEntries(clinicalDepartmentLabels.map(label => [label, 0]));
+  let services = {}, gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
@@ -4844,15 +4892,16 @@ window.renderDashboardCharts = function (visits) {
     let p = v.Patients || {};
     
     let servicesStr = v.Services_List || v.ServicesList || v["Services List"] || "";
-    let revenueVal = v.Revenue_Group || v.RevenueGroup || v["Revenue Group"] || "";
     let specialistVal = v.Mapped_Specialist || v.MappedSpecialist || v["Specialist"] || "";
     let visitType = v.Visit_Type || v.VisitType || "";
     let docName = v.Doctor_Name || v.DoctorName || v["Doctor Name"] || "ບໍ່ລະບຸຊື່ແພດ";
 
     if (servicesStr) servicesStr.split(',').forEach(s => { let n = s.trim(); if(n) services[n] = (services[n] || 0) + 1; });
 
-    if (revenueVal) revenueVal.split(',').forEach(r => { let n = r.trim(); if(n) revenue[n] = (revenue[n] || 0) + 1; });
-    if (specialistVal) specialistVal.split(',').forEach(s => { let n = s.trim(); if(n) specialist[n] = (specialist[n] || 0) + 1; });
+    if (specialistVal) specialistVal.split(',').forEach(value => {
+      const canonicalLabel = clinicalDepartmentLookup.get(value.trim().toLowerCase());
+      if (canonicalLabel) clinicalDepartments[canonicalLabel] += 1;
+    });
 
     // Doctor_Name is now sourced from the MasterData "Doctor" dropdown at Triage time,
     // so any non-empty, non-placeholder value counts — no need to gate on specialist.
@@ -4905,14 +4954,11 @@ window.renderDashboardCharts = function (visits) {
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
   
   let topSvc = getTopNWithOthers(services, 10, 0.001);
-  let topRev = getTopNWithOthers(revenue, 8, 0.005);
-  let topSpec = getTopNWithOthers(specialist, 8, 0.005);
   let topCh = getTopNWithOthers(channel, 8, 0.001);
   let topDocs = getTopNWithOthers(doctors, 5, 0.0001);
 
   window.createChart('chartTopServices', 'bar', topSvc.labels, topSvc.data, palette, true);
-  window.createChart('chartRevenue', 'bar', topRev.labels, topRev.data, palette, true);
-  window.createChart('chartSpecialist', 'bar', topSpec.labels, topSpec.data, palette, true);
+  window.createChart('chartSpecialist', 'bar', clinicalDepartmentLabels, clinicalDepartmentLabels.map(label => clinicalDepartments[label]), palette, true);
   window.createChart('chartChannel', 'bar', topCh.labels, topCh.data, palette, true);
   window.createChart('chartMarketing', 'bar', topDocs.labels, topDocs.data, palette, true);
   window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#1B6BB0', '#DD1F26', '#94a3b8']);
@@ -5022,11 +5068,11 @@ window.exportDashboardPDF = async function () {
 
   // If the KPI tiles are still showing loading spinners (data not yet loaded),
   // load the data now and wait for the numbers before capturing.
-  if (source.querySelector('.fa-spinner')) {
+  if (source.querySelector('.fa-spinner, .his-data-loader')) {
     try { await window.fetchDashboardData(); } catch (_) { /* ignore */ }
   }
   for (let tries = 0; tries < 50; tries++) {
-    if (!source.querySelector('.fa-spinner')) break;
+    if (!source.querySelector('.fa-spinner, .his-data-loader')) break;
     await new Promise(r => setTimeout(r, 100));
   }
 
@@ -5044,7 +5090,7 @@ window.exportDashboardPDF = async function () {
   const kpiKeyById = { 'dash-total': 'total', 'dash-new': 'newPatients', 'dash-old': 'oldPatients', 'dash-ins': 'ins', 'dash-corp': 'corp' };
   Object.entries(kpiKeyById).forEach(([id, key]) => {
     const el = document.getElementById(id);
-    if (el && el.querySelector('.fa-spinner') && kpiCache[key] != null) {
+    if (el && el.querySelector('.fa-spinner, .his-data-loader') && kpiCache[key] != null) {
       el.textContent = kpiCache[key];
     }
   });
@@ -5171,7 +5217,7 @@ window.fetchReportData = function () {
   let d = new Date();
   $('#repRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   if ($.fn.DataTable.isDataTable('#reportTable')) { $('#reportTable').DataTable().destroy(); }
-  $('#reportTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດຂໍ້ມູນ...</td></tr>');
+  $('#reportTable tbody').html(window.getHospitalTableLoadingRow(9));
   window._fetchReportData(sDate, eDate);
 };
 
@@ -5504,7 +5550,7 @@ window.fetchVisitHistoryData = function () {
   let d = new Date();
   $('#visitRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   if ($.fn.DataTable.isDataTable('#visitHistoryTable')) $('#visitHistoryTable').DataTable().destroy();
-  $('#visitHistoryTable tbody').html('<tr><td colspan="10" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດປະຫວັດ...</td></tr>');
+  $('#visitHistoryTable tbody').html(window.getHospitalTableLoadingRow(10, 'ກຳລັງໂຫຼດປະຫວັດ...'));
   window._fetchVisitHistoryData(sDate, eDate);
 };
 
@@ -6223,160 +6269,186 @@ window.setupPatientTableFilters = function (patientTable) {
       patientTable.column(3).search(window.normalizePatientCode($('#patientOldIdSearch').val()));
       patientTable.column(4).search(($('#patientNameSearch').val() || '').trim());
       patientTable.column(7).search(($('#patientPhoneSearch').val() || '').trim());
-      patientTable.draw();
+      window.clearTimeout(window.__patientFilterTimer);
+      window.__patientFilterTimer = window.setTimeout(() => patientTable.draw(), 320);
     });
 };
 
-window.initPatientTable = async function () {
-  if (!window.__patientDateFilterInstalled) {
-    $.fn.dataTable.ext.search.push(function (settings, rowData) {
-      if (!settings || settings.nTable.id !== 'patientTable') return true;
+window.__patientRegistryTotalCount = null;
 
-      const fromValue = $('#patientDateFrom').val();
-      const toValue = $('#patientDateTo').val();
-      const rowDate = rowData && rowData[0] ? new Date(`${rowData[0]}T00:00:00`) : null;
-      const fromDate = fromValue ? new Date(`${fromValue}T00:00:00`) : null;
-      const toDate = toValue ? new Date(`${toValue}T00:00:00`) : null;
+window.patientRegistrySearchTokens = function (value) {
+  return String(value || '')
+    .trim()
+    .replace(/[,%().:*_]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 4)
+    .map(token => token.slice(0, 60));
+};
 
-      if (!rowDate || Number.isNaN(rowDate.getTime())) return true;
-      if (fromDate && !Number.isNaN(fromDate.getTime()) && rowDate < fromDate) return false;
-      if (toDate && !Number.isNaN(toDate.getTime()) && rowDate > toDate) return false;
-      return true;
-    });
-    window.__patientDateFilterInstalled = true;
-  }
+window.applyPatientRegistryFilters = function (query, request) {
+  const applyTokenFilter = (builder, value, columns) => {
+    return window.patientRegistrySearchTokens(value).reduce((next, token) => {
+      const expression = columns.map(column => `${column}.ilike.%${token}%`).join(',');
+      return next.or(expression);
+    }, builder);
+  };
 
+  query = applyTokenFilter(query, request?.search?.value, [
+    'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
+    'Phone_Number', 'Name_Org', 'Insurance_Company'
+  ]);
+  query = applyTokenFilter(query, request?.columns?.[3]?.search?.value, ['Old_Patient_ID']);
+  query = applyTokenFilter(query, request?.columns?.[4]?.search?.value, ['First_Name', 'Last_Name']);
+  query = applyTokenFilter(query, request?.columns?.[7]?.search?.value, ['Phone_Number']);
+
+  const fromDate = String($('#patientDateFrom').val() || '').trim();
+  const toDate = String($('#patientDateTo').val() || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) query = query.gte('Registration_Date', fromDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(toDate)) query = query.lte('Registration_Date', toDate);
+  return query;
+};
+
+window.patientRegistryHasFilters = function (request) {
+  return Boolean(
+    String(request?.search?.value || '').trim() ||
+    String(request?.columns?.[3]?.search?.value || '').trim() ||
+    String(request?.columns?.[4]?.search?.value || '').trim() ||
+    String(request?.columns?.[7]?.search?.value || '').trim() ||
+    $('#patientDateFrom').val() || $('#patientDateTo').val()
+  );
+};
+
+window.initPatientTable = function () {
   if ($.fn.DataTable.isDataTable('#patientTable')) {
-    $('#patientTable').DataTable().destroy();
+    window.__patientRegistryTotalCount = null;
+    $('#patientTable').DataTable().ajax.reload(null, false);
+    return;
   }
-  $('#patientTable tbody').html(`<tr><td colspan="12" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ${window.t('patients.loading')}</td></tr>`);
+  // DataTables owns the Registration loading state. Keep tbody empty here so
+  // its processing panel is the only loader visible during the first request.
+  $('#patientTable tbody').empty();
+  const selectFields = [
+    'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name', 'Gender',
+    'Date_of_Birth', 'Age', 'Phone_Number', 'District', 'Province',
+    'Name_Org', 'Insurance_Company', 'Drug_Allergy', 'Registration_Date', 'Time'
+  ].join(', ');
+  const sortColumns = [
+    'Registration_Date', 'Time', 'Patient_ID', 'Old_Patient_ID', 'First_Name',
+    'Gender', 'Date_of_Birth', 'Phone_Number', 'Province', 'Insurance_Company',
+    'Drug_Allergy', 'Patient_ID'
+  ];
+  const displayText = value => escapeHisHtml(String(value ?? '').trim() || '-');
+  const jsArg = value => encodeURIComponent(String(value ?? '')).replace(/'/g, '%27');
 
-  try {
-    // Supabase/PostgREST returns 1000 rows by default, so load every page.
-    const totalCountRes = await supabaseClient.from(dbTable('Patients')).select('Patient_ID', { head: true, count: 'exact' });
-    const totalCount = totalCountRes.count || 0;
+  const patientTable = $('#patientTable').DataTable({
+    responsive: true,
+    processing: true,
+    serverSide: true,
+    searchDelay: 350,
+    pageLength: 10,
+    lengthMenu: [[10, 25, 50], [10, 25, 50]],
+    order: [[2, 'desc']],
+    ajax: async function (request, callback) {
+      const pageSize = Math.min(Math.max(Number(request.length) || 10, 10), 50);
+      const rangeStart = Math.max(Number(request.start) || 0, 0);
+      const orderIndex = Number(request?.order?.[0]?.column ?? 2);
+      const orderColumn = sortColumns[orderIndex] || 'Patient_ID';
+      const ascending = request?.order?.[0]?.dir === 'asc';
+      const hasFilters = window.patientRegistryHasFilters(request);
 
-    const pageSize = 1000;
-    const numPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const pageQueries = [];
-    for (let p = 0; p < numPages; p++) {
-      pageQueries.push(
-        supabaseClient.from(dbTable('Patients')).select('*')
-          .order('Patient_ID', { ascending: false })
-          .range(p * pageSize, (p + 1) * pageSize - 1)
-      );
+      try {
+        let pageQuery = supabaseClient.from(dbTable('Patients'))
+          .select(selectFields, { count: 'exact' });
+        pageQuery = window.applyPatientRegistryFilters(pageQuery, request)
+          .order(orderColumn, { ascending, nullsFirst: false })
+          .range(rangeStart, rangeStart + pageSize - 1);
+
+        const totalQuery = window.__patientRegistryTotalCount === null && hasFilters
+          ? supabaseClient.from(dbTable('Patients')).select('Patient_ID', { head: true, count: 'exact' })
+          : Promise.resolve(null);
+        const [pageResult, totalResult] = await Promise.all([pageQuery, totalQuery]);
+        if (pageResult.error) throw pageResult.error;
+        if (totalResult?.error) console.warn('Patient total count could not be loaded:', totalResult.error);
+
+        const rows = pageResult.data || [];
+        let visitCounts = {};
+        try {
+          visitCounts = await window.fetchPatientVisitCountMap(rows.map(row => row.Patient_ID));
+        } catch (visitCountError) {
+          console.warn('Patient visit counts could not be loaded:', visitCountError);
+        }
+        rows.forEach(row => { row.__visitCount = Number(visitCounts[row.Patient_ID] || 0); });
+
+        const filteredCount = Number(pageResult.count || 0);
+        if (!hasFilters) window.__patientRegistryTotalCount = filteredCount;
+        else if (totalResult && !totalResult.error) window.__patientRegistryTotalCount = Number(totalResult.count || 0);
+        const totalCount = window.__patientRegistryTotalCount ?? filteredCount;
+        $('#patientLoadAllNotice')
+          .removeClass('alert alert-danger py-2 small patient-fast-load-note')
+          .empty()
+          .hide();
+        callback({
+          draw: Number(request.draw) || 0,
+          recordsTotal: totalCount,
+          recordsFiltered: filteredCount,
+          data: rows
+        });
+      } catch (err) {
+        console.error('Error loading patients:', err);
+        $('#patientLoadAllNotice')
+          .removeClass('patient-fast-load-note')
+          .addClass('alert alert-danger py-2 small')
+          .html(`<i class="fas fa-exclamation-circle me-1"></i>${window.t('patients.loadError')}: ${escapeHisHtml(err?.message || 'Unknown error')}`)
+          .show();
+        callback({ draw: Number(request.draw) || 0, recordsTotal: 0, recordsFiltered: 0, data: [] });
+      }
+    },
+    columns: [
+      { data: 'Registration_Date', render: data => `<span class="text-muted small">${displayText(data)}</span>` },
+      { data: 'Time', render: data => `<span class="text-muted small">${displayText(data)}</span>` },
+      { data: 'Patient_ID', render: data => `<span class="text-primary fw-bold">${displayText(data)}</span>` },
+      { data: 'Old_Patient_ID', render: data => `<span class="text-muted fw-bold small">${displayText(window.normalizePatientCode(data || ''))}</span>` },
+      { data: null, render: (_data, _type, row) => `<span class="fw-bold">${displayText(`${row.First_Name || ''} ${row.Last_Name || ''}`)}</span>` },
+      { data: 'Gender', render: displayText },
+      { data: null, render: (_data, _type, row) => displayText(window.formatAgeFromDob(row.Date_of_Birth, row.Age)) },
+      { data: 'Phone_Number', render: data => `<span class="text-muted">${displayText(data)}</span>` },
+      { data: null, render: (_data, _type, row) => `<span class="small text-muted">${displayText(`${row.District || ''} ${row.Province || ''}`)}</span>` },
+      { data: null, orderable: false, render: (_data, _type, row) => window.renderInsuranceOrgBadge(row) },
+      { data: 'Drug_Allergy', render: data => `<span class="text-danger fw-bold small">${displayText(window.parsePatientAllergyInfo(data || '').allergy)}</span>` },
+      {
+        data: null,
+        orderable: false,
+        searchable: false,
+        render: function (_data, _type, row) {
+          const patientId = String(row.Patient_ID || '');
+          const patientName = `${row.First_Name || ''} ${row.Last_Name || ''}`.trim();
+          const encodedId = jsArg(patientId);
+          const encodedName = jsArg(patientName);
+          const visitCount = Number(row.__visitCount || 0);
+          const historyTitle = escapeHisHtml(`ປະຫວັດການກວດ ${visitCount} ຄັ້ງ`);
+          let actions = `<div class="d-flex gap-1 flex-nowrap justify-content-center">`;
+          actions += `<button class="btn btn-sm btn-outline-info shadow-sm fw-bold btn-timeline patient-history-button" data-pid="${escapeHisHtml(patientId)}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>`;
+          if (window.can('patients', 'view')) actions += `<button class="btn btn-sm btn-info text-white shadow-sm fw-bold" title="${escapeHisHtml(window.t('patients.viewDetails'))}" onclick="window.viewPatientDetail(decodeURIComponent('${encodedId}'))"><i class="fas fa-eye me-1"></i>${escapeHisHtml(window.t('patients.view'))}</button>`;
+          if (window.can('patients', 'print_qr')) actions += `<button class="btn btn-sm btn-dark text-white shadow-sm btn-print-qr" title="ພິມ Sticker" onclick="window.printQRCard(decodeURIComponent('${encodedId}'))"><i class="fas fa-qrcode"></i></button>`;
+          if (window.can('patients', 'triage')) actions += `<button class="btn btn-sm btn-warning text-dark shadow-sm fw-bold" onclick="window.sendToTriageFlow(decodeURIComponent('${encodedId}'), decodeURIComponent('${encodedName}'))"><i class="fas fa-share me-1"></i>Triage</button>`;
+          actions += `<button class="btn btn-sm btn-outline-secondary shadow-sm" title="ພິມໜ້າປົກ OPD ຫຼື IPD" onclick="window.printCoverChooser(decodeURIComponent('${encodedId}'))"><i class="fas fa-file-alt me-1"></i>ໜ້າປົກ</button>`;
+          if (window.can('patients', 'edit')) actions += `<button class="btn btn-sm btn-primary shadow-sm" title="${escapeHisHtml(window.t('patients.edit'))}" onclick="window.editPatient(decodeURIComponent('${encodedId}'))"><i class="fas fa-edit"></i></button>`;
+          if (window.can('patients', 'delete')) actions += `<button class="btn btn-sm btn-danger shadow-sm" title="${escapeHisHtml(window.t('patients.delete'))}" onclick="window.delPatient(decodeURIComponent('${encodedId}'))"><i class="fas fa-trash"></i></button>`;
+          return actions + '</div>';
+        }
+      }
+    ],
+    language: Object.assign({}, window.getDataTableLanguage({
+      emptyTable: window.t('patients.noPatientData'),
+      loadingRecords: ''
+    }), {
+      processing: window.getHospitalDataLoaderHtml({ message: 'ກຳລັງດຶງຂໍ້ມູນ...', compact: true, detail: false })
+    }),
+    initComplete: function () {
+      window.setupPatientTableFilters(this.api());
     }
-    const t0 = performance.now();
-    const results = await Promise.all(pageQueries);
-    const errored = results.find(r => r.error);
-    if (errored) throw errored.error;
-    const data = results.flatMap(r => r.data || []);
-    console.log(`Patients loaded: ${data.length} rows in ${Math.round(performance.now() - t0)}ms (${numPages} parallel pages)`);
-
-    let patientVisitCountMap = {};
-    try {
-      patientVisitCountMap = await window.fetchPatientVisitCountMap(data.map(row => row.Patient_ID));
-    } catch (visitCountError) {
-      console.warn('Patient visit counts could not be loaded:', visitCountError);
-    }
-
-    const $loadAllNotice = $('#patientLoadAllNotice');
-    if ($loadAllNotice.length) $loadAllNotice.empty().hide();
-
-    $('#patientTable tbody').empty();
-
-    if (!data || data.length === 0) {
-      const patientTable = $('#patientTable').DataTable({
-        responsive: true,
-        language: window.getDataTableLanguage({ emptyTable: window.t('patients.noPatientData') })
-      });
-      window.setupPatientTableFilters(patientTable);
-      return;
-    }
-
-    let h = "";
-    data.forEach(r => {
-      // ໃຊ້ຊື່ Column ຕາມໃນ CSV ຂອງເຈົ້າ (First_Name, Last_Name, ແລະ ອື່ນໆ)
-      let fullname = `${r.First_Name || ''} ${r.Last_Name || ''}`.trim();
-      let oldPatientId = window.normalizePatientCode(r.Old_Patient_ID || '');
-      let safeName = fullname.replace(/'/g, "\\'").replace(/"/g, "&quot;");
-      
-      // ອາຍຸ: ຄິດຈາກ DOB ກ່ອນ (ຕ່ຳກວ່າ 1 ປີ → ເດືອນ/ວັນ), ບໍ່ມີ DOB ຈຶ່ງໃຊ້ Age ຈາກຖານຂໍ້ມູນ
-      const ageText = window.formatAgeFromDob(r.Date_of_Birth, r.Age);
-      const visitCount = Number(patientVisitCountMap[r.Patient_ID] || 0);
-      const historyTitle = `ປະຫວັດການກວດ ${visitCount} ຄັ້ງ`;
-      const insuranceBadge = window.renderInsuranceOrgBadge(r);
-
-      // Build action buttons based on permissions
-      let acts = `<div class="d-flex gap-1 flex-nowrap justify-content-center">`;
-
-      // Timeline button (always show)
-      acts += `<button class="btn btn-sm btn-outline-info shadow-sm fw-bold btn-timeline patient-history-button" data-pid="${r.Patient_ID}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>`;
-
-      // View button
-      if (window.can('patients', 'view')) {
-        acts += `<button class="btn btn-sm btn-info text-white shadow-sm fw-bold" title="${window.t('patients.viewDetails')}" onclick="window.viewPatientDetail('${r.Patient_ID}')"><i class="fas fa-eye me-1"></i> ${window.t('patients.view')}</button>`;
-      }
-
-      // Barcode sticker button
-      if (window.can('patients', 'print_qr')) {
-        acts += `<button class="btn btn-sm btn-dark text-white shadow-sm btn-print-qr" title="ພິມ Sticker" onclick="window.printQRCard('${r.Patient_ID}')"><i class="fas fa-qrcode"></i></button>`;
-      }
-
-      // Triage button
-      if (window.can('patients', 'triage')) {
-        acts += `<button class="btn btn-sm btn-warning text-dark shadow-sm fw-bold" onclick="window.sendToTriageFlow('${r.Patient_ID}', '${safeName}')"><i class="fas fa-share me-1"></i> Triage</button>`;
-      }
-
-      // Print cover page — chooser (OPD or IPD)
-      acts += `<button class="btn btn-sm btn-outline-secondary shadow-sm" title="ພິມໜ້າປົກ OPD ຫຼື IPD" onclick="window.printCoverChooser('${r.Patient_ID}')"><i class="fas fa-file-alt me-1"></i> ໜ້າປົກ</button>`;
-
-      // Edit button
-      if (window.can('patients', 'edit')) {
-        acts += `<button class="btn btn-sm btn-primary shadow-sm" title="${window.t('patients.edit')}" onclick="window.editPatient('${r.Patient_ID}')"><i class="fas fa-edit"></i></button>`;
-      }
-
-      // Delete button
-      if (window.can('patients', 'delete')) {
-        acts += `<button class="btn btn-sm btn-danger shadow-sm" title="${window.t('patients.delete')}" onclick="window.delPatient('${r.Patient_ID}')"><i class="fas fa-trash"></i></button>`;
-      }
-
-      acts += `</div>`;
-
-      const pidMatch = String(r.Patient_ID || '').match(/^LXH(\d{4})-?(\d+)$/i);
-      const pidSortKey = pidMatch ? (parseInt(pidMatch[1], 10) * 10000000 + parseInt(pidMatch[2], 10)) : 0;
-      const rowAllergyInfo = window.parsePatientAllergyInfo(r.Drug_Allergy || '');
-      h += `<tr>
-                    <td class="text-muted small">${r.Registration_Date || '-'}</td>
-                    <td class="text-muted small">${r.Time || '-'}</td>
-                    <td class="text-primary fw-bold" data-order="${pidSortKey}">${r.Patient_ID || '-'}</td>
-                    <td class="text-muted fw-bold small">${oldPatientId || '-'}</td>
-                    <td class="fw-bold">${fullname}</td>
-                    <td>${r.Gender || '-'}</td>
-                    <td>${ageText || '-'}</td>
-                    <td class="text-muted">${r.Phone_Number || '-'}</td>
-                    <td class="small text-muted">${r.District || ''} ${r.Province || ''}</td>
-                    <td>${insuranceBadge}</td>
-                    <td class="text-danger fw-bold small">${rowAllergyInfo.allergy || '-'}</td>
-                    <td>${acts}</td>
-                  </tr>`;
-    });
-
-    $('#patientTable tbody').html(h);
-    const patientTable = $('#patientTable').DataTable({
-      responsive: true,
-      deferRender: true,
-      pageLength: 10,
-      order: [[2, "desc"]],
-      language: window.getDataTableLanguage({ emptyTable: window.t('patients.noPatientData') })
-    });
-
-    window.setupPatientTableFilters(patientTable);
-
-  } catch (err) {
-    console.error("Error loading patients:", err);
-    $('#patientTable tbody').html(`<tr><td colspan="12" class="text-center text-danger py-4">${window.t('patients.loadError')}</td></tr>`);
-  }
+  });
 };
 
 // ==========================================
@@ -6841,6 +6913,11 @@ window.submitTriageForm = function (e) {
   const fd = {};
   new FormData($('#triageForm')[0]).forEach((v, k) => fd[k] = v);
   fd.v_resp = String(fd.v_resp || '').trim() || '20';
+
+  if (!String(fd.v_clinical_department || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    return;
+  }
   
   if (!String(fd.v_department || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
@@ -6899,7 +6976,12 @@ window.submitTriageForm = function (e) {
 
 window.executeTriageSave = async function (fd) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
+  fd.v_clinical_department = String(fd.v_clinical_department || '').trim();
   fd.v_department = String(fd.v_department || '').trim();
+  if (!fd.v_clinical_department) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    return;
+  }
   if (!fd.v_department) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
@@ -6908,7 +6990,8 @@ window.executeTriageSave = async function (fd) {
   console.log('=== TRIAGE SAVE DEBUG ===');
   console.log('Visit ID:', fd.visitId);
   console.log('Patient ID:', fd.patientId);
-  console.log('Department:', fd.v_department);
+  console.log('Clinical Department:', fd.v_clinical_department);
+  console.log('Examination Room:', fd.v_department);
   console.log('BP:', fd.v_bp);
   console.log('Symptoms:', fd.v_symptoms);
 
@@ -6950,7 +7033,7 @@ window.executeTriageSave = async function (fd) {
     BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
     BP_Systolic: parsedBp.systolic, BP_Diastolic: parsedBp.diastolic,
     Respiratory_Rate: fd.v_resp, O2_Saturation: fd.v_spo2,
-    Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Department: fd.v_department, Mapped_Specialist: fd.v_clinical_department, Symptoms: fd.v_symptoms,
     Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
     Recorded_By: recordedBy,
     Doctor_Name: doctorName || null
@@ -6959,7 +7042,7 @@ window.executeTriageSave = async function (fd) {
     Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
     Weight: fd.v_weight, Height: fd.v_height,
     BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
-    Department: fd.v_department, Symptoms: fd.v_symptoms,
+    Department: fd.v_department, Mapped_Specialist: fd.v_clinical_department, Symptoms: fd.v_symptoms,
     Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
     Recorded_By: recordedBy,
     Doctor_Name: doctorName || null
@@ -7006,6 +7089,7 @@ window.executeTriageSave = async function (fd) {
       rr: fd.v_resp || '',
       spo2: fd.v_spo2 || '',
       symptoms: fd.v_symptoms || '',
+      clinicalDepartment: fd.v_clinical_department || '',
       department: fd.v_department || '',
       recordedBy,
       doctor: doctorName || ''
@@ -7447,7 +7531,9 @@ window._fetchTriageQueue = async function (sDate, eDate) {
           time: r.Date ? dObj.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
           patientId: r.Patient_ID, patientName: r.Patient_Name,
           oldId: window.normalizePatientCode(p?.Old_Patient_ID || ''),
-          status: window.normalizeVisitStatus(r.Status), department: r.Department || 'OPD',
+          status: window.normalizeVisitStatus(r.Status),
+          clinicalDepartment: r.Mapped_Specialist || '',
+          department: r.Department || 'OPD',
           isNew: !hasPreviousVisitMap[visitKey], // Check visit-specific key
           // Prefer live DOB → age (source of truth), fallback to stored Age snapshot on Visits/Patients
           age: window.ageFromDob(p?.Date_of_Birth || r.Date_of_Birth) ?? (r.Age || p?.Age || 0),
@@ -7737,7 +7823,7 @@ window.loadTriageQueue = async function () {
   let sDate = $('#triageStartDate').val();
   let eDate = $('#triageEndDate').val();
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
-  $('#triageTableBody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-danger spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#triageTableBody').html(window.getHospitalTableLoadingRow(8));
   const q = await window._fetchTriageQueue(sDate, eDate);
   currentTriageData = q || [];
   if ($.fn.DataTable.isDataTable('#triageTable')) $('#triageTable').DataTable().destroy();
@@ -7758,20 +7844,20 @@ window.loadTriageQueue = async function () {
         Insurance_Company: r.insuranceCompany,
         Name_Org: r.orgName
       });
-      let btnHtml = `<button class="btn btn-sm btn-triage-view-official me-1" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-file-medical-alt me-1"></i>ເບິ່ງ</button>`;
+      let btnHtml = `<button class="btn btn-sm btn-triage-view-official triage-action-btn triage-action-btn--view" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-file-medical-alt me-1"></i>ເບິ່ງ</button>`;
       if (r.status === 'Triage' || isCalling) {
-        btnHtml += `<button class="btn btn-sm btn-danger fw-bold shadow-sm me-1" onclick="window.openTriage(${i})" title="ວັດແທກ"><i class="fas fa-stethoscope"></i> ວັດແທກ</button>`;
+        btnHtml += `<button class="btn btn-sm btn-danger fw-bold shadow-sm triage-action-btn triage-action-btn--clinical" onclick="window.openTriage(${i})" title="ວັດແທກ"><i class="fas fa-stethoscope me-1"></i>ວັດແທກ</button>`;
       } else {
-        btnHtml += `<button class="btn btn-sm btn-primary shadow-sm me-1" onclick="window.openTriage(${i})" title="ແກ້ໄຂ"><i class="fas fa-edit"></i></button>`;
+        btnHtml += `<button class="btn btn-sm btn-primary shadow-sm triage-action-btn triage-action-btn--icon" onclick="window.openTriage(${i})" title="ແກ້ໄຂ" aria-label="ແກ້ໄຂ"><i class="fas fa-edit"></i></button>`;
       }
       // Add Call Button
-      btnHtml += `<button class="btn btn-sm btn-dark shadow-sm me-1" onclick="window.triggerTriagePublicCall(${i})" title="ເອີ້ນຄິວ" aria-label="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>`;
+      btnHtml += `<button class="btn btn-sm btn-dark shadow-sm triage-action-btn triage-action-btn--icon" onclick="window.triggerTriagePublicCall(${i})" title="ເອີ້ນຄິວ" aria-label="ເອີ້ນຄິວ"><i class="fas fa-volume-up"></i></button>`;
       
-      btnHtml += `<button class="btn btn-sm btn-outline-info shadow-sm me-1 btn-timeline patient-history-button" data-pid="${escapeHisHtml(r.patientId)}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>
-                         <button class="btn btn-sm btn-outline-danger shadow-sm me-1" onclick="window.deleteTriageVisitAt(${i})" title="ລຶບ" aria-label="ລຶບ"><i class="fas fa-trash"></i></button>
-                         <button class="btn btn-sm btn-secondary text-white shadow-sm me-1" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
+      btnHtml += `<button class="btn btn-sm btn-outline-info shadow-sm btn-timeline patient-history-button triage-action-btn triage-action-btn--icon" data-pid="${escapeHisHtml(r.patientId)}" title="${historyTitle}" aria-label="${historyTitle}"><i class="fas fa-history"></i><span class="patient-history-count">${visitCount}</span></button>
+                         <button class="btn btn-sm btn-outline-danger shadow-sm triage-action-btn triage-action-btn--icon" onclick="window.deleteTriageVisitAt(${i})" title="ລຶບ" aria-label="ລຶບ"><i class="fas fa-trash"></i></button>
+                         <button class="btn btn-sm btn-secondary text-white shadow-sm triage-action-btn triage-action-btn--icon" onclick="window.printOPDCard('triage', ${i})" title="ພິມໃບ OPD" aria-label="ພິມໃບ OPD"><i class="fas fa-file-medical"></i></button>`;
       if (window.can('patients', 'print_qr')) {
-        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm" onclick="window.printTriageQrAt(${i})" title="ພິມ Sticker" aria-label="ພິມ Sticker"><i class="fas fa-qrcode"></i></button>`;
+        btnHtml += `<button class="btn btn-sm btn-dark text-white shadow-sm triage-action-btn triage-action-btn--icon" onclick="window.printTriageQrAt(${i})" title="ພິມ Sticker" aria-label="ພິມ Sticker"><i class="fas fa-qrcode"></i></button>`;
       }
       h += `<tr class="${isCalling ? 'table-danger' : ''}">
                     <td class="text-muted">${escapeHisHtml(r.date)}</td>
@@ -7786,7 +7872,7 @@ window.loadTriageQueue = async function () {
                         if (t === 'OPD') return '<span class="badge bg-primary rounded-pill px-3">OPD</span>';
                         return '';
                       })()}</td>
-                    <td class="text-center"><div class="d-flex flex-wrap gap-1 justify-content-center align-items-center">${btnHtml}</div></td>
+                    <td class="text-center triage-action-cell"><div class="triage-actions" role="group" aria-label="ຈັດການ ${escapeHisHtml(r.patientName)}">${btnHtml}</div></td>
                   </tr>`;
     });
   }
@@ -7937,7 +8023,15 @@ window.openTriage = async function (i) {
   $('input[name="v_resp"]').val(r.rr || '20');
   $('input[name="v_spo2"]').val(r.spo2 || '');
   $('textarea[name="v_symptoms"]').val(r.symptoms || '');
-  $('select[name="v_department"]').val(r.department || '');
+  $('#v_clinical_department').val(r.clinicalDepartment || '');
+  const roomName = String(r.department || '').trim();
+  const $room = $('#v_department');
+  $room.find('option').filter((_, option) => String(option.value || '').trim().toUpperCase() === 'OPD').remove();
+  const isLegacyOpdRoom = roomName.toUpperCase() === 'OPD';
+  if (roomName && !isLegacyOpdRoom && !$room.find('option').filter((_, option) => option.value === roomName).length) {
+    $room.append(new Option(roomName, roomName));
+  }
+  $room.val(isLegacyOpdRoom ? '' : roomName);
 
   // Populate Site dropdown from masterData then restore saved value
   let siteOptions = masterDataStore['Site'] ? masterDataStore['Site'].map(x => x.value) : ['In-site', 'Onsite'];
@@ -8151,7 +8245,10 @@ window.loadObservationPage = async function () {
   const eDate = (isListView ? $('#obsListEndDate').val() : $('#obsEndDate').val()) || sDate;
   if (isListView && $('#observationTable').length) {
     if ($.fn.DataTable.isDataTable('#observationTable')) $('#observationTable').DataTable().destroy();
-    $('#observationTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+    $('#observationTable tbody').html(window.getHospitalTableLoadingRow(9));
+  }
+  if (isBoardView && $('#obsBedBoard').length) {
+    $('#obsBedBoard').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData') }));
   }
   try {
     await window.fetchIpdWardBedData?.();
@@ -9195,12 +9292,30 @@ const lisNotifiedResultFileIds = new Set();
 let lisReadResultFileIds = new Set();
 let lisActiveResultAlerts = [];
 let lisResultAcknowledgmentPersistence = 'unknown';
-// Set of Visit_IDs already notified. We alert ONCE per visit; the toast itself
-// is sticky (no auto-dismiss) and stays on screen until the doctor clicks it —
-// so we don't need a time-based repeat or a separate "dismissed" set.
+const OPD_TOAST_AUTO_DISMISS_MS = 10 * 60 * 1000;
+const LIS_RESULT_TOAST_AUTO_DISMISS_MS = 10 * 60 * 1000;
+const opdToastDismissTimers = new Map();
+const lisResultToastDismissTimers = new Map();
+// Set of Visit_IDs already notified. We alert once per visit; the visual toast
+// remains available for ten minutes unless the user dismisses it first.
 const opdNotifiedVisitIds = new Set();
 let opdActiveRoomAlerts = [];
 const OPD_MY_ROOM_KEY = 'his_opd_my_room';
+
+window.getGlobalClinicalToastContainer = function () {
+  let container = document.getElementById('opdToastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'opdToastContainer';
+    container.className = 'opd-toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'false');
+  }
+  // Older cached partials may still contain the container inside the hidden
+  // OPD view. Re-parent it so room and LIS notifications display on every page.
+  if (container.parentElement !== document.body) document.body.appendChild(container);
+  return container;
+};
 
 window.getOpdMyRoom = function () {
   try { return localStorage.getItem(OPD_MY_ROOM_KEY) || ''; } catch (e) { return ''; }
@@ -9260,7 +9375,7 @@ window.handleOpdQueueNotification = function (row) {
   const visitId = row.Visit_ID;
   if (!visitId) return;
   if (!window.isOpdRoomMatch(row.Department)) return;
-  // One alert per visit — toast is sticky and remains until the doctor clicks it.
+  // One alert per visit; the toast remains for at most ten minutes.
   if (opdNotifiedVisitIds.has(visitId)) return;
 
   opdNotifiedVisitIds.add(visitId);
@@ -9332,25 +9447,26 @@ window.teardownOpdQueueRealtime = function () {
     clearInterval(opdQueuePollInterval);
     opdQueuePollInterval = null;
   }
+  opdToastDismissTimers.forEach(timerId => window.clearTimeout(timerId));
+  opdToastDismissTimers.clear();
+  document.querySelectorAll('.opd-room-arrival-toast').forEach(element => element.remove());
   opdNotifiedVisitIds.clear();
   opdActiveRoomAlerts = [];
 };
 
-// Toast click handler — just removes the DOM node. We notify only once per
-// visit (see handleOpdQueueNotification), so there's no extra suppression to
-// track when the doctor closes the card.
+// Toast click handler clears its auto-dismiss timer and removes the DOM node.
 window.dismissOpdToast = function (toastId) {
+  const timerId = opdToastDismissTimers.get(toastId);
+  if (timerId) window.clearTimeout(timerId);
+  opdToastDismissTimers.delete(toastId);
   const el = document.getElementById(toastId);
   if (el) el.remove();
 };
 
 window.showOpdQueueToast = function (patientName, department, visitId) {
-  let $c = $('#opdToastContainer');
-  if (!$c.length) {
-    $('body').append('<div id="opdToastContainer" class="opd-toast-container"></div>');
-    $c = $('#opdToastContainer');
-  }
-  // De-dup: if a sticky toast for this visit is already on screen, leave it alone.
+  const container = window.getGlobalClinicalToastContainer();
+  const $c = $(container);
+  // De-dup: if a toast for this visit is already on screen, leave it alone.
   if (visitId) {
     const safeAttr = String(visitId).replace(/"/g, '');
     if (document.querySelector(`.opd-toast[data-visit-id="${safeAttr}"]`)) return;
@@ -9361,7 +9477,7 @@ window.showOpdQueueToast = function (patientName, department, visitId) {
   const visitAttr = visitId ? ` data-visit-id="${String(visitId).replace(/"/g, '')}"` : '';
   const dismissCall = `window.dismissOpdToast('${toastId}')`;
   $c.append(
-    `<div id="${toastId}"${visitAttr} class="opd-toast" onclick="${dismissCall}">
+    `<div id="${toastId}"${visitAttr} class="opd-toast opd-room-arrival-toast" onclick="${dismissCall}">
        <div class="opd-toast-icon"><i class="fas fa-user-md"></i></div>
        <div class="opd-toast-body">
          <div class="opd-toast-title">ມີຄົນເຈັບໃໝ່ສົ່ງມາ</div>
@@ -9370,8 +9486,8 @@ window.showOpdQueueToast = function (patientName, department, visitId) {
        <button class="opd-toast-close" onclick="event.stopPropagation();${dismissCall}">&times;</button>
      </div>`
   );
-  // Sticky: no auto-dismiss. Toast stays until the doctor clicks the card or the × button.
-  // Clicking either also marks the visit as dismissed so the 60s repeat stays silent.
+  const timerId = window.setTimeout(() => window.dismissOpdToast(toastId), OPD_TOAST_AUTO_DISMISS_MS);
+  opdToastDismissTimers.set(toastId, timerId);
 };
 
 let opdAudioCtx = null;
@@ -9435,13 +9551,15 @@ window.showOpdDesktopNotification = function (patientName, department) {
 };
 
 // ============================================================
-// LIS completed-result notifications — triage nurses + doctors
+// LIS completed-result notifications — administrators, triage nurses + doctors
 // ============================================================
 window.isLisResultNotificationRecipient = function () {
   const role = String(currentUser?.role || '').trim().toLowerCase();
   if (window.isLocalOpdTestPreview?.()) return true;
-  return role === 'doctor'
+  return role === 'admin'
+    || role === 'doctor'
     || role === 'nurse'
+    || role.includes('admin')
     || role.includes('doctor')
     || role.includes('nurse')
     || role.includes('ແພດ')
@@ -9508,6 +9626,16 @@ window.getLisResultNotificationAlerts = function () {
   return window.isLisResultNotificationRecipient() ? [...lisActiveResultAlerts] : [];
 };
 
+window.formatLisResultReadyTime = function (value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+};
+
 window.normalizeLisResultNotification = function (file, orderOverride) {
   const order = orderOverride || file?.order || {};
   const fileId = String(file?.id || file?.fileId || '').trim();
@@ -9524,6 +9652,7 @@ window.normalizeLisResultNotification = function (file, orderOverride) {
   const severity = /critical|panic|urgent|ວິກິດ/.test(severitySource)
     ? 'critical'
     : (/abnormal|high|low|ຜິດປົກກະຕິ/.test(severitySource) ? 'abnormal' : 'normal');
+  const uploadedAt = file?.uploadedAt || file?.uploaded_at || new Date().toISOString();
   return {
     fileId,
     orderId,
@@ -9533,7 +9662,8 @@ window.normalizeLisResultNotification = function (file, orderOverride) {
     department: String(order.department || '').trim(),
     testName: String(order.test_items || order.test_name || order.testName || '').trim(),
     fileName: String(file?.fileName || file?.file_name || 'Laboratory report.pdf').trim(),
-    uploadedAt: file?.uploadedAt || file?.uploaded_at || new Date().toISOString(),
+    uploadedAt,
+    readyAt: order?.completed_at || file?.completedAt || file?.completed_at || uploadedAt,
     storagePath,
     publicUrl,
     severity
@@ -9543,6 +9673,9 @@ window.normalizeLisResultNotification = function (file, orderOverride) {
 window.dismissLisResultNotification = function (fileId) {
   const key = String(fileId || '');
   const safeAttr = key.replace(/[^A-Za-z0-9_-]/g, '');
+  const timerId = lisResultToastDismissTimers.get(safeAttr);
+  if (timerId) window.clearTimeout(timerId);
+  lisResultToastDismissTimers.delete(safeAttr);
   document.querySelectorAll(`.opd-lis-result-toast[data-lis-file-id="${safeAttr}"]`).forEach(element => element.remove());
 };
 
@@ -9601,36 +9734,36 @@ window.openLisResultNotification = function (fileId) {
 
 window.showLisResultToast = function (alert) {
   if (!alert?.fileId) return;
-  let container = document.getElementById('opdToastContainer');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'opdToastContainer';
-    container.className = 'opd-toast-container';
-    document.body.appendChild(container);
-  }
+  const container = window.getGlobalClinicalToastContainer();
   const safeAttr = String(alert.fileId).replace(/[^A-Za-z0-9_-]/g, '');
   if (container.querySelector(`[data-lis-file-id="${safeAttr}"]`)) return;
   const toastId = `lisResultToast_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   const esc = window.opdTestHtml || (value => String(value ?? ''));
+  const readyTime = window.formatLisResultReadyTime(alert.readyAt || alert.uploadedAt);
   container.insertAdjacentHTML('beforeend',
     `<div id="${toastId}" class="opd-toast opd-lis-result-toast is-${alert.severity || 'normal'}" data-lis-file-id="${safeAttr}" onclick="window.openLisResultNotification('${safeAttr}')">
        <div class="opd-toast-icon"><i class="fas fa-file-medical-alt"></i></div>
        <div class="opd-toast-body">
-         <div class="opd-toast-title">ຜົນກວດ HN ${esc(alert.patientId)}</div>
-         <div class="opd-toast-text">ຊື່ <strong>${esc(alert.patientName)}</strong> — ສຳເລັດແລ້ວ</div>
-         <div class="opd-lis-toast-order"><i class="fas fa-vial"></i> ${esc(alert.orderId)}${alert.testName ? ` · ${esc(alert.testName)}` : ''}</div>
-         <button type="button" class="opd-lis-ack-btn" onclick="event.stopPropagation();window.acknowledgeLisResultNotification('${safeAttr}')"><i class="fas fa-check"></i> ຮັບຊາບ</button>
+         <div class="opd-toast-title">HN ${esc(alert.patientId)}</div>
+         <div class="opd-toast-text"><strong>${esc(alert.patientName)}</strong></div>
+         <div class="opd-lis-toast-ready"><i class="far fa-clock"></i> ເວລາພ້ອມ ${esc(readyTime)}</div>
        </div>
        <button class="opd-toast-close" onclick="event.stopPropagation();window.dismissLisResultNotification('${safeAttr}')" aria-label="ປິດ">&times;</button>
      </div>`
   );
+  const timerId = window.setTimeout(
+    () => window.dismissLisResultNotification(safeAttr),
+    LIS_RESULT_TOAST_AUTO_DISMISS_MS
+  );
+  lisResultToastDismissTimers.set(safeAttr, timerId);
 };
 
 window.showLisResultDesktopNotification = function (alert) {
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
-    const notification = new Notification(`✅ ຜົນກວດ HN ${alert.patientId}`, {
-      body: `ຊື່ ${alert.patientName} — ສຳເລັດແລ້ວ\n${alert.orderId}`,
+    const readyTime = window.formatLisResultReadyTime(alert.readyAt || alert.uploadedAt);
+    const notification = new Notification(`HN ${alert.patientId}`, {
+      body: `${alert.patientName}\nເວລາພ້ອມ ${readyTime}`,
       tag: `lis-result-${alert.fileId}`,
       requireInteraction: false
     });
@@ -9683,14 +9816,22 @@ window.enrichLisResultFiles = async function (files) {
     .map(file => String(file?.order_id || file?.orderId || '').replace(/[^A-Za-z0-9_-]/g, ''))
     .filter(Boolean))];
   let orders = [];
-  if (orderIds.length) {
-    const orderResponse = await window.opdTestLisRequest('/api/data', {
+  // One LIS order can contain many test rows. A limit equal to the number of
+  // order IDs truncates the response and leaves newer result files without a
+  // patient identity, which previously caused their notifications to be
+  // discarded. Fetch bounded batches with enough room for every test row.
+  const orderBatches = [];
+  for (let index = 0; index < orderIds.length; index += 50) {
+    orderBatches.push(orderIds.slice(index, index + 50));
+  }
+  if (orderBatches.length) {
+    const responses = await Promise.all(orderBatches.map(batch => window.opdTestLisRequest('/api/data', {
       table: 'lis_one_test_orders',
       select: 'order_id,patient_id,patient_name,doctor,department,test_name,test_items,status,completed_at,order_datetime',
-      filter: `order_id=in.(${orderIds.join(',')})`,
-      limit: Math.max(20, orderIds.length)
-    });
-    orders = Array.isArray(orderResponse.data) ? orderResponse.data : [];
+      filter: `order_id=in.(${batch.join(',')})`,
+      limit: 1000
+    })));
+    orders = responses.flatMap(response => Array.isArray(response.data) ? response.data : []);
   }
   const orderById = new Map(orders.map(order => [String(order.order_id || ''), order]));
   return source.map(file => ({
@@ -9764,6 +9905,8 @@ window.teardownLisResultNotifications = function () {
   lisResultPollRunning = false;
   lisResultNotificationsSeeded = false;
   lisNotifiedResultFileIds.clear();
+  lisResultToastDismissTimers.forEach(timerId => window.clearTimeout(timerId));
+  lisResultToastDismissTimers.clear();
   lisActiveResultAlerts = [];
   document.querySelectorAll('.opd-lis-result-toast').forEach(element => element.remove());
 };
@@ -9841,7 +9984,7 @@ window.loadQueue = async function () {
     let sDate = $('#opdStartDate').val();
     let eDate = $('#opdEndDate').val();
     if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
-    $('#queueTableBody').html('<tr><td colspan="11" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+    $('#queueTableBody').html(window.getHospitalTableLoadingRow(11));
     window.populateOpdMyRoomFilter();
 
     const allQueueRows = await window._fetchOpdQueue(sDate, eDate);
@@ -10921,7 +11064,12 @@ window.printIPDCoverFromPatientId = async function (patientId) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-  Swal.fire({ title: 'ກຳລັງໂຫຼດ AM...', didOpen: () => Swal.showLoading() });
+  Swal.fire({
+    html: window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດ AM...' }),
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false
+  });
   const { data, error } = await supabaseClient
     .from(dbTable('Admissions'))
     .select('*')
@@ -11246,7 +11394,7 @@ window.delPatient = async function (id) {
 
 window.loadAppointments = async function () {
   if ($.fn.DataTable.isDataTable('#apptTable')) $('#apptTable').DataTable().destroy();
-  $('#apptTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-warning spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#apptTable tbody').html(window.getHospitalTableLoadingRow(8));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Appointments')).select('*').order('Appt_Date', { ascending: true });
@@ -11381,7 +11529,7 @@ window.generateIntervalInputs = function () {
 
 window.loadVaccineMaster = async function () {
   if ($.fn.DataTable.isDataTable('#vacMasterTable')) $('#vacMasterTable').DataTable().destroy();
-  $('#vacMasterTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#vacMasterTable tbody').html(window.getHospitalTableLoadingRow(6));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Vaccines_Master')).select('*');
@@ -11421,7 +11569,7 @@ window.loadVaccineMaster = async function () {
 
 window.loadPatientVaccines = async function () {
   if ($.fn.DataTable.isDataTable('#patientVacTable')) $('#patientVacTable').DataTable().destroy();
-  $('#patientVacTable tbody').html('<tr><td colspan="9" class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#patientVacTable tbody').html(window.getHospitalTableLoadingRow(9));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Patient_Vaccines')).select('*').order('Date_Given', { ascending: false });
@@ -11638,7 +11786,7 @@ window.delPatientVac = async function (id) {
 
 window.loadDrugsMaster = async function () {
   if ($.fn.DataTable.isDataTable('#drugTable')) $('#drugTable').DataTable().destroy();
-  $('#drugTable tbody').html('<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-success spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#drugTable tbody').html(window.getHospitalTableLoadingRow(4));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Drugs_Master')).select('*');
@@ -11722,7 +11870,7 @@ window.submitDrugMasterForm = async function (e) {
 
 window.loadLabsMaster = async function () {
   if ($.fn.DataTable.isDataTable('#labTable')) $('#labTable').DataTable().destroy();
-  $('#labTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#labTable tbody').html(window.getHospitalTableLoadingRow(6));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Labs_Master')).select('*');
@@ -11855,7 +12003,7 @@ window.submitLabMasterForm = async function (e) {
 
 window.loadUsers = async function () {
   if ($.fn.DataTable.isDataTable('#userTable')) $('#userTable').DataTable().destroy();
-  $('#userTable tbody').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-dark spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#userTable tbody').html(window.getHospitalTableLoadingRow(6));
 
   window.refreshDoctorUserList?.();
   try {
@@ -12454,6 +12602,10 @@ window.loadMasterDataGlobalCallback = function (data) {
       sourceData.forEach(i => o += `<option value="${i.value}">${i.value}</option>`);
     }
     $('.dyn-' + c).html(o);
+    if (c === 'Department') {
+      $('#v_department option').filter((_, option) => String(option.value || '').trim().toUpperCase() === 'OPD').remove();
+      $('#v_department option:first').text('-- ເລືອກຫ້ອງກວດ --');
+    }
   });
   if (missingCategories.length > 0) {
     console.warn('MasterData: ໃຊ້ຂໍ້ມູນ fallback ສຳລັບ:', missingCategories.join(', '));
@@ -12815,7 +12967,7 @@ window.editMaster = async function (id, oldVal) {
 
 window.loadOrgs = async function () {
   if ($.fn.DataTable.isDataTable('#orgTable')) $('#orgTable').DataTable().destroy();
-  $('#orgTable tbody').html('<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#orgTable tbody').html(window.getHospitalTableLoadingRow(8));
 
   try {
     // Supabase PostgREST caps a single response at ~1000 rows regardless of .limit(),
@@ -12928,7 +13080,7 @@ window.editOrg = function (r, c, n, on, oc, d) {
 
 window.loadLocationsMasterView = async function () {
   if ($.fn.DataTable.isDataTable('#locationTable')) $('#locationTable').DataTable().destroy();
-  $('#locationTable tbody').html('<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#locationTable tbody').html(window.getHospitalTableLoadingRow(4));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Locations')).select('*');
@@ -13039,7 +13191,7 @@ window.delLocation = function (id) {
 
 window.loadServicesMasterView = async function () {
   if ($.fn.DataTable.isDataTable('#serviceTable')) $('#serviceTable').DataTable().destroy();
-  $('#serviceTable tbody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#serviceTable tbody').html(window.getHospitalTableLoadingRow(5));
 
   try {
     const { data: r, error } = await supabaseClient.from(dbTable('Service_Lists')).select('*');
@@ -14240,7 +14392,7 @@ window.loadActivityLog = async function () {
   let act = $('#logActionFilter').val();
 
   if ($.fn.DataTable.isDataTable('#activityLogTable')) $('#activityLogTable').DataTable().destroy();
-  $('#activityLogTableBody').html('<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-info spinner-border-sm"></div> ກຳລັງໂຫຼດ...</td></tr>');
+  $('#activityLogTableBody').html(window.getHospitalTableLoadingRow(5));
 
   try {
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
@@ -14345,6 +14497,8 @@ let publicQueueChannel = null;
 
 window.initPublicQueueView = async function () {
   console.log("Initializing Public Queue View...");
+
+  $('#tvOpdList, #tvTriageList').html(window.getHospitalDataLoaderHtml({ compact: true }));
   
   // Set Hospital Name
   $('#tvHospitalName').text(systemSettings.hospitalName || "HIS HOSPITAL");
@@ -14685,7 +14839,7 @@ window.fetchPatientIpdNotes = async function (admissions) {
 window.showPatientTimeline = async function (patientId) {
   if (!patientId) return;
   $('#patientTimelineModal').modal('show');
-  $('#timelineContent').html('<div class="patient-timeline-state"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><span>ກຳລັງໂຫຼດປະຫວັດ...</span></div>');
+  $('#timelineContent').html(window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດປະຫວັດ...' }));
 
   try {
     const { data: patient } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', patientId).single();
@@ -15012,7 +15166,8 @@ window.showPatientTimeline = async function (patientId) {
 // ========================================================================
 
 // ============================================================
-// Init backup view — load status & history on page show
+// Init backup view — load only the visible Supabase tab. The Drive/history
+// tabs fetch on first open so this admin page stays fast and compact.
 // ============================================================
 // ------------------------------------------------------------
 // Resilient backup API fetch. The /api/backup/* endpoints are
@@ -15051,6 +15206,20 @@ window._backupUnavailableRow = function (colspan) {
     '<code>npm run pages:dev</code> — ບໍ່ມີຜົນຕໍ່ການເຮັດວຽກ local.</td></tr>';
 };
 
+window.showBackupTab = function (tabName) {
+  const tabs = {
+    supabase: { button: '#backupTabSupabase', pane: '#backupPaneSupabase', load: () => window.loadBackupFileList() },
+    gdrive: { button: '#backupTabGdrive', pane: '#backupPaneGdrive', load: () => window.loadGdriveBackupList() },
+    history: { button: '#backupTabHistory', pane: '#backupPaneHistory', load: () => window.renderBackupHistory() }
+  };
+  const target = tabs[tabName] || tabs.supabase;
+  $('#backupSourceTabs .nav-link').removeClass('active').attr('aria-selected', 'false');
+  $('#backupSourceTabContent > .backup-tab-pane').removeClass('show active');
+  $(target.button).addClass('active').attr('aria-selected', 'true');
+  $(target.pane).addClass('show active');
+  target.load();
+};
+
 window.initBackupView = function () {
   if (!currentUser || currentUser.role !== 'admin') {
     Swal.fire('ເຂົ້າບໍ່ໄດ້', 'ທ່ານບໍ່ມີສິດເຂົ້າໃຊ້. ສຳຮອງຂໍ້ມູນສຳລັບ admin ເທົ່ານັ້ນ.', 'error');
@@ -15058,9 +15227,7 @@ window.initBackupView = function () {
     return;
   }
   window.loadLatestBackupStatus();
-  window.renderBackupHistory();
-  window.loadBackupFileList();
-  if (typeof window.loadGdriveBackupList === 'function') window.loadGdriveBackupList();
+  window.showBackupTab('supabase');
 };
 
 // ============================================================
@@ -15326,6 +15493,7 @@ window.addBackupHistoryEntry = function (entry) {
 };
 
 window.renderBackupHistory = async function () {
+  $('#backupHistoryBody').html(window.getHospitalTableLoadingRow(6, 'ກຳລັງໂຫຼດປະຫວັດ backup...'));
   const res = await window._backupApiFetch('/api/backup/runs?limit=15');
   if (res.unavailable) {
     // In local Vite (no Functions) — show a clear local-dev message
@@ -15394,8 +15562,7 @@ window._renderBackupHistoryTable = function (runs) {
 window.loadBackupFileList = async function () {
   const tbody = document.getElementById('backupFileListBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">' +
-    '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດລາຍການ backup...</td></tr>';
+  tbody.innerHTML = window.getHospitalTableLoadingRow(4, 'ກຳລັງໂຫຼດລາຍການ backup...');
   try {
     const res = await window._backupApiFetch('/api/backup/list');
     if (res.unavailable) {
@@ -15532,8 +15699,7 @@ window.confirmRestoreBackup = async function (name, opts) {
 window.loadGdriveBackupList = async function () {
   const tbody = document.getElementById('backupGdriveListBody');
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted small">' +
-    '<i class="fas fa-spinner fa-spin me-2"></i>ກຳລັງໂຫຼດຈາກ Google Drive...</td></tr>';
+  tbody.innerHTML = window.getHospitalTableLoadingRow(4, 'ກຳລັງໂຫຼດຈາກ Google Drive...');
   try {
     const res = await window._backupApiFetch('/api/backup/gdrive-list');
     if (res.unavailable) {
@@ -16136,7 +16302,7 @@ window.fetchIpdWardBedData = async function () {
 };
 
 window.loadIpdWardBedManagement = async function () {
-  $('#ipdBedBoard').html(`<div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="text-muted mt-2">${window.ipdEscape(window.t('ipd.loadingData'))}</div></div>`);
+  $('#ipdBedBoard').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData') }));
 
   try {
     await window.fetchIpdWardBedData();
@@ -16626,7 +16792,7 @@ window.ipdDischargeDate = function (admission) {
 };
 
 window.loadIpdDashboard = async function () {
-  $('#ipdRecentAdmissions, #ipdPendingDischarge, #ipdBedStatusSummary').html(`<div class="text-muted small py-2">${window.ipdEscape(window.t('ipd.loadingData'))}</div>`);
+  $('#ipdRecentAdmissions, #ipdPendingDischarge, #ipdBedStatusSummary').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData'), compact: true }));
   try {
     await window.fetchIpdWardBedData();
     window.prepareIpdUnfilteredState();
@@ -16894,6 +17060,9 @@ window.createIpdQuickAdmission = async function (form) {
 };
 
 window.loadIpdConfigPage = async function () {
+  $('#ipdWardsTable tbody').html(window.getHospitalTableLoadingRow(5));
+  $('#ipdRoomsTable tbody').html(window.getHospitalTableLoadingRow(6));
+  $('#ipdBedsTable tbody').html(window.getHospitalTableLoadingRow(9));
   try {
     await window.fetchIpdWardBedData();
     window.prepareIpdUnfilteredState();
@@ -16936,6 +17105,7 @@ window.bindIpdConfigTabs = function () {
 };
 
 window.loadIpdInpatientListPage = async function () {
+  $('#ipdStandaloneInpatientTable tbody').html(window.getHospitalTableLoadingRow(14));
   try {
     await window.fetchIpdWardBedData();
     window.prepareIpdUnfilteredState();
@@ -16971,6 +17141,7 @@ window.applyIpdInpatientFilterTabUi = function () {
 };
 
 window.loadIpdDischargePage = async function () {
+  $('#ipdDischargePending, #ipdDischargeCleaningBeds').html(window.getHospitalDataLoaderHtml({ compact: true }));
   try {
     await window.fetchIpdWardBedData();
     window.prepareIpdUnfilteredState();
@@ -18004,7 +18175,7 @@ window.fetchIpdClinicalData = async function (admissionId) {
 window.loadIpdClinicalChart = async function (admissionId) {
   if (!admissionId) return;
   window.ipdCurrentChartAdmissionId = admissionId;
-  $('#ipdChartSummaryPanel').html(`<div class="text-muted small py-2">${window.ipdEscape(window.t('ipd.loadingData'))}</div>`);
+  $('#ipdChartSummaryPanel').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData'), compact: true }));
   try {
     await window.fetchIpdClinicalData(admissionId);
     window.renderIpdChartPage(admissionId);
@@ -19749,7 +19920,7 @@ window.opdTestRenderLisResults = function (options = {}) {
     status.classList.add('is-loading');
     status.innerHTML = '<i class="fas fa-circle"></i>ກຳລັງເຊື່ອມຕໍ່ LIS';
     if (!state.lisResultsLoaded && !files.length) {
-      list.innerHTML = '<div class="opdt-lis-empty"><i class="fas fa-spinner fa-spin"></i><strong>ກຳລັງດຶງຜົນກວດ</strong><span>ກວດສອບ Order ແລະ PDF ຕາມ HN...</span></div>';
+      list.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງດຶງຜົນກວດ...', detail: 'ກວດສອບ Order ແລະ PDF ຕາມ HN' });
     }
     return;
   }
@@ -22624,7 +22795,7 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   const search = document.getElementById('opdTestMedicationSearch');
   const catalog = document.getElementById('opdTestMedicationCatalog');
   if (search) search.value = '';
-  if (catalog) catalog.innerHTML = '<p class="text-muted text-center small py-4"><i class="fas fa-spinner fa-spin me-1"></i>ກຳລັງໂຫຼດລາຍການຢາ...</p>';
+  if (catalog) catalog.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດລາຍການຢາ...', compact: true });
   window.opdTestRenderMedicationPickerDraft();
   if (document.activeElement) document.activeElement.blur();
   $('#opdTestMedicationModal').modal('show');
