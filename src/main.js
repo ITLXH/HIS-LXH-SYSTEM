@@ -8,6 +8,7 @@ import {
   resolveOpdTestInvestigationType
 } from './opdTestPersistence.js';
 import { escapeHisHtml } from '../shared/his-html.js';
+import { mergeDoctorOptions } from './doctorOptions.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
   HIS_ROLE_PAGE_DEFAULTS,
@@ -6009,6 +6010,7 @@ window.refreshDoctorUserList = async function () {
     if (error) {
       console.warn('refreshDoctorUserList: falling back to MasterData Doctor', error);
       window.doctorUsersCache = [];
+      window.applyDoctorUserSelects();
       return;
     }
     window.doctorUsersCache = (data || [])
@@ -6019,19 +6021,19 @@ window.refreshDoctorUserList = async function () {
   } catch (err) {
     console.warn('refreshDoctorUserList error:', err);
     window.doctorUsersCache = [];
+    window.applyDoctorUserSelects();
   }
 };
 
 window.applyDoctorUserSelects = function () {
-  let list = window.doctorUsersCache || [];
-  let source = 'users';
-  if (!list.length) {
-    // Fallback: MasterData["Doctor"] when no users have role=doctor yet.
-    const md = (typeof masterDataStore !== 'undefined' && masterDataStore && masterDataStore['Doctor']) || [];
-    list = md.map(x => String(x.value || '').trim()).filter(Boolean);
-    source = 'masterdata';
-  }
-  list = [...new Set(list.map(name => String(name || '').trim()).filter(Boolean))];
+  const masterDoctors = (typeof masterDataStore !== 'undefined' && masterDataStore && masterDataStore['Doctor']) || [];
+  const doctorUsers = window.doctorUsersCache || [];
+  // Master Data is the hospital's clinical roster. Active doctor accounts are
+  // appended so a generic account such as "OPD Doctor" cannot hide real names.
+  const list = mergeDoctorOptions(masterDoctors, doctorUsers);
+  const source = masterDoctors.length && doctorUsers.length
+    ? 'masterdata+users'
+    : (masterDoctors.length ? 'masterdata' : 'users');
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   document.querySelectorAll('.doctor-users-select').forEach(sel => {
     const $sel = typeof jQuery !== 'undefined' ? $(sel) : null;
