@@ -174,13 +174,14 @@ def main():
             assert existing == identity, "Conflicting retained references"
         print(f"Validated Drive coverage for archive {index + 1}/{len(archives)}", flush=True)
 
-    candidates = sorted(
+    all_sidecars = sorted(
         name
         for name in objects
         if name.startswith(("snapshots/", "blobs/sha256/"))
     )
-    assert candidates, "No Supabase backup sidecars found"
-    assert set(candidates) == set(refs), "Unexpected unreferenced or unprotected sidecar"
+    candidates = sorted(refs)
+    unreferenced = sorted(set(all_sidecars) - set(refs))
+    assert candidates, "No Drive-verified Supabase backup sidecars found"
 
     plan = {name: fingerprint(objects[name]) for name in candidates}
     digest = hashlib.sha256(
@@ -193,6 +194,8 @@ def main():
         "drive_verified_unique_blobs": len(unique_shas),
         "delete_objects": len(plan),
         "delete_bytes": sum(size(objects[name]) for name in plan),
+        "preserved_unreferenced_objects": len(unreferenced),
+        "preserved_unreferenced_bytes": sum(size(objects[name]) for name in unreferenced),
     }
     print(json.dumps(report, indent=2), flush=True)
     Path("drive-offload-cleanup-report.json").write_text(
