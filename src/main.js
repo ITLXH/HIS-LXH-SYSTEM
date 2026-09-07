@@ -9284,7 +9284,7 @@ let lisReadResultFileIds = new Set();
 let lisActiveResultAlerts = [];
 let lisResultAcknowledgmentPersistence = 'unknown';
 const OPD_TOAST_AUTO_DISMISS_MS = 10 * 60 * 1000;
-const LIS_RESULT_TOAST_AUTO_DISMISS_MS = 10 * 60 * 1000;
+const LIS_RESULT_TOAST_AUTO_DISMISS_MS = 60 * 1000;
 const opdToastDismissTimers = new Map();
 const lisResultToastDismissTimers = new Map();
 // Set of Visit_IDs already notified. We alert once per visit; the visual toast

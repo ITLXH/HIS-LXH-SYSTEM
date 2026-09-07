@@ -13,7 +13,7 @@ const checks = [
   ['Room-arrival toast duration is exactly ten minutes', /OPD_TOAST_AUTO_DISMISS_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/.test(main)],
   ['Room-arrival toast schedules automatic dismissal', /setTimeout\(\(\)\s*=>\s*window\.dismissOpdToast\(toastId\),\s*OPD_TOAST_AUTO_DISMISS_MS\)/.test(main)],
   ['Manual dismissal clears the pending timeout', /opdToastDismissTimers\.get\(toastId\)[\s\S]{0,180}clearTimeout\(timerId\)/.test(main)],
-  ['LIS result toast duration is exactly ten minutes', /LIS_RESULT_TOAST_AUTO_DISMISS_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/.test(main)],
+  ['LIS result toast duration is exactly one minute', /LIS_RESULT_TOAST_AUTO_DISMISS_MS\s*=\s*60\s*\*\s*1000/.test(main)],
   ['LIS result toast schedules automatic dismissal', /setTimeout\([\s\S]{0,100}dismissLisResultNotification\(safeAttr\)[\s\S]{0,100}LIS_RESULT_TOAST_AUTO_DISMISS_MS/.test(main)],
   ['LIS result manual dismissal clears its timeout', /lisResultToastDismissTimers\.get\(safeAttr\)[\s\S]{0,180}clearTimeout\(timerId\)/.test(main)],
   ['LIS notification teardown clears all toast timers', /lisResultToastDismissTimers\.forEach\(timerId => window\.clearTimeout\(timerId\)\)[\s\S]{0,100}lisResultToastDismissTimers\.clear\(\)/.test(main)],
