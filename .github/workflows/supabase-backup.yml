@@ -86,6 +86,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
+          SUPABASE_OFFLOAD_AFTER_DRIVE: '1'
           OUTPUT_DIR: output
           GDRIVE_UPLOAD_WORKERS: '32'
         run: |

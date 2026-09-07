@@ -848,6 +848,10 @@ def main():
         storage_backup = backup_storage_buckets(previous_storage_index)
         storage_backup = upload_storage_snapshots(storage_backup, now)
         new_backup_objects = list(storage_backup.pop("_new_backup_objects", []))
+        # The Drive uploader may remove only these newly-created backup
+        # sidecars after the complete Drive bundle has been uploaded and
+        # verified.  Historical references remain useful for deduplication.
+        storage_backup["supabase_new_backup_objects"] = new_backup_objects
     except Exception as exc:
         print(f"  Storage backup FAILED: {exc}")
         github_error(f"Application Storage backup failed: {exc}")

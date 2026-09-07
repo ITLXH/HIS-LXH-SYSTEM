@@ -3,8 +3,9 @@
 
 The database/settings ZIP is uploaded for every snapshot. Application Storage
 objects are stored once by SHA-256 and referenced by a small sidecar index.
-Existing Supabase backup blobs are only read; this script never deletes or
-modifies production data.
+When explicitly enabled, newly-created sidecars in the dedicated Supabase
+backup bucket are removed only after the complete Drive bundle is verified.
+Application buckets and database tables are never modified.
 
 Usage: python gdrive_upload.py <zip_path> <folder_id>
 Env: GOOGLE_DRIVE_OAUTH_JSON or GOOGLE_SERVICE_ACCOUNT_JSON
@@ -196,6 +197,51 @@ def _download_supabase_blob(backup_object, destination):
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     handle.write(chunk)
+
+
+def _offload_supabase_sidecars(object_paths):
+    """Remove this run's backup sidecars after their Drive copy is complete."""
+    if os.environ.get("SUPABASE_OFFLOAD_AFTER_DRIVE", "0") != "1":
+        return 0
+
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    bucket = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups") or "his-backups"
+    if not supabase_url or not service_key:
+        raise RuntimeError("Supabase credentials are required for Drive offload cleanup")
+    if bucket != "his-backups":
+        raise RuntimeError("Drive offload cleanup is restricted to the his-backups bucket")
+
+    paths = sorted(set(object_paths))
+    for path in paths:
+        normalized = str(path).replace("\\", "/")
+        if normalized != path or not normalized.startswith(("snapshots/", "blobs/sha256/")):
+            raise RuntimeError(f"Unsafe Supabase backup sidecar path: {path}")
+        if any(part in ("", ".", "..") for part in normalized.split("/")):
+            raise RuntimeError(f"Unsafe Supabase backup sidecar path: {path}")
+
+    headers = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+    }
+    endpoint = f"{supabase_url}/storage/v1/object/{quote(bucket, safe='')}"
+    for offset in range(0, len(paths), 100):
+        batch = paths[offset : offset + 100]
+        response = requests.delete(
+            endpoint,
+            headers=headers,
+            json={"prefixes": batch},
+            timeout=(15, 120),
+        )
+        if response.status_code not in (200, 204):
+            raise RuntimeError(
+                f"Supabase backup sidecar cleanup failed: HTTP {response.status_code} "
+                f"{response.text[:200]}"
+            )
+    if paths:
+        print(f"Offloaded {len(paths)} new Supabase backup sidecar(s) after Drive verification")
+    return len(paths)
 
 
 def _materialize_blob(output_dir, bucket_id, obj, temp_dir):
@@ -393,6 +439,10 @@ def upload_complete_bundle(zip_path, root_folder_id):
         drive_delete(drive, index_file["id"])
         raise
 
+    offloaded_sidecars = _offload_supabase_sidecars(
+        (archive.get("storage") or {}).get("supabase_new_backup_objects", [])
+    )
+
     return {
         "file_id": manifest_file["id"],
         "url": manifest_file.get(
@@ -402,6 +452,7 @@ def upload_complete_bundle(zip_path, root_folder_id):
         "sidecars": len(sidecar_index),
         "uploaded_sidecars": uploaded_count,
         "uploaded_bytes": uploaded_bytes,
+        "supabase_offloaded_sidecars": offloaded_sidecars,
         "scope": "complete_incremental",
     }
 

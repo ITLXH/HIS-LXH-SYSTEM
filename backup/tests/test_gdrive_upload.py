@@ -242,6 +242,44 @@ class GoogleDriveUploadTests(unittest.TestCase):
                         output, "order-result-files", obj, tmp
                     )
 
+    def test_offload_deletes_only_explicit_backup_sidecars(self):
+        response = Mock(status_code=200, text="ok")
+        paths = [
+            "blobs/sha256/aa/" + "a" * 64,
+            "snapshots/2026/09/verified/file.pdf",
+        ]
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_OFFLOAD_AFTER_DRIVE": "1",
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "service-role",
+                "SUPABASE_STORAGE_BUCKET": "his-backups",
+            },
+            clear=False,
+        ), patch.object(gdrive_upload.requests, "delete", return_value=response) as delete:
+            self.assertEqual(gdrive_upload._offload_supabase_sidecars(paths), 2)
+
+        self.assertTrue(delete.call_args.args[0].endswith("/storage/v1/object/his-backups"))
+        self.assertEqual(delete.call_args.kwargs["json"], {"prefixes": sorted(paths)})
+
+    def test_offload_rejects_application_bucket_paths(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_OFFLOAD_AFTER_DRIVE": "1",
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "service-role",
+                "SUPABASE_STORAGE_BUCKET": "his-backups",
+            },
+            clear=False,
+        ), patch.object(gdrive_upload.requests, "delete") as delete:
+            with self.assertRaisesRegex(RuntimeError, "Unsafe"):
+                gdrive_upload._offload_supabase_sidecars(
+                    ["order-result-files/patient/result.pdf"]
+                )
+        delete.assert_not_called()
+
     def test_manifest_rejects_empty_database_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
