@@ -1,194 +1,48 @@
-name: Supabase DB Backup
+name: Supabase Drive Offload Cleanup
 
 on:
-  schedule:
-    # Daily at 00:00 UTC (07:00 Asia/Bangkok). No manual action is required.
-    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
-      reason:
-        description: 'Manual backup reason'
-        required: false
-        default: 'manual'
-
-env:
-  RETENTION_DAYS: 36500
+      apply:
+        type: boolean
+        default: false
+        description: Remove Drive-verified sidecars from Supabase backup storage
+      expected_plan:
+        type: string
+        default: ''
+        description: Exact plan SHA-256 from the latest audit
 
 permissions:
   contents: read
 
 concurrency:
-  group: supabase-database-backup
+  group: supabase-drive-offload-cleanup
   cancel-in-progress: false
 
 jobs:
-  backup:
+  audit-cleanup:
     runs-on: ubuntu-latest
-    # The first Drive seed transfers the existing application Storage once.
-    # Later runs upload only new content-addressed blobs.
-    timeout-minutes: 360
+    timeout-minutes: 60
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Install Python deps
-        # google-* libs are only needed if the user configured Google Drive
-        # credentials; install them unconditionally so the upload step doesn't
-        # have to do its own bootstrap.
-        run: pip install requests google-api-python-client google-auth
-
-      - name: Run Backup (Supabase Storage)
-        id: backup
-        # Destination 1 — Supabase Storage bucket in the SAME Supabase
-        # project the HIS app talks to. SUPABASE_URL / SERVICE_ROLE_KEY are
-        # the production project's credentials (configured as repo secrets).
-        run: |
-          mkdir -p output/csv output/sql
-          python backup/scripts/backup_rest.py
+      - run: pip install requests google-api-python-client google-auth
+      - name: Validate Google Drive copies and audit bounded cleanup
+        run: python -u backup/scripts/drive_offload_cleanup.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
-          OUTPUT_DIR: output
-          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
-          BACKUP_INCLUDE_STORAGE: '1'
-          BACKUP_STORAGE_WORKERS: '8'
-          # Refuse a green run if the core customer, user or settings tables
-          # disappear from PostgREST discovery.
-          BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users
-
-      - name: Locate ZIP
-        id: zip
-        run: |
-          ZIP=$(find output -name "backup-*.zip" | head -1)
-          if [ -z "$ZIP" ]; then
-            echo "::error::No backup ZIP produced"
-            exit 1
-          fi
-          echo "zip_path=$ZIP" >> $GITHUB_OUTPUT
-          echo "zip_name=$(basename $ZIP)" >> $GITHUB_OUTPUT
-
-      - name: Upload to Google Drive
-        # Destination 2 — complete independent backup. The manifest ZIP is
-        # uploaded daily; application Storage blobs are deduplicated by SHA-256.
-        # This step only reads the Supabase backup bucket.
-        id: gdrive
-        continue-on-error: true
-        env:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
-          OUTPUT_DIR: output
-          GDRIVE_UPLOAD_WORKERS: '32'
-        run: |
-          if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::notice::Google Drive upload skipped — credentials not set"
-            exit 0
-          fi
-          python backup/scripts/gdrive_upload.py "${{ steps.zip.outputs.zip_path }}" "$GOOGLE_DRIVE_FOLDER_ID"
-
-      - name: Cleanup old Google Drive backups
-        env:
-          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
-        run: |
-          if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::notice::Google Drive cleanup skipped — credentials not set"
-            exit 0
-          fi
-          python backup/scripts/gdrive_cleanup.py "$GOOGLE_DRIVE_FOLDER_ID" || true
-
-      - name: Set outputs
-        id: outputs
-        run: |
-          # Read manifest for summary
-          if [ -f output/manifest.json ]; then
-            SIZE=$(python3 -c "import json; print(json.load(open('output/manifest.json'))['size_bytes'])")
-            ROWS=$(python3 -c "import json; print(json.load(open('output/manifest.json'))['total_rows'])")
-            TABLES=$(python3 -c "import json; print(json.load(open('output/manifest.json'))['tables'])")
-            STORAGE_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_objects', 0))")
-            STORAGE_UPLOADED_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_uploaded_objects', 0))")
-            STORAGE_UPLOADED_BYTES=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_uploaded_bytes', 0))")
-            STORAGE_REUSED_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_reused_objects', 0))")
-            STORAGE_METADATA_REUSED_OBJECTS=$(python3 -c "import json; print(json.load(open('output/manifest.json')).get('storage_metadata_reused_objects', 0))")
-          else
-            SIZE="0"
-            ROWS="0"
-            TABLES="0"
-            STORAGE_OBJECTS="0"
-            STORAGE_UPLOADED_OBJECTS="0"
-            STORAGE_UPLOADED_BYTES="0"
-            STORAGE_REUSED_OBJECTS="0"
-            STORAGE_METADATA_REUSED_OBJECTS="0"
-          fi
-          echo "backup_size=${SIZE}" >> $GITHUB_OUTPUT
-          echo "backup_rows=${ROWS}" >> $GITHUB_OUTPUT
-          echo "backup_tables=${TABLES}" >> $GITHUB_OUTPUT
-          echo "storage_objects=${STORAGE_OBJECTS}" >> $GITHUB_OUTPUT
-          echo "storage_uploaded_objects=${STORAGE_UPLOADED_OBJECTS}" >> $GITHUB_OUTPUT
-          echo "storage_uploaded_bytes=${STORAGE_UPLOADED_BYTES}" >> $GITHUB_OUTPUT
-          echo "storage_reused_objects=${STORAGE_REUSED_OBJECTS}" >> $GITHUB_OUTPUT
-          echo "storage_metadata_reused_objects=${STORAGE_METADATA_REUSED_OBJECTS}" >> $GITHUB_OUTPUT
-          echo "zip_name=${{ steps.zip.outputs.zip_name }}" >> $GITHUB_OUTPUT
-          echo "drive_url=${{ steps.gdrive.outputs.drive_url || '' }}" >> $GITHUB_OUTPUT
-          echo "drive_sidecars=${{ steps.gdrive.outputs.drive_sidecars || '0' }}" >> $GITHUB_OUTPUT
-          echo "drive_uploaded_sidecars=${{ steps.gdrive.outputs.drive_uploaded_sidecars || '0' }}" >> $GITHUB_OUTPUT
-          echo "drive_uploaded_bytes=${{ steps.gdrive.outputs.drive_uploaded_bytes || '0' }}" >> $GITHUB_OUTPUT
-          echo "drive_scope=${{ steps.gdrive.outputs.drive_scope || '' }}" >> $GITHUB_OUTPUT
-
-      - name: Backup summary
+          CLEANUP_APPLY: ${{ inputs.apply }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan }}
+      - uses: actions/upload-artifact@v4
         if: always()
-        run: |
-          echo "## HIS Database Backup Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Trigger | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -n "${{ github.event.inputs.reason }}" ]]; then
-            echo "| Reason | ${{ github.event.inputs.reason }} |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "| Tables | ${{ steps.outputs.outputs.backup_tables || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Application Storage Objects | ${{ steps.outputs.outputs.storage_objects || '0' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| New/changed Storage uploaded | ${{ steps.outputs.outputs.storage_uploaded_objects || '0' }} objects / ${{ steps.outputs.outputs.storage_uploaded_bytes || '0' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Unchanged Storage reused | ${{ steps.outputs.outputs.storage_reused_objects || '0' }} objects |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Storage reused without download | ${{ steps.outputs.outputs.storage_metadata_reused_objects || '0' }} objects |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Zip Name | ${{ steps.outputs.outputs.zip_name || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Zip Size | ${{ steps.outputs.outputs.backup_size || '-' }} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ steps.backup.outcome }}" == "success" ]]; then
-            echo "| Destination 1 (Supabase) | ✅ Uploaded and verified |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Destination 1 (Supabase) | ❌ Backup/upload failed |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [[ "${{ steps.gdrive.outcome }}" == "failure" ]]; then
-            echo "| Destination 2 (Google Drive) | ⚠️ Optional copy failed; primary Supabase backup remains valid |" >> "$GITHUB_STEP_SUMMARY"
-          elif [ -n "${{ steps.outputs.outputs.drive_url }}" ]; then
-            echo "| Destination 2 (Google Drive) | [Open complete backup ↗](${{ steps.outputs.outputs.drive_url }}) — ${{ steps.outputs.outputs.drive_sidecars || '0' }} Storage objects indexed; ${{ steps.outputs.outputs.drive_uploaded_sidecars || '0' }} new blobs / ${{ steps.outputs.outputs.drive_uploaded_bytes || '0' }} bytes uploaded |" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "| Destination 2 (Google Drive) | ⏭️ Skipped (no credentials) |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "*No backup files committed to this repository.*" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "---" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-
-          # Show manifest if exists
-          if [ -f output/manifest.json ]; then
-            echo "### Manifest" >> "$GITHUB_STEP_SUMMARY"
-            echo '```json' >> "$GITHUB_STEP_SUMMARY"
-            cat output/manifest.json >> "$GITHUB_STEP_SUMMARY"
-            echo '' >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          fi
+        with:
+          name: drive-offload-cleanup-report
+          path: drive-offload-cleanup-report.json
+          retention-days: 7
