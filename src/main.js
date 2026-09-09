@@ -9,6 +9,11 @@ import {
 } from './opdTestPersistence.js';
 import { escapeHisHtml } from '../shared/his-html.js';
 import { HIS_BUILD_ID, startBuildVersionRefresh } from './versionRefresh.js';
+import {
+  HIS_AUTH_SESSION_KEY,
+  createHisAuthSessionRecord,
+  validateHisAuthSessionRecord
+} from './authSession.js';
 import { mergeDoctorOptions } from './doctorOptions.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
@@ -171,9 +176,8 @@ window.fetchSupabaseRows = async function (tableName, options = {}) {
 
   return rows;
 };
-const HIS_AUTH_SESSION_KEY = 'his_current_user_session';
-const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const HIS_MIN_PASSWORD_LENGTH = 6;
+let authSessionExpiryTimer = null;
 
 window.appTranslations = {
   lo: {
@@ -3675,6 +3679,27 @@ window.logout = async function () {
   if (window.closeQRScanner) window.closeQRScanner();
 };
 
+window.expireAuthSession = async function () {
+  if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
+  if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
+  try {
+    await supabaseClient.auth.signOut({ scope: 'local' });
+  } catch (err) {
+    console.warn('Unable to sign out expired session:', err);
+  }
+  currentUser = null;
+  window.clearAuthSession();
+  window.clearIntendedRoute();
+  if (window.history?.replaceState) window.history.replaceState({ view: 'dashboard' }, '', '/dashboard');
+  window.toggleLoading(false);
+  $('body').removeClass('auth-checking');
+  $('#app-content').hide();
+  $('#login-section').show();
+  clearInterval(dashRefreshInterval);
+  clearInterval(reportRefreshInterval);
+  Swal.fire('ໝົດເວລາ Session', 'ກະລຸນາເຂົ້າລະບົບໃໝ່', 'info');
+};
+
 window.toggleLoading = function (s) {
   $('#loading').css('display', s ? 'block' : 'none');
 };
@@ -3752,20 +3777,41 @@ window.buildCurrentUserFromDbRow = function (user) {
   };
 };
 
-window.saveAuthSession = function () {
+window.scheduleAuthSessionExpiry = function (expiresAt) {
+  if (authSessionExpiryTimer) window.clearTimeout(authSessionExpiryTimer);
+  authSessionExpiryTimer = null;
+  const remainingMs = Number(expiresAt) - Date.now();
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+    window.expireAuthSession();
+    return;
+  }
+  authSessionExpiryTimer = window.setTimeout(window.expireAuthSession, remainingMs);
+};
+
+window.readAuthSession = function () {
+  try {
+    const raw = localStorage.getItem(HIS_AUTH_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.warn('Unable to read login session:', err);
+    return null;
+  }
+};
+
+window.saveAuthSession = function (options = {}) {
   if (!currentUser) return;
   try {
-    localStorage.setItem(HIS_AUTH_SESSION_KEY, JSON.stringify({
-      user: currentUser,
-      savedAt: Date.now(),
-      expiresAt: Date.now() + HIS_AUTH_SESSION_TTL_MS
-    }));
+    const record = createHisAuthSessionRecord(currentUser, options);
+    localStorage.setItem(HIS_AUTH_SESSION_KEY, JSON.stringify(record));
+    window.scheduleAuthSessionExpiry(record.expiresAt);
   } catch (err) {
     console.warn('Unable to save login session:', err);
   }
 };
 
 window.clearAuthSession = function () {
+  if (authSessionExpiryTimer) window.clearTimeout(authSessionExpiryTimer);
+  authSessionExpiryTimer = null;
   try {
     localStorage.removeItem(HIS_AUTH_SESSION_KEY);
   } catch (err) {
@@ -3775,6 +3821,14 @@ window.clearAuthSession = function () {
 
 window.restoreAuthSession = async function () {
   try {
+    const storedSession = window.readAuthSession();
+    const storedValidation = validateHisAuthSessionRecord(storedSession);
+    if (!storedValidation.valid) {
+      await supabaseClient.auth.signOut({ scope: 'local' });
+      window.clearAuthSession();
+      return false;
+    }
+
     const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
     const authUserId = sessionData?.session?.user?.id;
     if (sessionError || !authUserId) return false;
@@ -3802,7 +3856,9 @@ window.restoreAuthSession = async function () {
         return false;
       }
     }
-    window.saveAuthSession();
+    // Refresh the cached profile but preserve the original absolute deadline.
+    // A page refresh must never extend a 12-hour application session.
+    window.saveAuthSession({ expiresAt: storedValidation.expiresAt });
     window.syncCurrentUserToMasterData(currentUser);
     return true;
   } catch (err) {
@@ -6914,6 +6970,10 @@ window.submitTriageForm = function (e) {
   new FormData($('#triageForm')[0]).forEach((v, k) => fd[k] = v);
   fd.v_resp = String(fd.v_resp || '').trim() || '20';
 
+  if (!String(fd.v_clinical_department || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    return;
+  }
   if (!String(fd.v_department || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
@@ -6973,6 +7033,10 @@ window.executeTriageSave = async function (fd) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   fd.v_clinical_department = String(fd.v_clinical_department || '').trim();
   fd.v_department = String(fd.v_department || '').trim();
+  if (!fd.v_clinical_department) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    return;
+  }
   if (!fd.v_department) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
@@ -9283,12 +9347,12 @@ const lisNotifiedResultFileIds = new Set();
 let lisReadResultFileIds = new Set();
 let lisActiveResultAlerts = [];
 let lisResultAcknowledgmentPersistence = 'unknown';
-const OPD_TOAST_AUTO_DISMISS_MS = 10 * 60 * 1000;
+const OPD_TOAST_AUTO_DISMISS_MS = 60 * 1000;
 const LIS_RESULT_TOAST_AUTO_DISMISS_MS = 60 * 1000;
 const opdToastDismissTimers = new Map();
 const lisResultToastDismissTimers = new Map();
 // Set of Visit_IDs already notified. We alert once per visit; the visual toast
-// remains available for ten minutes unless the user dismisses it first.
+// remains available for one minute unless the user dismisses it first.
 const opdNotifiedVisitIds = new Set();
 let opdActiveRoomAlerts = [];
 const OPD_MY_ROOM_KEY = 'his_opd_my_room';
@@ -9366,7 +9430,7 @@ window.handleOpdQueueNotification = function (row) {
   const visitId = row.Visit_ID;
   if (!visitId) return;
   if (!window.isOpdRoomMatch(row.Department)) return;
-  // One alert per visit; the toast remains for at most ten minutes.
+  // One alert per visit; the toast remains for at most one minute.
   if (opdNotifiedVisitIds.has(visitId)) return;
 
   opdNotifiedVisitIds.add(visitId);

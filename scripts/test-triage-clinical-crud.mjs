@@ -14,15 +14,15 @@ assert.deepEqual(clinicalDepartments, [
   'IPD',
   'Health Checkup',
 ]);
-assert.doesNotMatch(clinicalSelect, /\brequired\b/);
-assert.doesNotMatch(modal, /Clinical Department\)\s*<span class="text-danger">\*<\/span>/);
+assert.match(clinicalSelect, /\brequired\b/);
+assert.match(modal, /Clinical Department\)\s*<span class="text-danger">\*<\/span>/);
 assert.match(modal, /<select[^>]+class="form-select dyn-Department"[^>]+id="v_department"/);
 
 const submitSource = main.slice(
   main.indexOf('window.submitTriageForm = function'),
   main.indexOf('window.executeTriageSave = async function'),
 );
-assert.doesNotMatch(submitSource, /ກະລຸນາເລືອກພະແນກກວດ/);
+assert.match(submitSource, /ກະລຸນາເລືອກພະແນກກວດ/);
 
 const saveSource = main.slice(
   main.indexOf('window.executeTriageSave = async function'),
@@ -32,7 +32,7 @@ assert.match(saveSource, /from\(dbTable\('OPD_Vital_Signs'\)\)\.insert\(\[opdVit
 assert.match(saveSource, /Department:\s*fd\.v_department,\s*Mapped_Specialist:\s*fd\.v_clinical_department/);
 assert.match(saveSource, /from\(dbTable\('Visits'\)\)\.update\(visitUpdatePayload\)\.eq\('Visit_ID',\s*fd\.visitId\)/);
 assert.match(saveSource, /query\s*=\s*query\.eq\('Patient_ID',\s*fd\.patientId\)/);
-assert.doesNotMatch(saveSource, /ກະລຸນາເລືອກພະແນກກວດ/);
+assert.match(saveSource, /ກະລຸນາເລືອກພະແນກກວດ/);
 
 const readSource = main.slice(
   main.indexOf('window._fetchTriageQueue = async function'),

@@ -10,6 +10,7 @@
     "test:opd-print": "node scripts/test-opd-order-print.mjs",
     "render:opd-print": "node scripts/render-opd-order-print-samples.mjs",
     "test:auth": "node scripts/test-auth-guards.mjs",
+    "test:auth-session": "node scripts/test-auth-session-policy.mjs",
     "test:security": "node scripts/test-security-hardening.mjs",
     "test:backup": "node scripts/test-backup-automation.mjs",
     "test:registration-ui": "node scripts/test-registration-backup-ui.mjs",

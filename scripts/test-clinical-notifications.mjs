@@ -10,7 +10,7 @@ const opdView = fs.readFileSync(path.join(root, 'public', 'partials', 'views', '
 const checks = [
   ['Registration does not render the fast-load timing notice', !main.includes('ໂຫຼດແບບໄວ:')],
   ['Registration retains a hidden error/status host', /#patientLoadAllNotice'[\s\S]{0,180}\.hide\(\)/.test(main)],
-  ['Room-arrival toast duration is exactly ten minutes', /OPD_TOAST_AUTO_DISMISS_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/.test(main)],
+  ['Room-arrival toast duration is exactly one minute', /OPD_TOAST_AUTO_DISMISS_MS\s*=\s*60\s*\*\s*1000/.test(main)],
   ['Room-arrival toast schedules automatic dismissal', /setTimeout\(\(\)\s*=>\s*window\.dismissOpdToast\(toastId\),\s*OPD_TOAST_AUTO_DISMISS_MS\)/.test(main)],
   ['Manual dismissal clears the pending timeout', /opdToastDismissTimers\.get\(toastId\)[\s\S]{0,180}clearTimeout\(timerId\)/.test(main)],
   ['LIS result toast duration is exactly one minute', /LIS_RESULT_TOAST_AUTO_DISMISS_MS\s*=\s*60\s*\*\s*1000/.test(main)],
