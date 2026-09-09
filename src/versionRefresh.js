@@ -15,11 +15,13 @@ export function hasVisibleUnsavedWork(doc = document) {
     .some(form => form.offsetParent !== null);
 }
 
-export function startBuildVersionRefresh() {
+export function startBuildVersionRefresh(options = {}) {
   if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
   if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return () => {};
   if (window.__hisVersionRefreshStarted) return window.__hisStopVersionRefresh || (() => {});
 
+  const forceReload = options.forceReload === true;
+  const beforeReload = typeof options.beforeReload === 'function' ? options.beforeReload : null;
   window.__hisVersionRefreshStarted = true;
   let pendingVersion = '';
   let reloadTimer = null;
@@ -58,6 +60,17 @@ export function startBuildVersionRefresh() {
       const latestVersion = String(payload?.version || '').trim();
       if (!latestVersion || latestVersion === HIS_BUILD_ID || pendingVersion) return;
       pendingVersion = latestVersion;
+      if (beforeReload) {
+        try {
+          beforeReload(latestVersion);
+        } catch (error) {
+          console.warn('Unable to invalidate the previous release session:', error);
+        }
+      }
+      if (forceReload) {
+        window.location.reload();
+        return;
+      }
       reloadWhenSafe();
     } catch (error) {
       console.debug('Build version check skipped:', error?.message || error);

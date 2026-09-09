@@ -11,6 +11,7 @@ const user = { id: 7, name: 'Session Test' };
 const record = createHisAuthSessionRecord(user, { now });
 
 assert.equal(record.sessionVersion, HIS_AUTH_SESSION_VERSION);
+assert.equal(HIS_AUTH_SESSION_VERSION, 'development');
 assert.equal(record.expiresAt, now + HIS_AUTH_SESSION_TTL_MS);
 assert.deepEqual(validateHisAuthSessionRecord(record, now + 1), {
   valid: true,

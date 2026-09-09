@@ -3054,7 +3054,10 @@ window.formatOpdPrintPatientId = function (patientId) {
 };
 
 $(document).ready(async function () {
-  startBuildVersionRefresh();
+  startBuildVersionRefresh({
+    forceReload: true,
+    beforeReload: () => window.clearAuthSession?.()
+  });
   // Load all HTML partials first, then init the app
   await loadPartials();
   window.applyAppLanguage();

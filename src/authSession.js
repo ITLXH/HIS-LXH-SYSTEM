@@ -1,10 +1,11 @@
+import { HIS_BUILD_ID } from './versionRefresh.js';
+
 export const HIS_AUTH_SESSION_KEY = 'his_current_user_session';
 export const HIS_AUTH_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
-// Increment this value when a release must invalidate every existing browser
-// session. Records written before this policy existed have no version and are
-// therefore invalidated by the 2026-09-09 release.
-export const HIS_AUTH_SESSION_VERSION = '2026-09-09-clinical-alerts-v1';
+// Every production build uses its commit SHA, so a newly deployed commit
+// invalidates all application sessions created by the previous release.
+export const HIS_AUTH_SESSION_VERSION = HIS_BUILD_ID;
 
 export function createHisAuthSessionRecord(user, options = {}) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();

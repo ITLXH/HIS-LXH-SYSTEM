@@ -13,7 +13,10 @@ assert.match(refresh, /fetch\(`\/version\.json\?t=\$\{Date\.now\(\)\}`/);
 assert.match(refresh, /cache:\s*'no-store'/);
 assert.match(refresh, /hasVisibleUnsavedWork\(document\)/);
 assert.match(refresh, /window\.location\.reload\(\)/);
-assert.match(main, /startBuildVersionRefresh\(\)/);
+assert.match(refresh, /options\.forceReload === true/);
+assert.match(refresh, /beforeReload\(latestVersion\)/);
+assert.match(main, /startBuildVersionRefresh\(\{[\s\S]*forceReload:\s*true/);
+assert.match(main, /beforeReload:\s*\(\) => window\.clearAuthSession\?\.\(\)/);
 assert.match(main, /const PARTIAL_CACHE_BUST = HIS_BUILD_ID/);
 assert.match(headers, /\/version\.json[\s\S]*Cache-Control:\s*no-store/);
 
