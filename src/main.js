@@ -14,6 +14,11 @@ import {
   createHisAuthSessionRecord,
   validateHisAuthSessionRecord
 } from './authSession.js';
+import {
+  OPD_DEPARTMENTS,
+  getOpdDepartmentFromVisit,
+  resolveOpdDepartmentKey
+} from './opdDepartments.js';
 import { mergeDoctorOptions } from './doctorOptions.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
@@ -4718,7 +4723,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartTopServices', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
+window.dashboardChartIds = ['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4752,12 +4757,13 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const showZeroCategories = ctxId === 'chartSpecialist' && safeLabels.length === 6;
-  const compactDashboardCharts = new Set(['chartTopServices', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
+  const showZeroCategories = (ctxId === 'chartSpecialist' && safeLabels.length === 6)
+    || (ctxId === 'chartOpdDepartments' && safeLabels.length === OPD_DEPARTMENTS.length);
+  const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
   const legendFontSize = isCompactDashboardChart ? 11 : 12;
   const tickFontSize = isCompactDashboardChart ? 11 : 12;
-  const yTickFontSize = isCompactDashboardChart ? 12 : 13;
+  const yTickFontSize = ctxId === 'chartOpdDepartments' ? 9 : (isCompactDashboardChart ? 12 : 13);
   const dataLabelSize = isCompactDashboardChart ? 11 : 12;
   const layoutPadding = isCompactDashboardChart
     ? { right: isHorizontal ? 40 : 10, top: isHorizontal ? 8 : 26, left: 4, bottom: 4 }
@@ -4931,7 +4937,8 @@ window.renderDashboardCharts = function (visits) {
   const clinicalDepartmentLabels = ['Internal Medicine', 'Pediatrics', 'OB-GYN', 'General / ER', 'IPD', 'Health Checkup'];
   const clinicalDepartmentLookup = new Map(clinicalDepartmentLabels.map(label => [label.toLowerCase(), label]));
   const clinicalDepartments = Object.fromEntries(clinicalDepartmentLabels.map(label => [label, 0]));
-  let services = {}, gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
+  const opdDepartmentCounts = Object.fromEntries(OPD_DEPARTMENTS.map(item => [item.key, 0]));
+  let gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
@@ -4947,12 +4954,12 @@ window.renderDashboardCharts = function (visits) {
   visits.forEach(v => {
     let p = v.Patients || {};
     
-    let servicesStr = v.Services_List || v.ServicesList || v["Services List"] || "";
     let specialistVal = v.Mapped_Specialist || v.MappedSpecialist || v["Specialist"] || "";
     let visitType = v.Visit_Type || v.VisitType || "";
     let docName = v.Doctor_Name || v.DoctorName || v["Doctor Name"] || "ບໍ່ລະບຸຊື່ແພດ";
 
-    if (servicesStr) servicesStr.split(',').forEach(s => { let n = s.trim(); if(n) services[n] = (services[n] || 0) + 1; });
+    const opdDepartment = getOpdDepartmentFromVisit(v);
+    if (opdDepartment) opdDepartmentCounts[opdDepartment.key] += 1;
 
     if (specialistVal) specialistVal.split(',').forEach(value => {
       const canonicalLabel = clinicalDepartmentLookup.get(value.trim().toLowerCase());
@@ -5009,11 +5016,17 @@ window.renderDashboardCharts = function (visits) {
 
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
   
-  let topSvc = getTopNWithOthers(services, 10, 0.001);
   let topCh = getTopNWithOthers(channel, 8, 0.001);
   let topDocs = getTopNWithOthers(doctors, 5, 0.0001);
 
-  window.createChart('chartTopServices', 'bar', topSvc.labels, topSvc.data, palette, true);
+  window.createChart(
+    'chartOpdDepartments',
+    'bar',
+    OPD_DEPARTMENTS.map(item => item.label),
+    OPD_DEPARTMENTS.map(item => opdDepartmentCounts[item.key]),
+    palette,
+    true
+  );
   window.createChart('chartSpecialist', 'bar', clinicalDepartmentLabels, clinicalDepartmentLabels.map(label => clinicalDepartments[label]), palette, true);
   window.createChart('chartChannel', 'bar', topCh.labels, topCh.data, palette, true);
   window.createChart('chartMarketing', 'bar', topDocs.labels, topDocs.data, palette, true);
@@ -19582,7 +19595,7 @@ window.opdTestState = {
   persistedRevision: 0,
   persistenceMode: '',
   auditMode: '',
-  dept: 'internal',
+  dept: '',
   followupPreset: '',
   hintsDismissed: []
 };
@@ -19599,14 +19612,7 @@ window.opdTestParseStoredList = function (value) {
 };
 
 window.opdTestDepartmentKey = function (department) {
-  const value = String(department || '').toLowerCase();
-  if (/cardio|ຫົວໃຈ/.test(value)) return 'cardio';
-  if (/ob|gyn|ແມ່|ຍິງ/.test(value)) return 'obgyn';
-  if (/ortho|ກະດູກ/.test(value)) return 'ortho';
-  if (/ent|ຫູ|ຄໍ|ດັງ/.test(value)) return 'ent';
-  if (/pediatric|ເດັກ/.test(value)) return 'peds';
-  if (/internal|ອາຍຸລະ/.test(value)) return 'im';
-  return 'general';
+  return resolveOpdDepartmentKey(department);
 };
 
 window.opdTestDispositionValue = function (value) {
@@ -19784,7 +19790,7 @@ window.opdTestApplySelectedVisit = function () {
     persistedRevision: Number.parseInt(visit.emrRevision, 10) || Number.parseInt(clinicalNote.revision, 10) || 0,
     persistenceMode: visit.clinicalNoteJson ? 'enhanced' : 'legacy',
     auditMode: '',
-    dept: window.opdTestDepartmentKey(visit.department)
+    dept: window.opdTestDepartmentKey(clinicalNote.departmentKey || clinicalNote.department)
   });
 
   const setText = (id, value) => {
@@ -20544,12 +20550,11 @@ window.opdTestAppendChip = function (inputId, text) {
 // ==========================================
 window.opdTestApplyDept = function (key) {
   const picker = document.getElementById('opdTestDeptPicker');
-  const fallback = picker?.querySelector('option[value="internal"]') ? 'internal' : (picker?.options?.[0]?.value || 'internal');
-  const nextKey = picker?.querySelector(`option[value="${key}"]`) ? key : fallback;
+  const nextKey = key && picker?.querySelector(`option[value="${key}"]`) ? key : '';
   window.opdTestState.dept = nextKey;
   if (picker && picker.value !== nextKey) picker.value = nextKey;
   const header = document.getElementById('opdTestHeaderDepartment');
-  if (header) header.textContent = picker?.selectedOptions?.[0]?.textContent?.trim() || nextKey;
+  if (header) header.textContent = picker?.selectedOptions?.[0]?.textContent?.trim() || '—';
   window.opdTestRenderSymptomChips();
   window.opdTestRenderMedChips();
   window.opdTestRenderDxCommonChips();
@@ -20557,10 +20562,30 @@ window.opdTestApplyDept = function (key) {
   window.opdTestRenderSummaryPreview();
 };
 
+window.opdTestDeptTemplateKey = function (key = window.opdTestState.dept) {
+  return ({
+    integumentary: 'general',
+    muscular_skeletal: 'ortho',
+    nervous: 'general',
+    cardiovescular: 'cardio',
+    respiratory: 'general',
+    gastro_intentinal: 'general',
+    urology: 'im',
+    reproductive_obgyn: 'obgyn',
+    ncds: 'im',
+    immune_lymphatic: 'im',
+    ent: 'ent'
+  })[key] || '';
+};
+
+window.opdTestDeptTemplate = function () {
+  return window.opdTestDeptTemplates[window.opdTestDeptTemplateKey()] || null;
+};
+
 window.opdTestRenderSymptomChips = function () {
   const target = document.getElementById('opdTestSymptomChips');
   if (!target) return;
-  const chips = window.opdTestDeptTemplates[window.opdTestState.dept]?.quickSymptoms || [];
+  const chips = window.opdTestDeptTemplate()?.quickSymptoms || [];
   target.innerHTML = chips.map(chip =>
     `<button type="button" class="opdt-chip" data-emr-action onclick="window.opdTestAppendChip('opdTestCc', decodeURIComponent('${encodeURIComponent(chip)}')); return false;">+ ${window.opdTestHtml(chip)}</button>`
   ).join('');
@@ -20569,7 +20594,7 @@ window.opdTestRenderSymptomChips = function () {
 window.opdTestRenderMedChips = function () {
   const target = document.getElementById('opdTestMedChips');
   if (!target) return;
-  const keys = window.opdTestDeptTemplates[window.opdTestState.dept]?.commonMedications || [];
+  const keys = window.opdTestDeptTemplate()?.commonMedications || [];
   target.innerHTML = keys.map(k => {
     const item = window.opdTestMedicationTemplates[k];
     if (!item) return '';
@@ -20580,7 +20605,7 @@ window.opdTestRenderMedChips = function () {
 window.opdTestRenderDxCommonChips = function () {
   const target = document.getElementById('opdTestDxCommonChips');
   if (!target) return;
-  const codes = window.opdTestDeptTemplates[window.opdTestState.dept]?.commonDiagnoses || [];
+  const codes = window.opdTestDeptTemplate()?.commonDiagnoses || [];
   target.innerHTML = codes.map(code => {
     const item = window.opdTestDiagnosisCatalog.find(row => row.code === code);
     if (!item) return '';
@@ -20608,7 +20633,7 @@ window.opdTestRenderDxCommonChips = function () {
 
 window.opdTestRenderExamGrid = function () {
   // Change the first five system labels to match the selected department.
-  const template = window.opdTestDeptTemplates[window.opdTestState.dept];
+  const template = window.opdTestDeptTemplate();
   if (!template?.examSections) return;
   const ids = ['opdTestExamGeneral', 'opdTestExamHeart', 'opdTestExamLung', 'opdTestExamAbdomen', 'opdTestExamNeuro'];
   ids.forEach((id, i) => {
@@ -21066,6 +21091,7 @@ window.opdTestMarkDirty = function () {
 window.opdTestRequiredMissing = function () {
   const cc = document.getElementById('opdTestCc')?.value?.trim() || '';
   const diagnosis = window.opdTestDiagnosisValues?.().join(', ') || '';
+  const department = document.getElementById('opdTestDeptPicker')?.value?.trim() || '';
   const doctor = document.getElementById('opdTestDoctor')?.value?.trim() || '';
   const discharge = document.getElementById('opdTestDischargeStatus')?.value?.trim() || '';
   const admitWard = document.getElementById('opdTestAdmitWard')?.value?.trim() || '';
@@ -21078,6 +21104,9 @@ window.opdTestRequiredMissing = function () {
   }
   if (!diagnosis) {
     missing.push({ tab: 'clinical', id: 'opdTestSecDx', focus: 'opdTestDiagnosis', text: 'ການວິນິດໄສ / Diagnosis' });
+  }
+  if (!department) {
+    missing.push({ tab: 'clinical', id: 'opdTestSecServiceDepartment', focus: 'opdTestDeptPicker', text: 'ພະແນກ / Department' });
   }
   if (!doctor) {
     missing.push({ tab: 'clinical', id: 'opdTestSecDoctor', focus: 'opdTestDoctor', text: 'ແພດຜູ້ກວດ / Doctor' });
@@ -21104,6 +21133,7 @@ window.opdTestApplyValidation = function (missing = window.opdTestRequiredMissin
   const missingFocusIds = new Set(missing.map(item => item.focus));
   const controls = [
     'opdTestCc',
+    'opdTestDeptPicker',
     'opdTestDoctor',
     'opdTestDischargeStatus',
     'opdTestAdmitWard',
@@ -21294,7 +21324,7 @@ window.opdTestRenderSummaryPreview = function () {
     if (!selected) return '';
     return `${label}: ${selected === 'normal' ? 'Normal' : findings || 'Abnormal'}`;
   }).filter(Boolean).join('; ') || '—';
-  const dept = window.opdTestDeptTemplates[state.dept]?.label || state.dept;
+  const dept = document.getElementById('opdTestDeptPicker')?.selectedOptions?.[0]?.textContent?.trim() || '—';
   const dxList = state.diagnoses.length
     ? '<ul>' + state.diagnoses.map(d => `<li><b>${window.opdTestHtml(d.code)}</b> ${window.opdTestHtml(d.name)} <span class="opdt-summary-cert">(${window.opdTestHtml(window.opdTestCertaintyLabel(d.certainty))})</span></li>`).join('') + '</ul>'
     : '<div class="text-muted">— ຍັງບໍ່ມີ —</div>';
@@ -21596,6 +21626,10 @@ window.opdTestApplyDraft = function (payload) {
       const control = document.getElementById(id);
       if (!control) return;
       if (control instanceof HTMLSelectElement && value && !Array.from(control.options).some(option => option.value === value)) {
+        if (id === 'opdTestDeptPicker') {
+          control.value = '';
+          return;
+        }
         control.add(new Option(value, value));
       }
       control.value = value;
@@ -21700,7 +21734,9 @@ window.opdTestPersistenceContext = function () {
     physicalExam: document.getElementById('opdTestPe')?.value?.trim() || '',
     diagnoses: window.opdTestDiagnosisValues?.() || [],
     departmentKey: department?.value || '',
-    department: department?.selectedOptions?.[0]?.textContent?.trim() || visit.department || '',
+    department: department?.value
+      ? (department.selectedOptions?.[0]?.textContent?.trim() || '')
+      : '',
     treatment: document.getElementById('opdTestPlan')?.value?.trim() || '',
     advice: document.getElementById('opdTestAdvice')?.value?.trim() || '',
     followUp: document.getElementById('opdTestFollowUp')
@@ -21851,6 +21887,8 @@ window.opdTestPersistVisit = async function () {
       followup: persistence.coreUpdate.Follow_Up,
       labOrdersStr: persistence.coreUpdate.Lab_Orders_JSON,
       prescriptionStr: persistence.coreUpdate.Prescription_JSON,
+      clinicalNoteJson: JSON.stringify(persistence.clinicalNote),
+      opdDepartment: persistence.clinicalNote.department,
       emrRevision: persistence.revision
     });
   }
@@ -24254,6 +24292,7 @@ window.opdTestInit = function () {
   window.opdTestState.editingMedicationIndex = -1;
   window.opdTestState.draftRestored = false;
   const restored = window.opdTestRestoreDraft();
+  window.opdTestApplyDept(document.getElementById('opdTestDeptPicker')?.value || '');
   window.opdTestState.disposition = document.getElementById('opdTestDischargeStatus')?.value || '';
   window.opdTestSwitchTab('clinical', false);
   window.opdTestSelectOrderTab(pendingOrderTab || window.opdTestState.activeOrderTab || 'clinical', false);

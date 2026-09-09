@@ -168,25 +168,21 @@
                       <label for="opdTestDeptPicker">
                         <b>Dept.</b>
                         <span>ພະແນກ / Department</span>
+                        <em>*</em>
                       </label>
-                      <select class="form-select" id="opdTestDeptPicker">
-                        <option value="general">General OPD</option>
-                        <option value="cardio">Cardiology</option>
-                        <option value="im" selected>Internal Medicine</option>
-                        <option value="obgyn">OB &amp; GYN</option>
-                        <option value="ortho">Orthopedic</option>
-                        <option value="ent">Otorhinolaryngology (ENT)</option>
-                        <option value="ophthalmology">Ophthalmology</option>
-                        <option value="hematology">Hematology</option>
-                        <option value="gastroenterology">Gastroenterology</option>
-                        <option value="endocrinology">Endocrinology</option>
-                        <option value="dermatology">Dermatology</option>
-                        <option value="neurology">Neurology</option>
-                        <option value="nephrology">Nephrology</option>
-                        <option value="urology">Urology</option>
-                        <option value="oncology">Oncology</option>
-                        <option value="peds">Pediatrics</option>
-                        <option value="family">Family Medicine</option>
+                      <select class="form-select" id="opdTestDeptPicker" required aria-required="true" onchange="window.opdTestApplyDept(this.value)">
+                        <option value="" selected disabled>-- ເລືອກພະແນກ / Select Department --</option>
+                        <option value="integumentary">Integumentary ລະບົບຜີວໜັງ</option>
+                        <option value="muscular_skeletal">Muscular&amp;Skeletal ລະບົບກ້າມເນື້ອແລະກະດູກ</option>
+                        <option value="nervous">Nervous ລະບົບປະສາດ</option>
+                        <option value="cardiovescular">Cardiovescular ລະບົບຫົວໃຂຫລອດເລືອດ</option>
+                        <option value="respiratory">Respiratory ລະບົບຫາຍໃຈ</option>
+                        <option value="gastro_intentinal">Gastro&amp;Intentinal ກະເພາະລຳໄສ</option>
+                        <option value="urology">Urology ລະບົບຸາຍເທ່</option>
+                        <option value="reproductive_obgyn">Reproductive&amp;OB-GYN ລະບົບສືບພັນແລະປະສູດພະຍາດຍິງ</option>
+                        <option value="ncds">NCDs(DM/HN/DLP/Ob/CV/CA) ກູມພະຍາດຊຳເຮື້ອ</option>
+                        <option value="immune_lymphatic">Immune-Lymphatic ພູມຕູ້ມກັນ-ຕ່ອມນຳ້ເຫຼືອງ</option>
+                        <option value="ent">ENT ຫູດັງຄໍ</option>
                       </select>
                     </div>
                   </div>

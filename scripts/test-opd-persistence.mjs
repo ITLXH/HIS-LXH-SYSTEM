@@ -120,6 +120,8 @@ const payload = buildOpdTestVisitPersistence({
   chiefComplaint: 'Fever',
   hpi: 'Two days',
   diagnoses: ['Viral infection'],
+  departmentKey: 'respiratory',
+  department: 'Respiratory ລະບົບຫາຍໃຈ',
   treatment: 'Supportive care',
   advice: 'Hydration',
   followUp: '2026-08-20',
@@ -140,6 +142,8 @@ const payload = buildOpdTestVisitPersistence({
 });
 assert.equal(payload.coreUpdate.Status, 'Pharmacy');
 assert.equal(payload.clinicalNote.hpi, 'Two days');
+assert.equal(payload.clinicalNote.departmentKey, 'respiratory');
+assert.equal(payload.clinicalNote.department, 'Respiratory ລະບົບຫາຍໃຈ');
 assert.equal(payload.clinicalNote.followUp, '2026-08-20');
 assert.equal(payload.coreUpdate.Follow_Up, '2026-08-20');
 assert.equal(payload.coreUpdate.Follow_Up_Date, '2026-08-20');
