@@ -21109,7 +21109,7 @@ window.opdTestRequiredMissing = function () {
     missing.push({ tab: 'clinical', id: 'opdTestSecDx', focus: 'opdTestDiagnosis', text: 'ການວິນິດໄສ / Diagnosis' });
   }
   if (!department) {
-    missing.push({ tab: 'clinical', id: 'opdTestSecServiceDepartment', focus: 'opdTestDeptPicker', text: 'ພະແນກ / Department' });
+    missing.push({ tab: 'clinical', id: 'opdTestSecServiceDepartment', focus: 'opdTestDeptPicker', text: 'ກຸ່ມພະຍາດທີ່ມາຮັບບໍລິການ/group of disease service' });
   }
   if (!doctor) {
     missing.push({ tab: 'clinical', id: 'opdTestSecDoctor', focus: 'opdTestDoctor', text: 'ແພດຜູ້ກວດ / Doctor' });
@@ -21354,7 +21354,7 @@ window.opdTestRenderSummaryPreview = function () {
   target.innerHTML = `
     <div class="opdt-summary-grid">
       <div>
-        <div class="opdt-summary-label">ພະແນກ</div><div class="opdt-summary-value">${window.opdTestHtml(dept)}</div>
+        <div class="opdt-summary-label">ກຸ່ມພະຍາດ</div><div class="opdt-summary-value">${window.opdTestHtml(dept)}</div>
         <div class="opdt-summary-label mt-2">ອາການຫຼັກ (CC)</div><div class="opdt-summary-value">${window.opdTestHtml(cc)}</div>
         <div class="opdt-summary-label mt-2">ປະຫວັດອາການ (HPI)</div><div class="opdt-summary-value">${window.opdTestHtml(hpi)}</div>
         <div class="opdt-summary-label mt-2">Important PMH</div><div class="opdt-summary-value">${window.opdTestHtml(pmh)}</div>
@@ -21420,7 +21420,7 @@ window.opdTestPrintDoc = function (kind) {
       <div class="meta">
         <div class="box"><b>Patient</b><br>${window.opdTestHtml(patientName)}</div>
         <div class="box"><b>HN</b><br>${window.opdTestHtml(patientId)}</div>
-        <div class="box"><b>Department</b><br>${window.opdTestHtml(department)}</div>
+        <div class="box"><b>Disease Group</b><br>${window.opdTestHtml(department)}</div>
         <div class="box"><b>Allergy</b><br>${window.opdTestHtml(state.patientAllergy || 'None')}</div>
       </div>
       ${section('CC / Chief Complaint', cc)}
@@ -21428,7 +21428,7 @@ window.opdTestPrintDoc = function (kind) {
       ${section('PHE / Past History', value('opdTestPhe'))}
       ${section('PE / Physical Examination', value('opdTestPe'))}
       ${section('Dx / Diagnosis', value('opdTestDiagnosis'))}
-      ${section('Service Department / Service', department)}
+      ${section('Disease Group / Service', department)}
       ${section('Treatment', value('opdTestPlan'))}
       ${section('Advice', value('opdTestAdvice'))}
       ${section('Note', value('opdTestAdditionalNote'))}

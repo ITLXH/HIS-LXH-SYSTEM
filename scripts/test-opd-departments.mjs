@@ -39,14 +39,16 @@ assert.deepEqual(optionKeys, expected.map(([key]) => key));
 assert.match(picker, /\brequired\b/);
 assert.match(picker, /aria-required="true"/);
 assert.match(picker, /onchange="window\.opdTestApplyDept\(this\.value\)"/);
-assert.match(opdView, /ພະແນກ \/ Department<\/span>\s*<em>\*<\/em>/);
+assert.match(opdView, /<b>ກຸ່ມ<\/b>\s*<span>ພະຍາດທີ່ມາຮັບບໍລິການ\/group of disease service<\/span>\s*<em>\*<\/em>/);
+assert.match(opdView, /ເລືອກກຸ່ມພະຍາດ \/ Select Disease Group/);
 
-assert.match(dashboard, /Dept\. ພະແນກ \/ Department/);
+assert.match(dashboard, /ກຸ່ມພະຍາດທີ່ມາຮັບບໍລິການ\/group of disease service/);
+assert.match(dashboard, /ຈຳນວນ Visit ຕາມກຸ່ມພະຍາດ/);
 assert.match(dashboard, /id="chartOpdDepartments"/);
 assert.doesNotMatch(dashboard, /Top 8 ບໍລິການຍອດຮິດ|Most Used Services|chartTopServices/);
 assert.match(main, /getOpdDepartmentFromVisit\(v\)/);
 assert.match(main, /OPD_DEPARTMENTS\.map\(item => opdDepartmentCounts\[item\.key\]\)/);
-assert.match(main, /focus: 'opdTestDeptPicker', text: 'ພະແນກ \/ Department'/);
+assert.match(main, /focus: 'opdTestDeptPicker', text: 'ກຸ່ມພະຍາດທີ່ມາຮັບບໍລິການ\/group of disease service'/);
 assert.match(main, /clinicalNote\.departmentKey \|\| clinicalNote\.department/);
 
 console.log('OPD Department dropdown, validation, persistence source and dashboard checks passed.');
