@@ -3961,8 +3961,11 @@ window.initApp = async function () {
 
     window.toggleLoading(true);
 
-    // Seed Defaults in background (don't block login)
-    window.seedMasterDefaults();
+    // Seed defaults in the background. Reload the shared store if this release
+    // added a new category so its CRUD rows and dependent dropdowns update now.
+    window.seedMasterDefaults().then(didSeed => {
+      if (didSeed) window.loadMasterDataGlobal();
+    });
 
     // Subscribe to OPD queue changes so doctors get notified on new arrivals
     window.setupOpdQueueRealtime();
@@ -4760,7 +4763,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const safeLabels = (Array.isArray(labels) && labels.length > 0) ? labels : ['No data'];
   const safeData = (Array.isArray(data) && data.length > 0) ? data.map(value => Number(value) || 0) : [0];
   const hasUsableData = safeData.some(value => value > 0);
-  const showZeroCategories = (ctxId === 'chartSpecialist' && safeLabels.length === 6)
+  const showZeroCategories = (ctxId === 'chartSpecialist' && safeLabels.length > 0)
     || (ctxId === 'chartOpdDepartments' && safeLabels.length === OPD_DEPARTMENTS.length);
   const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
@@ -4937,7 +4940,10 @@ window.renderDashboardCharts = function (visits) {
     evening: '16:00 - 21:00',
     night: '21:00 - 08:00'
   };
-  const clinicalDepartmentLabels = ['Internal Medicine', 'Pediatrics', 'OB-GYN', 'General / ER', 'IPD', 'Health Checkup'];
+  const clinicalDepartmentLabels = (masterDataStore.ServiceDepartment?.length
+    ? masterDataStore.ServiceDepartment.map(item => item.value)
+    : window._masterDataFallback.ServiceDepartment
+  ).map(value => String(value || '').trim()).filter((value, index, values) => value && values.indexOf(value) === index);
   const clinicalDepartmentLookup = new Map(clinicalDepartmentLabels.map(label => [label.toLowerCase(), label]));
   const clinicalDepartments = Object.fromEntries(clinicalDepartmentLabels.map(label => [label, 0]));
   const opdDepartmentCounts = Object.fromEntries(OPD_DEPARTMENTS.map(item => [item.key, 0]));
@@ -6987,7 +6993,7 @@ window.submitTriageForm = function (e) {
   fd.v_resp = String(fd.v_resp || '').trim() || '20';
 
   if (!String(fd.v_clinical_department || '').trim()) {
-    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກບໍລິການ', 'warning');
     return;
   }
   if (!String(fd.v_department || '').trim()) {
@@ -7050,7 +7056,7 @@ window.executeTriageSave = async function (fd) {
   fd.v_clinical_department = String(fd.v_clinical_department || '').trim();
   fd.v_department = String(fd.v_department || '').trim();
   if (!fd.v_clinical_department) {
-    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກກວດ', 'warning');
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກພະແນກບໍລິການ', 'warning');
     return;
   }
   if (!fd.v_department) {
@@ -8094,7 +8100,12 @@ window.openTriage = async function (i) {
   $('input[name="v_resp"]').val(r.rr || '20');
   $('input[name="v_spo2"]').val(r.spo2 || '');
   $('textarea[name="v_symptoms"]').val(r.symptoms || '');
-  $('#v_clinical_department').val(r.clinicalDepartment || '');
+  const serviceDepartment = String(r.clinicalDepartment || '').trim();
+  const $serviceDepartment = $('#v_clinical_department');
+  if (serviceDepartment && !$serviceDepartment.find('option').filter((_, option) => option.value === serviceDepartment).length) {
+    $serviceDepartment.append(new Option(serviceDepartment, serviceDepartment));
+  }
+  $serviceDepartment.val(serviceDepartment);
   const roomName = String(r.department || '').trim();
   const $room = $('#v_department');
   $room.find('option').filter((_, option) => String(option.value || '').trim().toUpperCase() === 'OPD').remove();
@@ -12656,6 +12667,7 @@ window._masterDataFallback = {
   Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ"],
   InsCompany: ["ບໍ່ມີ","LSMI","PVI","Axa","Prudential","Allianz","BCEL-AXA","ອື່ນໆ"],
   Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
+  ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup"],
   LabCategory: window.emrLabCategoryConfig.map(item => item.label),
   DrugUnit: ["ເມັດ (Tab)","ແຄັບຊູນ (Cap)","ມິນລິລິດ (ml)","ກຣາມ (g)","ຫຼອດ (Amp)","ຕຸກ (Bottle)","ຊອງ (Sachet)","Dose","ບ່ວງ (Spoon)"],
   DrugUsage: ["ac (ກ່ອນອາຫານ 30 ນາທີ)","pc (ຫຼັງອາຫານ 15-30 ນາທີ)","am (ຕອນເຊົ້າ)","pm (ຕອນແລງ)","hs (ກ່ອນນອນ)","bid (ວັນລະ 2 ຄັ້ງ)","tid (ວັນລະ 3 ຄັ້ງ)","qid (ວັນລະ 4 ຄັ້ງ)","prn (ກິນເວລາເຈັບ)","od (ວັນລະ 1 ຄັ້ງ)","stat (ກິນທັນທີ)"],
@@ -12665,17 +12677,23 @@ window._masterDataFallback = {
 window.loadMasterDataGlobalCallback = function (data) {
   masterDataStore = data || {};
   let missingCategories = [];
-  ['Department', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Nurse', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
+  ['Department', 'ServiceDepartment', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Nurse', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
     let o = '<option value="">-- ເລືອກ --</option>';
     const sourceData = masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
     if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
     if (sourceData) {
-      sourceData.forEach(i => o += `<option value="${i.value}">${i.value}</option>`);
+      sourceData.forEach(i => {
+        const safeValue = window.escapeEmrPickerHtml(i.value);
+        o += `<option value="${safeValue}">${safeValue}</option>`;
+      });
     }
     $('.dyn-' + c).html(o);
     if (c === 'Department') {
       $('#v_department option').filter((_, option) => String(option.value || '').trim().toUpperCase() === 'OPD').remove();
       $('#v_department option:first').text('-- ເລືອກຫ້ອງກວດ --');
+    }
+    if (c === 'ServiceDepartment') {
+      $('#v_clinical_department option:first').text('-- ເລືອກພະແນກບໍລິການ --');
     }
   });
   if (missingCategories.length > 0) {
@@ -12704,16 +12722,17 @@ window.seedMasterDefaults = async function () {
     Channel: ["ໂທລະສັບ", "ສອດ", "Facebook", "Line", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານ ຮພ. ອື່ນ", "ສື່ໂຄສະນາ", "ອື່ນໆ"],
     InsCompany: ["ບໍ່ມີ", "LSMI", "PVI", "Axa", "Prudential", "Allianz", "BCEL-AXA", "ອື່ນໆ"],
     Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
+    ServiceDepartment: ["Internal Medicine", "Pediatrics", "OB-GYN", "General / ER", "IPD", "Health Checkup"],
     EmergencyRelation: ["ພໍ່", "ແມ່", "ຜົວ", "ເມຍ", "ລູກ", "ພີ່", "ນ້ອງ", "ຍາດພີ່ນ້ອງ", "ໝູ່", "ອື່ນໆ"],
   };
 
-  // Bumped to v2 so existing installs re-check for newly-introduced categories
-  // (e.g. EmergencyRelation) without wiping rows that were customized by the
+  // Bumped to v3 so existing installs re-check for newly-introduced categories
+  // (e.g. ServiceDepartment) without wiping rows that were customized by the
   // hospital. The Category-level count check below still skips anything that
   // already has at least one row, so nothing gets duplicated.
-  const SEED_FLAG = 'his_master_seeded_v2';
+  const SEED_FLAG = 'his_master_seeded_v3';
   try {
-    if (localStorage.getItem(SEED_FLAG) === '1') return;
+    if (localStorage.getItem(SEED_FLAG) === '1') return false;
 
     const entries = Object.entries(defaults);
     const existsResults = await Promise.all(
@@ -12725,21 +12744,24 @@ window.seedMasterDefaults = async function () {
     const missing = entries.filter((_, i) => (existsResults[i].count || 0) === 0);
     if (missing.length === 0) {
       localStorage.setItem(SEED_FLAG, '1');
-      return;
+      return false;
     }
 
     const allRows = missing.flatMap(([category, values]) => values.map(v => ({ Category: category, Value: v })));
     console.log(`Seeding ${missing.length} categories (${allRows.length} rows)...`);
-    await supabaseClient.from(dbTable('MasterData')).insert(allRows);
+    const { error } = await supabaseClient.from(dbTable('MasterData')).insert(allRows);
+    if (error) throw error;
     localStorage.setItem(SEED_FLAG, '1');
+    return true;
   } catch (err) {
     console.error("Seeding error:", err);
+    return false;
   }
 };
 
 window.resetMasterDefaults = async function () {
   const c = $('#masterCategory').val();
-  const seededCategories = ['DrugUsage', 'DrugUnit', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department', 'EmergencyRelation'];
+  const seededCategories = ['DrugUsage', 'DrugUnit', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department', 'ServiceDepartment', 'EmergencyRelation'];
   if (!seededCategories.includes(c)) {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ຟັງຊັນນີ້ໃຊ້ໄດ້ສະເພາະກັບ category ທີ່ມີຂໍ້ມູນມາດຕະຖານ', 'info');
   }
@@ -12755,7 +12777,29 @@ window.resetMasterDefaults = async function () {
 
   if (r.isConfirmed) {
     Swal.fire({ title: 'ກຳລັງ Reset...', didOpen: () => Swal.showLoading() });
-    await window.seedMasterDefaults();
+    if (c === 'ServiceDepartment') {
+      const { data: currentRows, error: lookupError } = await supabaseClient
+        .from(dbTable('MasterData'))
+        .select('Value')
+        .eq('Category', c);
+      if (lookupError) {
+        Swal.fire('Error', lookupError.message, 'error');
+        return;
+      }
+      const existing = new Set((currentRows || []).map(row => String(row.Value || '').trim().toLowerCase()));
+      const missingRows = window._masterDataFallback.ServiceDepartment
+        .filter(value => !existing.has(value.toLowerCase()))
+        .map(value => ({ Category: c, Value: value }));
+      if (missingRows.length) {
+        const { error: insertError } = await supabaseClient.from(dbTable('MasterData')).insert(missingRows);
+        if (insertError) {
+          Swal.fire('Error', insertError.message, 'error');
+          return;
+        }
+      }
+    } else {
+      await window.seedMasterDefaults();
+    }
     await window.loadMasterDataGlobal();
     Swal.fire('ສຳເລັດ!', 'ເພີ່ມຂໍ້ມູນມາດຕະຖານໃຫ້ແລ້ວ', 'success');
   }
@@ -12791,6 +12835,7 @@ window.masterCategoryGroups = [
     summary: 'ໝວດຂໍ້ມູນສຳລັບການກວດ ແລະ ແພດ',
     categories: [
       { key: 'Department', label: 'ຫ້ອງກວດ', description: 'ຈັດການຊື່ພະແນກ ແລະ ຫ້ອງກວດ' },
+      { key: 'ServiceDepartment', label: '6 ພະແນກບໍລິການ/Department service', description: 'ຈັດການລາຍຊື່ພະແນກບໍລິການທີ່ໃຊ້ໃນ Triage ແລະ Dashboard' },
       { key: 'Doctor', label: 'ລາຍຊື່ແພດ', description: 'ເພີ່ມແລະຈັດການຊື່ແພດໃນລະບົບ' },
       { key: 'Nurse', label: 'ລາຍຊື່ພະຍາບານ', description: 'ເພີ່ມແລະຈັດການຊື່ພະຍາບານໃນລະບົບ' },
       { key: 'LabCategory', label: 'ໝວດ Lab', description: 'ຈັດການລາຍຊື່ໝວດການກວດທີ່ໃຊ້ໃນ checkbox picker' }
