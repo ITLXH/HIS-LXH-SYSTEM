@@ -1,0 +1,175 @@
+<div id="view-staff" class="staff-management-view" style="display:none;">
+  <header class="staff-page-header">
+    <div>
+      <div class="staff-page-eyebrow"><i class="fas fa-id-badge"></i> STAFF DIRECTORY</div>
+      <h3>ຈັດການພະນັກງານ</h3>
+      <p>ຈັດເກັບຮູບ, ຂໍ້ມູນພະແນກ ແລະຕຳແໜ່ງ ເພື່ອນຳໄປໃຊ້ໃນຕາຕະລາງເຂົ້າເວນ</p>
+    </div>
+    <div class="staff-page-actions">
+      <span class="staff-local-badge" id="staffPersistenceBadge"><i class="fas fa-laptop-code"></i> Local test data</span>
+      <button type="button" class="btn btn-outline-secondary" id="staffResetDemoButton" onclick="window.resetStaffDemoData()">
+        <i class="fas fa-sync-alt me-1"></i> ຂໍ້ມູນຕົວຢ່າງ
+      </button>
+      <button type="button" class="btn btn-primary" onclick="window.openStaffModal()">
+        <i class="fas fa-user-plus me-1"></i> ເພີ່ມພະນັກງານ
+      </button>
+    </div>
+  </header>
+
+  <section class="staff-summary-grid" aria-label="ສະຫຼຸບພະນັກງານ">
+    <article class="staff-summary-card staff-summary-card--all">
+      <span class="staff-summary-icon"><i class="fas fa-users"></i></span>
+      <div><small>ພະນັກງານທັງໝົດ</small><strong id="staffTotalCount">0</strong></div>
+    </article>
+    <article class="staff-summary-card staff-summary-card--doctor">
+      <span class="staff-summary-icon"><i class="fas fa-user-md"></i></span>
+      <div><small>ແພດ</small><strong id="staffDoctorCount">0</strong></div>
+    </article>
+    <article class="staff-summary-card staff-summary-card--nurse">
+      <span class="staff-summary-icon"><i class="fas fa-user-nurse"></i></span>
+      <div><small>ພະຍາບານ</small><strong id="staffNurseCount">0</strong></div>
+    </article>
+    <article class="staff-summary-card staff-summary-card--active">
+      <span class="staff-summary-icon"><i class="fas fa-user-check"></i></span>
+      <div><small>ກຳລັງເຮັດວຽກ</small><strong id="staffActiveCount">0</strong></div>
+    </article>
+  </section>
+
+  <section class="staff-directory-card">
+    <div class="staff-filter-bar">
+      <label class="staff-search-box" for="staffSearchInput">
+        <i class="fas fa-search"></i>
+        <input id="staffSearchInput" type="search" placeholder="ຄົ້ນຫາຊື່, ລະຫັດ, ພະແນກ..." oninput="window.renderStaffDirectory()">
+      </label>
+      <select id="staffTypeFilter" class="form-select" onchange="window.renderStaffDirectory()" aria-label="ກັ່ນຕອງປະເພດພະນັກງານ">
+        <option value="all">ທຸກປະເພດ</option>
+        <option value="doctor">ແພດ</option>
+        <option value="nurse">ພະຍາບານ</option>
+        <option value="lab">ແລັບ</option>
+        <option value="radiology">ລັງສີ</option>
+        <option value="pharmacy">ການຢາ</option>
+        <option value="reception">ຕ້ອນຮັບ</option>
+        <option value="other">ອື່ນໆ</option>
+      </select>
+      <select id="staffStatusFilter" class="form-select" onchange="window.renderStaffDirectory()" aria-label="ກັ່ນຕອງສະຖານະ">
+        <option value="all">ທຸກສະຖານະ</option>
+        <option value="active">ກຳລັງເຮັດວຽກ</option>
+        <option value="on_leave">ພັກ/ລາຍາວ</option>
+        <option value="inactive">ຢຸດເຮັດວຽກ</option>
+      </select>
+      <span class="staff-result-count"><strong id="staffFilteredCount">0</strong> ຄົນ</span>
+    </div>
+
+    <div id="staffDirectoryGrid" class="staff-directory-grid"></div>
+  </section>
+
+  <div class="modal fade" id="staffEditorModal" tabindex="-1" aria-labelledby="staffEditorTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content staff-editor-modal">
+        <div class="modal-header">
+          <div>
+            <span class="staff-modal-kicker">STAFF PROFILE</span>
+            <h5 class="modal-title" id="staffEditorTitle">ເພີ່ມພະນັກງານ</h5>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="staffEditorForm" onsubmit="window.saveStaffProfile(event)">
+          <div class="modal-body">
+            <input type="hidden" id="staffRecordId">
+            <input type="hidden" id="staffPhotoData">
+            <input type="hidden" id="staffPhotoPath">
+
+            <div class="staff-editor-layout">
+              <aside class="staff-photo-editor">
+                <button type="button" class="staff-photo-preview" id="staffPhotoPreview" onclick="document.getElementById('staffPhotoInput').click()" aria-label="ເລືອກຮູບພະນັກງານ">
+                  <i class="fas fa-user"></i>
+                </button>
+                <input id="staffPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="window.handleStaffPhotoChange(event)">
+                <strong>ຮູບພະນັກງານ</strong>
+                <small>JPG, PNG ຫຼື WebP<br>ບໍ່ເກີນ 5 MB</small>
+                <div class="staff-photo-buttons">
+                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('staffPhotoInput').click()">
+                    <i class="fas fa-camera me-1"></i> ເລືອກຮູບ
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" id="staffRemovePhotoButton" onclick="window.removeStaffPhoto()">
+                    <i class="fas fa-trash-alt me-1"></i> ລຶບຮູບ
+                  </button>
+                </div>
+              </aside>
+
+              <div class="staff-form-fields">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label for="staffEmployeeCode" class="form-label">ລະຫັດພະນັກງານ <span>*</span></label>
+                    <input id="staffEmployeeCode" class="form-control" required maxlength="30" placeholder="ເຊັ່ນ: DOC-001">
+                  </div>
+                  <div class="col-md-8">
+                    <label for="staffFullName" class="form-label">ຊື່-ນາມສະກຸນ <span>*</span></label>
+                    <input id="staffFullName" class="form-control" required maxlength="120" placeholder="ຊື່ເຕັມຂອງພະນັກງານ">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffEmployeeType" class="form-label">ປະເພດພະນັກງານ <span>*</span></label>
+                    <select id="staffEmployeeType" class="form-select" required>
+                      <option value="doctor">ແພດ</option>
+                      <option value="nurse">ພະຍາບານ</option>
+                      <option value="lab">ແລັບ</option>
+                      <option value="radiology">ລັງສີ</option>
+                      <option value="pharmacy">ການຢາ</option>
+                      <option value="reception">ຕ້ອນຮັບ</option>
+                      <option value="other">ອື່ນໆ</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffDepartment" class="form-label">ພະແນກ <span>*</span></label>
+                    <input id="staffDepartment" class="form-control" list="staffDepartmentOptions" required maxlength="100" placeholder="ເລືອກ ຫຼືພິມພະແນກ">
+                    <datalist id="staffDepartmentOptions">
+                      <option value="OPD ທົ່ວໄປ"></option>
+                      <option value="ຫ້ອງເດັກ"></option>
+                      <option value="ພະຍາບານ"></option>
+                      <option value="ແລັບ"></option>
+                      <option value="ລັງສີ"></option>
+                      <option value="ການຢາ"></option>
+                    </datalist>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffPosition" class="form-label">ຕຳແໜ່ງ</label>
+                    <input id="staffPosition" class="form-control" maxlength="100" placeholder="ເຊັ່ນ: ແພດປະຈຳ OPD">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffSpecialty" class="form-label">ວິຊາສະເພາະ</label>
+                    <input id="staffSpecialty" class="form-control" maxlength="100" placeholder="ເຊັ່ນ: Pediatrics">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffPhone" class="form-label">ເບີໂທ</label>
+                    <input id="staffPhone" type="tel" class="form-control" maxlength="30" placeholder="020 5555 5555">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffEmail" class="form-label">ອີເມວ</label>
+                    <input id="staffEmail" type="email" class="form-control" maxlength="160" placeholder="name@hospital.com">
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffStatus" class="form-label">ສະຖານະ</label>
+                    <select id="staffStatus" class="form-select">
+                      <option value="active">ກຳລັງເຮັດວຽກ</option>
+                      <option value="on_leave">ພັກ/ລາຍາວ</option>
+                      <option value="inactive">ຢຸດເຮັດວຽກ</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="staffLinkedUserId" class="form-label">User ID ທີ່ເຊື່ອມ (ຖ້າມີ)</label>
+                    <input id="staffLinkedUserId" class="form-control" maxlength="50" placeholder="ປ່ອຍວ່າງໄດ້">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span class="staff-form-note" id="staffFormPersistenceNote"><i class="fas fa-info-circle"></i> Local test: ຂໍ້ມູນຈະເກັບໄວ້ໃນ browser ນີ້</span>
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ຍົກເລີກ</button>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> ບັນທຶກ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

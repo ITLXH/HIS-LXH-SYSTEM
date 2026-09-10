@@ -20,6 +20,8 @@ import {
   resolveOpdDepartmentKey
 } from './opdDepartments.js';
 import { isHiddenDoctorOption, mergeDoctorOptions } from './doctorOptions.js';
+import { installStaffManagement } from './staffManagement.js';
+import { createStaffSupabaseBackend } from './staffSupabase.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
   HIS_ROLE_PAGE_DEFAULTS,
@@ -53,6 +55,14 @@ window.authenticatedFetch = async function (url, options = {}) {
 
 const DB_TABLE_PREFIX = "HIS_One_";
 const dbTable = (name) => `${DB_TABLE_PREFIX}${name}`;
+
+installStaffManagement({
+  escapeHtml: escapeHisHtml,
+  backend: createStaffSupabaseBackend({
+    client: supabaseClient,
+    tableName: dbTable('Staff_Profiles')
+  })
+});
 
 function sha256Fallback(text) {
   const rightRotate = (value, amount) => (value >>> amount) | (value << (32 - amount));
@@ -2035,6 +2045,7 @@ window.HIS_NAV_ROUTES = {
   ipd_inpatient_list: { view: 'ipd_inpatient_list', navId: 'ipd_inpatient_list', path: '/ipd/inpatients', mode: 'ipd_inpatients' },
   ipd_discharge: { view: 'ipd_inpatient_list', navId: 'ipd_discharge', path: '/ipd/discharge', mode: 'ipd_discharge' },
   ipd_config: { view: 'ipd_config', navId: 'ipd_config', path: '/ipd_config' },
+  staff: { view: 'staff', navId: 'staff', path: '/staff' },
   settings: { view: 'settings', navId: 'settings', path: '/settings' },
   orgs: { view: 'orgs', navId: 'orgs', path: '/orgs' },
   users: { view: 'users', navId: 'users', path: '/users' },
@@ -2072,6 +2083,7 @@ window.HIS_PATH_ROUTES = {
   '/ipd_ward_bed': 'ipd_ward_bed',
   '/ipd_inpatient_list': 'ipd_inpatient_list',
   '/ipd_config': 'ipd_config',
+  '/staff': 'staff',
   '/settings': 'settings',
   '/orgs': 'orgs',
   '/users': 'users',
@@ -2194,6 +2206,26 @@ window.initLocalOpdTestPreview = function () {
   window.toggleLoading(false);
   window.loadView('opd_test', { replace: true, force: true });
   window.setupLisResultNotifications?.();
+};
+
+// Local-only staff directory preview. Prototype records and compressed photos
+// stay in this browser and are never written to the production database.
+window.isLocalStaffPreview = function () {
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(host);
+  const previewRequested = new URLSearchParams(window.location.search).get('preview') === '1';
+  return isLoopback && previewRequested && window.parseProtectedRoute?.()?.view === 'staff';
+};
+
+window.initLocalStaffPreview = function () {
+  $('body').removeClass('auth-checking');
+  $('#login-section').hide();
+  $('#app-content').show();
+  $('#sidebarUserName').text('Staff Local Test');
+  $('#his-nav-items [id^="nav-"]').hide();
+  $('#nav-staff').show().closest('.his-dropdown').show();
+  window.toggleLoading(false);
+  window.loadView('staff', { replace: true, force: true, updateUrl: false });
 };
 
 window.emrLabCategoryConfig = [
@@ -2948,7 +2980,7 @@ async function loadPartials() {
   const views = [
     'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
-    'labs', 'services', 'locations', 'users', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
+    'labs', 'services', 'locations', 'users', 'staff', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
   const modals = [
     'patient-modal',
@@ -3300,6 +3332,10 @@ $(document).ready(async function () {
   });
 
   setTimeout(async () => {
+    if (window.isLocalStaffPreview?.()) {
+      window.initLocalStaffPreview();
+      return;
+    }
     if (window.isLocalOpdTestPreview?.()) {
       window.initLocalOpdTestPreview();
       return;
@@ -4096,7 +4132,10 @@ window.invalidateViewCache = function (view) {
 window.loadView = function (v, options = {}) {
   let routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
   const requestedView = routeTarget.view;
-  const localPreviewAllowed = !currentUser && requestedView === 'opd_test' && window.isLocalOpdTestPreview?.();
+  const localPreviewAllowed = !currentUser && (
+    (requestedView === 'opd_test' && window.isLocalOpdTestPreview?.())
+    || (requestedView === 'staff' && window.isLocalStaffPreview?.())
+  );
   if (!localPreviewAllowed && currentUser && !window.canUserAccessView(requestedView, currentUser.permissions)) {
     const safeView = window.getPostLoginView(parseHisPagePermissions(currentUser.permissions));
     if (!options.permissionRedirect && safeView && safeView !== requestedView) {
@@ -4163,7 +4202,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'staff', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -4221,6 +4260,7 @@ window.loadView = function (v, options = {}) {
     _runLoad(() => window.loadObservationPage());
   }
   if (v === 'users') _runLoad(() => window.loadUsers());
+  if (v === 'staff') _runLoad(() => window.initStaffManagement());
   if (v === 'services') _runLoad(() => window.loadServicesMasterView());
   if (v === 'locations') _runLoad(() => window.loadLocationsMasterView());
   if (v === 'appointments') _runLoad(() => window.loadAppointments());
