@@ -235,6 +235,9 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
       const typeMeta = STAFF_TYPE_META[record.employeeType] || STAFF_TYPE_META.other;
       const statusMeta = STAFF_STATUS_META[record.status] || STAFF_STATUS_META.active;
       const secondary = [record.position, record.specialty].filter(Boolean).join(' · ') || typeMeta.label;
+      const phoneLine = record.phone
+        ? `<span title="${escapeHtml(record.phone)}"><i class="fas fa-phone-alt"></i>${escapeHtml(record.phone)}</span>`
+        : '';
       return `<article class="staff-profile-card staff-profile-card--${typeMeta.tone}">
         <div class="staff-profile-card-head">
           <div class="staff-avatar">${photoMarkup(record)}</div>
@@ -253,7 +256,7 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
         </div>
         <div class="staff-profile-meta">
           <span><i class="fas fa-hospital"></i>${escapeHtml(record.department || 'ບໍ່ລະບຸພະແນກ')}</span>
-          <span><i class="fas fa-phone-alt"></i>${escapeHtml(record.phone || 'ບໍ່ມີເບີໂທ')}</span>
+          ${phoneLine}
         </div>
         <footer>
           <span class="staff-type-chip"><i class="fas ${typeMeta.icon}"></i>${typeMeta.label}</span>

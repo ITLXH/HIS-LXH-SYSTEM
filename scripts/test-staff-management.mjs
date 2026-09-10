@@ -34,6 +34,8 @@ assert.match(main, /window\.isLocalStaffPreview/);
 assert.match(main, /window\.initLocalStaffPreview/);
 assert.match(main, /if \(v === 'staff'\)/);
 assert.match(style, /\.staff-directory-grid/);
+assert.match(style, /repeat\(auto-fill, minmax\(260px, 1fr\)\)/);
+assert.match(style, /min-height:\s*132px/);
 assert.match(style, /\.staff-photo-preview/);
 assert.equal(STAFF_STORAGE_KEY, 'his_local_staff_profiles_v1');
 assert.equal(STAFF_AVATAR_BUCKET, 'his-staff-avatars');
