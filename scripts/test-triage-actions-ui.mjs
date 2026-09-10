@@ -8,6 +8,10 @@ const css = fs.readFileSync(path.join(root, 'src', 'style.css'), 'utf8');
 const view = fs.readFileSync(path.join(root, 'public', 'partials', 'views', 'triage.html'), 'utf8');
 
 const checks = [
+  ['OPD/IPD header is replaced by the receiving nurse', /triage-nurse-column[^>]*>ພະຍາບານຮັບເຄດ</.test(view) && !/>OPD\/IPD</.test(view)],
+  ['Receiving nurse comes from the saved triage recorder', /const receivingNurse = String\(r\.recordedBy \|\| ''\)\.trim\(\)/.test(main)],
+  ['Receiving nurse is rendered in its own table cell', /class="text-center triage-nurse-cell">\$\{receivingNurseBadge\}/.test(main)],
+  ['Receiving nurse badge supports readable full names', /\.triage-nurse-badge\s*\{[\s\S]{0,500}white-space:\s*normal/.test(css)],
   ['Triage action header reserves an orderly action column', /triage-action-column/.test(view)],
   ['Action cell uses the dedicated action rail', /class="text-center triage-action-cell"[\s\S]{0,180}class="triage-actions"/.test(main)],
   ['Action rail is exposed as an accessible button group', /class="triage-actions" role="group" aria-label=/.test(main)],

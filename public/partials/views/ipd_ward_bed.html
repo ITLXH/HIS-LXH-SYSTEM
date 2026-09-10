@@ -1,18 +1,113 @@
 <div id="view-ipd_ward_bed" class="ipd-workspace" style="display:none;">
   <div class="ipd-page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <div class="d-flex align-items-center flex-wrap gap-2">
+    <div>
       <h3 class="fw-bold m-0 text-dark"><i class="fas fa-procedures text-primary me-2"></i><span data-i18n="ipd.title">Ward / Bed Management</span></h3>
-      <div class="ipd-status-pills">
-        <span class="ipd-pill"><i class="fas fa-bed"></i> <span data-i18n="ipd.totalBeds">Total Beds</span>: <strong id="ipdTotalBeds">0</strong></span>
-        <span class="ipd-pill is-occupied"><i class="fas fa-procedures"></i> <span data-i18n="ipd.occupied">Occupied</span>: <strong id="ipdOccupiedBeds">0</strong></span>
-        <span class="ipd-pill is-available"><i class="fas fa-check-circle"></i> <span data-i18n="ipd.available">Available</span>: <strong id="ipdAvailableBeds">0</strong></span>
-        <span class="ipd-pill is-reserved"><i class="fas fa-bookmark"></i> <span data-i18n="ipd.reserved">Reserved</span>: <strong id="ipdReservedBeds">0</strong></span>
-      </div>
+      <p class="mb-0 mt-1" data-i18n="ipd.subtitle">IPD ward, room, bed assignment, transfer, and bed movement board</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-outline-primary fw-bold" onclick="window.loadIpdWardBedManagement()"><i class="fas fa-sync-alt me-1"></i> <span data-i18n="ipd.refresh">Refresh</span></button>
       <button class="btn btn-success shadow-sm fw-bold btn-ipd-admit" onclick="window.openIpdQuickAdmitModal()"><i class="fas fa-user-plus me-1"></i> <span data-i18n="nav.admitPatient">Admit Patient</span></button>
     </div>
   </div>
 
-  <div id="ipdBedBoard"></div>
+  <div class="ipd-summary-grid">
+    <div class="ipd-summary-card">
+      <div class="ipd-summary-icon"><i class="fas fa-bed"></i></div>
+      <div><span data-i18n="ipd.totalBeds">Total Beds</span><strong id="ipdTotalBeds">0</strong></div>
+    </div>
+    <div class="ipd-summary-card is-occupied">
+      <div class="ipd-summary-icon"><i class="fas fa-procedures"></i></div>
+      <div><span data-i18n="ipd.occupied">Occupied</span><strong id="ipdOccupiedBeds">0</strong></div>
+    </div>
+    <div class="ipd-summary-card is-available">
+      <div class="ipd-summary-icon"><i class="fas fa-check-circle"></i></div>
+      <div><span data-i18n="ipd.available">Available</span><strong id="ipdAvailableBeds">0</strong></div>
+    </div>
+    <div class="ipd-summary-card is-rate">
+      <div class="ipd-summary-icon"><i class="fas fa-bookmark"></i></div>
+      <div><span data-i18n="ipd.reserved">Reserved</span><strong id="ipdReservedBeds">0</strong></div>
+    </div>
+    <button type="button" class="ipd-summary-card is-attention" onclick="window.openIpdNurseAttention()">
+      <div class="ipd-summary-icon"><i class="fas fa-bell"></i></div>
+      <div><span>ວຽກຮອດເວລາ / Due tasks</span><strong id="ipdAttentionTasks">0</strong></div>
+      <i class="fas fa-chevron-right ipd-summary-arrow"></i>
+    </button>
+  </div>
+
+  <div class="ipd-filter-bar">
+    <div>
+      <label class="form-label" for="ipdFilterWard" data-i18n="ipd.ward">Ward</label>
+      <select class="form-select form-select-sm" id="ipdFilterWard" onchange="window.applyIpdWardBedFilters()"></select>
+    </div>
+    <div>
+      <label class="form-label" for="ipdFilterRoom" data-i18n="ipd.room">Room</label>
+      <select class="form-select form-select-sm" id="ipdFilterRoom" onchange="window.applyIpdWardBedFilters()"></select>
+    </div>
+    <div>
+      <label class="form-label" for="ipdFilterStatus" data-i18n="ipd.status">Status</label>
+      <select class="form-select form-select-sm" id="ipdFilterStatus" onchange="window.applyIpdWardBedFilters()">
+        <option value="" data-i18n="ipd.allStatus">All status</option>
+        <option value="Available" data-i18n="ipd.available">Available</option>
+        <option value="Occupied" data-i18n="ipd.occupied">Occupied</option>
+        <option value="Reserved" data-i18n="ipd.reserved">Reserved</option>
+        <option value="Cleaning" data-i18n="ipd.cleaning">Cleaning</option>
+        <option value="Maintenance" data-i18n="ipd.maintenance">Maintenance</option>
+        <option value="Inactive" data-i18n="ipd.inactive">Inactive</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="ipdFilterBedType" data-i18n="ipd.bedType">Bed Type</label>
+      <select class="form-select form-select-sm" id="ipdFilterBedType" onchange="window.applyIpdWardBedFilters()">
+        <option value="" data-i18n="ipd.allTypes">All types</option>
+        <option value="Standard">Standard</option>
+        <option value="ICU">ICU</option>
+        <option value="Pediatric">Pediatric</option>
+        <option value="Delivery">Delivery</option>
+        <option value="Isolation">Isolation</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="ipdFilterSearch" data-i18n="common.search">Search</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input class="form-control" id="ipdFilterSearch" data-i18n-placeholder="ipd.searchPlaceholder" placeholder="Bed, room, HN, AM, patient, doctor" oninput="window.applyIpdWardBedFilters()">
+      </div>
+    </div>
+    <div>
+      <label class="form-label" for="ipdFilterDoctor" data-i18n="ipd.doctor">Doctor</label>
+      <select class="form-select form-select-sm" id="ipdFilterDoctor" onchange="window.applyIpdWardBedFilters()"></select>
+    </div>
+    <div class="d-flex align-items-end">
+      <button class="btn btn-sm btn-outline-secondary w-100" onclick="window.resetIpdWardBedFilters()"><i class="fas fa-undo me-1"></i><span data-i18n="common.reset">Reset</span></button>
+    </div>
+  </div>
+
+  <div class="ipd-quick-filter-row" aria-label="Quick bed filters">
+    <div class="ipd-quick-filter-label"><i class="fas fa-filter me-1"></i>ຕົວກອງດ່ວນ</div>
+    <button type="button" class="ipd-quick-filter active" data-ipd-quick-filter="" onclick="window.applyIpdQuickFilter('')">ທັງໝົດ</button>
+    <button type="button" class="ipd-quick-filter is-occupied" data-ipd-quick-filter="Occupied" onclick="window.applyIpdQuickFilter('Occupied')"><i class="fas fa-user-injured"></i> ມີຄົນເຈັບ</button>
+    <button type="button" class="ipd-quick-filter is-available" data-ipd-quick-filter="Available" onclick="window.applyIpdQuickFilter('Available')"><i class="fas fa-check-circle"></i> ຕຽງວ່າງ</button>
+    <button type="button" class="ipd-quick-filter is-alert" data-ipd-quick-filter="Attention" onclick="window.applyIpdQuickFilter('Attention')"><i class="fas fa-bell"></i> ຕ້ອງຕິດຕາມ</button>
+    <span id="ipdFilteredResultCount" class="ipd-filter-result ms-auto" aria-live="polite"></span>
+    <span class="ipd-filter-shortcut d-none d-lg-inline"><kbd>Ctrl</kbd> + <kbd>K</kbd> ຄົ້ນຫາ</span>
+  </div>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
+    <ul class="nav ipd-tabs flex-grow-1" role="tablist">
+      <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ipdBedBoardTab" type="button"><i class="fas fa-th-large me-1"></i><span data-i18n="ipd.bedBoard">Bed Board</span></button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdNurseStationTab" type="button"><i class="fas fa-user-nurse me-1"></i><span data-i18n="ipd.nurseStation">Nurse Station</span><span id="ipdNurseAttentionCount" class="badge rounded-pill bg-danger ms-1 d-none">0</span></button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdDoctorCensusTab" type="button"><i class="fas fa-user-md me-1"></i><span data-i18n="ipd.doctorCensus">Doctor Census</span></button></li>
+    </ul>
+    <div class="ipd-view-mode" aria-label="Bed board view">
+      <button type="button" id="ipdCompactViewBtn" onclick="window.setIpdBedViewMode('compact')"><i class="fas fa-th me-1"></i><span data-i18n="ipd.compactView">Compact</span></button>
+      <button type="button" id="ipdDetailViewBtn" class="active" onclick="window.setIpdBedViewMode('detail')"><i class="fas fa-list me-1"></i><span data-i18n="ipd.detailView">Detail</span></button>
+      <button type="button" id="ipdFloorViewBtn" onclick="window.setIpdBedViewMode('floor')"><i class="fas fa-vector-square me-1"></i><span data-i18n="ipd.floorView">Floor</span></button>
+    </div>
+  </div>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="ipdBedBoardTab"><div id="ipdBedBoard"></div></div>
+    <div class="tab-pane fade" id="ipdNurseStationTab"><div id="ipdNurseStation"></div></div>
+    <div class="tab-pane fade" id="ipdDoctorCensusTab"><div id="ipdDoctorCensus"></div></div>
+  </div>
 </div>

@@ -19,7 +19,7 @@ import {
   getOpdDepartmentFromVisit,
   resolveOpdDepartmentKey
 } from './opdDepartments.js';
-import { mergeDoctorOptions } from './doctorOptions.js';
+import { isHiddenDoctorOption, mergeDoctorOptions } from './doctorOptions.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
   HIS_ROLE_PAGE_DEFAULTS,
@@ -227,6 +227,9 @@ window.appTranslations = {
     'ipd.allTypes': 'ປະເພດທັງໝົດ',
     'ipd.searchPlaceholder': 'ຕຽງ, ຫ້ອງ, HN, AM, ຊື່ຄົນເຈັບ',
     'ipd.bedBoard': 'ກະດານຕຽງ',
+    'ipd.compactView': 'ຫຍໍ້',
+    'ipd.detailView': 'ລະອຽດ',
+    'ipd.floorView': 'ແຜນຜັງ',
     'ipd.wards': 'ຫວອດ',
     'ipd.rooms': 'ຫ້ອງ',
     'ipd.beds': 'ຕຽງ',
@@ -395,6 +398,9 @@ window.appTranslations = {
     'ipd.allDoctors': 'All doctors',
     'ipd.searchPlaceholder': 'Bed, room, HN, AM, patient, doctor',
     'ipd.bedBoard': 'Bed Board',
+    'ipd.compactView': 'Compact',
+    'ipd.detailView': 'Detail',
+    'ipd.floorView': 'Floor',
     'ipd.doctorCensus': 'Doctor Census',
     'ipd.wards': 'Wards',
     'ipd.rooms': 'Rooms',
@@ -4729,7 +4735,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartMarketing', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
+window.dashboardChartIds = ['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4765,7 +4771,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const hasUsableData = safeData.some(value => value > 0);
   const showZeroCategories = (ctxId === 'chartSpecialist' && safeLabels.length > 0)
     || (ctxId === 'chartOpdDepartments' && safeLabels.length === OPD_DEPARTMENTS.length);
-  const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartMarketing', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
+  const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
   const legendFontSize = isCompactDashboardChart ? 11 : 12;
   const tickFontSize = isCompactDashboardChart ? 11 : 12;
@@ -4862,6 +4868,36 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   });
 };
 
+window.renderDashboardStaffActivity = function (containerId, labels, data, tone = 'doctor') {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  })[char]);
+  const rows = (Array.isArray(labels) ? labels : []).map((label, index) => ({
+    label: String(label || '-'),
+    value: Number((Array.isArray(data) ? data : [])[index]) || 0
+  }));
+
+  if (!rows.length || !rows.some(row => row.value > 0)) {
+    container.innerHTML = '<div class="dashboard-staff-empty"><i class="fas fa-chart-bar"></i><span>ບໍ່ພົບຂໍ້ມູນໃນຊ່ວງທີ່ເລືອກ</span></div>';
+    return;
+  }
+
+  const maxValue = Math.max(...rows.map(row => row.value), 1);
+  const safeTone = tone === 'nurse' ? 'nurse' : 'doctor';
+  container.innerHTML = rows.map((row, index) => {
+    const width = Math.max(5, Math.round((row.value / maxValue) * 100));
+    const safeLabel = escapeHtml(row.label);
+    return `<div class="dashboard-staff-rank-row is-${safeTone}">
+      <div class="dashboard-staff-rank-name" title="${safeLabel}"><span>${index + 1}</span><strong>${safeLabel}</strong></div>
+      <div class="dashboard-staff-rank-meter" aria-hidden="true"><i style="width:${width}%"></i></div>
+      <div class="dashboard-staff-rank-value">${row.value}</div>
+    </div>`;
+  }).join('');
+};
+
 window.renderDashboardCharts = function (visits) {
   if (!visits) return;
   // Freeze re-renders during PDF export so a stray in-flight fetch can't
@@ -4934,6 +4970,17 @@ window.renderDashboardCharts = function (visits) {
     return { labels, data };
   };
 
+  const getTopN = (map, n = 5) => {
+    const entries = Object.entries(map)
+      .filter(([, value]) => Number(value) > 0)
+      .sort((a, b) => (Number(b[1]) - Number(a[1])) || String(a[0]).localeCompare(String(b[0])))
+      .slice(0, n);
+    return {
+      labels: entries.map(([label]) => label),
+      data: entries.map(([, value]) => Number(value) || 0)
+    };
+  };
+
   // 3. Process data
   const dashShiftSlotLabels = {
     morning: '08:00 - 16:00',
@@ -4947,11 +4994,15 @@ window.renderDashboardCharts = function (visits) {
   const clinicalDepartmentLookup = new Map(clinicalDepartmentLabels.map(label => [label.toLowerCase(), label]));
   const clinicalDepartments = Object.fromEntries(clinicalDepartmentLabels.map(label => [label, 0]));
   const opdDepartmentCounts = Object.fromEntries(OPD_DEPARTMENTS.map(item => [item.key, 0]));
+  const nurseRoster = new Set(((masterDataStore && masterDataStore.Nurse) || [])
+    .map(item => String(typeof item === 'string' ? item : item?.value || '').trim().toLowerCase())
+    .filter(Boolean));
+  const nonClinicalRecorderNames = new Set(['admin', 'administrator', 'system', 'opd doctor', '-', 'ບໍ່ລະບຸ']);
   let gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
-  }, ageGroup = {}, district = {}, doctors = {}, insurance = {}, organization = {}, occupation = {}, channel = {};
+  }, ageGroup = {}, district = {}, doctors = {}, nurses = {}, insurance = {}, organization = {}, occupation = {}, channel = {};
 
   // Count each unique PATIENT once per breakdown that comes off the patient
   // record (Insurance / Organization / Occupation) — otherwise a returning
@@ -4977,9 +5028,15 @@ window.renderDashboardCharts = function (visits) {
 
     // Doctor_Name is now sourced from the MasterData "Doctor" dropdown at Triage time,
     // so any non-empty, non-placeholder value counts — no need to gate on specialist.
-    if (docName && docName !== "ບໍ່ລະບຸຊື່ແພດ") {
+    if (docName && docName !== "ບໍ່ລະບຸຊື່ແພດ" && !isHiddenDoctorOption(docName)) {
       doctors[docName] = (doctors[docName] || 0) + 1;
     }
+
+    const nurseName = String(v.Recorded_By || v.Nurse_Name || v.Nurse || '').trim();
+    const normalizedNurseName = nurseName.toLowerCase();
+    const isClinicalNurse = nurseName && !nonClinicalRecorderNames.has(normalizedNurseName) &&
+      (!nurseRoster.size || nurseRoster.has(normalizedNurseName));
+    if (isClinicalNurse) nurses[nurseName] = (nurses[nurseName] || 0) + 1;
 
     let g = p.Gender || "ບໍ່ລະບຸ";
     gender[g] = (gender[g] || 0) + 1;
@@ -5026,7 +5083,8 @@ window.renderDashboardCharts = function (visits) {
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
   
   let topCh = getTopNWithOthers(channel, 8, 0.001);
-  let topDocs = getTopNWithOthers(doctors, 5, 0.0001);
+  let topDocs = getTopN(doctors, 5);
+  let topNurses = getTopN(nurses, 5);
 
   window.createChart(
     'chartOpdDepartments',
@@ -5037,8 +5095,8 @@ window.renderDashboardCharts = function (visits) {
     true
   );
   window.createChart('chartSpecialist', 'bar', clinicalDepartmentLabels, clinicalDepartmentLabels.map(label => clinicalDepartments[label]), palette, true);
-  window.createChart('chartChannel', 'bar', topCh.labels, topCh.data, palette, true);
-  window.createChart('chartMarketing', 'bar', topDocs.labels, topDocs.data, palette, true);
+  window.renderDashboardStaffActivity('dashboardDoctorActivity', topDocs.labels, topDocs.data, 'doctor');
+  window.renderDashboardStaffActivity('dashboardNurseActivity', topNurses.labels, topNurses.data, 'nurse');
   window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#1B6BB0', '#DD1F26', '#94a3b8']);
   window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#1B6BB0', '#DD1F26']);
   window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7baede', '#3a8dc7']);
@@ -5049,6 +5107,7 @@ window.renderDashboardCharts = function (visits) {
   const topIns = getTopNWithOthers(insurance, 5, 0.001);
   const topOrg = getTopNWithOthers(organization, 5, 0.001);
   const topOcc = getTopNWithOthers(occupation, 8, 0.001);
+  window.createChart('chartChannel', 'bar', topCh.labels, topCh.data, palette, true);
   window.createChart('chartInsurance', 'bar', topIns.labels, topIns.data, palette, true);
   window.createChart('chartOrganization', 'bar', topOrg.labels, topOrg.data, palette, true);
   window.createChart('chartOccupation', 'bar', topOcc.labels, topOcc.data, palette, true);
@@ -6140,7 +6199,7 @@ window.refreshDoctorUserList = async function () {
     window.doctorUsersCache = (data || [])
       .filter(u => (u.Status || 'active').toString().toLowerCase() !== 'inactive')
       .map(u => String(u.Name || '').trim())
-      .filter(Boolean);
+      .filter(name => name && !isHiddenDoctorOption(name));
     window.applyDoctorUserSelects();
   } catch (err) {
     console.warn('refreshDoctorUserList error:', err);
@@ -6152,8 +6211,8 @@ window.refreshDoctorUserList = async function () {
 window.applyDoctorUserSelects = function () {
   const masterDoctors = (typeof masterDataStore !== 'undefined' && masterDataStore && masterDataStore['Doctor']) || [];
   const doctorUsers = window.doctorUsersCache || [];
-  // Master Data is the hospital's clinical roster. Active doctor accounts are
-  // appended so a generic account such as "OPD Doctor" cannot hide real names.
+  // Master Data is the hospital's clinical roster. Generic service accounts are
+  // intentionally excluded from clinical doctor selectors.
   const list = mergeDoctorOptions(masterDoctors, doctorUsers);
   const source = masterDoctors.length && doctorUsers.length
     ? 'masterdata+users'
@@ -6161,7 +6220,8 @@ window.applyDoctorUserSelects = function () {
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   document.querySelectorAll('.doctor-users-select').forEach(sel => {
     const $sel = typeof jQuery !== 'undefined' ? $(sel) : null;
-    const prev = String(($sel && $sel.val()) || sel.value || '').trim();
+    const currentValue = String(($sel && $sel.val()) || sel.value || '').trim();
+    const prev = isHiddenDoctorOption(currentValue) ? '' : currentValue;
     if ($sel && $.fn.select2 && $sel.data('select2')) {
       try { $sel.select2('destroy'); } catch (e) {}
     }
@@ -6185,7 +6245,7 @@ window.applyDoctorUserSelects = function () {
         width: '100%',
         createTag: function (params) {
           const term = String(params.term || '').trim();
-          if (!term) return null;
+          if (!term || isHiddenDoctorOption(term)) return null;
           return { id: term, text: term, newTag: true };
         }
       });
@@ -7921,6 +7981,10 @@ window.loadTriageQueue = async function () {
         Insurance_Company: r.insuranceCompany,
         Name_Org: r.orgName
       });
+      const receivingNurse = String(r.recordedBy || '').trim();
+      const receivingNurseBadge = receivingNurse
+        ? `<span class="triage-nurse-badge" title="${escapeHisHtml(receivingNurse)}"><i class="fas fa-user-nurse"></i><span>${escapeHisHtml(receivingNurse)}</span></span>`
+        : '<span class="text-muted">-</span>';
       let btnHtml = `<button class="btn btn-sm btn-triage-view-official triage-action-btn triage-action-btn--view" onclick="window.viewTriage(${i})" title="ເບິ່ງລາຍລະອຽດ"><i class="fas fa-file-medical-alt me-1"></i>ເບິ່ງ</button>`;
       if (r.status === 'Triage' || isCalling) {
         btnHtml += `<button class="btn btn-sm btn-danger fw-bold shadow-sm triage-action-btn triage-action-btn--clinical" onclick="window.openTriage(${i})" title="ວັດແທກ"><i class="fas fa-stethoscope me-1"></i>ວັດແທກ</button>`;
@@ -7943,12 +8007,7 @@ window.loadTriageQueue = async function () {
                     <td><span class="badge bg-secondary rounded-pill">${escapeHisHtml(r.ageText || '-')}</span></td>
                     <td>${payerBadge}</td>
                     <td>${sb}</td>
-                    <td class="text-center opd-ipd-cell" data-t="${escapeHisHtml(String(r.type || '').trim().toUpperCase() || 'none')}">${(() => {
-                        const t = String(r.type || '').trim().toUpperCase();
-                        if (t === 'IPD') return '<span class="badge bg-info text-dark rounded-pill px-3">IPD</span>';
-                        if (t === 'OPD') return '<span class="badge bg-primary rounded-pill px-3">OPD</span>';
-                        return '';
-                      })()}</td>
+                    <td class="text-center triage-nurse-cell">${receivingNurseBadge}</td>
                     <td class="text-center triage-action-cell"><div class="triage-actions" role="group" aria-label="ຈັດການ ${escapeHisHtml(r.patientName)}">${btnHtml}</div></td>
                   </tr>`;
     });
@@ -12688,6 +12747,9 @@ window.loadMasterDataGlobalCallback = function (data) {
       });
     }
     $('.dyn-' + c).html(o);
+    if (c === 'Doctor') {
+      $('.dyn-Doctor option').filter((_, option) => isHiddenDoctorOption(option.value || option.textContent)).remove();
+    }
     if (c === 'Department') {
       $('#v_department option').filter((_, option) => String(option.value || '').trim().toUpperCase() === 'OPD').remove();
       $('#v_department option:first').text('-- ເລືອກຫ້ອງກວດ --');
@@ -15918,10 +15980,14 @@ window.ipdWardBedState = {
   beds: [],
   movements: [],
   admissions: [],
+  medicationOrders: [],
+  medicationAdministrations: [],
+  specimenTasks: [],
   patientsById: {},
   filteredBeds: [],
   filteredAdmissions: [],
-  bedViewMode: 'detail'
+  bedViewMode: 'detail',
+  quickFilter: ''
 };
 
 window.ipdEscape = function (value) {
@@ -16042,8 +16108,32 @@ window.ipdIsVipWard = function (ward) {
 };
 
 window.ipdIsObsWard = function (ward) {
-  const t = String(ward?.Ward_Type || '').toUpperCase();
-  return t === 'OPD_OBSERVATION' || t === 'OPD_OBS' || /\bobservation\b/i.test(String(ward?.Ward_Name || ''));
+  const rawType = String(ward?.Ward_Type || '').trim();
+  const t = rawType.toUpperCase().replace(/[\s-]+/g, '_');
+  const name = String(ward?.Ward_Name || '');
+  if (t === 'OPD_OBSERVATION' || t === 'OPD_OBS') return true;
+  // A configured ward type is authoritative. For example, a General/IPD ward may
+  // legitimately include "ຕິດຕາມ" in its display name and must remain on the IPD board.
+  if (rawType) return false;
+  return /\b(observation|follow[- ]?up|short[- ]?stay)\b/i.test(name);
+};
+
+window.ipdInpatientWards = function () {
+  return (window.ipdWardBedState.wards || []).filter(ward => !window.ipdIsObsWard(ward));
+};
+
+window.ipdInpatientWardIds = function () {
+  return new Set(window.ipdInpatientWards().map(ward => String(ward.Ward_ID)));
+};
+
+window.ipdInpatientBeds = function () {
+  const wardIds = window.ipdInpatientWardIds();
+  return (window.ipdWardBedState.beds || []).filter(bed => wardIds.has(String(bed.Ward_ID)));
+};
+
+window.ipdIsInpatientAdmission = function (admission) {
+  const location = window.ipdAdmissionLocation(admission);
+  return !location.ward || !window.ipdIsObsWard(location.ward);
 };
 
 window.ipdIsActiveAdmission = function (admission) {
@@ -16265,6 +16355,40 @@ window.ipdLengthOfStay = function (admission) {
   return window.getAppLanguage() === 'lo' ? `${days} ມື້` : `${days} day${days > 1 ? 's' : ''}`;
 };
 
+window.ipdBoardMedicationLabel = function (orderId) {
+  const order = (window.ipdWardBedState.medicationOrders || []).find(row => String(row.Order_ID) === String(orderId));
+  return order ? [order.Drug, order.Dose, order.Route].filter(Boolean).join(' · ') : (orderId || 'Medication');
+};
+
+window.ipdBoardCareTaskSummary = function (admissionId) {
+  if (!admissionId) return { overdue: 0, due: 0, total: 0, tasks: [] };
+  const medications = (window.ipdWardBedState.medicationAdministrations || [])
+    .filter(row => String(row.Admission_ID) === String(admissionId))
+    .map(row => ({ ...row, taskKind: 'medication', taskLabel: window.ipdBoardMedicationLabel(row.Order_ID), timing: window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Given','Held','Refused','Missed','Cancelled']) }));
+  const specimens = (window.ipdWardBedState.specimenTasks || [])
+    .filter(row => String(row.Admission_ID) === String(admissionId))
+    .map(row => ({ ...row, taskKind: 'specimen', taskLabel: row.Test_Name || row.Specimen_Type || 'Specimen', timing: window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Collected','Sent','Received','Rejected','Cancelled']) }));
+  const tasks = [...medications, ...specimens]
+    .filter(row => ['overdue', 'due'].includes(row.timing.key))
+    .sort((a, b) => new Date(a.Scheduled_At || 0) - new Date(b.Scheduled_At || 0));
+  return {
+    overdue: tasks.filter(row => row.timing.key === 'overdue').length,
+    due: tasks.filter(row => row.timing.key === 'due').length,
+    total: tasks.length,
+    tasks
+  };
+};
+
+window.ipdAllAttentionTasks = function () {
+  return (window.ipdWardBedState.admissions || [])
+    .filter(admission => window.ipdIsActiveAdmission(admission) && window.ipdIsInpatientAdmission(admission))
+    .flatMap(admission => window.ipdBoardCareTaskSummary(admission.Admission_ID).tasks.map(task => ({ ...task, admission })))
+    .sort((a, b) => {
+      if (a.timing.key !== b.timing.key) return a.timing.key === 'overdue' ? -1 : 1;
+      return new Date(a.Scheduled_At || 0) - new Date(b.Scheduled_At || 0);
+    });
+};
+
 window.ipdNeedsMigration = function (error) {
   if (!error) return false;
   const msg = String(error.message || error.details || '').toLowerCase();
@@ -16391,13 +16515,16 @@ window.copyLatestOpdVitalsToIpdAdmission = async function (admissionId, patientI
 
 window.fetchIpdWardBedData = async function () {
   const state = window.ipdWardBedState;
-  const [wardsRes, roomsRes, bedsRes, admissionsRes, patientsRes, movementsRes] = await Promise.all([
+  const [wardsRes, roomsRes, bedsRes, admissionsRes, patientsRes, movementsRes, medicationOrdersRes, medicationAdministrationsRes, specimenTasksRes] = await Promise.all([
     supabaseClient.from(dbTable('Wards')).select('*').order('Ward_Name', { ascending: true }),
     supabaseClient.from(dbTable('Rooms')).select('*').order('Room_Number', { ascending: true }),
     supabaseClient.from(dbTable('Beds')).select('*').order('Bed_Number', { ascending: true }),
     supabaseClient.from(dbTable('Admissions')).select('*').order('Created_At', { ascending: false }),
     supabaseClient.from(dbTable('Patients')).select('*').limit(1000),
-    supabaseClient.from(dbTable('Bed_Movements')).select('*').order('Movement_Datetime', { ascending: false }).limit(300)
+    supabaseClient.from(dbTable('Bed_Movements')).select('*').order('Movement_Datetime', { ascending: false }).limit(300),
+    supabaseClient.from(dbTable('IPD_Medication_Orders')).select('*').order('Ordered_At', { ascending: false }).limit(2000),
+    supabaseClient.from(dbTable('IPD_Medication_Administrations')).select('*').order('Scheduled_At', { ascending: true }).limit(2000),
+    supabaseClient.from(dbTable('IPD_Specimen_Tasks')).select('*').order('Scheduled_At', { ascending: true }).limit(2000)
   ]);
 
   if (wardsRes.error) throw wardsRes.error;
@@ -16406,12 +16533,18 @@ window.fetchIpdWardBedData = async function () {
   if (admissionsRes.error) console.warn('Admissions load error:', admissionsRes.error);
   if (patientsRes.error) console.warn('Patients load error:', patientsRes.error);
   if (movementsRes.error) console.warn('Bed movements load error:', movementsRes.error);
+  if (medicationOrdersRes.error) console.warn('IPD medication orders load error:', medicationOrdersRes.error);
+  if (medicationAdministrationsRes.error) console.warn('IPD medication administrations load error:', medicationAdministrationsRes.error);
+  if (specimenTasksRes.error) console.warn('IPD specimen tasks load error:', specimenTasksRes.error);
 
   state.wards = wardsRes.data || [];
   state.rooms = roomsRes.data || [];
   state.beds = bedsRes.data || [];
   state.admissions = admissionsRes.data || [];
   state.movements = movementsRes.error ? [] : (movementsRes.data || []);
+  state.medicationOrders = medicationOrdersRes.error ? [] : (medicationOrdersRes.data || []);
+  state.medicationAdministrations = medicationAdministrationsRes.error ? [] : (medicationAdministrationsRes.data || []);
+  state.specimenTasks = specimenTasksRes.error ? [] : (specimenTasksRes.data || []);
   state.patientsById = {};
   (patientsRes.data || []).forEach(p => { state.patientsById[p.Patient_ID] = p; });
   return state;
@@ -16422,6 +16555,7 @@ window.loadIpdWardBedManagement = async function () {
 
   try {
     await window.fetchIpdWardBedData();
+    window.setupIpdWardBedShortcuts();
     window.populateIpdWardBedFilters();
     window.applyIpdWardBedFilters();
   } catch (err) {
@@ -16437,14 +16571,15 @@ window.populateIpdWardBedFilters = function () {
   const selectedDoctor = $('#ipdFilterDoctor').val() || '';
 
   let wardOptions = `<option value="">${window.t('ipd.allWards')}</option>`;
-  state.wards.forEach(w => {
+  window.ipdInpatientWards().forEach(w => {
     wardOptions += `<option value="${window.ipdEscape(w.Ward_ID)}">${window.ipdEscape(w.Ward_Name || w.Ward_ID)}</option>`;
   });
   $('#ipdFilterWard').html(wardOptions).val(selectedWard);
 
   let roomOptions = `<option value="">${window.t('ipd.allRooms')}</option>`;
+  const inpatientWardIds = window.ipdInpatientWardIds();
   state.rooms
-    .filter(r => !selectedWard || String(r.Ward_ID) === String(selectedWard))
+    .filter(r => inpatientWardIds.has(String(r.Ward_ID)) && (!selectedWard || String(r.Ward_ID) === String(selectedWard)))
     .forEach(r => {
       const ward = window.ipdWardById(r.Ward_ID);
       roomOptions += `<option value="${window.ipdEscape(r.Room_ID)}">${window.ipdEscape(r.Room_Number || r.Room_ID)}${ward ? ' - ' + window.ipdEscape(ward.Ward_Name) : ''}</option>`;
@@ -16452,7 +16587,7 @@ window.populateIpdWardBedFilters = function () {
   $('#ipdFilterRoom').html(roomOptions).val(selectedRoom);
 
   const doctorNames = [...new Set(state.admissions
-    .filter(a => window.ipdIsActiveAdmission(a))
+    .filter(a => window.ipdIsActiveAdmission(a) && window.ipdIsInpatientAdmission(a))
     .map(a => window.ipdDoctorName(a))
     .filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b)));
@@ -16466,7 +16601,29 @@ window.populateIpdWardBedFilters = function () {
 window.resetIpdWardBedFilters = function () {
   $('#ipdFilterWard, #ipdFilterRoom, #ipdFilterStatus, #ipdFilterBedType, #ipdFilterDoctor').val('');
   $('#ipdFilterSearch').val('');
+  window.ipdWardBedState.quickFilter = '';
   window.applyIpdWardBedFilters();
+};
+
+window.applyIpdQuickFilter = function (filter) {
+  const next = ['Occupied', 'Available', 'Attention'].includes(filter) ? filter : '';
+  window.ipdWardBedState.quickFilter = next;
+  $('#ipdFilterStatus').val(next === 'Attention' ? '' : next);
+  window.applyIpdWardBedFilters();
+};
+
+window.setupIpdWardBedShortcuts = function () {
+  $(document).off('keydown.ipdBedBoard').on('keydown.ipdBedBoard', event => {
+    if (!$('#view-ipd_ward_bed:visible').length) return;
+    if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+      event.preventDefault();
+      $('#ipdFilterSearch').trigger('focus').trigger('select');
+    } else if (event.key === 'Escape' && document.activeElement?.id === 'ipdFilterSearch') {
+      event.preventDefault();
+      window.resetIpdWardBedFilters();
+      $('#ipdFilterSearch').trigger('blur');
+    }
+  });
 };
 
 window.setIpdBedViewMode = function (mode) {
@@ -16486,10 +16643,19 @@ window.applyIpdWardBedFilters = function () {
   const bedType = $('#ipdFilterBedType').val() || '';
   const doctor = $('#ipdFilterDoctor').val() || '';
   const search = String($('#ipdFilterSearch').val() || '').trim().toLowerCase();
+  let quickFilter = state.quickFilter || '';
+
+  if (quickFilter !== 'Attention' && status !== quickFilter && ['Occupied', 'Available'].includes(quickFilter)) {
+    state.quickFilter = '';
+    quickFilter = '';
+  } else if (quickFilter === 'Attention' && status) {
+    state.quickFilter = '';
+    quickFilter = '';
+  }
 
   window.populateIpdWardBedFilters();
 
-  state.filteredBeds = state.beds.filter(bed => {
+  state.filteredBeds = window.ipdInpatientBeds().filter(bed => {
     const info = window.ipdBedPatientInfo(bed);
     const reservation = window.ipdReservationInfo(bed);
     const room = window.ipdRoomById(bed.Room_ID);
@@ -16499,16 +16665,18 @@ window.applyIpdWardBedFilters = function () {
       reservation.hn, reservation.patientName, reservation.phone, reservation.reason, reservation.reservedBy
     ].join(' ').toLowerCase();
 
+    const needsAttention = window.ipdBoardCareTaskSummary(info.ipdNo).total > 0;
     return (!wardId || String(bed.Ward_ID) === String(wardId)) &&
       (!roomId || String(bed.Room_ID) === String(roomId)) &&
       (!status || window.ipdBedStatus(bed) === status) &&
       (!bedType || String(bed.Bed_Type || 'Standard') === bedType) &&
       (!doctor || String(info.doctor) === String(doctor)) &&
+      (quickFilter !== 'Attention' || needsAttention) &&
       (!search || haystack.includes(search));
   });
 
   state.filteredAdmissions = state.admissions.filter(admission => {
-    if (!window.ipdIsActiveAdmission(admission)) return false;
+    if (!window.ipdIsActiveAdmission(admission) || !window.ipdIsInpatientAdmission(admission)) return false;
     const location = window.ipdAdmissionLocation(admission);
     const linkedBed = location.bed;
     const admissionDoctor = window.ipdDoctorName(admission);
@@ -16523,13 +16691,20 @@ window.applyIpdWardBedFilters = function () {
       linkedBed?.Bed_Number
     ].join(' ').toLowerCase();
 
+    const needsAttention = window.ipdBoardCareTaskSummary(admission.Admission_ID).total > 0;
     return (!wardId || String(admission.Ward_ID || linkedBed?.Ward_ID || '') === String(wardId)) &&
       (!roomId || String(admission.Room_ID || linkedBed?.Room_ID || '') === String(roomId)) &&
       (!status || location.status === status) &&
       (!bedType || String(linkedBed?.Bed_Type || 'Standard') === bedType) &&
       (!doctor || String(admissionDoctor) === String(doctor)) &&
+      (quickFilter !== 'Attention' || needsAttention) &&
       (!search || haystack.includes(search));
   });
+
+  $('[data-ipd-quick-filter]').removeClass('active');
+  $(`[data-ipd-quick-filter="${state.quickFilter || ''}"]`).addClass('active');
+  const totalIpdBeds = window.ipdInpatientBeds().length;
+  $('#ipdFilteredResultCount').text(`${state.filteredBeds.length}/${totalIpdBeds} ຕຽງ`);
 
   window.renderIpdSummaryCards();
   window.renderIpdBedBoard();
@@ -16545,14 +16720,25 @@ window.applyIpdWardBedFilters = function () {
 window.renderIpdSummaryCards = function () {
   const state = window.ipdWardBedState;
   // Exclude OPD-observation ward beds from the IPD summary so census numbers stay IPD-only
-  const obsWardIds = new Set(state.wards.filter(w => window.ipdIsObsWard(w)).map(w => String(w.Ward_ID)));
-  const beds = state.beds.filter(b => !obsWardIds.has(String(b.Ward_ID)));
+  const beds = window.ipdInpatientBeds();
   const count = status => beds.filter(b => window.ipdBedStatus(b) === status).length;
 
   $('#ipdTotalBeds').text(beds.length);
   $('#ipdAvailableBeds').text(count('Available'));
   $('#ipdOccupiedBeds').text(count('Occupied'));
   $('#ipdReservedBeds').text(count('Reserved'));
+  const attentionCount = window.ipdAllAttentionTasks().length;
+  $('#ipdAttentionTasks').text(attentionCount);
+  $('#ipdNurseAttentionCount').text(attentionCount).toggleClass('d-none', attentionCount === 0);
+};
+
+window.openIpdNurseAttention = function () {
+  window.ipdWardBedState.quickFilter = 'Attention';
+  $('#ipdFilterStatus').val('');
+  window.applyIpdWardBedFilters();
+  const tab = document.querySelector('[data-bs-target="#ipdNurseStationTab"]');
+  if (tab && window.bootstrap?.Tab) window.bootstrap.Tab.getOrCreateInstance(tab).show();
+  document.getElementById('ipdNurseAttentionQueue')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.renderIpdBedBoard = function () {
@@ -16616,10 +16802,13 @@ window.renderIpdBedBoard = function () {
         const reservation = window.ipdReservationInfo(bed);
         const losDays = window.ipdLengthOfStayDays(info.admission);
         const hasPatient = status === 'Occupied' && window.ipdHasActiveAdmissionForBed(bed);
+        const care = window.ipdBoardCareTaskSummary(info.ipdNo);
+        const careTag = care.total ? `<span class="ipd-care-tag ${care.overdue ? 'is-overdue' : 'is-due'}"><i class="fas fa-bell"></i>${care.overdue ? `${care.overdue} ກາຍກຳນົດ` : `${care.due} ຮອດເວລາ`}</span>` : '';
         if (viewMode === 'floor') {
-          inner += `<article class="ipd-floor-bed status-${status.toLowerCase()}" title="${window.ipdEscape(hasPatient ? (info.patientName || '') : window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}">
+          inner += `<article class="ipd-floor-bed status-${status.toLowerCase()} ${care.total ? 'has-attention' : ''}" title="${window.ipdEscape(hasPatient ? (info.patientName || '') : window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}" ${hasPatient ? `onclick="window.viewIpdChart('${window.ipdEscape(info.ipdNo)}')" role="button" tabindex="0"` : ''}>
             <strong>${window.ipdEscape(bed.Bed_Number || bed.Bed_ID)}</strong>
             <span>${window.ipdEscape(hasPatient ? (info.patientName || '') : window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}</span>
+            ${care.total ? `<span class="ipd-floor-attention"><i class="fas fa-bell"></i> ${care.total}</span>` : ''}
           </article>`;
           return;
         }
@@ -16636,6 +16825,7 @@ window.renderIpdBedBoard = function () {
                 <div class="ipd-compact-meta">${reservation.hn ? `HN ${window.ipdEscape(reservation.hn)} - ` : ''}${window.ipdEscape(reservation.phone || '')}</div>
                 <div class="ipd-compact-meta">${window.ipdEscape(reservation.reservedFrom ? window.ipdFormatDateTime(reservation.reservedFrom) : '')}</div>` :
               `<div class="ipd-compact-bedtype">${window.ipdEscape(window.ipdTranslateValue(bed.Bed_Type || 'Standard'))}</div>`}
+            ${careTag}
             <div class="ipd-compact-actions">${window.ipdBedActionMenu(bed, status, info)}</div>
           </article>`;
           return;
@@ -16664,6 +16854,7 @@ window.renderIpdBedBoard = function () {
             ${window.ipdStatusBadge(status)}
           </div>
           ${patientDetails}
+          ${careTag ? `<div class="ipd-care-tags">${careTag}</div>` : ''}
           <div class="ipd-bed-actions">${window.ipdBedActionButtons(bed, status, info)}</div>
         </article>`;
       });
@@ -16697,6 +16888,41 @@ window.renderIpdBedBoard = function () {
   $('#ipdBedBoard').html(html || `<div class="ipd-empty-state">${window.ipdEscape(window.t('ipd.noBedMatch'))}</div>`);
 };
 
+window.renderIpdNurseAttentionQueue = function (tasks) {
+  const rows = (tasks || []).slice(0, 12).map(task => {
+    const admission = task.admission || {};
+    const location = window.ipdAdmissionLocation(admission);
+    const isOverdue = task.timing.key === 'overdue';
+    return `<article class="ipd-attention-task ${isOverdue ? 'is-overdue' : 'is-due'}">
+      <div class="ipd-attention-icon"><i class="fas ${task.taskKind === 'medication' ? 'fa-pills' : 'fa-vial'}"></i></div>
+      <div class="ipd-attention-main">
+        <div class="ipd-attention-title">${window.ipdEscape(task.taskLabel)}</div>
+        <div class="ipd-attention-patient">${window.ipdEscape(window.ipdPatientName(admission) || admission.Patient_ID || '-')} <span>HN ${window.ipdEscape(admission.Patient_ID || '-')}</span></div>
+        <div class="ipd-attention-meta"><i class="fas fa-bed"></i>${window.ipdEscape(location.label)} <i class="far fa-clock ms-2"></i>${window.ipdEscape(window.ipdFormatDateTime(task.Scheduled_At))}</div>
+      </div>
+      <div class="ipd-attention-actions">
+        <span class="badge bg-${task.timing.className}">${window.ipdEscape(task.timing.label)}</span>
+        <button class="btn btn-sm btn-primary" onclick="window.openIpdAdmissionCareTasks('${window.ipdEscape(admission.Admission_ID || '')}')">${task.taskKind === 'medication' ? 'ເປີດວຽກຢາ' : 'ເປີດວຽກກວດ'}<i class="fas fa-chevron-right ms-1"></i></button>
+      </div>
+    </article>`;
+  }).join('');
+  const overdue = (tasks || []).filter(task => task.timing.key === 'overdue').length;
+  const due = (tasks || []).filter(task => task.timing.key === 'due').length;
+  return `<section id="ipdNurseAttentionQueue" class="ipd-attention-panel ${overdue ? 'has-overdue' : ''}">
+    <div class="ipd-attention-head">
+      <div><strong><i class="fas fa-bell me-2"></i>ວຽກດ່ວນຂອງຫວອດ</strong><span>ເບິ່ງຢາ ແລະ ການເກັບຕົວຢ່າງທີ່ຮອດເວລາໃນບ່ອນດຽວ</span></div>
+      <div class="ipd-attention-totals"><span class="is-overdue">${overdue} ກາຍກຳນົດ</span><span class="is-due">${due} ຮອດເວລາ</span></div>
+    </div>
+    ${rows ? `<div class="ipd-attention-list">${rows}</div>${tasks.length > 12 ? `<div class="ipd-attention-more">+${tasks.length - 12} ລາຍການ — ໃຊ້ຕົວກອງຫວອດ/ຄົ້ນຫາເພື່ອເບິ່ງລະອຽດ</div>` : ''}` : '<div class="ipd-attention-clear"><i class="fas fa-check-circle"></i><div><strong>ບໍ່ມີວຽກກາຍກຳນົດ</strong><span>ລາຍການໃຫ້ຢາ ແລະ ເກັບຕົວຢ່າງຍັງບໍ່ຮອດເວລາ</span></div></div>'}
+  </section>`;
+};
+
+window.openIpdAdmissionCareTasks = function (admissionId) {
+  if (!admissionId) return;
+  window.ipdOpenCareTasksAfterLoad = true;
+  window.viewIpdChart(admissionId);
+};
+
 window.renderIpdNurseStation = function () {
   const state = window.ipdWardBedState;
   if (!state.wards.length || !state.rooms.length || !state.beds.length) {
@@ -16705,9 +16931,12 @@ window.renderIpdNurseStation = function () {
   }
 
   const filteredBedIds = new Set(state.filteredBeds.map(b => String(b.Bed_ID)));
-  let html = '<div class="ipd-nurse-station">';
+  const filteredAdmissionIds = new Set((state.filteredAdmissions || []).map(admission => String(admission.Admission_ID)));
+  const attentionTasks = window.ipdAllAttentionTasks().filter(task => filteredAdmissionIds.has(String(task.admission?.Admission_ID || '')));
+  $('#ipdNurseAttentionCount').text(attentionTasks.length).toggleClass('d-none', attentionTasks.length === 0);
+  let html = `<div class="ipd-nurse-station">${window.renderIpdNurseAttentionQueue(attentionTasks)}`;
 
-  state.wards.forEach(ward => {
+  window.ipdInpatientWards().forEach(ward => {
     const wardRooms = state.rooms.filter(r => String(r.Ward_ID) === String(ward.Ward_ID));
     const wardBeds = state.beds.filter(b => String(b.Ward_ID) === String(ward.Ward_ID) && filteredBedIds.has(String(b.Bed_ID)));
     if (!wardBeds.length) return;
@@ -16731,6 +16960,7 @@ window.renderIpdNurseStation = function () {
         const info = window.ipdBedPatientInfo(bed);
         const hasPatient = status === 'Occupied' && window.ipdHasActiveAdmissionForBed(bed);
         const losDays = window.ipdLengthOfStayDays(info.admission);
+        const care = window.ipdBoardCareTaskSummary(info.ipdNo);
         const warning = status === 'Cleaning' ? window.t('ipd.cleaning') :
           status === 'Maintenance' ? window.t('ipd.maintenance') :
           losDays >= 7 ? window.t('ipd.longStay') : '';
@@ -16744,6 +16974,7 @@ window.renderIpdNurseStation = function () {
           <div class="ipd-nurse-meta">
             <span>${window.ipdEscape(hasPatient ? (info.doctor || '-') : '-')}</span>
             ${warning ? `<span class="ipd-nurse-warning">${window.ipdEscape(warning)}</span>` : ''}
+            ${care.total ? `<span class="ipd-nurse-warning is-critical"><i class="fas fa-bell me-1"></i>${care.total} ວຽກ</span>` : ''}
           </div>
         </article>`;
       });
@@ -16830,7 +17061,7 @@ window.renderIpdInpatientTable = function (selector = '#ipdInpatientTable') {
   const filter = window.ipdInpatientFilter || 'active';
   let admissions;
   if (selector === '#ipdStandaloneInpatientTable' && filter !== 'active') {
-    const all = window.ipdWardBedState.admissions || [];
+    const all = (window.ipdWardBedState.admissions || []).filter(a => window.ipdIsInpatientAdmission(a));
     admissions = filter === 'discharged'
       ? all.filter(a => !window.ipdIsActiveAdmission(a))
       : all.slice();
@@ -16891,8 +17122,8 @@ window.renderIpdInpatientTable = function (selector = '#ipdInpatientTable') {
 
 window.prepareIpdUnfilteredState = function () {
   const state = window.ipdWardBedState;
-  state.filteredBeds = state.beds.slice();
-  state.filteredAdmissions = state.admissions.filter(a => window.ipdIsActiveAdmission(a));
+  state.filteredBeds = window.ipdInpatientBeds();
+  state.filteredAdmissions = state.admissions.filter(a => window.ipdIsActiveAdmission(a) && window.ipdIsInpatientAdmission(a));
 };
 
 window.ipdTodayDateString = function () {
@@ -16921,17 +17152,19 @@ window.loadIpdDashboard = async function () {
 
 window.renderIpdDashboard = function () {
   const state = window.ipdWardBedState;
-  const activeAdmissions = state.admissions.filter(a => window.ipdIsActiveAdmission(a));
-  const activeBeds = state.beds.filter(b => window.ipdBedStatus(b) !== 'Inactive');
-  const countBeds = status => state.beds.filter(b => window.ipdBedStatus(b) === status).length;
+  const inpatientAdmissions = state.admissions.filter(a => window.ipdIsInpatientAdmission(a));
+  const activeAdmissions = inpatientAdmissions.filter(a => window.ipdIsActiveAdmission(a));
+  const inpatientBeds = window.ipdInpatientBeds();
+  const activeBeds = inpatientBeds.filter(b => window.ipdBedStatus(b) !== 'Inactive');
+  const countBeds = status => inpatientBeds.filter(b => window.ipdBedStatus(b) === status).length;
   const occupied = countBeds('Occupied');
   const available = countBeds('Available');
   const today = window.ipdTodayDateString();
-  const todayAdmissions = state.admissions.filter(a => window.ipdAdmissionDate(a) === today).length;
-  const todayDischarges = state.admissions.filter(a => window.ipdDischargeDate(a) === today || String(a.Status || '').toLowerCase() === 'discharged').length;
+  const todayAdmissions = inpatientAdmissions.filter(a => window.ipdAdmissionDate(a) === today).length;
+  const todayDischarges = inpatientAdmissions.filter(a => window.ipdDischargeDate(a) === today).length;
   const rate = activeBeds.length ? Math.round((occupied / activeBeds.length) * 100) : 0;
 
-  $('#ipdDashTotalAdmissions').text(state.admissions.length);
+  $('#ipdDashTotalAdmissions').text(inpatientAdmissions.length);
   $('#ipdDashActiveInpatients').text(activeAdmissions.length);
   $('#ipdDashAvailableBeds').text(available);
   $('#ipdDashOccupiedBeds').text(occupied);
@@ -16939,7 +17172,7 @@ window.renderIpdDashboard = function () {
   $('#ipdDashTodayAdmissions').text(todayAdmissions);
   $('#ipdDashTodayDischarges').text(todayDischarges);
 
-  window.renderIpdDashboardCharts(state.admissions, activeBeds.length, occupied);
+  window.renderIpdDashboardCharts(inpatientAdmissions, activeBeds.length, occupied);
   window.renderIpdDashboardLists(activeAdmissions);
 };
 
@@ -17008,14 +17241,15 @@ window.renderIpdDashboardLists = function (activeAdmissions) {
 
   const statuses = ['Available', 'Occupied', 'Reserved', 'Cleaning', 'Maintenance', 'Inactive'];
   $('#ipdBedStatusSummary').html(statuses.map(status => {
-    const count = window.ipdWardBedState.beds.filter(b => window.ipdBedStatus(b) === status).length;
+    const count = window.ipdInpatientBeds().filter(b => window.ipdBedStatus(b) === status).length;
     return `<div class="ipd-status-summary-row">${window.ipdStatusBadge(status)}<strong>${count}</strong></div>`;
   }).join(''));
 };
 
 window.openIpdQuickAdmitModal = async function () {
   await window.ipdLoadProviders();
-  const readyBeds = window.ipdWardBedState.beds.filter(b => ['Available', 'Reserved'].includes(window.ipdBedStatus(b)));
+  const readyBeds = window.ipdInpatientBeds().filter(b => ['Available', 'Reserved'].includes(window.ipdBedStatus(b)));
+  if (!readyBeds.length) return Swal.fire(window.t('ipd.noDestinationBed'), window.t('ipd.noDestinationBedText'), 'warning');
   const patients = Object.values(window.ipdWardBedState.patientsById || {})
     .sort((a, b) => String(b.Patient_ID || '').localeCompare(String(a.Patient_ID || '')));
   if (!patients.length) {
@@ -17268,7 +17502,7 @@ window.loadIpdDischargePage = async function () {
 };
 
 window.renderIpdDischargePage = function () {
-  const activeAdmissions = window.ipdWardBedState.admissions.filter(a => window.ipdIsActiveAdmission(a));
+  const activeAdmissions = window.ipdWardBedState.admissions.filter(a => window.ipdIsActiveAdmission(a) && window.ipdIsInpatientAdmission(a));
   const pending = activeAdmissions.filter(a => window.ipdLengthOfStayDays(a) >= 3 || String(a.Discharge_Status || '').toLowerCase().includes('pending'));
   $('#ipdDischargePending').html(pending.map(a => {
     const bed = window.ipdAdmissionLocation(a).bed;
@@ -17279,7 +17513,7 @@ window.renderIpdDischargePage = function () {
     </div>`;
   }).join('') || `<div class="ipd-empty-inline">${window.ipdEscape(window.t('ipd.noInpatientData'))}</div>`);
 
-  const cleaningBeds = window.ipdWardBedState.beds.filter(b => window.ipdBedStatus(b) === 'Cleaning');
+  const cleaningBeds = window.ipdInpatientBeds().filter(b => window.ipdBedStatus(b) === 'Cleaning');
   $('#ipdDischargeCleaningBeds').html(cleaningBeds.map(b => {
     const ward = window.ipdWardById(b.Ward_ID);
     const room = window.ipdRoomById(b.Room_ID);
@@ -17752,10 +17986,11 @@ window.reserveIpdBed = async function (bed, form) {
 
 window.openIpdAssignModal = async function (bedId) {
   const bed = window.ipdBedById(bedId);
-  if (!bed || !['Available', 'Reserved'].includes(window.ipdBedStatus(bed))) {
+  const ward = bed ? window.ipdWardById(bed.Ward_ID) : null;
+  if (!bed || (ward && window.ipdIsObsWard(ward)) || !['Available', 'Reserved'].includes(window.ipdBedStatus(bed))) {
     return Swal.fire(window.t('ipd.cannotAssign'), window.t('ipd.assignAllowedText'), 'warning');
   }
-  const activeAdmissions = window.ipdWardBedState.admissions.filter(a => window.ipdIsActiveAdmission(a));
+  const activeAdmissions = window.ipdWardBedState.admissions.filter(a => window.ipdIsActiveAdmission(a) && window.ipdIsInpatientAdmission(a));
   if (!activeAdmissions.length) return Swal.fire(window.t('ipd.noActiveAdmission'), window.t('ipd.noActiveAdmissionText'), 'warning');
   const admissionOptions = activeAdmissions.map(a => `<option value="${window.ipdEscape(a.Admission_ID)}">${window.ipdEscape(a.Admission_ID)} - ${window.ipdEscape(a.Patient_Name || a.Patient_ID || '')}</option>`).join('');
 
@@ -17788,6 +18023,8 @@ window.openIpdAssignModal = async function (bedId) {
 window.assignIpdPatientToBed = async function (bed, form) {
   const admission = window.ipdWardBedState.admissions.find(a => String(a.Admission_ID) === String(form.admissionId));
   if (!admission) return Swal.fire(window.t('common.error'), window.t('ipd.admissionNotFound'), 'error');
+  const ward = window.ipdWardById(bed?.Ward_ID);
+  if (ward && window.ipdIsObsWard(ward)) return Swal.fire(window.t('ipd.cannotAssign'), window.t('ipd.assignAllowedText'), 'warning');
   const now = new Date().toISOString();
   const bedPayload = {
     Bed_Status: 'Occupied',
@@ -17832,10 +18069,11 @@ window.assignIpdPatientToBed = async function (bed, form) {
 
 window.openIpdTransferModal = async function (sourceBedId) {
   const sourceBed = window.ipdBedById(sourceBedId);
-  if (!sourceBed || window.ipdBedStatus(sourceBed) !== 'Occupied') return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.sourceOccupiedText'), 'warning');
+  const sourceWard = sourceBed ? window.ipdWardById(sourceBed.Ward_ID) : null;
+  if (!sourceBed || (sourceWard && window.ipdIsObsWard(sourceWard)) || window.ipdBedStatus(sourceBed) !== 'Occupied') return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.sourceOccupiedText'), 'warning');
   const info = window.ipdBedPatientInfo(sourceBed);
   if (!info.admission || !window.ipdIsActiveAdmission(info.admission)) return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.noLinkedAdmissionText'), 'warning');
-  const destinations = window.ipdWardBedState.beds.filter(b => String(b.Bed_ID) !== String(sourceBedId) && ['Available', 'Reserved'].includes(window.ipdBedStatus(b)));
+  const destinations = window.ipdInpatientBeds().filter(b => String(b.Bed_ID) !== String(sourceBedId) && ['Available', 'Reserved'].includes(window.ipdBedStatus(b)));
   if (!destinations.length) return Swal.fire(window.t('ipd.noDestinationBed'), window.t('ipd.noDestinationBedText'), 'warning');
   const destinationOptions = destinations.map(b => {
     const ward = window.ipdWardById(b.Ward_ID);
@@ -17873,7 +18111,8 @@ window.openIpdTransferModal = async function (sourceBedId) {
 window.transferIpdPatientBed = async function (sourceBed, form) {
   const destinationBed = window.ipdBedById(form.destinationBedId);
   const admission = window.ipdAdmissionForBed(sourceBed);
-  if (!destinationBed || !['Available', 'Reserved'].includes(window.ipdBedStatus(destinationBed))) return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.destinationAvailableText'), 'warning');
+  const destinationWard = destinationBed ? window.ipdWardById(destinationBed.Ward_ID) : null;
+  if (!destinationBed || (destinationWard && window.ipdIsObsWard(destinationWard)) || !['Available', 'Reserved'].includes(window.ipdBedStatus(destinationBed))) return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.destinationAvailableText'), 'warning');
   if (!admission) return Swal.fire(window.t('ipd.cannotTransfer'), window.t('ipd.noLinkedAdmissionText'), 'warning');
 
   const now = new Date().toISOString();
@@ -18239,6 +18478,8 @@ window.fetchIpdClinicalData = async function (admissionId) {
     nursingNotes,
     vitals,
     medicationOrders,
+    medicationAdministrations,
+    specimenTasks,
     radiology,
     procedures,
     billing,
@@ -18253,6 +18494,8 @@ window.fetchIpdClinicalData = async function (admissionId) {
     window.ipdSelectClinical('IPD_Nursing_Notes', admissionId, 'Note_Datetime'),
     window.ipdSelectClinical('IPD_Vital_Signs', admissionId, 'Recorded_At'),
     window.ipdSelectClinical('IPD_Medication_Orders', admissionId, 'Ordered_At'),
+    window.ipdSelectClinical('IPD_Medication_Administrations', admissionId, 'Scheduled_At'),
+    window.ipdSelectClinical('IPD_Specimen_Tasks', admissionId, 'Scheduled_At'),
     window.ipdSelectClinical('IPD_Radiology_Orders', admissionId, 'Request_Datetime'),
     window.ipdSelectClinical('IPD_Procedures', admissionId, 'Procedure_Datetime'),
     window.ipdSelectClinical('IPD_Billing_Items', admissionId, 'Item_Date'),
@@ -18271,6 +18514,8 @@ window.fetchIpdClinicalData = async function (admissionId) {
     nursingNotes,
     vitals,
     medicationOrders,
+    medicationAdministrations,
+    specimenTasks,
     radiology,
     procedures,
     billing,
@@ -18320,7 +18565,27 @@ window.renderIpdChartPage = function (admissionId) {
   } else if ($banner.length) {
     $banner.remove();
   }
+  window.renderIpdPatientHeader(admission);
+  window.renderIpdClinicalSnapshot();
   window.renderIpdTimeline();
+  window.renderIpdClinicalSummary();
+  window.renderIpdVisits();
+  window.renderIpdDoctorNotes();
+  window.renderIpdNursingNotes();
+  window.renderIpdVitals();
+  window.renderIpdMedicationOrders();
+  window.renderIpdMedicationAdministrations();
+  window.renderIpdSpecimenTasks();
+  window.renderIpdCareTaskAlerts();
+  window.renderIpdLabResults();
+  window.renderIpdRadiology();
+  window.renderIpdProcedures();
+  window.renderIpdDischargeSummary();
+  window.setupIpdCareTaskClock();
+  if (window.ipdOpenCareTasksAfterLoad) {
+    window.ipdOpenCareTasksAfterLoad = false;
+    window.setTimeout(() => window.openIpdCareTasksTab(), 0);
+  }
 };
 
 window.viewIpdChart = function (admissionId) {
@@ -18402,11 +18667,13 @@ window.ipdLoadProviders = async function (force) {
       .select('ID,Name,Email,Role,Status')
       .neq('Status', 'inactive');
     if (error) { console.warn('ipdLoadProviders error:', error); return []; }
-    window.ipdProvidersCache = (data || []).map(u => ({
-      id: String(u.ID),
-      name: u.Name || u.Email || `User ${u.ID}`,
-      role: String(u.Role || '').toLowerCase()
-    }));
+    window.ipdProvidersCache = (data || [])
+      .map(u => ({
+        id: String(u.ID),
+        name: u.Name || u.Email || `User ${u.ID}`,
+        role: String(u.Role || '').toLowerCase()
+      }))
+      .filter(provider => !isHiddenDoctorOption(provider.name));
     return window.ipdProvidersCache;
   } catch (err) {
     console.warn('ipdLoadProviders failed:', err);
@@ -18706,6 +18973,47 @@ window.buildIpdTimelineEvents = function () {
     entityType: 'vital',
     provider: v.Provider_Name || v.Recorded_By || v.Created_By,
     providerRole: v.Provider_Role || ''
+  })));
+
+  state.medicationOrders.forEach(o => events.push(window.ipdTimelineEvent({
+    at: o.Ordered_At,
+    type: window.t('ipd.medicationOrder'),
+    filter: 'meds',
+    title: o.Drug || window.t('ipd.medicationOrder'),
+    body: [o.Dose, o.Frequency, o.Route, o.Duration, o.Status].filter(Boolean).join(' | '),
+    meta: o.Notes || '',
+    icon: 'fas fa-prescription-bottle-alt',
+    id: o.Order_ID,
+    entityType: 'medication',
+    provider: o.Provider_Name || o.Ordered_By,
+    providerRole: o.Provider_Role || 'doctor',
+    visitId: o.Visit_ID || ''
+  })));
+
+  (state.medicationAdministrations || []).forEach(row => events.push(window.ipdTimelineEvent({
+    at: row.Administered_At || row.Scheduled_At,
+    type: 'Medication Administration',
+    filter: 'meds',
+    title: window.ipdMedicationOrderLabel(row.Order_ID),
+    body: [row.Status, row.Dose_Given, row.Route_Given, row.Reason, row.Notes].filter(Boolean).join(' | '),
+    meta: `Scheduled ${window.ipdFormatDateTime(row.Scheduled_At)}`,
+    icon: 'fas fa-syringe',
+    provider: row.Administered_By,
+    providerRole: 'nurse',
+    readOnly: true
+  })));
+
+  (state.specimenTasks || []).forEach(row => events.push(window.ipdTimelineEvent({
+    at: row.Collected_At || row.Scheduled_At,
+    type: 'Specimen Collection',
+    filter: 'labs',
+    title: row.Test_Name || 'Specimen',
+    body: [row.Specimen_Type, row.Specimen_ID, row.Priority, row.Status, row.Notes].filter(Boolean).join(' | '),
+    meta: `Scheduled ${window.ipdFormatDateTime(row.Scheduled_At)}`,
+    icon: 'fas fa-vial',
+    provider: row.Collected_By,
+    providerRole: row.Collected_By ? 'nurse/lab' : '',
+    readOnly: true
   })));
 
   state.visits.forEach(v => {
@@ -19295,6 +19603,204 @@ window.openIpdMedicationOrderModal = async function (orderId) {
     }
   });
   if (result.isConfirmed) await window.ipdUpsertClinical('IPD_Medication_Orders', 'Order_ID', result.value, o.Order_ID);
+};
+
+window.ipdCareTaskTiming = function (scheduledAt, status, completedStatuses) {
+  const normalized = String(status || 'Scheduled').toLowerCase();
+  const completed = (completedStatuses || []).map(v => String(v).toLowerCase()).includes(normalized);
+  if (completed) return { key: 'completed', label: status || 'Completed', className: 'success' };
+  const at = new Date(scheduledAt || 0).getTime();
+  if (!Number.isFinite(at)) return { key: 'scheduled', label: 'Scheduled', className: 'secondary' };
+  const minutes = Math.round((at - Date.now()) / 60000);
+  if (minutes < 0) return { key: 'overdue', label: `Overdue ${Math.abs(minutes)} min`, className: 'danger' };
+  if (minutes <= 30) return { key: 'due', label: `Due in ${minutes} min`, className: 'warning text-dark' };
+  return { key: 'upcoming', label: `In ${minutes} min`, className: 'info text-dark' };
+};
+
+window.ipdMedicationOrderLabel = function (orderId) {
+  const order = (window.ipdClinicalState.medicationOrders || []).find(row => String(row.Order_ID) === String(orderId));
+  return order ? [order.Drug, order.Dose, order.Route].filter(Boolean).join(' ') : (orderId || '-');
+};
+
+window.renderIpdCareTaskAlerts = function () {
+  const state = window.ipdClinicalState;
+  const medicationDue = (state.medicationAdministrations || []).filter(row => ['due', 'overdue'].includes(window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Given','Held','Refused','Missed','Cancelled']).key));
+  const specimenDue = (state.specimenTasks || []).filter(row => ['due', 'overdue'].includes(window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Collected','Sent','Received','Rejected','Cancelled']).key));
+  const overdue = [...medicationDue, ...specimenDue].filter(row => {
+    const completed = row.Administration_ID ? ['Given','Held','Refused','Missed','Cancelled'] : ['Collected','Sent','Received','Rejected','Cancelled'];
+    return window.ipdCareTaskTiming(row.Scheduled_At, row.Status, completed).key === 'overdue';
+  }).length;
+  const dueCount = medicationDue.length + specimenDue.length;
+  $('#ipdCareTaskDueCount').text(dueCount).toggle(dueCount > 0);
+  if (!dueCount) {
+    $('#ipdCareTaskAlerts').html('<div class="alert alert-success py-2 mb-0"><i class="fas fa-check-circle me-2"></i>ບໍ່ມີວຽກໃຫ້ຢາ ຫຼືເກັບຕົວຢ່າງທີ່ຮອດກຳນົດ / No care tasks due.</div>');
+    return;
+  }
+  const label = `${medicationDue.length} medication · ${specimenDue.length} specimen`;
+  $('#ipdCareTaskAlerts').html(`<div class="alert ${overdue ? 'alert-danger' : 'alert-warning'} py-2 mb-0 d-flex justify-content-between align-items-center gap-2"><div><i class="fas fa-bell me-2"></i><strong>${overdue ? `${overdue} ລາຍການກາຍກຳນົດ` : 'ມີວຽກໃກ້ຮອດກຳນົດ'}</strong><span class="ms-2">${window.ipdEscape(label)}</span></div><button class="btn btn-sm ${overdue ? 'btn-light' : 'btn-dark'}" onclick="window.openIpdCareTasksTab()">ເບິ່ງວຽກ</button></div>`);
+  window.showIpdCareTaskDesktopNotification([...medicationDue, ...specimenDue], overdue);
+};
+
+window.ipdCareTaskNotificationKeys = window.ipdCareTaskNotificationKeys || new Set();
+window.showIpdCareTaskDesktopNotification = function (tasks, overdueCount) {
+  if (window.ipdCurrentChartReadOnly || !Array.isArray(tasks) || !tasks.length) return;
+  const taskKey = tasks.map(row => {
+    const id = row.Administration_ID || row.Task_ID || '';
+    const done = row.Administration_ID ? ['Given','Held','Refused','Missed','Cancelled'] : ['Collected','Sent','Received','Rejected','Cancelled'];
+    return `${id}:${window.ipdCareTaskTiming(row.Scheduled_At, row.Status, done).key}`;
+  }).sort().join('|');
+  const key = `${window.ipdCurrentChartAdmissionId}:${taskKey}`;
+  if (window.ipdCareTaskNotificationKeys.has(key)) return;
+  window.ipdCareTaskNotificationKeys.add(key);
+  window.playOpdNotificationSound?.();
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const admission = window.ipdClinicalState.admission || {};
+  const location = window.ipdAdmissionLocation(admission).label;
+  const notice = new Notification(overdueCount ? 'IPD care task overdue' : 'IPD care task due', {
+    body: `HN ${admission.Patient_ID || '-'} · ${location} · ${tasks.length} task(s)`,
+    tag: `ipd-care-${admission.Admission_ID || 'task'}`,
+    renotify: true
+  });
+  notice.onclick = () => { window.focus(); window.openIpdCareTasksTab(); notice.close(); };
+  window.setTimeout(() => { try { notice.close(); } catch (error) {} }, 15000);
+};
+
+window.openIpdCareTasksTab = function () {
+  const tab = document.querySelector('[data-bs-target="#ipdCareTasksPane"]');
+  if (tab && window.bootstrap?.Tab) window.bootstrap.Tab.getOrCreateInstance(tab).show();
+};
+
+window.setupIpdCareTaskClock = function () {
+  if (window.ipdCareTaskClock) window.clearInterval(window.ipdCareTaskClock);
+  window.requestOpdNotificationPermission?.();
+  window.ipdCareTaskClock = window.setInterval(() => {
+    if (!$('#view-ipd_chart:visible').length) return;
+    window.renderIpdMedicationAdministrations();
+    window.renderIpdSpecimenTasks();
+    window.renderIpdCareTaskAlerts();
+  }, 60000);
+};
+
+window.renderIpdMedicationAdministrations = function () {
+  const rows = (window.ipdClinicalState.medicationAdministrations || []).map(row => {
+    const timing = window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Given','Held','Refused','Missed','Cancelled']);
+    return `<tr class="${timing.key === 'overdue' ? 'table-danger' : timing.key === 'due' ? 'table-warning' : ''}">
+      <td>${window.ipdEscape(window.ipdFormatDateTime(row.Scheduled_At))}</td>
+      <td class="fw-bold">${window.ipdEscape(window.ipdMedicationOrderLabel(row.Order_ID))}</td>
+      <td><span class="badge bg-${timing.className}">${window.ipdEscape(timing.label)}</span></td>
+      <td>${window.ipdEscape(row.Administered_At ? window.ipdFormatDateTime(row.Administered_At) : '-')}</td>
+      <td>${window.ipdEscape(row.Administered_By || '-')}</td>
+      <td>${window.ipdEscape(row.Reason || row.Notes || '-')}</td>
+      <td><button class="btn btn-sm btn-outline-primary" onclick="window.openIpdMedicationAdministrationModal('${window.ipdEscape(row.Administration_ID)}')"><i class="fas fa-check me-1"></i>Record</button></td>
+    </tr>`;
+  });
+  $('#ipdMedicationAdministrationsList').html(rows.length
+    ? window.ipdClinicalTable(['Scheduled','Medication','Status','Actual time','Nurse','Reason / Notes','Action'], rows)
+    : window.ipdClinicalEmpty('fas fa-pills', 'Medication Administration', 'ຍັງບໍ່ມີ dose ທີ່ຈັດເວລາ. Apply the IPD care-task migration before first use.'));
+};
+
+window.openIpdMedicationAdministrationModal = async function (administrationId) {
+  if (window.ipdCurrentChartReadOnly) return Swal.fire('Read only', window.t('ipd.historyChartReadOnly'), 'info');
+  if (!window.requireHisAction('ipd', 'chart_edit', ['nurse'])) return;
+  await window.ipdLoadProviders();
+  const row = (window.ipdClinicalState.medicationAdministrations || []).find(item => String(item.Administration_ID) === String(administrationId)) || {};
+  const activeOrders = (window.ipdClinicalState.medicationOrders || []).filter(order => String(order.Status || 'Active').toLowerCase() === 'active' || String(order.Order_ID) === String(row.Order_ID));
+  if (!activeOrders.length) return Swal.fire('No active medication order', 'ກະລຸນາໃຫ້ແພດເພີ່ມ Medication Order ກ່ອນຈັດເວລາໃຫ້ຢາ.', 'warning');
+  const defaultOrder = activeOrders.find(order => String(order.Order_ID) === String(row.Order_ID)) || activeOrders[0];
+  const orderOptions = activeOrders.map(order => `<option value="${window.ipdEscape(order.Order_ID)}" ${String(order.Order_ID) === String(row.Order_ID) ? 'selected' : ''}>${window.ipdEscape([order.Drug, order.Dose, order.Frequency, order.Route].filter(Boolean).join(' · '))}</option>`).join('');
+  const provider = window.ipdCurrentProviderDefault();
+  const result = await Swal.fire({
+    title: administrationId ? 'Record Medication Administration' : 'Schedule Medication Dose',
+    width: 820,
+    html: `<div class="ipd-form-grid">
+      <div class="full"><label class="form-label fw-bold">Medication order</label><select id="ipdMarOrder" class="form-select">${orderOptions}</select></div>
+      <div><label class="form-label fw-bold">Scheduled time</label><input type="datetime-local" id="ipdMarScheduled" class="form-control" value="${window.ipdFormDateTimeValue(row.Scheduled_At)}"></div>
+      <div><label class="form-label fw-bold">Status</label><select id="ipdMarStatus" class="form-select">${window.ipdOptions(['Scheduled','Given','Held','Refused','Missed','Cancelled'], row.Status || 'Scheduled')}</select></div>
+      <div><label class="form-label fw-bold">Actual time</label><input type="datetime-local" id="ipdMarActual" class="form-control" value="${row.Administered_At ? window.ipdFormDateTimeValue(row.Administered_At) : ''}"></div>
+      <div><label class="form-label fw-bold">Nurse</label><select id="ipdMarNurse" class="form-select">${window.ipdProviderOptions(row.Administered_By_ID || provider.id, ['nurse'])}</select></div>
+      <div><label class="form-label fw-bold">Dose given</label><input id="ipdMarDose" class="form-control" value="${window.ipdEscape(row.Dose_Given || defaultOrder.Dose || '')}"></div>
+      <div><label class="form-label fw-bold">Route given</label><select id="ipdMarRoute" class="form-select">${window.ipdOptions(['PO','IV','IM','SC','SL','Nebulized','Topical'], row.Route_Given || defaultOrder.Route || 'PO')}</select></div>
+      <div class="full"><label class="form-label fw-bold">Reason (required for Held/Refused/Missed/Cancelled)</label><input id="ipdMarReason" class="form-control" value="${window.ipdEscape(row.Reason || '')}"></div>
+      <div class="full"><label class="form-label fw-bold">Notes</label><textarea id="ipdMarNotes" class="form-control" rows="2">${window.ipdEscape(row.Notes || '')}</textarea></div>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: window.t('common.save'),
+    cancelButtonText: window.t('common.cancel'),
+    preConfirm: () => {
+      const status = $('#ipdMarStatus').val();
+      const reason = $('#ipdMarReason').val().trim();
+      if (['Held','Refused','Missed','Cancelled'].includes(status) && !reason) { Swal.showValidationMessage('Reason is required for this status'); return false; }
+      const nurseId = $('#ipdMarNurse').val() || null;
+      const nurseName = $('#ipdMarNurse option:selected').data('name') || '';
+      if (status !== 'Scheduled' && !nurseId) { Swal.showValidationMessage('Nurse is required when recording an outcome'); return false; }
+      if (status === 'Given' && !$('#ipdMarDose').val().trim()) { Swal.showValidationMessage('Dose given is required'); return false; }
+      return {
+        Administration_ID: row.Administration_ID || window.ipdId('MAR'), Admission_ID: window.ipdCurrentChartAdmissionId,
+        Order_ID: $('#ipdMarOrder').val(), Scheduled_At: new Date($('#ipdMarScheduled').val()).toISOString(), Status: status,
+        Dose_Given: $('#ipdMarDose').val().trim(), Route_Given: $('#ipdMarRoute').val(),
+        Administered_At: $('#ipdMarActual').val() ? new Date($('#ipdMarActual').val()).toISOString() : (status === 'Given' ? new Date().toISOString() : null),
+        Administered_By: nurseName || null, Administered_By_ID: nurseId, Reason: reason, Notes: $('#ipdMarNotes').val().trim(),
+        Created_By: row.Created_By || window.ipdCurrentUserName()
+      };
+    }
+  });
+  if (result.isConfirmed) await window.ipdUpsertClinical('IPD_Medication_Administrations', 'Administration_ID', result.value, row.Administration_ID);
+};
+
+window.renderIpdSpecimenTasks = function () {
+  const rows = (window.ipdClinicalState.specimenTasks || []).map(row => {
+    const timing = window.ipdCareTaskTiming(row.Scheduled_At, row.Status, ['Collected','Sent','Received','Rejected','Cancelled']);
+    return `<tr class="${timing.key === 'overdue' ? 'table-danger' : timing.key === 'due' ? 'table-warning' : ''}">
+      <td>${window.ipdEscape(window.ipdFormatDateTime(row.Scheduled_At))}</td><td class="fw-bold">${window.ipdEscape(row.Test_Name || '-')}</td>
+      <td>${window.ipdEscape(row.Specimen_Type || '-')}</td><td>${window.ipdEscape(row.Specimen_ID || '-')}</td>
+      <td><span class="badge bg-${timing.className}">${window.ipdEscape(timing.label)}</span></td><td>${window.ipdEscape(row.Priority || '-')}</td>
+      <td>${window.ipdEscape(row.Collected_At ? window.ipdFormatDateTime(row.Collected_At) : '-')}</td><td>${window.ipdEscape(row.Collected_By || '-')}</td>
+      <td><button class="btn btn-sm btn-outline-primary" onclick="window.openIpdSpecimenTaskModal('${window.ipdEscape(row.Task_ID)}')"><i class="fas fa-edit me-1"></i>Update</button></td>
+    </tr>`;
+  });
+  $('#ipdSpecimenTasksList').html(rows.length
+    ? window.ipdClinicalTable(['Scheduled','Test','Specimen','Specimen ID','Status','Priority','Collected','Collector','Action'], rows)
+    : window.ipdClinicalEmpty('fas fa-vial', 'Specimen Collection', 'ຍັງບໍ່ມີລາຍການເກັບຕົວຢ່າງ. Apply the IPD care-task migration before first use.'));
+};
+
+window.openIpdSpecimenTaskModal = async function (taskId) {
+  if (window.ipdCurrentChartReadOnly) return Swal.fire('Read only', window.t('ipd.historyChartReadOnly'), 'info');
+  if (!window.requireHisAction('ipd', 'chart_edit', ['doctor','nurse','lab'])) return;
+  await window.ipdLoadProviders();
+  const row = (window.ipdClinicalState.specimenTasks || []).find(item => String(item.Task_ID) === String(taskId)) || {};
+  const provider = window.ipdCurrentProviderDefault();
+  const result = await Swal.fire({
+    title: taskId ? 'Update Specimen Collection' : 'Schedule Specimen Collection', width: 820,
+    html: `<div class="ipd-form-grid">
+      <div class="full"><label class="form-label fw-bold">Test name</label><input id="ipdSpecTest" class="form-control" value="${window.ipdEscape(row.Test_Name || '')}"></div>
+      <div><label class="form-label fw-bold">Specimen</label><select id="ipdSpecType" class="form-select">${window.ipdOptions(['Blood','Urine','Stool','Swab','Sputum','Other'], row.Specimen_Type || 'Blood')}</select></div>
+      <div><label class="form-label fw-bold">Specimen ID / Barcode</label><input id="ipdSpecId" class="form-control" value="${window.ipdEscape(row.Specimen_ID || '')}"></div>
+      <div><label class="form-label fw-bold">Scheduled time</label><input type="datetime-local" id="ipdSpecScheduled" class="form-control" value="${window.ipdFormDateTimeValue(row.Scheduled_At)}"></div>
+      <div><label class="form-label fw-bold">Priority</label><select id="ipdSpecPriority" class="form-select">${window.ipdOptions(['Routine','Urgent','STAT'], row.Priority || 'Routine')}</select></div>
+      <div><label class="form-label fw-bold">Status</label><select id="ipdSpecStatus" class="form-select">${window.ipdOptions(['Scheduled','Collected','Sent','Received','Rejected','Cancelled'], row.Status || 'Scheduled')}</select></div>
+      <div><label class="form-label fw-bold">Collected time</label><input type="datetime-local" id="ipdSpecCollected" class="form-control" value="${row.Collected_At ? window.ipdFormDateTimeValue(row.Collected_At) : ''}"></div>
+      <div class="full"><label class="form-label fw-bold">Collector</label><select id="ipdSpecCollector" class="form-select">${window.ipdProviderOptions(row.Collected_By_ID || provider.id, ['nurse','lab'])}</select></div>
+      <div class="full"><label class="form-label fw-bold">Reason / Notes</label><textarea id="ipdSpecNotes" class="form-control" rows="2">${window.ipdEscape(row.Notes || '')}</textarea></div>
+    </div>`, showCancelButton: true, confirmButtonText: window.t('common.save'), cancelButtonText: window.t('common.cancel'),
+    preConfirm: () => {
+      const testName = $('#ipdSpecTest').val().trim();
+      if (!testName) { Swal.showValidationMessage('Test name is required'); return false; }
+      const status = $('#ipdSpecStatus').val();
+      const collectorId = $('#ipdSpecCollector').val() || null;
+      const collectorName = $('#ipdSpecCollector option:selected').data('name') || '';
+      if (['Collected','Sent','Received'].includes(status) && !$('#ipdSpecId').val().trim()) { Swal.showValidationMessage('Specimen ID is required'); return false; }
+      if (['Collected','Sent','Received'].includes(status) && !collectorId) { Swal.showValidationMessage('Collector is required'); return false; }
+      return {
+        Task_ID: row.Task_ID || window.ipdId('SPC'), Admission_ID: window.ipdCurrentChartAdmissionId, Test_Name: testName,
+        Specimen_Type: $('#ipdSpecType').val(), Specimen_ID: $('#ipdSpecId').val().trim() || null,
+        Scheduled_At: new Date($('#ipdSpecScheduled').val()).toISOString(), Priority: $('#ipdSpecPriority').val(), Status: status,
+        Collected_At: $('#ipdSpecCollected').val() ? new Date($('#ipdSpecCollected').val()).toISOString() : (status === 'Collected' ? new Date().toISOString() : row.Collected_At || null),
+        Collected_By: collectorName || row.Collected_By || null, Collected_By_ID: collectorId, Notes: $('#ipdSpecNotes').val().trim(),
+        Created_By: row.Created_By || window.ipdCurrentUserName()
+      };
+    }
+  });
+  if (result.isConfirmed) await window.ipdUpsertClinical('IPD_Specimen_Tasks', 'Task_ID', result.value, row.Task_ID);
 };
 
 window.renderIpdLabResults = function () {

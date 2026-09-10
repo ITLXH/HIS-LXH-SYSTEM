@@ -15,6 +15,22 @@
       </div>
     </div>
 
+    <div id="ipdChartReadOnlyBanner"></div>
+    <div id="ipdChartSummaryPanel" class="ipd-chart-pane mb-3"></div>
+    <div id="ipdClinicalSnapshot" class="ipd-clinical-snapshot mb-3"></div>
+    <div id="ipdCareTaskAlerts" class="mb-3"></div>
+
+    <ul class="nav nav-tabs ipd-tabs mb-3" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ipdTimelinePane" type="button"><i class="fas fa-stream me-1"></i>Timeline</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdCareTasksPane" type="button"><i class="fas fa-bell me-1"></i>ວຽກພະຍາບານ / Care Tasks <span id="ipdCareTaskDueCount" class="badge bg-danger ms-1">0</span></button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdVitalsPane" type="button"><i class="fas fa-heartbeat me-1"></i>Vitals</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdNotesPane" type="button"><i class="fas fa-notes-medical me-1"></i>Notes</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdOrdersPane" type="button"><i class="fas fa-prescription me-1"></i>Orders</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipdDischargePane" type="button"><i class="fas fa-file-medical-alt me-1"></i>Discharge</button></li>
+    </ul>
+
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="ipdTimelinePane">
     <div class="ipd-chart-pane">
       <div class="ipd-section-head">
         <div><strong data-i18n="ipd.patientTimeline">Patient Timeline</strong><span data-i18n="ipd.timelineDescription">Doctor SOAP, nursing notes, vitals and OPD-linked labs grouped by date</span></div>
@@ -27,6 +43,45 @@
         </div>
       </div>
       <div id="ipdPatientTimeline"></div>
+    </div>
+      </div>
+
+      <div class="tab-pane fade" id="ipdCareTasksPane">
+        <div class="ipd-chart-pane mb-3">
+          <div class="ipd-section-head"><div><strong><i class="fas fa-pills me-2"></i>ຕາຕະລາງໃຫ້ຢາ / Medication Administration (MAR)</strong><span>ບັນທຶກແຕ່ລະ dose ຕາມເວລາກຳນົດ</span></div><button class="btn btn-sm btn-primary" onclick="window.openIpdMedicationAdministrationModal()"><i class="fas fa-plus me-1"></i>ຈັດເວລາໃຫ້ຢາ</button></div>
+          <div id="ipdMedicationAdministrationsList"></div>
+        </div>
+        <div class="ipd-chart-pane">
+          <div class="ipd-section-head"><div><strong><i class="fas fa-vial me-2"></i>ເກັບຕົວຢ່າງ / Specimen Collection</strong><span>ຕິດຕາມເວລາເກັບເລືອດ ແລະການສົ່ງ LIS</span></div><button class="btn btn-sm btn-primary" onclick="window.openIpdSpecimenTaskModal()"><i class="fas fa-plus me-1"></i>ເພີ່ມລາຍການເກັບ</button></div>
+          <div id="ipdSpecimenTasksList"></div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="ipdVitalsPane">
+        <div class="ipd-chart-pane">
+          <div class="ipd-section-head"><div><strong>Vital Signs</strong><span>ສັນຍານຊີບ ແລະແນວໂນ້ມ</span></div><button class="btn btn-sm btn-danger" onclick="window.openIpdVitalModal()"><i class="fas fa-plus me-1"></i>Add Vitals</button></div>
+          <div class="ipd-vitals-chart-wrap"><canvas id="ipdVitalsTrendChart"></canvas></div>
+          <div id="ipdVitalsList" class="mt-3"></div>
+        </div>
+      </div>
+
+      <div class="tab-pane fade" id="ipdNotesPane">
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Doctor Notes</strong><span>SOAP ແລະການກວດປະຈຳວັນ</span></div><button class="btn btn-sm btn-primary" onclick="window.openIpdDoctorNoteModal()"><i class="fas fa-plus me-1"></i>Add</button></div><div id="ipdDoctorNotesList"></div></div>
+        <div class="ipd-chart-pane"><div class="ipd-section-head"><div><strong>Nursing Notes</strong><span>ການດູແລ, I/O, pain ແລະ fall risk</span></div><button class="btn btn-sm btn-success" onclick="window.openIpdNursingNoteModal()"><i class="fas fa-plus me-1"></i>Add</button></div><div id="ipdNursingNotesList"></div></div>
+      </div>
+
+      <div class="tab-pane fade" id="ipdOrdersPane">
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Medication Orders</strong><span>ຄຳສັ່ງຢາຂອງແພດ</span></div><button class="btn btn-sm btn-primary" onclick="window.openIpdMedicationOrderModal()"><i class="fas fa-plus me-1"></i>Add Order</button></div><div id="ipdMedicationOrdersList"></div></div>
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Ward Rounds</strong><span>ເຊື່ອມການບັນທຶກກັບແພດ/ພະຍາບານ</span></div><button class="btn btn-sm btn-outline-primary" onclick="window.openIpdVisitModal()"><i class="fas fa-plus me-1"></i>Start Round</button></div><div id="ipdVisitsList"></div></div>
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Lab Results</strong><span>ຜົນກວດທີ່ເຊື່ອມຈາກ OPD/LIS</span></div></div><div id="ipdLabResultsList"></div></div>
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Radiology</strong></div><button class="btn btn-sm btn-outline-primary" onclick="window.openIpdRadiologyModal()"><i class="fas fa-plus me-1"></i>Add</button></div><div id="ipdRadiologyList"></div></div>
+        <div class="ipd-chart-pane"><div class="ipd-section-head"><div><strong>Procedures</strong></div><button class="btn btn-sm btn-outline-primary" onclick="window.openIpdProcedureModal()"><i class="fas fa-plus me-1"></i>Add</button></div><div id="ipdProceduresList"></div></div>
+      </div>
+
+      <div class="tab-pane fade" id="ipdDischargePane">
+        <div class="ipd-chart-pane mb-3"><div class="ipd-section-head"><div><strong>Clinical Summary</strong></div></div><div id="ipdChartSummaryContent"></div></div>
+        <div class="ipd-chart-pane"><div class="ipd-section-head"><div><strong>Discharge Summary</strong></div><button class="btn btn-sm btn-warning" onclick="window.openIpdDischargeSummaryModal()"><i class="fas fa-edit me-1"></i>Edit</button></div><div id="ipdDischargeSummaryView"></div></div>
+      </div>
     </div>
   </div>
 </div>

@@ -8,6 +8,8 @@
     "build": "vite build",
     "test:opd": "node scripts/test-opd-persistence.mjs",
     "test:opd-departments": "node scripts/test-opd-departments.mjs",
+    "test:dashboard-ui": "node scripts/test-dashboard-staff-charts.mjs",
+    "test:ipd-operations": "node scripts/test-ipd-operations-ui.mjs",
     "test:opd-print": "node scripts/test-opd-order-print.mjs",
     "render:opd-print": "node scripts/render-opd-order-print-samples.mjs",
     "test:auth": "node scripts/test-auth-guards.mjs",

@@ -1,21 +1,24 @@
 import assert from 'node:assert/strict';
 
-import { mergeDoctorOptions } from '../src/doctorOptions.js';
+import { isHiddenDoctorOption, mergeDoctorOptions } from '../src/doctorOptions.js';
 
 assert.deepEqual(
   mergeDoctorOptions(
     [{ value: 'ດຣ. ສົມສີ' }, { value: ' ດຣ. ຄຳພອນ ' }],
     ['OPD Doctor', 'ດຣ. ສົມສີ']
   ),
-  ['ດຣ. ສົມສີ', 'ດຣ. ຄຳພອນ', 'OPD Doctor'],
-  'Master Data doctors should appear first and duplicate user names should be removed'
+  ['ດຣ. ສົມສີ', 'ດຣ. ຄຳພອນ'],
+  'Master Data doctors should appear first, duplicates should be removed, and generic accounts should stay hidden'
 );
 
 assert.deepEqual(
   mergeDoctorOptions([], ['OPD Doctor']),
-  ['OPD Doctor'],
-  'Doctor users remain available when Master Data is empty'
+  [],
+  'Generic OPD Doctor account should never appear as a clinical doctor option'
 );
+
+assert.equal(isHiddenDoctorOption(' OPD Doctor '), true);
+assert.equal(isHiddenDoctorOption('ດຣ. ສົມສີ'), false);
 
 assert.deepEqual(
   mergeDoctorOptions([{ value: 'ດຣ. ສົມສີ' }, { value: '' }, null], []),
