@@ -587,6 +587,7 @@ def main():
                     "old": old,
                     "mirrored": mirrored,
                     "migrated_now": migrated_now,
+                    "drive_file_id": drive_manifest.get("id") if mirrored else None,
                     "references": sorted(references),
                 }
             )
@@ -600,6 +601,7 @@ def main():
                     "old": old,
                     "mirrored": False,
                     "migrated_now": False,
+                    "drive_file_id": None,
                     "references": [],
                     "assessment_failed": True,
                 }
