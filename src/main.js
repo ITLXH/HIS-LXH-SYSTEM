@@ -21210,7 +21210,9 @@ window.opdTestDeptTemplateKey = function (key = window.opdTestState.dept) {
     reproductive_obgyn: 'obgyn',
     ncds: 'im',
     immune_lymphatic: 'im',
-    ent: 'ent'
+    ent: 'ent',
+    hematology: 'im',
+    ophthalmology: 'general'
   })[key] || '';
 };
 

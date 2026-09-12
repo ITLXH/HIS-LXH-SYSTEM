@@ -18,10 +18,16 @@ const expected = [
   ['ncds', 'NCDs(DM/HN/DLP/Ob/CV/CA) ກູມພະຍາດຊຳເຮື້ອ'],
   ['immune_lymphatic', 'Immune-Lymphatic ພູມຕູ້ມກັນ-ຕ່ອມນຳ້ເຫຼືອງ'],
   ['ent', 'ENT ຫູດັງຄໍ'],
+  ['hematology', 'Hematology ກຸ່ມພະຍາດເລືອດ'],
+  ['ophthalmology', 'Ophthalmology ຕາ'],
 ];
 assert.deepEqual(OPD_DEPARTMENTS.map(item => [item.key, item.label]), expected);
 assert.equal(resolveOpdDepartmentKey('Cardiology'), 'cardiovescular');
 assert.equal(resolveOpdDepartmentKey('Orthopedic'), 'muscular_skeletal');
+assert.equal(resolveOpdDepartmentKey('Hematology (OPD)'), 'hematology');
+assert.equal(resolveOpdDepartmentKey('ກຸ່ມພະຍາດເລືອດ'), 'hematology');
+assert.equal(resolveOpdDepartmentKey('Ophthalmology'), 'ophthalmology');
+assert.equal(resolveOpdDepartmentKey('ພະຍາດຕາ'), 'ophthalmology');
 assert.equal(resolveOpdDepartmentKey(''), '');
 assert.deepEqual(getOpdDepartmentFromVisit({
   Clinical_Note_JSON: JSON.stringify({ departmentKey: 'respiratory', department: expected[4][1] }),

@@ -10,6 +10,8 @@ export const OPD_DEPARTMENTS = Object.freeze([
   { key: 'ncds', label: 'NCDs(DM/HN/DLP/Ob/CV/CA) ກູມພະຍາດຊຳເຮື້ອ' },
   { key: 'immune_lymphatic', label: 'Immune-Lymphatic ພູມຕູ້ມກັນ-ຕ່ອມນຳ້ເຫຼືອງ' },
   { key: 'ent', label: 'ENT ຫູດັງຄໍ' },
+  { key: 'hematology', label: 'Hematology ກຸ່ມພະຍາດເລືອດ' },
+  { key: 'ophthalmology', label: 'Ophthalmology ຕາ' },
 ]);
 
 const normalize = value => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -35,6 +37,8 @@ export function resolveOpdDepartmentKey(value) {
     [/ncd|dm\/hn|chronic|ຊຳເຮື້ອ/, 'ncds'],
     [/immune|lymph|ພູມ|ນຳ້ເຫຼືອງ/, 'immune_lymphatic'],
     [/\bent\b|otorhino|ຫູ|ດັງ|ຄໍ/, 'ent'],
+    [/hematolog|blood disease|ພະຍາດເລືອດ/, 'hematology'],
+    [/ophthalmolog|eye disease|ພະຍາດຕາ|^ຕາ$/, 'ophthalmology'],
   ];
   return legacyAliases.find(([pattern]) => pattern.test(normalized))?.[1] || '';
 }
