@@ -36,11 +36,17 @@ assert.equal(calls.some((prefix) => prefix.startsWith('blobs')), false);
 assert.equal(calls.some((prefix) => prefix.startsWith('snapshots')), false);
 
 const workflow = fs.readFileSync(new URL('../.github/workflows/supabase-backup.yml', import.meta.url), 'utf8');
+const offloadWorkflow = fs.readFileSync(new URL('../.github/workflows/supabase-storage-offload.yml', import.meta.url), 'utf8');
 assert.match(workflow, /cron:\s*['"]0 0 \* \* \*['"]/);
 assert.match(workflow, /- name: Upload to Google Drive[\s\S]*?continue-on-error:\s*true/);
-// Cleanup is intentionally paused until the independent Drive copy and a
-// restore dry-run have both been verified. Keep the long retention guard in
-// place so a routine workflow run cannot delete the current backup set.
-assert.match(workflow, /RETENTION_DAYS:\s*['"]?36500['"]?/);
+assert.match(workflow, /SUPABASE_RETENTION_DAYS:\s*['"]30['"]?/);
+assert.match(workflow, /SUPABASE_OFFLOAD_AFTER_DRIVE:\s*['"]0['"]?/);
+assert.match(workflow, /DRIVE_RESTORE_VERIFIED:\s*\$\{\{\s*vars\.DRIVE_RESTORE_VERIFIED/);
+assert.match(offloadWorkflow, /cron:\s*['"]30 1 \* \* 0['"]?/);
+assert.match(offloadWorkflow, /default:\s*['"]audit['"]?/);
+assert.match(offloadWorkflow, /OFFLOAD_VERIFIED_BACKUPS/);
+assert.match(offloadWorkflow, /safe_drive_offload\.py/);
+assert.match(offloadWorkflow, /github\.event_name == 'workflow_dispatch'[\s\S]*?SUPABASE_CLEANUP_ENABLED/);
+assert.match(offloadWorkflow, /FAIL_ON_STORAGE_WARNING:/);
 
 console.log('Backup automation checks passed.');

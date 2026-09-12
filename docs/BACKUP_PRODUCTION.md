@@ -116,6 +116,15 @@ HIS runs on Cloudflare Pages (static site). No changes needed — backup UI work
 | `backup/scripts/supabase_cleanup.py` | Cleanup Supabase > 30 days |
 | `public/partials/views/backup.html` | Admin UI |
 | `docs/BACKUP_PRODUCTION.md` | This guide |
+| `docs/STORAGE_OFFLOAD_RUNBOOK_LO.md` | Safe Supabase-to-Drive archive migration and cleanup runbook |
+
+### Safe Storage offload
+
+Do not delete old objects directly from the Dashboard. Use the manual-only
+`Supabase Storage Safe Offload` workflow. Its default mode is audit-only; copy
+and cleanup are separate stages, and cleanup requires a verified Drive restore
+dry-run plus the exact confirmation phrase. See
+[`STORAGE_OFFLOAD_RUNBOOK_LO.md`](STORAGE_OFFLOAD_RUNBOOK_LO.md).
 
 ---
 

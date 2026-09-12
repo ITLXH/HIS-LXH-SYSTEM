@@ -252,6 +252,7 @@ class GoogleDriveUploadTests(unittest.TestCase):
             os.environ,
             {
                 "SUPABASE_OFFLOAD_AFTER_DRIVE": "1",
+                "DRIVE_RESTORE_VERIFIED": "1",
                 "SUPABASE_URL": "https://example.supabase.co",
                 "SUPABASE_SERVICE_ROLE_KEY": "service-role",
                 "SUPABASE_STORAGE_BUCKET": "his-backups",
@@ -268,6 +269,7 @@ class GoogleDriveUploadTests(unittest.TestCase):
             os.environ,
             {
                 "SUPABASE_OFFLOAD_AFTER_DRIVE": "1",
+                "DRIVE_RESTORE_VERIFIED": "1",
                 "SUPABASE_URL": "https://example.supabase.co",
                 "SUPABASE_SERVICE_ROLE_KEY": "service-role",
                 "SUPABASE_STORAGE_BUCKET": "his-backups",
@@ -277,6 +279,21 @@ class GoogleDriveUploadTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Unsafe"):
                 gdrive_upload._offload_supabase_sidecars(
                     ["order-result-files/patient/result.pdf"]
+                )
+        delete.assert_not_called()
+
+    def test_offload_requires_successful_restore_drill(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SUPABASE_OFFLOAD_AFTER_DRIVE": "1",
+                "DRIVE_RESTORE_VERIFIED": "0",
+            },
+            clear=False,
+        ), patch.object(gdrive_upload.requests, "delete") as delete:
+            with self.assertRaisesRegex(RuntimeError, "restore dry-run"):
+                gdrive_upload._offload_supabase_sidecars(
+                    ["blobs/sha256/aa/" + "a" * 64]
                 )
         delete.assert_not_called()
 

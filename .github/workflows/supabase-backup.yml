@@ -12,7 +12,10 @@ on:
         default: 'manual'
 
 env:
-  RETENTION_DAYS: 36500
+  # Supabase keeps a small hot recovery window; Drive is the long-term copy.
+  # All deletion switches default to OFF and require a verified restore drill.
+  SUPABASE_RETENTION_DAYS: '30'
+  GOOGLE_DRIVE_RETENTION_DAYS: '3650'
 
 permissions:
   contents: read
@@ -55,7 +58,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
           OUTPUT_DIR: output
-          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
+          SUPABASE_RETENTION_DAYS: ${{ env.SUPABASE_RETENTION_DAYS }}
           BACKUP_INCLUDE_STORAGE: '1'
           BACKUP_STORAGE_WORKERS: '8'
           # Refuse a green run if the core customer, user or settings tables
@@ -86,7 +89,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
-          SUPABASE_OFFLOAD_AFTER_DRIVE: '1'
+          # Keep the Supabase copy internally complete. Retention-aware removal
+          # is performed only by the separate safe offload workflow.
+          SUPABASE_OFFLOAD_AFTER_DRIVE: '0'
+          DRIVE_RESTORE_VERIFIED: ${{ vars.DRIVE_RESTORE_VERIFIED || '0' }}
           OUTPUT_DIR: output
           GDRIVE_UPLOAD_WORKERS: '32'
         run: |
@@ -101,7 +107,8 @@ jobs:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          RETENTION_DAYS: ${{ env.RETENTION_DAYS }}
+          GOOGLE_DRIVE_RETENTION_DAYS: ${{ env.GOOGLE_DRIVE_RETENTION_DAYS }}
+          GOOGLE_DRIVE_CLEANUP_ENABLED: ${{ vars.GOOGLE_DRIVE_CLEANUP_ENABLED || '0' }}
         run: |
           if [ -z "$GOOGLE_DRIVE_OAUTH_JSON" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
             echo "::notice::Google Drive cleanup skipped — credentials not set"

@@ -1,0 +1,78 @@
+name: Supabase Storage Safe Offload
+
+# Manual-only maintenance workflow. Audit is the default. Cleanup cannot run
+# unless the operator supplies the exact confirmation and a successful Drive
+# restore drill has been recorded in the DRIVE_RESTORE_VERIFIED repo variable.
+on:
+  schedule:
+    # Weekly read-only audit, Sunday 01:30 UTC (08:30 Asia/Bangkok).
+    - cron: '30 1 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'audit = report only; copy = copy/verify; cleanup = copy/verify then delete verified old backup objects'
+        required: true
+        default: 'audit'
+        type: choice
+        options:
+          - audit
+          - copy
+          - cleanup
+      retention_days:
+        description: 'Keep this many days of backup archives in Supabase (minimum 7)'
+        required: true
+        default: '30'
+      confirmation:
+        description: 'Cleanup only: type OFFLOAD_VERIFIED_BACKUPS'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-storage-safe-offload
+  cancel-in-progress: false
+
+jobs:
+  offload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install requests google-api-python-client google-auth
+
+      - name: Audit, copy, and safely offload
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          SUPABASE_RETENTION_DAYS: ${{ github.event.inputs.retention_days || '30' }}
+          SUPABASE_ARCHIVE_MIGRATION_ENABLED: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'audit' && '1' || '0' }}
+          SUPABASE_CLEANUP_ENABLED: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'cleanup' && '1' || '0' }}
+          SUPABASE_CLEANUP_CONFIRMATION: ${{ github.event.inputs.confirmation }}
+          DRIVE_RESTORE_VERIFIED: ${{ vars.DRIVE_RESTORE_VERIFIED || '0' }}
+          DRIVE_REQUIRED: '1'
+          SUPABASE_BACKUP_WARN_BYTES: '75161927680'
+          FAIL_ON_STORAGE_WARNING: ${{ github.event_name == 'schedule' && '1' || '0' }}
+          OUTPUT_DIR: output
+        run: python backup/scripts/safe_drive_offload.py
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-offload-report-${{ github.run_number }}
+          path: output/storage-offload-report.json
+          if-no-files-found: warn
+          retention-days: 30

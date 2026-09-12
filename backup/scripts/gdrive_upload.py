@@ -203,6 +203,11 @@ def _offload_supabase_sidecars(object_paths):
     """Remove this run's backup sidecars after their Drive copy is complete."""
     if os.environ.get("SUPABASE_OFFLOAD_AFTER_DRIVE", "0") != "1":
         return 0
+    if os.environ.get("DRIVE_RESTORE_VERIFIED", "0") != "1":
+        raise RuntimeError(
+            "Supabase offload is blocked until DRIVE_RESTORE_VERIFIED=1; "
+            "run a successful Google Drive restore dry-run first"
+        )
 
     supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -428,6 +433,9 @@ def upload_complete_bundle(zip_path, root_folder_id):
                     "his_backup_type": "manifest",
                     "his_backup_scope": "complete_incremental",
                     "his_sidecar_index_id": index_file["id"],
+                    "his_sha256": file_digest(zip_path, "sha256"),
+                    "his_size_bytes": str(zip_path.stat().st_size),
+                    "his_supabase_object": str(summary.get("storage_object") or ""),
                     "his_tables": str(summary.get("tables", 0)),
                     "his_rows": str(summary.get("total_rows", 0)),
                     "his_storage_objects": str(len(sidecar_index)),

@@ -14,7 +14,9 @@ import requests
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "his-backups").strip() or "his-backups"
-RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "30"))
+RETENTION_DAYS = int(
+    os.environ.get("SUPABASE_RETENTION_DAYS", os.environ.get("RETENTION_DAYS", "30"))
+)
 OUTPUT = Path(os.environ.get("OUTPUT_DIR", "output"))
 INCLUDE_STORAGE = os.environ.get("BACKUP_INCLUDE_STORAGE", "0") == "1"
 STORAGE_WORKERS = max(1, min(16, int(os.environ.get("BACKUP_STORAGE_WORKERS", "8"))))
@@ -933,13 +935,10 @@ def main():
         print(f"  FAILED: {e}")
         github_error(f"Supabase Storage setup/upload failed: {e}")
 
-    # Cleanup old backups
-    print(f"\nCleaning up old backups (>{RETENTION_DAYS} days)...")
-    try:
-        sb_deleted = cleanup_supabase_storage()
-        print(f"  Supabase: {sb_deleted} deleted")
-    except Exception as e:
-        print(f"  Supabase cleanup error: {e}")
+    # The regular backup path never removes recovery points. Production
+    # cleanup is handled only by safe_drive_offload.py, which cross-checks
+    # every archive and sidecar against Drive and the hot-retention set.
+    print("\nSupabase cleanup is managed by safe Drive offload; nothing was deleted")
 
     # Manifest
     manifest = {

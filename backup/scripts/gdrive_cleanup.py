@@ -60,9 +60,14 @@ def main():
     folder_id = (
         sys.argv[1] if len(sys.argv) > 1 else os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
     ).strip()
-    retention_days = int(os.environ.get("RETENTION_DAYS", "30"))
+    retention_days = int(
+        os.environ.get("GOOGLE_DRIVE_RETENTION_DAYS", os.environ.get("RETENTION_DAYS", "3650"))
+    )
     if not folder_id or not credentials_configured():
         print("Skipping cleanup — Google Drive credentials/folder are not configured")
+        return 0
+    if os.environ.get("GOOGLE_DRIVE_CLEANUP_ENABLED", "0") != "1":
+        print("Skipping Google Drive cleanup — disabled by safe default")
         return 0
     cleanup(folder_id, retention_days)
     return 0
