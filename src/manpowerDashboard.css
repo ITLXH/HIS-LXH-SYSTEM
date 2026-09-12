@@ -156,7 +156,10 @@
 }
 
 @media print {
-  @page { size: A4 landscape; margin: 4mm; }
+  /* Keep the manpower landscape layout isolated from the rest of the app's
+     print flows (patient stickers, OPD cards, vaccine cards).  An unnamed
+     @page rule here would override their portrait sticker page globally. */
+  @page manpower-print { size: A4 landscape; margin: 4mm; }
 
   html,
   body { width: auto !important; min-width: 0 !important; height: auto !important; min-height: 0 !important; overflow: visible !important; background: #fff !important; }
@@ -181,6 +184,7 @@
   #view-manpower {
     position: absolute !important;
     inset: 0 auto auto 0 !important;
+    page: manpower-print;
     width: 289mm !important;
     min-height: 0 !important;
     padding: 0 !important;
