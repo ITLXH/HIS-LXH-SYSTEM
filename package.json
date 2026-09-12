@@ -24,7 +24,6 @@
     "test:version-refresh": "node scripts/test-version-refresh.mjs",
     "test:staff": "node scripts/test-staff-management.mjs",
     "test:manpower": "node scripts/test-manpower-dashboard.mjs",
-    "test:sticker": "node scripts/test-patient-sticker-print.mjs",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --compatibility-date=2024-01-01"
   },
