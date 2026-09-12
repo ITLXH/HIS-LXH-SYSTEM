@@ -1,4 +1,5 @@
 import { requireHisAdmin } from '../../_utils/his-auth.js';
+import { getDriveAccessToken, parseDriveCredentials } from '../../_utils/google-drive.js';
 
 // GET /api/backup/gdrive-list
 // Lists backup ZIP files in the configured Google Drive folder using the
@@ -30,16 +31,10 @@ export async function onRequestGet(ctx) {
     return json({ status: 'error', error: 'GOOGLE_DRIVE_FOLDER_ID not set', files: [] });
   }
 
-  const candidates = [];
-  const parseErrors = [];
-  for (const [label, raw] of [['OAuth', oauthJson], ['Service account', serviceJson]]) {
-    if (!raw) continue;
-    try {
-      candidates.push({ label, credentials: JSON.parse(raw) });
-    } catch (_) {
-      parseErrors.push(`${label} credential JSON is invalid`);
-    }
-  }
+  const { candidates, failures: parseErrors } = parseDriveCredentials({
+    GOOGLE_DRIVE_OAUTH_JSON: oauthJson,
+    GOOGLE_SERVICE_ACCOUNT_JSON: serviceJson,
+  });
   if (!candidates.length) {
     return json({ status: 'error', error: parseErrors.join('; '), files: [] });
   }
@@ -89,85 +84,6 @@ export async function onRequestGet(ctx) {
     files: [],
     primary_backup_active: true,
   });
-}
-
-// ---------------------------------------------------------------------------
-// Service-account → access-token exchange (RS256 JWT).
-// Runs inside the Cloudflare Workers runtime, which exposes WebCrypto.
-// ---------------------------------------------------------------------------
-async function getDriveAccessToken(sa) {
-  if (sa.type === 'authorized_user' || sa.refresh_token) {
-    const resp = await fetch(sa.token_uri || 'https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:
-        'client_id=' + encodeURIComponent(sa.client_id) +
-        '&client_secret=' + encodeURIComponent(sa.client_secret) +
-        '&refresh_token=' + encodeURIComponent(sa.refresh_token) +
-        '&grant_type=refresh_token',
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`OAuth refresh HTTP ${resp.status}: ${text.slice(0, 200)}`);
-    }
-    return (await resp.json()).access_token;
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT', kid: sa.private_key_id };
-  const claim = {
-    iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/drive.readonly',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  };
-
-  const enc = (obj) => base64url(new TextEncoder().encode(JSON.stringify(obj)));
-  const signingInput = `${enc(header)}.${enc(claim)}`;
-
-  const key = await importPkcs8(sa.private_key);
-  const signature = await crypto.subtle.sign(
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    key,
-    new TextEncoder().encode(signingInput),
-  );
-  const jwt = `${signingInput}.${base64url(new Uint8Array(signature))}`;
-
-  const resp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:
-      'grant_type=' + encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer') +
-      '&assertion=' + encodeURIComponent(jwt),
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`OAuth token exchange HTTP ${resp.status}: ${text.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  return data.access_token;
-}
-
-function base64url(bytes) {
-  let str = '';
-  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
-  return btoa(str).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
-
-async function importPkcs8(pem) {
-  const body = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\s+/g, '');
-  const der = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
-  return crypto.subtle.importKey(
-    'pkcs8',
-    der,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
 }
 
 function json(obj, status = 200) {

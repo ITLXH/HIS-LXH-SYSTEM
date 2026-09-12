@@ -37,6 +37,7 @@ assert.equal(calls.some((prefix) => prefix.startsWith('snapshots')), false);
 
 const workflow = fs.readFileSync(new URL('../.github/workflows/supabase-backup.yml', import.meta.url), 'utf8');
 const offloadWorkflow = fs.readFileSync(new URL('../.github/workflows/supabase-storage-offload.yml', import.meta.url), 'utf8');
+const lisArchiveWorkflow = fs.readFileSync(new URL('../.github/workflows/lis-result-archive.yml', import.meta.url), 'utf8');
 assert.match(workflow, /cron:\s*['"]0 0 \* \* \*['"]/);
 assert.match(workflow, /- name: Upload to Google Drive[\s\S]*?continue-on-error:\s*true/);
 assert.match(workflow, /SUPABASE_RETENTION_DAYS:\s*['"]30['"]?/);
@@ -48,5 +49,9 @@ assert.match(offloadWorkflow, /OFFLOAD_VERIFIED_BACKUPS/);
 assert.match(offloadWorkflow, /safe_drive_offload\.py/);
 assert.match(offloadWorkflow, /github\.event_name == 'workflow_dispatch'[\s\S]*?SUPABASE_CLEANUP_ENABLED/);
 assert.match(offloadWorkflow, /FAIL_ON_STORAGE_WARNING:/);
+assert.match(lisArchiveWorkflow, /name:\s*LIS Result File Safe Archive/);
+assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_RESTORE_VERIFIED/);
+assert.match(lisArchiveWorkflow, /ARCHIVE_VERIFIED_ORDER_RESULTS/);
+assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_AUTOMATION_ENABLED/);
 
 console.log('Backup automation checks passed.');

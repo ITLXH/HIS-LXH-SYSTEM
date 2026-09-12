@@ -1,0 +1,77 @@
+name: LIS Result File Safe Archive
+
+on:
+  schedule:
+    # Sunday 02:30 UTC (09:30 Asia/Bangkok). Cleanup remains disabled until
+    # both production fallback verification and automation variables are set.
+    - cron: '30 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'audit = report; copy = copy/verify; cleanup = copy/verify then remove verified old files from Supabase'
+        required: true
+        default: 'audit'
+        type: choice
+        options:
+          - audit
+          - copy
+          - cleanup
+      archive_after_days:
+        description: 'Keep this many days of LIS result files hot in Supabase (minimum 7)'
+        required: true
+        default: '30'
+      max_objects:
+        description: 'Canary limit; 0 processes every eligible file'
+        required: true
+        default: '0'
+      confirmation:
+        description: 'Cleanup only: type ARCHIVE_VERIFIED_ORDER_RESULTS'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lis-result-file-safe-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install requests google-api-python-client google-auth
+
+      - name: Audit, copy, verify, and safely archive LIS results
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LIS_RESULT_BUCKET: order-result-files
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          LIS_ARCHIVE_MODE: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'cleanup' || github.event.inputs.mode || 'audit' }}
+          LIS_ARCHIVE_AFTER_DAYS: ${{ github.event.inputs.archive_after_days || vars.LIS_ARCHIVE_AFTER_DAYS || '30' }}
+          LIS_ARCHIVE_MAX_OBJECTS: ${{ github.event.inputs.max_objects || '0' }}
+          LIS_ARCHIVE_RESTORE_VERIFIED: ${{ vars.LIS_ARCHIVE_RESTORE_VERIFIED || '0' }}
+          LIS_ARCHIVE_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'ARCHIVE_VERIFIED_ORDER_RESULTS' || github.event.inputs.confirmation }}
+          OUTPUT_DIR: output
+        run: python backup/scripts/lis_result_archive.py
+
+      - name: Upload sanitized archive report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lis-result-archive-report-${{ github.run_number }}
+          path: output/lis-result-archive-report.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -20578,7 +20578,9 @@ window.opdTestLisPublicFileUrl = function (storagePath) {
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/');
-  return path ? `${SUPABASE_URL}/storage/v1/object/public/order-result-files/${path}` : '';
+  // The same-origin gateway redirects hot files to Supabase and streams
+  // verified archived files from Drive when the hot object no longer exists.
+  return path ? `/api/lis/result-file?path=${path}` : '';
 };
 
 window.opdTestLisFormatDateTime = function (value) {

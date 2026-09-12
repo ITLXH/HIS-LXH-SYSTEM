@@ -1,8 +1,8 @@
 # HIS Supabase Storage → Google Drive Safe Offload
 
-Runbook ນີ້ໃຊ້ຫຼຸດຂະໜາດ Supabase Storage ໂດຍຍ້າຍສະເພາະ
-**backup archive** ໃນ bucket `his-backups` ໄປ Google Drive. Database ຫຼັກ,
-`patient-photos`, `order-result-files`, `his-staff-avatars` ແລະ bucket ທີ່ແອັບກຳລັງໃຊ້
+Runbook ນີ້ຄຸ້ມຄອງ 2 ຊັ້ນ: **backup archive** ໃນ bucket `his-backups`
+ແລະ PDF ຜົນກວດເກົ່າໃນ `order-result-files`. `patient-photos`,
+`his-staff-avatars`, database ຫຼັກ ແລະໄຟລ໌ LIS ໃໝ່ທີ່ຢູ່ໃນ hot window
 ຈະບໍ່ຖືກປ່ຽນ ຫຼືລຶບ.
 
 ## ຫຼັກການຄວາມປອດໄພ
@@ -115,6 +115,38 @@ Workflow `Supabase DB Backup` ຍັງຮັນທຸກມື້. ຄ່າປ
 ຕ້ອງຜ່ານ `Supabase Storage Safe Offload` ເທົ່ານັ້ນ ເພາະ workflow ນີ້
 ຈະກວດວ່າບໍ່ມີ backup ໃນ hot window ອ້າງອີງ sidecar ນັ້ນຢູ່.
 
+## 7. LIS PDF archive ແລະ auto-fetch
+
+Workflow `LIS Result File Safe Archive` ໃຊ້ສຳລັບ bucket `order-result-files` ເທົ່ານັ້ນ.
+ໄຟລ໌ໃນ 30 ມື້ຫຼ້າສຸດຍັງຢູ່ Supabase. ໄຟລ໌ເກົ່າຈະຖືກຕັ້ງຊື່ໃນ Drive
+ດ້ວຍ SHA-256 ແທນ HN/ຊື່ໄຟລ໌ ແລະກວດ size + MD5 + SHA-256 ກ່ອນຖືວ່າສຳເລັດ.
+
+HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
+
+- ຖ້າໄຟລ໌ຍັງຢູ່ Supabase ຈະ redirect ໄປຫາ URL ເດີມ.
+- ຖ້າໄຟລ໌ຖືກ archive ແລ້ວ ຈະຄົ້ນຫາດ້ວຍ path SHA-256 ແລະ stream ຈາກ Drive.
+- LIS table ແລະ `storage_path` ບໍ່ຖືກແກ້ ຈຶ່ງ rollback ໄດ້ງ່າຍ.
+
+ກ່ອນ deploy gateway, Cloudflare Pages production ຕ້ອງມີ secrets ດຽວກັບ GitHub Actions:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_DRIVE_OAUTH_JSON` ຫຼື `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_DRIVE_FOLDER_ID`
+
+ລຳດັບເປີດໃຊ້:
+
+1. Deploy gateway ແລະກວດ hot-file redirect.
+2. ຮັນ `audit` ເພື່ອກວດ age/size.
+3. ຮັນ `copy` ດ້ວຍ `max_objects=1` ເປັນ canary.
+4. ກວດວ່າ canary PDF ເປີດຜ່ານ gateway ໄດ້.
+5. ຮັນ copy ທັງໝົດ ແລະກວດ report ວ່າ failure = 0.
+6. ຕັ້ງ `LIS_ARCHIVE_RESTORE_VERIFIED=1`.
+7. ຮັນ cleanup ດ້ວຍ confirmation `ARCHIVE_VERIFIED_ORDER_RESULTS`.
+8. ຫຼັງກວດ production ຄົບ ຈຶ່ງຕັ້ງ `LIS_ARCHIVE_AUTOMATION_ENABLED=1`.
+
+Scheduled cleanup ຈະບໍ່ເຮັດວຽກຖ້າ 2 variables ຂ້າງເທິງບໍ່ແມ່ນ `1`.
+
 ## Rollback
 
 ຖ້າຕ້ອງການຢຸດ offload ທັນທີ:
@@ -125,7 +157,5 @@ Workflow `Supabase DB Backup` ຍັງຮັນທຸກມື້. ຄ່າປ
 
 ## ໝາຍເຫດສຳຄັນ
 
-ການຍ້າຍ live LIS PDF ຫຼື patient photo ອອກຈາກ Supabase ຈະຕ້ອງປ່ຽນ
-LIS Worker, database metadata, URL resolver ແລະ access control. ນັ້ນເປັນ migration
-ອີກຊຸດໜຶ່ງ ແລະບໍ່ໄດ້ຖືກຮັນໃນ offload ນີ້ ເພື່ອບໍ່ກວນລະບົບ
-Registration, OPD, LIS ແລະ Staff Management ທີ່ໃຊ້ງານຢູ່.
+`patient-photos` ແລະ `his-staff-avatars` ບໍ່ຢູ່ໃນ archive workflow. ຢ່າຍ້າຍ
+bucket ເຫຼົ່ານີ້ຈົນກວ່າຈະມີ resolver ແລະ restore drill ແຍກຕ່າງຫາກ.
