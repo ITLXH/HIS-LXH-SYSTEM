@@ -1,4 +1,12 @@
-# Patient Sticker (ພິມ Sticker 3 ໃບ/A4)
+# Patient Sticker (XP-420B · 3 ໃບ/ແຜ່ນ)
+
+## 2026-09-12 — ກູ້ຂະໜາດເຈ້ຍ XP-420B
+
+- ເຈ້ຍຈິງ: **3.94 × 7.09 inch** (ປະມານ **100 × 180mm**), ບໍ່ແມ່ນ A4.
+- 1 ໜ້າພິມມີ Sticker ຊ້ຳກັນ 3 ໃບແນວຕັ້ງ.
+- ໃຊ້ named page `sticker-print` ເພື່ອບໍ່ໃຫ້ A4 landscape ຂອງ Manpower ຫຼື A4 portrait ຂອງ OPD ມາປ່ຽນຂະໜາດ Sticker.
+- ໜ້າພິມ = 100 × 180mm, margin 0; ແຕ່ລະ Sticker = 96 × 58mm, ຫ່າງກັນ 1mm.
+- ຫຼຸດ font ສະເພາະຕອນພິມໃຫ້ກົງກັບເຈ້ຍແຄບ ແລະໃຫ້ຂໍ້ມູນບໍ່ລົ້ນອອກນອກຂອບ.
 
 ## 2026-08-24 — ເພີ່ມປະກັນ/ອົງກອນໃຕ້ LXH (local, not committed)
 
