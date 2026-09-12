@@ -679,7 +679,7 @@ User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exac
 
 - Registration no longer loads the complete patient registry and complete Visits index before first render. It now uses Supabase/DataTables server-side pagination, fetches only 10/25/50 visible rows, counts visits only for the visible patients, and runs debounced database-backed search/filter requests.
 - Backup destinations and workflow history now share one tabbed card with an internally scrolling table; Google Drive/history load only when opened, keeping the document from becoming a long vertically scrolling page.
-- Triage now loads Department service options from the `ServiceDepartment` Master Data category (seeded with six defaults), keeps the examination-room selector separate, excludes the synthetic OPD room, and loads real doctor names from Master Data and active doctor accounts.
+- Triage now loads Department service options from the `ServiceDepartment` Master Data category (seeded with eight defaults), keeps the examination-room selector separate, excludes the synthetic OPD room, and loads real doctor names from Master Data and active doctor accounts.
 - Pulse, respiratory rate, and SpO2 share one row. Dashboard charts use an equal 50/50 grid, equal heights, full data labels, and a Department service breakdown driven by the same CRUD-managed Master Data category.
 - The existing registration paging and compact Backup UI remain included; details are in `docs/REGISTRATION_BACKUP_LOCAL_OPTIMIZATION.md`.
 - Production builds publish `version.json`; active screens check it every minute and reload when a new deployment is available. Reload waits while a modal, focused input, or edited form is active so unsaved clinical work is protected.

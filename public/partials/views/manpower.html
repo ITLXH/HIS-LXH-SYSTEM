@@ -1,0 +1,148 @@
+<div id="view-manpower" class="manpower-view" style="display:none;">
+  <header class="manpower-header">
+    <div>
+      <span class="manpower-eyebrow"><i class="fas fa-calendar-check"></i> DAILY MANPOWER</span>
+      <h3>ຕາຕະລາງເຂົ້າເວນ</h3>
+      <p>ຈັດພະນັກງານເຂົ້າເວນຕາມວັນທີ, ກະເວລາ ແລະພະແນກ</p>
+    </div>
+    <div class="manpower-header-actions">
+      <span class="manpower-local-badge" id="manpowerDataBadge"><i class="fas fa-laptop-code"></i> Local test data</span>
+      <button class="btn btn-outline-primary" type="button" onclick="window.openManpowerHistory()"><i class="fas fa-history me-1"></i> ປະຫວັດເຂົ້າເວນ</button>
+      <button class="btn btn-primary" type="button" onclick="window.printManpowerDashboard()"><i class="fas fa-print me-1"></i> ພິມ A4</button>
+      <button class="btn btn-outline-primary" type="button" onclick="window.loadView('staff')"><i class="fas fa-users-cog me-1"></i> ຈັດການພະນັກງານ</button>
+    </div>
+  </header>
+
+  <div class="manpower-print-context" id="manpowerPrintContext"></div>
+
+  <section class="manpower-datebar" aria-label="ເລືອກວັນທີ">
+    <button type="button" class="btn btn-light" onclick="window.changeManpowerDate(-1)" aria-label="ມື້ກ່ອນ"><i class="fas fa-chevron-left"></i></button>
+    <label><i class="far fa-calendar-alt"></i><input id="manpowerDate" type="date" onchange="window.setManpowerDate(this.value)"></label>
+    <button type="button" class="btn btn-light" onclick="window.changeManpowerDate(1)" aria-label="ມື້ຕໍ່ໄປ"><i class="fas fa-chevron-right"></i></button>
+    <button type="button" class="btn btn-outline-primary" onclick="window.goToManpowerToday()">ມື້ນີ້</button>
+  </section>
+
+  <section class="manpower-summary" aria-label="ສະຫຼຸບກຳລັງຄົນ">
+    <article><span class="is-green"><i class="fas fa-user-check"></i></span><small>ເຂົ້າເວນ</small><strong id="manpowerWorkingCount">0</strong></article>
+    <article><span class="is-red"><i class="fas fa-user-times"></i></span><small>ຂາດ</small><strong id="manpowerAbsentCount">0</strong></article>
+    <article><span class="is-orange"><i class="fas fa-bed"></i></span><small>ລາ</small><strong id="manpowerLeaveCount">0</strong></article>
+    <article><span class="is-purple"><i class="fas fa-exchange-alt"></i></span><small>ປ່ຽນເວນ</small><strong id="manpowerSwappedCount">0</strong></article>
+  </section>
+
+  <nav class="manpower-shifts" aria-label="ກະເວລາ">
+    <button type="button" data-shift="morning" onclick="window.selectManpowerShift('morning')"><i class="fas fa-sun"></i><span>ກະເຊົ້າ</span><small>08:00–16:00</small></button>
+    <button type="button" data-shift="evening" onclick="window.selectManpowerShift('evening')"><i class="fas fa-cloud-sun"></i><span>ກະແລງ</span><small>16:00–21:00</small></button>
+    <button type="button" data-shift="night" onclick="window.selectManpowerShift('night')"><i class="fas fa-moon"></i><span>ກະກາງຄືນ</span><small>21:00–08:00</small></button>
+  </nav>
+
+  <main id="manpowerDepartmentList" class="manpower-departments"></main>
+
+  <div class="modal fade" id="manpowerAssignmentModal" tabindex="-1" aria-labelledby="manpowerAssignmentTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="manpowerAssignmentForm" class="modal-content manpower-modal" onsubmit="window.saveManpowerAssignment(event)">
+        <div class="modal-header">
+          <div><span>SHIFT ASSIGNMENT</span><h5 id="manpowerAssignmentTitle" class="modal-title">ເພີ່ມຄົນເຂົ້າເວນ</h5></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input id="manpowerAssignmentType" type="hidden">
+          <div id="manpowerAssignmentDepartment" class="manpower-assignment-scope"></div>
+          <div class="mb-3">
+            <label for="manpowerStaffSelect" class="form-label">ພະນັກງານ <span>*</span></label>
+            <select id="manpowerStaffSelect" class="form-select" required onchange="window.toggleNewManpowerReplacement()"></select>
+            <small id="manpowerStaffAvailabilityNote" class="manpower-form-help"></small>
+          </div>
+          <div>
+            <label for="manpowerStatusSelect" class="form-label">ສະຖານະ</label>
+            <select id="manpowerStatusSelect" class="form-select" onchange="window.toggleNewManpowerReplacement()">
+              <option value="working">ເຂົ້າເວນ</option>
+              <option value="leave">ລາ</option>
+              <option value="absent">ຂາດ</option>
+              <option value="swapped">ປ່ຽນເວນ</option>
+            </select>
+          </div>
+          <div id="manpowerNewReplacementGroup" class="mt-3" hidden>
+            <label for="manpowerNewReplacementStaff" class="form-label">ຜູ້ຮັບເວນແທນ <span>*</span></label>
+            <select id="manpowerNewReplacementStaff" class="form-select"></select>
+            <small class="manpower-form-help"><i class="fas fa-exchange-alt"></i> ຕ້ອງເລືອກພະນັກງານໃນພະແນກດຽວກັນທີ່ຍັງບໍ່ມີເວນ</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ຍົກເລີກ</button>
+          <button id="manpowerAssignmentSaveButton" type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> ບັນທຶກເຂົ້າເວນ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="manpowerManagementModal" tabindex="-1" aria-labelledby="manpowerManagementTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="manpowerManagementForm" class="modal-content manpower-modal" onsubmit="window.saveManpowerManagement(event)">
+        <div class="modal-header">
+          <div><span>SHIFT MANAGEMENT</span><h5 id="manpowerManagementTitle" class="modal-title">ຈັດການສະຖານະເຂົ້າເວນ</h5></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input id="manpowerManageAssignmentId" type="hidden">
+          <div class="mb-3">
+            <label for="manpowerManageCurrentStaff" class="form-label">ຜູ້ມີເວນ</label>
+            <input id="manpowerManageCurrentStaff" class="form-control" type="text" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="manpowerManageStatus" class="form-label">ສະຖານະ</label>
+            <select id="manpowerManageStatus" class="form-select" onchange="window.toggleManpowerReplacement()">
+              <option value="working">ເຂົ້າເວນ</option>
+              <option value="absent">ຂາດ</option>
+              <option value="leave">ລາ</option>
+              <option value="swapped">ປ່ຽນເວນ</option>
+            </select>
+          </div>
+          <div id="manpowerReplacementGroup" hidden>
+            <label for="manpowerReplacementStaff" class="form-label">ປ່ຽນຈາກຜູ້ມີເວນ ຫາຜູ້ຮັບເວນແທນ <span>*</span></label>
+            <select id="manpowerReplacementStaff" class="form-select"></select>
+            <small class="manpower-form-help"><i class="fas fa-exchange-alt"></i> ລະບົບຈະບັນທຶກວ່າປ່ຽນຈາກຜູ້ໃດໄປຫາຜູ້ໃດ</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ຍົກເລີກ</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> ບັນທຶກການຈັດການ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="manpowerHistoryModal" tabindex="-1" aria-labelledby="manpowerHistoryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content manpower-modal manpower-history-modal">
+        <div class="modal-header">
+          <div><span>AUDIT HISTORY</span><h5 id="manpowerHistoryTitle" class="modal-title">ປະຫວັດການເຂົ້າເວນ</h5></div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="manpower-history-toolbar">
+            <label class="manpower-history-search"><i class="fas fa-search"></i><input id="manpowerHistorySearch" class="form-control" type="search" placeholder="ຄົ້ນຫາຊື່ພະນັກງານ/ຜູ້ປ່ຽນ..." oninput="window.renderManpowerHistory()"></label>
+            <input id="manpowerHistoryDate" class="form-control" type="date" onchange="window.loadManpowerHistory()" aria-label="ກັ່ນຕອງວັນທີ">
+            <select id="manpowerHistoryShift" class="form-select" onchange="window.loadManpowerHistory()" aria-label="ກັ່ນຕອງກະເວລາ">
+              <option value="">ທຸກກະເວລາ</option><option value="morning">ກະເຊົ້າ</option><option value="evening">ກະແລງ</option><option value="night">ກະກາງຄືນ</option>
+            </select>
+            <select id="manpowerHistoryType" class="form-select" onchange="window.loadManpowerHistory()" aria-label="ກັ່ນຕອງພະແນກ">
+              <option value="">ທຸກພະແນກ</option><option value="doctor">ແພດ</option><option value="nurse">ພະຍາບານ</option><option value="pharmacy">ການຢາ</option><option value="lab">ແລັບ</option><option value="radiology">ເອໂກ້ + ລັງສີ</option>
+            </select>
+            <select id="manpowerHistoryAction" class="form-select" onchange="window.loadManpowerHistory()" aria-label="ກັ່ນຕອງການປ່ຽນແປງ">
+              <option value="">ທຸກການປ່ຽນແປງ</option><option value="created">ເພີ່ມເຂົ້າເວນ</option><option value="updated">ປ່ຽນສະຖານະ</option><option value="replaced">ປ່ຽນຜູ້ຮັບເວນ</option><option value="deleted">ເອົາອອກຈາກເວນ</option>
+            </select>
+            <button type="button" class="btn btn-outline-secondary" onclick="window.resetManpowerHistoryFilters()"><i class="fas fa-undo-alt"></i> ລ້າງຕົວກອງ</button>
+          </div>
+          <div class="manpower-history-meta"><span id="manpowerHistoryStorageLabel"><i class="fas fa-laptop-code"></i> ປະຫວັດ Local ຢູ່ໃນ browser ນີ້</span><strong id="manpowerHistoryCount">0 ລາຍການ</strong></div>
+          <div class="table-responsive manpower-history-table-wrap">
+            <table class="table manpower-history-table align-middle mb-0">
+              <thead><tr><th>ການປ່ຽນແປງ</th><th>ພະນັກງານ</th><th>ວັນທີ</th><th>ກະເວລາ</th><th>ລາຍລະອຽດ</th><th>ຜູ້ດຳເນີນການ</th><th>ເວລາບັນທຶກ</th></tr></thead>
+              <tbody id="manpowerHistoryRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">ປິດ</button></div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -3,10 +3,11 @@
     <div>
       <div class="staff-page-eyebrow"><i class="fas fa-id-badge"></i> STAFF DIRECTORY</div>
       <h3>ຈັດການພະນັກງານ</h3>
-      <p>ຈັດເກັບຮູບ, ຂໍ້ມູນພະແນກ ແລະຕຳແໜ່ງ ເພື່ອນຳໄປໃຊ້ໃນຕາຕະລາງເຂົ້າເວນ</p>
+      <p>ຈັດເກັບຮູບ, ຂໍ້ມູນພະແນກ ແລະວິຊາສະເພາະ ເພື່ອນຳໄປໃຊ້ໃນຕາຕະລາງເຂົ້າເວນ</p>
     </div>
     <div class="staff-page-actions">
       <span class="staff-local-badge" id="staffPersistenceBadge"><i class="fas fa-laptop-code"></i> Local test data</span>
+      <button type="button" class="btn btn-outline-primary" onclick="window.loadView('manpower')"><i class="fas fa-calendar-check me-1"></i> ຕາຕະລາງເຂົ້າເວນ</button>
       <button type="button" class="btn btn-outline-secondary" id="staffResetDemoButton" onclick="window.resetStaffDemoData()">
         <i class="fas fa-sync-alt me-1"></i> ຂໍ້ມູນຕົວຢ່າງ
       </button>
@@ -39,14 +40,14 @@
     <div class="staff-filter-bar">
       <label class="staff-search-box" for="staffSearchInput">
         <i class="fas fa-search"></i>
-        <input id="staffSearchInput" type="search" placeholder="ຄົ້ນຫາຊື່, ລະຫັດ, ພະແນກ..." oninput="window.renderStaffDirectory()">
+        <input id="staffSearchInput" type="search" placeholder="ຄົ້ນຫາຊື່, ພະແນກ, ວິຊາສະເພາະ..." oninput="window.renderStaffDirectory()">
       </label>
-      <select id="staffTypeFilter" class="form-select" onchange="window.renderStaffDirectory()" aria-label="ກັ່ນຕອງປະເພດພະນັກງານ">
-        <option value="all">ທຸກປະເພດ</option>
+      <select id="staffTypeFilter" class="form-select" onchange="window.renderStaffDirectory()" aria-label="ກັ່ນຕອງພະແນກ">
+        <option value="all">ທຸກພະແນກ</option>
         <option value="doctor">ແພດ</option>
         <option value="nurse">ພະຍາບານ</option>
         <option value="lab">ແລັບ</option>
-        <option value="radiology">ລັງສີ</option>
+        <option value="radiology">ເອໂກ້ + ລັງສີ</option>
         <option value="pharmacy">ການຢາ</option>
         <option value="reception">ຕ້ອນຮັບ</option>
         <option value="other">ອື່ນໆ</option>
@@ -60,7 +61,7 @@
       <span class="staff-result-count"><strong id="staffFilteredCount">0</strong> ຄົນ</span>
     </div>
 
-    <div id="staffDirectoryGrid" class="staff-directory-grid"></div>
+    <div id="staffDirectoryGrid" class="staff-directory-table-wrap"></div>
   </section>
 
   <div class="modal fade" id="staffEditorModal" tabindex="-1" aria-labelledby="staffEditorTitle" aria-hidden="true" data-bs-backdrop="static">
@@ -99,41 +100,21 @@
 
               <div class="staff-form-fields">
                 <div class="row g-3">
-                  <div class="col-md-4">
-                    <label for="staffEmployeeCode" class="form-label">ລະຫັດພະນັກງານ <span>*</span></label>
-                    <input id="staffEmployeeCode" class="form-control" required maxlength="30" placeholder="ເຊັ່ນ: DOC-001">
-                  </div>
-                  <div class="col-md-8">
+                  <div class="col-12">
                     <label for="staffFullName" class="form-label">ຊື່-ນາມສະກຸນ <span>*</span></label>
                     <input id="staffFullName" class="form-control" required maxlength="120" placeholder="ຊື່ເຕັມຂອງພະນັກງານ">
                   </div>
                   <div class="col-md-6">
-                    <label for="staffEmployeeType" class="form-label">ປະເພດພະນັກງານ <span>*</span></label>
-                    <select id="staffEmployeeType" class="form-select" required>
+                    <label for="staffDepartmentType" class="form-label">ພະແນກ <span>*</span></label>
+                    <select id="staffDepartmentType" class="form-select" required>
                       <option value="doctor">ແພດ</option>
                       <option value="nurse">ພະຍາບານ</option>
                       <option value="lab">ແລັບ</option>
-                      <option value="radiology">ລັງສີ</option>
+                      <option value="radiology">ເອໂກ້ + ລັງສີ</option>
                       <option value="pharmacy">ການຢາ</option>
                       <option value="reception">ຕ້ອນຮັບ</option>
                       <option value="other">ອື່ນໆ</option>
                     </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="staffDepartment" class="form-label">ພະແນກ <span>*</span></label>
-                    <input id="staffDepartment" class="form-control" list="staffDepartmentOptions" required maxlength="100" placeholder="ເລືອກ ຫຼືພິມພະແນກ">
-                    <datalist id="staffDepartmentOptions">
-                      <option value="OPD ທົ່ວໄປ"></option>
-                      <option value="ຫ້ອງເດັກ"></option>
-                      <option value="ພະຍາບານ"></option>
-                      <option value="ແລັບ"></option>
-                      <option value="ລັງສີ"></option>
-                      <option value="ການຢາ"></option>
-                    </datalist>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="staffPosition" class="form-label">ຕຳແໜ່ງ</label>
-                    <input id="staffPosition" class="form-control" maxlength="100" placeholder="ເຊັ່ນ: ແພດປະຈຳ OPD">
                   </div>
                   <div class="col-md-6">
                     <label for="staffSpecialty" class="form-label">ວິຊາສະເພາະ</label>
@@ -154,10 +135,6 @@
                       <option value="on_leave">ພັກ/ລາຍາວ</option>
                       <option value="inactive">ຢຸດເຮັດວຽກ</option>
                     </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="staffLinkedUserId" class="form-label">User ID ທີ່ເຊື່ອມ (ຖ້າມີ)</label>
-                    <input id="staffLinkedUserId" class="form-control" maxlength="50" placeholder="ປ່ອຍວ່າງໄດ້">
                   </div>
                 </div>
               </div>

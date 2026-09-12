@@ -21,16 +21,18 @@ assert.deepEqual(serviceDepartments, [
   'OB-GYN',
   'General / ER',
   'IPD',
-  'Health Checkup'
+  'Health Checkup',
+  'First Aid Training',
+  'Home Care'
 ]);
-assert.match(settings, /<option value="ServiceDepartment">6 ພະແນກບໍລິການ\/Department service<\/option>/);
+assert.match(settings, /<option value="ServiceDepartment">8 ພະແນກບໍລິການ\/Department service<\/option>/);
 assert.match(main, /\['Department', 'ServiceDepartment'/);
-assert.match(main, /key: 'ServiceDepartment', label: '6 ພະແນກບໍລິການ\/Department service'/);
+assert.match(main, /key: 'ServiceDepartment', label: '8 ພະແນກບໍລິການ\/Department service'/);
 assert.match(main, /masterDataStore\.ServiceDepartment\?\.length/);
 assert.match(main, /\.insert\(\{ Category: c, Value: v \}\)/);
 assert.match(main, /\.update\(\{ Value: newVal \}\)\.eq\('ID', id\)/);
 assert.match(main, /\.delete\(\)\.eq\('ID', id\)/);
-assert.match(dashboard, /6 ພະແນກບໍລິການ\/Department service/);
+assert.match(dashboard, /8 ພະແນກບໍລິການ\/Department service/);
 assert.doesNotMatch(dashboard, /Triage Clinical Departments/);
 
 const submitSource = main.slice(

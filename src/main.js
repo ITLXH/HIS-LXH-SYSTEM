@@ -22,6 +22,8 @@ import {
 import { isHiddenDoctorOption, mergeDoctorOptions } from './doctorOptions.js';
 import { installStaffManagement } from './staffManagement.js';
 import { createStaffSupabaseBackend } from './staffSupabase.js';
+import { installManpowerDashboard } from './manpowerDashboard.js';
+import { createManpowerSupabaseBackend } from './manpowerSupabase.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
   HIS_ROLE_PAGE_DEFAULTS,
@@ -56,12 +58,22 @@ window.authenticatedFetch = async function (url, options = {}) {
 const DB_TABLE_PREFIX = "HIS_One_";
 const dbTable = (name) => `${DB_TABLE_PREFIX}${name}`;
 
-installStaffManagement({
+const staffSupabaseBackend = createStaffSupabaseBackend({
+  client: supabaseClient,
+  tableName: dbTable('Staff_Profiles')
+});
+const manpowerSupabaseBackend = createManpowerSupabaseBackend({
+  client: supabaseClient,
+  assignmentsTableName: dbTable('Manpower_Assignments'),
+  historyTableName: dbTable('Manpower_History')
+});
+installStaffManagement({ escapeHtml: escapeHisHtml, backend: staffSupabaseBackend });
+installManpowerDashboard({
   escapeHtml: escapeHisHtml,
-  backend: createStaffSupabaseBackend({
-    client: supabaseClient,
-    tableName: dbTable('Staff_Profiles')
-  })
+  staffBackend: staffSupabaseBackend,
+  backend: manpowerSupabaseBackend,
+  getCurrentUser: () => currentUser,
+  canManage: () => normalizeHisRole(currentUser?.role) === 'admin'
 });
 
 function sha256Fallback(text) {
@@ -204,6 +216,7 @@ window.appTranslations = {
     'nav.opd': 'OPD',
     'nav.vaccines': 'ວັກຊີນ',
     'nav.appointments': 'ນັດໝາຍ',
+    'nav.manpower': 'ຈັດການເວນຍາມ',
     'nav.settings': 'ຕັ້ງຄ່າ',
     'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'ແຜງຄວບຄຸມ IPD',
@@ -371,6 +384,7 @@ window.appTranslations = {
     'nav.opd': 'OPD',
     'nav.vaccines': 'Vaccines',
     'nav.appointments': 'Appointments',
+    'nav.manpower': 'Duty Roster',
     'nav.settings': 'Settings',
     'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'IPD Dashboard',
@@ -1995,7 +2009,8 @@ window.applyAppLanguage = function () {
     'nav-ipd_inpatient_list': 'nav.ipdInpatients',
     'nav-ipd_discharge': 'nav.ipdDischarge',
     'nav-vaccines': 'nav.vaccines',
-    'nav-appointments': 'nav.appointments'
+    'nav-appointments': 'nav.appointments',
+    'nav-manpower': 'nav.manpower'
   };
   Object.entries(navTextMap).forEach(([id, key]) => {
     $('#' + id).children('span').first().text(window.t(key));
@@ -2046,6 +2061,7 @@ window.HIS_NAV_ROUTES = {
   ipd_discharge: { view: 'ipd_inpatient_list', navId: 'ipd_discharge', path: '/ipd/discharge', mode: 'ipd_discharge' },
   ipd_config: { view: 'ipd_config', navId: 'ipd_config', path: '/ipd_config' },
   staff: { view: 'staff', navId: 'staff', path: '/staff' },
+  manpower: { view: 'manpower', navId: 'manpower', path: '/manpower' },
   settings: { view: 'settings', navId: 'settings', path: '/settings' },
   orgs: { view: 'orgs', navId: 'orgs', path: '/orgs' },
   users: { view: 'users', navId: 'users', path: '/users' },
@@ -2084,6 +2100,7 @@ window.HIS_PATH_ROUTES = {
   '/ipd_inpatient_list': 'ipd_inpatient_list',
   '/ipd_config': 'ipd_config',
   '/staff': 'staff',
+  '/manpower': 'manpower',
   '/settings': 'settings',
   '/orgs': 'orgs',
   '/users': 'users',
@@ -2226,6 +2243,25 @@ window.initLocalStaffPreview = function () {
   $('#nav-staff').show().closest('.his-dropdown').show();
   window.toggleLoading(false);
   window.loadView('staff', { replace: true, force: true, updateUrl: false });
+};
+
+window.isLocalManpowerPreview = function () {
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(host);
+  const previewRequested = new URLSearchParams(window.location.search).get('preview') === '1';
+  return isLoopback && previewRequested && window.parseProtectedRoute?.()?.view === 'manpower';
+};
+
+window.initLocalManpowerPreview = function () {
+  $('body').removeClass('auth-checking');
+  $('#login-section').hide();
+  $('#app-content').show();
+  $('#sidebarUserName').text('Manpower Local Test');
+  $('#his-nav-items [id^="nav-"]').hide();
+  $('#nav-manpower, #nav-staff').show();
+  $('#nav-staff').closest('.his-dropdown').show();
+  window.toggleLoading(false);
+  window.loadView('manpower', { replace: true, force: true, updateUrl: false });
 };
 
 window.emrLabCategoryConfig = [
@@ -2980,7 +3016,7 @@ async function loadPartials() {
   const views = [
     'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
-    'labs', 'services', 'locations', 'users', 'staff', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
+    'labs', 'services', 'locations', 'users', 'staff', 'manpower', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
   const modals = [
     'patient-modal',
@@ -3332,6 +3368,10 @@ $(document).ready(async function () {
   });
 
   setTimeout(async () => {
+    if (window.isLocalManpowerPreview?.()) {
+      window.initLocalManpowerPreview();
+      return;
+    }
     if (window.isLocalStaffPreview?.()) {
       window.initLocalStaffPreview();
       return;
@@ -4135,6 +4175,7 @@ window.loadView = function (v, options = {}) {
   const localPreviewAllowed = !currentUser && (
     (requestedView === 'opd_test' && window.isLocalOpdTestPreview?.())
     || (requestedView === 'staff' && window.isLocalStaffPreview?.())
+    || (requestedView === 'manpower' && window.isLocalManpowerPreview?.())
   );
   if (!localPreviewAllowed && currentUser && !window.canUserAccessView(requestedView, currentUser.permissions)) {
     const safeView = window.getPostLoginView(parseHisPagePermissions(currentUser.permissions));
@@ -4202,7 +4243,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'staff', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'staff', 'manpower', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -4261,6 +4302,7 @@ window.loadView = function (v, options = {}) {
   }
   if (v === 'users') _runLoad(() => window.loadUsers());
   if (v === 'staff') _runLoad(() => window.initStaffManagement());
+  if (v === 'manpower') _runLoad(() => window.initManpowerDashboard());
   if (v === 'services') _runLoad(() => window.loadServicesMasterView());
   if (v === 'locations') _runLoad(() => window.loadLocationsMasterView());
   if (v === 'appointments') _runLoad(() => window.loadAppointments());
@@ -12766,7 +12808,7 @@ window._masterDataFallback = {
   Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ"],
   InsCompany: ["ບໍ່ມີ","LSMI","PVI","Axa","Prudential","Allianz","BCEL-AXA","ອື່ນໆ"],
   Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
-  ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup"],
+  ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup","First Aid Training","Home Care"],
   LabCategory: window.emrLabCategoryConfig.map(item => item.label),
   DrugUnit: ["ເມັດ (Tab)","ແຄັບຊູນ (Cap)","ມິນລິລິດ (ml)","ກຣາມ (g)","ຫຼອດ (Amp)","ຕຸກ (Bottle)","ຊອງ (Sachet)","Dose","ບ່ວງ (Spoon)"],
   DrugUsage: ["ac (ກ່ອນອາຫານ 30 ນາທີ)","pc (ຫຼັງອາຫານ 15-30 ນາທີ)","am (ຕອນເຊົ້າ)","pm (ຕອນແລງ)","hs (ກ່ອນນອນ)","bid (ວັນລະ 2 ຄັ້ງ)","tid (ວັນລະ 3 ຄັ້ງ)","qid (ວັນລະ 4 ຄັ້ງ)","prn (ກິນເວລາເຈັບ)","od (ວັນລະ 1 ຄັ້ງ)","stat (ກິນທັນທີ)"],
@@ -12824,7 +12866,7 @@ window.seedMasterDefaults = async function () {
     Channel: ["ໂທລະສັບ", "ສອດ", "Facebook", "Line", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານ ຮພ. ອື່ນ", "ສື່ໂຄສະນາ", "ອື່ນໆ"],
     InsCompany: ["ບໍ່ມີ", "LSMI", "PVI", "Axa", "Prudential", "Allianz", "BCEL-AXA", "ອື່ນໆ"],
     Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
-    ServiceDepartment: ["Internal Medicine", "Pediatrics", "OB-GYN", "General / ER", "IPD", "Health Checkup"],
+    ServiceDepartment: ["Internal Medicine", "Pediatrics", "OB-GYN", "General / ER", "IPD", "Health Checkup", "First Aid Training", "Home Care"],
     EmergencyRelation: ["ພໍ່", "ແມ່", "ຜົວ", "ເມຍ", "ລູກ", "ພີ່", "ນ້ອງ", "ຍາດພີ່ນ້ອງ", "ໝູ່", "ອື່ນໆ"],
   };
 
@@ -12937,7 +12979,7 @@ window.masterCategoryGroups = [
     summary: 'ໝວດຂໍ້ມູນສຳລັບການກວດ ແລະ ແພດ',
     categories: [
       { key: 'Department', label: 'ຫ້ອງກວດ', description: 'ຈັດການຊື່ພະແນກ ແລະ ຫ້ອງກວດ' },
-      { key: 'ServiceDepartment', label: '6 ພະແນກບໍລິການ/Department service', description: 'ຈັດການລາຍຊື່ພະແນກບໍລິການທີ່ໃຊ້ໃນ Triage ແລະ Dashboard' },
+      { key: 'ServiceDepartment', label: '8 ພະແນກບໍລິການ/Department service', description: 'ຈັດການລາຍຊື່ພະແນກບໍລິການທີ່ໃຊ້ໃນ Triage ແລະ Dashboard' },
       { key: 'Doctor', label: 'ລາຍຊື່ແພດ', description: 'ເພີ່ມແລະຈັດການຊື່ແພດໃນລະບົບ' },
       { key: 'Nurse', label: 'ລາຍຊື່ພະຍາບານ', description: 'ເພີ່ມແລະຈັດການຊື່ພະຍາບານໃນລະບົບ' },
       { key: 'LabCategory', label: 'ໝວດ Lab', description: 'ຈັດການລາຍຊື່ໝວດການກວດທີ່ໃຊ້ໃນ checkbox picker' }

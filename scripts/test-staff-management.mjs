@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import {
   STAFF_STORAGE_KEY,
   calculateStaffStats,
+  createStaffEmployeeCode,
   filterStaffRecords,
   normalizeStaffRecord,
   validateStaffPhotoFile
@@ -22,10 +23,16 @@ for (const id of [
   'staffSearchInput', 'staffTypeFilter', 'staffStatusFilter', 'staffDirectoryGrid',
   'staffEditorModal', 'staffEditorForm', 'staffPhotoInput', 'staffPhotoPreview',
   'staffPersistenceBadge', 'staffPhotoPath',
-  'staffEmployeeCode', 'staffFullName', 'staffEmployeeType', 'staffDepartment', 'staffStatus'
+  'staffFullName', 'staffDepartmentType', 'staffStatus'
 ]) {
   assert.match(view, new RegExp(`id=["']${id}["']`), `missing staff UI control #${id}`);
 }
+
+for (const removedId of ['staffEmployeeCode', 'staffEmployeeType', 'staffDepartment', 'staffPosition', 'staffLinkedUserId']) {
+  assert.doesNotMatch(view, new RegExp(`id=["']${removedId}["']`), `obsolete staff field #${removedId} should not be shown`);
+}
+assert.doesNotMatch(view, /User ID ທີ່ເຊື່ອມ/);
+assert.match(view, /ເອໂກ້ \+ ລັງສີ/);
 
 assert.match(navbar, /id="nav-staff"/);
 assert.match(main, /staff:\s*\{ view: 'staff'/);
@@ -33,9 +40,11 @@ assert.match(main, /'\/staff': 'staff'/);
 assert.match(main, /window\.isLocalStaffPreview/);
 assert.match(main, /window\.initLocalStaffPreview/);
 assert.match(main, /if \(v === 'staff'\)/);
-assert.match(style, /\.staff-directory-grid/);
-assert.match(style, /repeat\(auto-fill, minmax\(260px, 1fr\)\)/);
-assert.match(style, /min-height:\s*132px/);
+assert.match(style, /\.staff-directory-table/);
+assert.match(style, /\.staff-table-row/);
+assert.match(style, /\.staff-table-actions/);
+assert.match(main, /installStaffManagement/);
+assert.doesNotMatch(await readFile(new URL('../src/staffManagement.js', import.meta.url), 'utf8'), /staff-profile-card/);
 assert.match(style, /\.staff-photo-preview/);
 assert.equal(STAFF_STORAGE_KEY, 'his_local_staff_profiles_v1');
 assert.equal(STAFF_AVATAR_BUCKET, 'his-staff-avatars');
@@ -46,6 +55,8 @@ const records = [
   { id: '3', employeeCode: 'lab-01', fullName: 'Tech Gamma', employeeType: 'lab', department: 'Lab', status: 'active' }
 ];
 assert.equal(normalizeStaffRecord(records[0]).employeeCode, 'DOC-01');
+assert.equal(createStaffEmployeeCode('doctor', 'abc-def-123'), 'DOC-ABCDEF12');
+assert.equal(createStaffEmployeeCode('nurse', '12345678-abcd'), 'NUR-12345678');
 assert.deepEqual(calculateStaffStats(records), { total: 3, doctors: 1, nurses: 1, active: 2 });
 assert.deepEqual(filterStaffRecords(records, { query: 'opd', type: 'all', status: 'all' }).map(item => item.id), ['1']);
 assert.deepEqual(filterStaffRecords(records, { query: '', type: 'nurse', status: 'on_leave' }).map(item => item.id), ['2']);

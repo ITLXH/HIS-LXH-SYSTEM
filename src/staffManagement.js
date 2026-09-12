@@ -6,7 +6,7 @@ const STAFF_TYPE_META = Object.freeze({
   doctor: { label: 'ແພດ', icon: 'fa-user-md', tone: 'doctor' },
   nurse: { label: 'ພະຍາບານ', icon: 'fa-user-nurse', tone: 'nurse' },
   lab: { label: 'ແລັບ', icon: 'fa-flask', tone: 'lab' },
-  radiology: { label: 'ລັງສີ', icon: 'fa-radiation', tone: 'radiology' },
+  radiology: { label: 'ເອໂກ້ + ລັງສີ', icon: 'fa-radiation', tone: 'radiology' },
   pharmacy: { label: 'ການຢາ', icon: 'fa-pills', tone: 'pharmacy' },
   reception: { label: 'ຕ້ອນຮັບ', icon: 'fa-concierge-bell', tone: 'reception' },
   other: { label: 'ອື່ນໆ', icon: 'fa-user', tone: 'other' }
@@ -21,28 +21,28 @@ const STAFF_STATUS_META = Object.freeze({
 const STAFF_DEMO_RECORDS = Object.freeze([
   {
     id: 'staff-demo-001', employeeCode: 'DOC-001', fullName: 'ດຣ. ສົມພອນ ພົມມະຈັນ',
-    employeeType: 'doctor', department: 'OPD ທົ່ວໄປ', position: 'ແພດປະຈຳ OPD',
-    specialty: 'General Practice', phone: '020 5555 0101', email: '', status: 'active', linkedUserId: '', photoData: ''
+    employeeType: 'doctor', department: 'ແພດ', specialty: 'General Practice',
+    phone: '020 5555 0101', email: '', status: 'active', photoData: ''
   },
   {
     id: 'staff-demo-002', employeeCode: 'DOC-002', fullName: 'ດຣ. ມາລີ ວິໄລວົງ',
-    employeeType: 'doctor', department: 'ຫ້ອງເດັກ', position: 'ແພດປະຈຳຫ້ອງເດັກ',
-    specialty: 'Pediatrics', phone: '020 5555 0102', email: '', status: 'active', linkedUserId: '', photoData: ''
+    employeeType: 'doctor', department: 'ແພດ', specialty: 'Pediatrics',
+    phone: '020 5555 0102', email: '', status: 'active', photoData: ''
   },
   {
     id: 'staff-demo-003', employeeCode: 'NUR-001', fullName: 'ນ. ຄຳແພງ ສີລາ',
-    employeeType: 'nurse', department: 'ພະຍາບານ', position: 'ພະຍາບານວິຊາຊີບ',
-    specialty: '', phone: '020 5555 0201', email: '', status: 'active', linkedUserId: '', photoData: ''
+    employeeType: 'nurse', department: 'ພະຍາບານ', specialty: '',
+    phone: '020 5555 0201', email: '', status: 'active', photoData: ''
   },
   {
     id: 'staff-demo-004', employeeCode: 'LAB-001', fullName: 'ທ. ອານຸສອນ ພິມມະໄຊ',
-    employeeType: 'lab', department: 'ແລັບ', position: 'ນັກເຕັກນິກການແພດ',
-    specialty: 'Laboratory', phone: '020 5555 0301', email: '', status: 'active', linkedUserId: '', photoData: ''
+    employeeType: 'lab', department: 'ແລັບ', specialty: 'Laboratory',
+    phone: '020 5555 0301', email: '', status: 'active', photoData: ''
   },
   {
     id: 'staff-demo-005', employeeCode: 'RAD-001', fullName: 'ນ. ວິລະວັນ ແສງດາວ',
-    employeeType: 'radiology', department: 'ລັງສີ', position: 'ນັກລັງສີການແພດ',
-    specialty: 'Radiology', phone: '020 5555 0401', email: '', status: 'on_leave', linkedUserId: '', photoData: ''
+    employeeType: 'radiology', department: 'ເອໂກ້ + ລັງສີ', specialty: 'Echo + Radiology',
+    phone: '020 5555 0401', email: '', status: 'on_leave', photoData: ''
   }
 ]);
 
@@ -120,6 +120,12 @@ function createStaffRecordId() {
     const value = character === 'x' ? random : ((random & 0x3) | 0x8);
     return value.toString(16);
   });
+}
+
+export function createStaffEmployeeCode(employeeType, recordId) {
+  const prefixes = { doctor: 'DOC', nurse: 'NUR', lab: 'LAB', radiology: 'RAD', pharmacy: 'PHA', reception: 'REC', other: 'STF' };
+  const suffix = clean(recordId).replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase() || Date.now().toString(36).toUpperCase();
+  return `${prefixes[employeeType] || prefixes.other}-${suffix}`;
 }
 
 function readStaffRecords() {
@@ -231,55 +237,58 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
       return;
     }
 
-    grid.innerHTML = filtered.map(record => {
+    const rows = filtered.map((record, index) => {
       const typeMeta = STAFF_TYPE_META[record.employeeType] || STAFF_TYPE_META.other;
       const statusMeta = STAFF_STATUS_META[record.status] || STAFF_STATUS_META.active;
-      const secondary = [record.position, record.specialty].filter(Boolean).join(' · ') || typeMeta.label;
-      const phoneLine = record.phone
-        ? `<span title="${escapeHtml(record.phone)}"><i class="fas fa-phone-alt"></i>${escapeHtml(record.phone)}</span>`
-        : '';
-      return `<article class="staff-profile-card staff-profile-card--${typeMeta.tone}">
-        <div class="staff-profile-card-head">
-          <div class="staff-avatar">${photoMarkup(record)}</div>
+      const specialty = record.specialty || '—';
+      const phone = record.phone || '—';
+      const email = record.email || '';
+      return `<tr class="staff-table-row staff-table-row--${typeMeta.tone}">
+        <td class="staff-table-index">${index + 1}</td>
+        <td>
+          <div class="staff-table-person">
+            <div class="staff-avatar">${photoMarkup(record)}</div>
           <div class="staff-profile-identity">
-            <div class="staff-code">${escapeHtml(record.employeeCode || '—')}</div>
             <h4>${escapeHtml(record.fullName || '—')}</h4>
-            <p>${escapeHtml(secondary)}</p>
+              <p>${escapeHtml(typeMeta.label)}</p>
           </div>
-          <div class="dropdown">
-            <button class="staff-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="ຈັດການ ${escapeHtml(record.fullName)}"><i class="fas fa-ellipsis-h"></i></button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><button class="dropdown-item" type="button" onclick="window.openStaffModal('${escapeHtml(record.id)}')"><i class="fas fa-edit me-2 text-primary"></i>ແກ້ໄຂ</button></li>
-              <li><button class="dropdown-item text-danger" type="button" onclick="window.deleteStaffProfile('${escapeHtml(record.id)}')"><i class="fas fa-trash-alt me-2"></i>ລຶບ</button></li>
-            </ul>
           </div>
-        </div>
-        <div class="staff-profile-meta">
-          <span><i class="fas fa-hospital"></i>${escapeHtml(record.department || 'ບໍ່ລະບຸພະແນກ')}</span>
-          ${phoneLine}
-        </div>
-        <footer>
-          <span class="staff-type-chip"><i class="fas ${typeMeta.icon}"></i>${typeMeta.label}</span>
-          <span class="staff-status-chip staff-status-chip--${record.status}"><i class="fas ${statusMeta.icon}"></i>${statusMeta.label}</span>
-        </footer>
-      </article>`;
+        </td>
+        <td><span class="staff-type-chip"><i class="fas ${typeMeta.icon}"></i>${typeMeta.label}</span></td>
+        <td><span class="staff-table-secondary" title="${escapeHtml(specialty)}">${escapeHtml(specialty)}</span></td>
+        <td><div class="staff-table-contact"><span><i class="fas fa-phone-alt"></i>${escapeHtml(phone)}</span>${email ? `<span title="${escapeHtml(email)}"><i class="fas fa-envelope"></i>${escapeHtml(email)}</span>` : ''}</div></td>
+        <td><span class="staff-status-chip staff-status-chip--${record.status}"><i class="fas ${statusMeta.icon}"></i>${statusMeta.label}</span></td>
+        <td><div class="staff-table-actions">
+          <button class="staff-row-action staff-row-action--edit" type="button" onclick="window.openStaffModal('${escapeHtml(record.id)}')" aria-label="ແກ້ໄຂ ${escapeHtml(record.fullName)}"><i class="fas fa-edit"></i><span>ແກ້ໄຂ</span></button>
+          <button class="staff-row-action staff-row-action--delete" type="button" onclick="window.deleteStaffProfile('${escapeHtml(record.id)}')" aria-label="ລຶບ ${escapeHtml(record.fullName)}"><i class="fas fa-trash-alt"></i></button>
+        </div></td>
+      </tr>`;
     }).join('');
+
+    grid.innerHTML = `<div class="staff-table-scroll"><table class="staff-directory-table">
+      <thead><tr>
+        <th class="staff-table-index">#</th>
+        <th>ຊື່ພະນັກງານ</th>
+        <th>ພະແນກ</th>
+        <th>ວິຊາສະເພາະ</th>
+        <th>ຕິດຕໍ່</th>
+        <th>ສະຖານະ</th>
+        <th class="staff-table-action-heading">ຈັດການ</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
   };
 
   window.openStaffModal = function (recordId = '') {
     const record = state.records.find(item => item.id === recordId) || normalizeStaffRecord({ status: 'active', employeeType: 'doctor' });
     const values = {
       staffRecordId: record.id,
-      staffEmployeeCode: record.employeeCode,
       staffFullName: record.fullName,
-      staffEmployeeType: record.employeeType,
-      staffDepartment: record.department,
-      staffPosition: record.position,
+      staffDepartmentType: record.employeeType,
       staffSpecialty: record.specialty,
       staffPhone: record.phone,
       staffEmail: record.email,
       staffStatus: record.status,
-      staffLinkedUserId: record.linkedUserId,
       staffPhotoData: record.photoData,
       staffPhotoPath: record.photoPath
     };
@@ -345,18 +354,21 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
     const existingId = clean(document.getElementById('staffRecordId')?.value);
     const now = new Date().toISOString();
     const existing = state.records.find(item => item.id === existingId);
+    const recordId = existingId || createStaffRecordId();
+    const employeeType = clean(document.getElementById('staffDepartmentType')?.value) || 'other';
+    const typeMeta = STAFF_TYPE_META[employeeType] || STAFF_TYPE_META.other;
     const record = normalizeStaffRecord({
-      id: existingId || createStaffRecordId(),
-      employeeCode: document.getElementById('staffEmployeeCode')?.value,
+      id: recordId,
+      employeeCode: existing?.employeeCode || createStaffEmployeeCode(employeeType, recordId),
       fullName: document.getElementById('staffFullName')?.value,
-      employeeType: document.getElementById('staffEmployeeType')?.value,
-      department: document.getElementById('staffDepartment')?.value,
-      position: document.getElementById('staffPosition')?.value,
+      employeeType,
+      department: typeMeta.label,
+      position: existing?.position,
       specialty: document.getElementById('staffSpecialty')?.value,
       phone: document.getElementById('staffPhone')?.value,
       email: document.getElementById('staffEmail')?.value,
       status: document.getElementById('staffStatus')?.value,
-      linkedUserId: document.getElementById('staffLinkedUserId')?.value,
+      linkedUserId: existing?.linkedUserId,
       photoData: document.getElementById('staffPhotoData')?.value,
       photoPath: document.getElementById('staffPhotoPath')?.value,
       createdAt: existing?.createdAt || now,
