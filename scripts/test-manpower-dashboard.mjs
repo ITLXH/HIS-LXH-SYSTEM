@@ -9,11 +9,12 @@ import {
 } from '../src/manpowerDashboard.js';
 import {
   assignmentPayload,
+  createManpowerSupabaseBackend,
   mapAssignmentRow,
   mapHistoryRow
 } from '../src/manpowerSupabase.js';
 
-const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration] = await Promise.all([
+const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration, leaveMigration] = await Promise.all([
   readFile(new URL('../public/partials/views/manpower.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/main.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/partials/navbar.html', import.meta.url), 'utf8'),
@@ -22,7 +23,8 @@ const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migrati
   readFile(new URL('../src/manpowerDashboard.js', import.meta.url), 'utf8'),
   readFile(new URL('../src/manpowerSupabase.js', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260912120000_manpower_production.sql', import.meta.url), 'utf8'),
-  readFile(new URL('../supabase/migrations/20260912133000_manpower_security_hardening.sql', import.meta.url), 'utf8')
+  readFile(new URL('../supabase/migrations/20260912133000_manpower_security_hardening.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260912170000_manpower_leave_types_notes.sql', import.meta.url), 'utf8')
 ]);
 
 for (const id of [
@@ -30,9 +32,9 @@ for (const id of [
   'manpowerLeaveCount', 'manpowerSwappedCount', 'manpowerDepartmentList',
   'manpowerPrintContext', 'manpowerDataBadge', 'manpowerAssignmentModal', 'manpowerStaffSelect', 'manpowerStatusSelect',
   'manpowerAssignmentDepartment', 'manpowerStaffAvailabilityNote', 'manpowerAssignmentSaveButton',
-  'manpowerNewReplacementGroup', 'manpowerNewReplacementStaff',
+  'manpowerNewLeaveTypeGroup', 'manpowerNewLeaveType', 'manpowerNewNote',
   'manpowerManagementModal', 'manpowerManageAssignmentId', 'manpowerManageCurrentStaff',
-  'manpowerManageStatus', 'manpowerReplacementGroup', 'manpowerReplacementStaff',
+  'manpowerManageStatus', 'manpowerLeaveTypeGroup', 'manpowerLeaveType', 'manpowerNote',
   'manpowerHistoryModal', 'manpowerHistorySearch', 'manpowerHistoryDate', 'manpowerHistoryShift',
   'manpowerHistoryType', 'manpowerHistoryAction', 'manpowerHistoryCount', 'manpowerHistoryRows',
   'manpowerHistoryStorageLabel'
@@ -41,6 +43,7 @@ for (const id of [
 assert.match(main, /manpower:\s*\{ view: 'manpower'/);
 assert.match(main, /'\/manpower': 'manpower'/);
 assert.match(main, /window\.isLocalManpowerPreview/);
+assert.match(main, /const previewRequested = new URLSearchParams\(window\.location\.search\)\.get\('preview'\) === '1'/);
 assert.match(main, /if \(v === 'manpower'\)/);
 assert.match(main, /createManpowerSupabaseBackend/);
 assert.match(main, /backend:\s*manpowerSupabaseBackend/);
@@ -73,7 +76,13 @@ assert.match(style, /#view-manpower\s*\{[^}]*page:\s*manpower-print/s);
 assert.match(style, /#view-manpower\s*\{[^}]*width:\s*289mm\s*!important/s);
 assert.match(style, /@media print[\s\S]*\.manpower-header p\s*\{\s*display:\s*none\s*!important/);
 assert.match(style, /@media print[\s\S]*\.manpower-person-info small,[\s\S]*\.manpower-person-role\s*\{\s*display:\s*none\s*!important/);
-assert.match(style, /@media print[\s\S]*\.manpower-person-info strong\s*\{[^}]*font-size:\s*10\.5pt/s);
+assert.match(style, /@media print[\s\S]*\.manpower-person-info strong,[\s\S]*overflow-wrap:\s*anywhere/s);
+assert.match(style, /@media print[\s\S]*\.manpower-person-info strong\s*\{[^}]*font-size:\s*7\.4pt/s);
+assert.match(style, /@media print[\s\S]*\.manpower-header\s*\{[^}]*min-height:\s*13mm[^}]*border-radius:\s*2mm/s);
+assert.match(style, /@media print[\s\S]*\.manpower-summary article\s*\{[^}]*min-height:\s*11mm[^}]*border-radius:\s*2mm/s);
+assert.match(style, /@media print[\s\S]*\.manpower-people\s*\{[^}]*min-height:\s*16mm/s);
+assert.match(style, /@media print[\s\S]*\.manpower-person\s*\{[^}]*min-height:\s*14mm/s);
+assert.match(style, /\.manpower-modal \.select2-container/);
 assert.match(view, /window\.printManpowerDashboard\(\)/);
 assert.match(view, /window\.saveManpowerManagement\(event\)/);
 assert.match(view, /window\.openManpowerHistory\(\)/);
@@ -88,7 +97,12 @@ const departmentPositions = ['doctor:', 'nurse:', 'pharmacy:', 'lab:', 'radiolog
 assert.ok(departmentPositions.every(position => position >= 0), 'all requested departments must be configured');
 assert.deepEqual([...departmentPositions].sort((a, b) => a - b), departmentPositions, 'departments must use the requested display order');
 assert.match(dashboard, /window\.openManpowerManagement/);
-assert.match(dashboard, /replacementStaffId/);
+assert.match(dashboard, /minimumResultsForSearch:\s*0/);
+assert.match(dashboard, /manpowerLandscapePrintRule/);
+assert.match(dashboard, /label: 'ລາພັກ'/);
+assert.match(dashboard, /label: 'ລາປ່ວຍ'/);
+assert.match(dashboard, /label: 'ລາກິດ'/);
+assert.doesNotMatch(view, /ຜູ້ຮັບເວນແທນ/);
 assert.match(dashboard, /appendHistory\(\{ action: 'created'/);
 assert.match(dashboard, /appendHistory\(\{ action: 'deleted'/);
 assert.match(dashboard, /MANPOWER_HISTORY_STORAGE_KEY/);
@@ -123,6 +137,10 @@ assert.match(hardeningMigration, /Assignment date, shift and staff cannot be cha
 assert.match(hardeningMigration, /NEW\."Created_By" := auth\.uid\(\)/);
 assert.match(hardeningMigration, /NEW\."Deleted_By" := auth\.uid\(\)/);
 assert.match(hardeningMigration, /public\.his_one_is_active_user\(\) AND "Deleted_At" IS NULL/);
+assert.match(leaveMigration, /ADD COLUMN IF NOT EXISTS "Leave_Type" TEXT/);
+assert.match(leaveMigration, /DROP CONSTRAINT IF EXISTS "HIS_One_Manpower_Assignments_replacement_check"/);
+assert.match(leaveMigration, /"Leave_Type" IN \('vacation', 'sick', 'personal'\)/);
+assert.match(leaveMigration, /"Note_Before" TEXT/);
 assert.equal(MANPOWER_STORAGE_KEY, 'his_local_manpower_assignments_v1');
 assert.equal(MANPOWER_HISTORY_STORAGE_KEY, 'his_local_manpower_history_v1');
 assert.deepEqual(calculateManpowerSummary([
@@ -136,16 +154,16 @@ assert.equal(resolveManpowerStaffType({ specialty: 'Laboratory' }), 'lab');
 assert.equal(resolveManpowerStaffType({ department: 'Echo / Ultrasound' }), 'radiology');
 assert.deepEqual(assignmentPayload({
   id: 'local-id', date: '2026-09-12', shift: 'night', staffId: 'staff-id',
-  status: 'leave', replacementStaffId: 'replacement-id', note: 'handover'
+  status: 'leave', leaveType: 'sick', replacementStaffId: 'replacement-id', note: 'handover'
 }), {
   ID: 'local-id', Duty_Date: '2026-09-12', Shift: 'night', Staff_ID: 'staff-id',
-  Status: 'leave', Replacement_Staff_ID: 'replacement-id', Note: 'handover'
+  Status: 'leave', Leave_Type: 'sick', Replacement_Staff_ID: null, Note: 'handover'
 });
 assert.deepEqual(mapAssignmentRow({
   ID: 'assignment-id', Duty_Date: '2026-09-12', Shift: 'morning', Staff_ID: 'staff-id', Status: 'working'
 }), {
   id: 'assignment-id', date: '2026-09-12', shift: 'morning', staffId: 'staff-id', status: 'working',
-  replacementStaffId: '', note: '', createdAt: '', updatedAt: ''
+  leaveType: '', replacementStaffId: '', note: '', createdAt: '', updatedAt: ''
 });
 assert.equal(mapHistoryRow({ Changed_By_Name: 'Admin', Staff_Name: 'Doctor One' }).changedBy, 'Admin');
 const history = [
@@ -156,4 +174,36 @@ assert.equal(filterManpowerHistory(history, { date: '2026-09-12', shift: 'night'
 assert.equal(filterManpowerHistory(history, { type: 'doctor', action: 'created' }).length, 1);
 assert.equal(filterManpowerHistory(history, { query: 'tester' }).length, 1);
 assert.match(dashboard, /label: 'ເອໂກ້ \+ ລັງສີ'/);
+
+const fallbackSelects = [];
+const fallbackClient = {
+  from() {
+    return {
+      select(columns) {
+        fallbackSelects.push(columns);
+        const response = columns.includes('Leave_Type')
+          ? { data: null, error: { code: '42703', message: 'column Leave_Type does not exist' } }
+          : { data: [{ ID: 'legacy-id', Duty_Date: '2026-09-12', Shift: 'morning', Staff_ID: 'staff-id', Status: 'working' }], error: null };
+        const query = {
+          is() { return query; },
+          order() { return query; },
+          eq() { return query; },
+          then(resolve, reject) { return Promise.resolve(response).then(resolve, reject); }
+        };
+        return query;
+      }
+    };
+  }
+};
+const fallbackBackend = createManpowerSupabaseBackend({
+  client: fallbackClient,
+  assignmentsTableName: 'assignments',
+  historyTableName: 'history'
+});
+const fallbackRows = await fallbackBackend.loadAssignments('2026-09-12');
+assert.equal(fallbackRows.length, 1);
+assert.equal(fallbackRows[0].id, 'legacy-id');
+assert.equal(fallbackSelects.length, 2, 'missing Leave_Type must retry with the legacy assignment columns');
+assert.ok(fallbackSelects[0].includes('Leave_Type'));
+assert.ok(!fallbackSelects[1].includes('Leave_Type'));
 console.log('Manpower production persistence, security, history, realtime and UI checks passed.');

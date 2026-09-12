@@ -17,6 +17,12 @@ const STATUSES = Object.freeze({
   swapped: { label: 'ປ່ຽນເວນ', icon: 'fa-exchange-alt' }
 });
 
+const LEAVE_TYPES = Object.freeze({
+  vacation: { label: 'ລາພັກ', icon: 'fa-umbrella-beach' },
+  sick: { label: 'ລາປ່ວຍ', icon: 'fa-notes-medical' },
+  personal: { label: 'ລາກິດ', icon: 'fa-user-clock' }
+});
+
 const SHIFTS = Object.freeze({
   morning: { label: 'ກະເຊົ້າ', time: '08:00–16:00' },
   evening: { label: 'ກະແລງ', time: '16:00–21:00' },
@@ -84,7 +90,7 @@ export function filterManpowerHistory(records = [], filters = {}) {
     if (filters.type && item.staffType !== filters.type) return false;
     if (filters.action && item.action !== filters.action) return false;
     if (!query) return true;
-    return [item.staffName, item.replacementBeforeName, item.replacementAfterName, item.changedBy]
+    return [item.staffName, item.replacementBeforeName, item.replacementAfterName, item.noteBefore, item.noteAfter, item.changedBy]
       .some(value => clean(value).toLocaleLowerCase().includes(query));
   });
 }
@@ -141,6 +147,11 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   };
 
   const staffById = staffId => state.staff.find(item => item.id === staffId);
+  const normalizedLeaveType = assignment => assignment?.status === 'leave' ? (clean(assignment.leaveType) || 'vacation') : '';
+  const statusMeta = assignment => {
+    if (assignment?.status === 'leave') return LEAVE_TYPES[normalizedLeaveType(assignment)] || LEAVE_TYPES.vacation;
+    return STATUSES[assignment?.status] || STATUSES.working;
+  };
   const currentOperator = () => {
     const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
     return clean(user?.name || user?.username || user?.id) || 'Manpower Local Test';
@@ -161,6 +172,10 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       staffType: resolveManpowerStaffType(staff || assignment),
       statusBefore: clean(before.status),
       statusAfter: clean(after.status),
+      leaveTypeBefore: clean(before.leaveType),
+      leaveTypeAfter: clean(after.leaveType),
+      noteBefore: clean(before.note),
+      noteAfter: clean(after.note),
       replacementBeforeId: clean(before.replacementStaffId),
       replacementBeforeName: beforeReplacement?.fullName || '',
       replacementAfterId: clean(after.replacementStaffId),
@@ -281,13 +296,11 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       .filter(item => item.staff);
     const manageAllowed = mayManage();
     const personCard = ({ assignment, staff }, meta) => {
-      const status = STATUSES[assignment.status] || STATUSES.working;
-      const replacement = assignment.replacementStaffId
-        ? state.staff.find(person => person.id === assignment.replacementStaffId)
-        : null;
+      const status = statusMeta(assignment);
+      const note = clean(assignment.note);
       return `<article class="manpower-person">
         <div class="manpower-person-photo">${photo(staff, meta)}</div>
-        <div class="manpower-person-info"><strong title="${escapeHtml(staff.fullName)}">${escapeHtml(staff.fullName)}</strong><small>${escapeHtml(staff.specialty || meta.subtitle)}</small><span class="manpower-person-role">${escapeHtml(meta.label)}</span><span class="manpower-status manpower-status--${assignment.status}"><i class="fas ${status.icon}"></i>${status.label}</span>${replacement ? `<span class="manpower-replacement" title="${escapeHtml(staff.fullName)} → ${escapeHtml(replacement.fullName)}"><i class="fas fa-long-arrow-alt-right"></i>${escapeHtml(replacement.fullName)}</span>` : ''}</div>
+        <div class="manpower-person-info"><strong title="${escapeHtml(staff.fullName)}">${escapeHtml(staff.fullName)}</strong><small>${escapeHtml(staff.specialty || meta.subtitle)}</small><span class="manpower-person-role">${escapeHtml(meta.label)}</span><span class="manpower-status manpower-status--${assignment.status}"><i class="fas ${status.icon}"></i>${status.label}</span>${note ? `<span class="manpower-note" title="${escapeHtml(note)}"><i class="fas fa-sticky-note"></i>${escapeHtml(note)}</span>` : ''}</div>
         ${manageAllowed ? `<button type="button" class="manpower-remove" onclick="window.removeManpowerAssignment('${escapeHtml(assignment.id)}')" aria-label="ເອົາ ${escapeHtml(staff.fullName)} ອອກຈາກເວນ"><i class="fas fa-times"></i></button>
         <button type="button" class="manpower-manage" onclick="window.openManpowerManagement('${escapeHtml(assignment.id)}')"><i class="fas fa-sliders-h"></i> ຈັດການ</button>` : ''}
       </article>`;
@@ -401,14 +414,15 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       const action = HISTORY_ACTIONS[item.action] || HISTORY_ACTIONS.updated;
       const type = TYPES[item.staffType] || { label: item.staffType || '-', tone: 'blue' };
       const shift = SHIFTS[item.shift] || { label: item.shift || '-' };
-      const beforeStatus = STATUSES[item.statusBefore]?.label || '-';
-      const afterStatus = STATUSES[item.statusAfter]?.label || '-';
+      const beforeStatus = item.statusBefore ? statusMeta({ status: item.statusBefore, leaveType: item.leaveTypeBefore }).label : '-';
+      const afterStatus = item.statusAfter ? statusMeta({ status: item.statusAfter, leaveType: item.leaveTypeAfter }).label : '-';
       const changedAt = new Date(item.changedAt);
       const time = Number.isNaN(changedAt.getTime()) ? '-' : changedAt.toLocaleString('lo-LA', { hour12: false });
       let detail = `${beforeStatus} → ${afterStatus}`;
       if (item.action === 'created') detail = `ສະຖານະ: ${afterStatus}`;
       if (item.action === 'deleted') detail = `ສະຖານະກ່ອນລຶບ: ${beforeStatus}`;
       if (item.replacementAfterName) detail += `<small>ຮັບເວນແທນ: ${escapeHtml(item.replacementAfterName)}</small>`;
+      if (item.noteAfter) detail += `<small>ໝາຍເຫດ: ${escapeHtml(item.noteAfter)}</small>`;
       return `<tr>
         <td><span class="manpower-history-action manpower-history-action--${action.tone}"><i class="fas ${action.icon}"></i>${action.label}</span></td>
         <td><strong>${escapeHtml(item.staffName)}</strong><small>${escapeHtml(type.label)}</small></td>
@@ -426,10 +440,31 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     const app = document.getElementById('app-content');
     view?.classList.toggle('manpower-print-dense', document.querySelectorAll('#manpowerDepartmentList .manpower-person').length > 24);
     app?.classList.add('print-active');
-    const cleanup = () => app?.classList.remove('print-active');
+    const landscapeRule = document.createElement('style');
+    landscapeRule.id = 'manpowerLandscapePrintRule';
+    landscapeRule.textContent = '@media print { @page { size: A4 landscape; margin: 4mm; } }';
+    document.getElementById(landscapeRule.id)?.remove();
+    document.head.appendChild(landscapeRule);
+    const cleanup = () => {
+      app?.classList.remove('print-active');
+      view?.classList.remove('manpower-print-dense');
+      landscapeRule.remove();
+    };
     window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
     window.setTimeout(cleanup, 1000);
+  };
+
+  const enableStaffSearch = select => {
+    if (!select || !window.jQuery || !window.jQuery.fn?.select2) return;
+    const $select = window.jQuery(select);
+    if ($select.hasClass('select2-hidden-accessible')) $select.select2('destroy');
+    $select.select2({
+      dropdownParent: window.jQuery('#manpowerAssignmentModal'),
+      placeholder: 'ພິມຊື່ພະນັກງານເພື່ອຄົ້ນຫາ',
+      minimumResultsForSearch: 0,
+      width: '100%'
+    }).off('change.manpower').on('change.manpower', window.toggleNewManpowerFields);
   };
 
   window.openManpowerAssignment = function (type = 'doctor') {
@@ -448,13 +483,14 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     if (departmentScope) departmentScope.innerHTML = `<i class="fas ${meta.icon}"></i><span>ກຳລັງເລືອກສະເພາະ</span><strong>${escapeHtml(meta.label)} · ${escapeHtml(meta.subtitle)}</strong>`;
     if (select) {
       const availableOptions = choices.length
-        ? `<optgroup label="${escapeHtml(meta.label)} — ສາມາດເພີ່ມໄດ້">${choices.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)}${item.specialty ? ` — ${escapeHtml(item.specialty)}` : ''}</option>`).join('')}</optgroup>`
+        ? `<option value=""></option><optgroup label="${escapeHtml(meta.label)} — ສາມາດເພີ່ມໄດ້">${choices.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)}${item.specialty ? ` — ${escapeHtml(item.specialty)}` : ''}</option>`).join('')}</optgroup>`
         : '<option value="">ບໍ່ມີພະນັກງານວ່າງໃນພະແນກນີ້</option>';
       const assignedOptions = alreadyAssigned.length
         ? `<optgroup label="ຈັດເຂົ້າເວນແລ້ວ">${alreadyAssigned.map(item => `<option value="" disabled>${escapeHtml(item.fullName)} — ຢູ່ໃນເວນແລ້ວ</option>`).join('')}</optgroup>`
         : '';
       select.innerHTML = `${availableOptions}${assignedOptions}`;
       select.disabled = !departmentStaff.length;
+      enableStaffSearch(select);
     }
     if (saveButton) saveButton.disabled = !choices.length;
     if (availabilityNote) {
@@ -462,29 +498,24 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         ? `<i class="fas fa-users"></i> ${escapeHtml(meta.label)}: ພົບ ${departmentStaff.length} ຄົນ · ວ່າງເພີ່ມ ${choices.length} ຄົນ · ຢູ່ໃນເວນແລ້ວ ${alreadyAssigned.length} ຄົນ`
         : '<i class="fas fa-user-plus"></i> ຍັງບໍ່ມີພະນັກງານໃນພະແນກນີ້; ກະລຸນາເພີ່ມໃນໜ້າຈັດການພະນັກງານ';
     }
-    window.toggleNewManpowerReplacement();
+    const statusSelect = document.getElementById('manpowerStatusSelect');
+    const leaveTypeSelect = document.getElementById('manpowerNewLeaveType');
+    const noteInput = document.getElementById('manpowerNewNote');
+    if (statusSelect) statusSelect.value = 'working';
+    if (leaveTypeSelect) leaveTypeSelect.value = 'vacation';
+    if (noteInput) noteInput.value = '';
+    window.toggleNewManpowerFields();
     const modal = document.getElementById('manpowerAssignmentModal');
     if (modal && window.bootstrap?.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).show();
   };
 
-  window.toggleNewManpowerReplacement = function () {
+  window.toggleNewManpowerFields = function () {
     const status = clean(document.getElementById('manpowerStatusSelect')?.value) || 'working';
-    const staffId = clean(document.getElementById('manpowerStaffSelect')?.value);
-    const group = document.getElementById('manpowerNewReplacementGroup');
-    const replacementSelect = document.getElementById('manpowerNewReplacementStaff');
-    const needsReplacement = status !== 'working';
-    if (group) group.hidden = !needsReplacement;
-    if (!replacementSelect) return;
-    replacementSelect.required = needsReplacement;
-    if (!needsReplacement) {
-      replacementSelect.value = '';
-      return;
-    }
-    const selectedStaff = staffById(staffId);
-    const selectedType = resolveManpowerStaffType(selectedStaff);
-    const assignedIds = new Set(selectedAssignments().flatMap(item => [item.staffId, item.replacementStaffId].filter(Boolean)));
-    const choices = state.staff.filter(item => item.id !== staffId && resolveManpowerStaffType(item) === selectedType && !assignedIds.has(item.id));
-    replacementSelect.innerHTML = `<option value="">ເລືອກຜູ້ຮັບເວນແທນ</option>${choices.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)}</option>`).join('')}`;
+    const group = document.getElementById('manpowerNewLeaveTypeGroup');
+    const leaveTypeSelect = document.getElementById('manpowerNewLeaveType');
+    const isLeave = status === 'leave';
+    if (group) group.hidden = !isLeave;
+    if (leaveTypeSelect) leaveTypeSelect.required = isLeave;
   };
 
   window.saveManpowerAssignment = async function (event) {
@@ -493,9 +524,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     const staffId = clean(document.getElementById('manpowerStaffSelect')?.value);
     if (!staffId) return;
     const status = clean(document.getElementById('manpowerStatusSelect')?.value) || 'working';
-    const replacementStaffId = clean(document.getElementById('manpowerNewReplacementStaff')?.value);
-    if (status !== 'working' && !replacementStaffId) return notify('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຜູ້ຮັບເວນແທນ', 'warning');
-    const assignment = { id: createId(), date: state.date, shift: state.shift, staffId, status, replacementStaffId: status === 'working' ? '' : replacementStaffId, createdAt: new Date().toISOString() };
+    const leaveType = status === 'leave' ? (clean(document.getElementById('manpowerNewLeaveType')?.value) || 'vacation') : '';
+    const note = clean(document.getElementById('manpowerNewNote')?.value);
+    const assignment = { id: createId(), date: state.date, shift: state.shift, staffId, status, leaveType, note, replacementStaffId: '', createdAt: new Date().toISOString() };
     const saveButton = document.getElementById('manpowerAssignmentSaveButton');
     if (saveButton) saveButton.disabled = true;
     try {
@@ -559,32 +590,25 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     const assignmentInput = document.getElementById('manpowerManageAssignmentId');
     const currentInput = document.getElementById('manpowerManageCurrentStaff');
     const statusSelect = document.getElementById('manpowerManageStatus');
-    const replacementSelect = document.getElementById('manpowerReplacementStaff');
+    const leaveTypeSelect = document.getElementById('manpowerLeaveType');
+    const noteInput = document.getElementById('manpowerNote');
     if (assignmentInput) assignmentInput.value = assignment.id;
     if (currentInput) currentInput.value = currentStaff.fullName;
     if (statusSelect) statusSelect.value = assignment.status || 'working';
-
-    const currentType = resolveManpowerStaffType(currentStaff);
-    const blockedIds = new Set(selectedAssignments()
-      .filter(item => item.id !== assignment.id)
-      .flatMap(item => [item.staffId, item.replacementStaffId].filter(Boolean)));
-    const choices = state.staff.filter(item => item.id !== currentStaff.id && resolveManpowerStaffType(item) === currentType && !blockedIds.has(item.id));
-    if (replacementSelect) {
-      replacementSelect.innerHTML = `<option value="">ເລືອກຜູ້ຮັບເວນແທນ</option>${choices.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)}</option>`).join('')}`;
-      replacementSelect.value = assignment.replacementStaffId || '';
-    }
-    window.toggleManpowerReplacement();
+    if (leaveTypeSelect) leaveTypeSelect.value = normalizedLeaveType(assignment) || 'vacation';
+    if (noteInput) noteInput.value = assignment.note || '';
+    window.toggleManpowerFields();
     const modal = document.getElementById('manpowerManagementModal');
     if (modal && window.bootstrap?.Modal) window.bootstrap.Modal.getOrCreateInstance(modal).show();
   };
 
-  window.toggleManpowerReplacement = function () {
+  window.toggleManpowerFields = function () {
     const status = clean(document.getElementById('manpowerManageStatus')?.value) || 'working';
-    const group = document.getElementById('manpowerReplacementGroup');
-    const replacementSelect = document.getElementById('manpowerReplacementStaff');
-    const needsReplacement = status !== 'working';
-    if (group) group.hidden = !needsReplacement;
-    if (replacementSelect) replacementSelect.required = needsReplacement;
+    const group = document.getElementById('manpowerLeaveTypeGroup');
+    const leaveTypeSelect = document.getElementById('manpowerLeaveType');
+    const isLeave = status === 'leave';
+    if (group) group.hidden = !isLeave;
+    if (leaveTypeSelect) leaveTypeSelect.required = isLeave;
   };
 
   window.saveManpowerManagement = async function (event) {
@@ -592,24 +616,26 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
     const assignmentId = clean(document.getElementById('manpowerManageAssignmentId')?.value);
     const status = clean(document.getElementById('manpowerManageStatus')?.value) || 'working';
-    const replacementStaffId = clean(document.getElementById('manpowerReplacementStaff')?.value);
-    if (status !== 'working' && !replacementStaffId) return;
+    const leaveType = status === 'leave' ? (clean(document.getElementById('manpowerLeaveType')?.value) || 'vacation') : '';
+    const note = clean(document.getElementById('manpowerNote')?.value);
     const assignment = state.assignments.find(item => item.id === assignmentId);
     if (!assignment) return;
-    const before = { status: assignment.status, replacementStaffId: assignment.replacementStaffId || '' };
-    const after = { status, replacementStaffId: status === 'working' ? '' : replacementStaffId };
-    if (before.status === after.status && before.replacementStaffId === after.replacementStaffId) {
+    const before = { status: assignment.status, leaveType: normalizedLeaveType(assignment), note: assignment.note || '', replacementStaffId: assignment.replacementStaffId || '' };
+    const after = { status, leaveType, note, replacementStaffId: '' };
+    if (before.status === after.status && before.leaveType === after.leaveType && before.note === after.note && !before.replacementStaffId) {
       window.bootstrap?.Modal?.getInstance(document.getElementById('manpowerManagementModal'))?.hide();
       return;
     }
     try {
       if (isLocalMode()) {
         assignment.status = status;
-        assignment.replacementStaffId = after.replacementStaffId;
+        assignment.leaveType = leaveType;
+        assignment.note = note;
+        assignment.replacementStaffId = '';
         assignment.updatedAt = new Date().toISOString();
         writeAssignments(state.assignments);
         appendHistory({
-          action: before.replacementStaffId !== after.replacementStaffId && after.replacementStaffId ? 'replaced' : 'updated',
+          action: 'updated',
           assignment,
           before,
           after

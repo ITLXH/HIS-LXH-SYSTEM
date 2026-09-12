@@ -9,6 +9,7 @@ function mapAssignmentRow(row = {}) {
     shift: clean(row.Shift),
     staffId: clean(row.Staff_ID),
     status: clean(row.Status) || 'working',
+    leaveType: clean(row.Leave_Type),
     replacementStaffId: clean(row.Replacement_Staff_ID),
     note: clean(row.Note),
     createdAt: clean(row.Created_At),
@@ -28,6 +29,10 @@ function mapHistoryRow(row = {}) {
     staffType: clean(row.Staff_Type),
     statusBefore: clean(row.Status_Before),
     statusAfter: clean(row.Status_After),
+    leaveTypeBefore: clean(row.Leave_Type_Before),
+    leaveTypeAfter: clean(row.Leave_Type_After),
+    noteBefore: clean(row.Note_Before),
+    noteAfter: clean(row.Note_After),
     replacementBeforeId: clean(row.Replacement_Before_ID),
     replacementBeforeName: clean(row.Replacement_Before_Name),
     replacementAfterId: clean(row.Replacement_After_ID),
@@ -38,13 +43,15 @@ function mapHistoryRow(row = {}) {
 }
 
 function assignmentPayload(record = {}) {
+  const status = clean(record.status) || 'working';
   return {
     ID: clean(record.id) || undefined,
     Duty_Date: clean(record.date),
     Shift: clean(record.shift),
     Staff_ID: clean(record.staffId),
-    Status: clean(record.status) || 'working',
-    Replacement_Staff_ID: clean(record.replacementStaffId) || null,
+    Status: status,
+    Leave_Type: status === 'leave' ? (clean(record.leaveType) || 'vacation') : null,
+    Replacement_Staff_ID: null,
     Note: clean(record.note) || null
   };
 }
@@ -54,67 +61,109 @@ function errorMessage(scope, error) {
   return `${scope}: ${clean(error?.message) || 'Unknown database error'}${details ? ` (${details})` : ''}`;
 }
 
+function isOptionalManpowerColumnMissing(error) {
+  const message = clean(error?.message).toLowerCase();
+  return ['PGRST200', 'PGRST204', '42703'].includes(clean(error?.code).toUpperCase())
+    || message.includes('leave_type')
+    || message.includes('note_before')
+    || message.includes('note_after');
+}
+
 export function createManpowerSupabaseBackend({ client, assignmentsTableName, historyTableName }) {
   if (!client || !assignmentsTableName || !historyTableName) throw new Error('Manpower Supabase backend requires client and table names');
   let channel = null;
+  let hasLeaveTypeSchema = null;
+  const assignmentColumns = 'ID,Duty_Date,Shift,Staff_ID,Status,Leave_Type,Replacement_Staff_ID,Note,Created_At,Updated_At';
+  const legacyAssignmentColumns = 'ID,Duty_Date,Shift,Staff_ID,Status,Replacement_Staff_ID,Note,Created_At,Updated_At';
+  const historyColumns = 'ID,Assignment_ID,Action,Duty_Date,Shift,Staff_ID,Staff_Name,Staff_Type,Status_Before,Status_After,Leave_Type_Before,Leave_Type_After,Note_Before,Note_After,Replacement_Before_ID,Replacement_Before_Name,Replacement_After_ID,Replacement_After_Name,Changed_By,Changed_By_Name,Changed_At';
+  const legacyHistoryColumns = 'ID,Assignment_ID,Action,Duty_Date,Shift,Staff_ID,Staff_Name,Staff_Type,Status_Before,Status_After,Replacement_Before_ID,Replacement_Before_Name,Replacement_After_ID,Replacement_After_Name,Changed_By,Changed_By_Name,Changed_At';
+
+  const buildAssignmentQuery = (columns, date) => {
+    let query = client
+      .from(assignmentsTableName)
+      .select(columns)
+      .is('Deleted_At', null)
+      .order('Shift', { ascending: true })
+      .order('Created_At', { ascending: true });
+    if (clean(date)) query = query.eq('Duty_Date', clean(date));
+    return query;
+  };
+
+  const requireLeaveTypeSchema = status => {
+    if (hasLeaveTypeSchema === false && clean(status) !== 'working') {
+      throw new Error('Supabase migration for leave types must be applied before saving a non-working status');
+    }
+  };
 
   return {
     mode: 'supabase',
 
     async loadAssignments(date) {
-      let query = client
-        .from(assignmentsTableName)
-        .select('ID,Duty_Date,Shift,Staff_ID,Status,Replacement_Staff_ID,Note,Created_At,Updated_At')
-        .is('Deleted_At', null)
-        .order('Shift', { ascending: true })
-        .order('Created_At', { ascending: true });
-      if (clean(date)) query = query.eq('Duty_Date', clean(date));
-      const { data, error } = await query;
+      let { data, error } = await buildAssignmentQuery(
+        hasLeaveTypeSchema === false ? legacyAssignmentColumns : assignmentColumns,
+        date
+      );
+      if (error && hasLeaveTypeSchema !== false && isOptionalManpowerColumnMissing(error)) {
+        hasLeaveTypeSchema = false;
+        ({ data, error } = await buildAssignmentQuery(legacyAssignmentColumns, date));
+      } else if (!error && hasLeaveTypeSchema === null) hasLeaveTypeSchema = true;
       if (error) throw new Error(errorMessage('Manpower assignments', error));
       return (data || []).map(mapAssignmentRow);
     },
 
     async loadHistory(filters = {}) {
-      let query = client
-        .from(historyTableName)
-        .select('ID,Assignment_ID,Action,Duty_Date,Shift,Staff_ID,Staff_Name,Staff_Type,Status_Before,Status_After,Replacement_Before_ID,Replacement_Before_Name,Replacement_After_ID,Replacement_After_Name,Changed_By,Changed_By_Name,Changed_At')
-        .order('Changed_At', { ascending: false })
-        .limit(2000);
-      if (clean(filters.date)) query = query.eq('Duty_Date', clean(filters.date));
-      if (clean(filters.shift)) query = query.eq('Shift', clean(filters.shift));
-      if (clean(filters.type)) query = query.eq('Staff_Type', clean(filters.type));
-      if (clean(filters.action)) query = query.eq('Action', clean(filters.action));
-      const { data, error } = await query;
+      const buildHistoryQuery = columns => {
+        let query = client
+          .from(historyTableName)
+          .select(columns)
+          .order('Changed_At', { ascending: false })
+          .limit(2000);
+        if (clean(filters.date)) query = query.eq('Duty_Date', clean(filters.date));
+        if (clean(filters.shift)) query = query.eq('Shift', clean(filters.shift));
+        if (clean(filters.type)) query = query.eq('Staff_Type', clean(filters.type));
+        if (clean(filters.action)) query = query.eq('Action', clean(filters.action));
+        return query;
+      };
+      let { data, error } = await buildHistoryQuery(hasLeaveTypeSchema === false ? legacyHistoryColumns : historyColumns);
+      if (error && hasLeaveTypeSchema !== false && isOptionalManpowerColumnMissing(error)) {
+        hasLeaveTypeSchema = false;
+        ({ data, error } = await buildHistoryQuery(legacyHistoryColumns));
+      }
       if (error) throw new Error(errorMessage('Manpower history', error));
       return (data || []).map(mapHistoryRow);
     },
 
     async create(record) {
       const payload = assignmentPayload(record);
+      requireLeaveTypeSchema(payload.Status);
+      if (hasLeaveTypeSchema === false) delete payload.Leave_Type;
       // Production identifiers are always generated by Postgres. Local preview
       // identifiers may not be UUIDs and must never leak into the live table.
       delete payload.ID;
       const { data, error } = await client
         .from(assignmentsTableName)
         .insert(payload)
-        .select('ID,Duty_Date,Shift,Staff_ID,Status,Replacement_Staff_ID,Note,Created_At,Updated_At')
+        .select('ID,Duty_Date,Shift,Staff_ID,Status,Leave_Type,Replacement_Staff_ID,Note,Created_At,Updated_At')
         .single();
       if (error) throw new Error(errorMessage('Create manpower assignment', error));
       return mapAssignmentRow(data);
     },
 
     async update(id, changes = {}) {
+      requireLeaveTypeSchema(changes.status);
       const payload = {
         Status: clean(changes.status) || 'working',
-        Replacement_Staff_ID: clean(changes.replacementStaffId) || null,
+        Leave_Type: clean(changes.leaveType) || null,
+        Replacement_Staff_ID: null,
         Note: clean(changes.note) || null
       };
+      if (hasLeaveTypeSchema === false) delete payload.Leave_Type;
       const { data, error } = await client
         .from(assignmentsTableName)
         .update(payload)
         .eq('ID', id)
         .is('Deleted_At', null)
-        .select('ID,Duty_Date,Shift,Staff_ID,Status,Replacement_Staff_ID,Note,Created_At,Updated_At')
+        .select('ID,Duty_Date,Shift,Staff_ID,Status,Leave_Type,Replacement_Staff_ID,Note,Created_At,Updated_At')
         .single();
       if (error) throw new Error(errorMessage('Update manpower assignment', error));
       return mapAssignmentRow(data);
@@ -135,6 +184,7 @@ export function createManpowerSupabaseBackend({ client, assignmentsTableName, hi
         .map(item => {
           const row = assignmentPayload(item);
           delete row.ID;
+          if (hasLeaveTypeSchema === false) delete row.Leave_Type;
           return row;
         });
       if (!payload.length) return 0;

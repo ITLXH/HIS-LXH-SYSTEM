@@ -49,22 +49,29 @@
           <div id="manpowerAssignmentDepartment" class="manpower-assignment-scope"></div>
           <div class="mb-3">
             <label for="manpowerStaffSelect" class="form-label">ພະນັກງານ <span>*</span></label>
-            <select id="manpowerStaffSelect" class="form-select" required onchange="window.toggleNewManpowerReplacement()"></select>
+            <select id="manpowerStaffSelect" class="form-select manpower-searchable-select" required></select>
             <small id="manpowerStaffAvailabilityNote" class="manpower-form-help"></small>
           </div>
           <div>
             <label for="manpowerStatusSelect" class="form-label">ສະຖານະ</label>
-            <select id="manpowerStatusSelect" class="form-select" onchange="window.toggleNewManpowerReplacement()">
+            <select id="manpowerStatusSelect" class="form-select" onchange="window.toggleNewManpowerFields()">
               <option value="working">ເຂົ້າເວນ</option>
               <option value="leave">ລາ</option>
               <option value="absent">ຂາດ</option>
               <option value="swapped">ປ່ຽນເວນ</option>
             </select>
           </div>
-          <div id="manpowerNewReplacementGroup" class="mt-3" hidden>
-            <label for="manpowerNewReplacementStaff" class="form-label">ຜູ້ຮັບເວນແທນ <span>*</span></label>
-            <select id="manpowerNewReplacementStaff" class="form-select"></select>
-            <small class="manpower-form-help"><i class="fas fa-exchange-alt"></i> ຕ້ອງເລືອກພະນັກງານໃນພະແນກດຽວກັນທີ່ຍັງບໍ່ມີເວນ</small>
+          <div id="manpowerNewLeaveTypeGroup" class="mt-3" hidden>
+            <label for="manpowerNewLeaveType" class="form-label">ປະເພດການລາ <span>*</span></label>
+            <select id="manpowerNewLeaveType" class="form-select">
+              <option value="vacation">ລາພັກ</option>
+              <option value="sick">ລາປ່ວຍ</option>
+              <option value="personal">ລາກິດ</option>
+            </select>
+          </div>
+          <div class="mt-3">
+            <label for="manpowerNewNote" class="form-label">ໝາຍເຫດ</label>
+            <textarea id="manpowerNewNote" class="form-control" rows="2" maxlength="500" placeholder="ລາຍລະອຽດເພີ່ມເຕີມ (ຖ້າມີ)"></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -90,17 +97,24 @@
           </div>
           <div class="mb-3">
             <label for="manpowerManageStatus" class="form-label">ສະຖານະ</label>
-            <select id="manpowerManageStatus" class="form-select" onchange="window.toggleManpowerReplacement()">
+            <select id="manpowerManageStatus" class="form-select" onchange="window.toggleManpowerFields()">
               <option value="working">ເຂົ້າເວນ</option>
               <option value="absent">ຂາດ</option>
               <option value="leave">ລາ</option>
               <option value="swapped">ປ່ຽນເວນ</option>
             </select>
           </div>
-          <div id="manpowerReplacementGroup" hidden>
-            <label for="manpowerReplacementStaff" class="form-label">ປ່ຽນຈາກຜູ້ມີເວນ ຫາຜູ້ຮັບເວນແທນ <span>*</span></label>
-            <select id="manpowerReplacementStaff" class="form-select"></select>
-            <small class="manpower-form-help"><i class="fas fa-exchange-alt"></i> ລະບົບຈະບັນທຶກວ່າປ່ຽນຈາກຜູ້ໃດໄປຫາຜູ້ໃດ</small>
+          <div id="manpowerLeaveTypeGroup" class="mb-3" hidden>
+            <label for="manpowerLeaveType" class="form-label">ປະເພດການລາ <span>*</span></label>
+            <select id="manpowerLeaveType" class="form-select">
+              <option value="vacation">ລາພັກ</option>
+              <option value="sick">ລາປ່ວຍ</option>
+              <option value="personal">ລາກິດ</option>
+            </select>
+          </div>
+          <div>
+            <label for="manpowerNote" class="form-label">ໝາຍເຫດ</label>
+            <textarea id="manpowerNote" class="form-control" rows="2" maxlength="500" placeholder="ລາຍລະອຽດເພີ່ມເຕີມ (ຖ້າມີ)"></textarea>
           </div>
         </div>
         <div class="modal-footer">
