@@ -288,6 +288,12 @@ def delete_objects(paths):
     return deleted
 
 
+def deleted_bytes_for_report(delete_targets, deleted, verified_bytes):
+    if delete_targets and deleted == len(delete_targets):
+        return verified_bytes
+    return 0
+
+
 def select_candidates(objects, cutoff):
     candidates = []
     unknown_age = 0
@@ -397,7 +403,9 @@ def main():
         "planned_delete_count": len(delete_targets),
         "planned_delete_bytes": verified_bytes if delete_targets else 0,
         "deleted_count": deleted,
-        "deleted_bytes": verified_bytes if deleted == len(delete_targets) else 0,
+        "deleted_bytes": deleted_bytes_for_report(
+            delete_targets, deleted, verified_bytes
+        ),
         "failure_count": len(failures),
         "failures": failures,
     }

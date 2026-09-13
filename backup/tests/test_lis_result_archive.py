@@ -67,6 +67,14 @@ class LisResultArchiveTests(unittest.TestCase):
         self.assertEqual([item["path"] for item in candidates], ["old.pdf"])
         self.assertEqual(unknown_age, 1)
 
+    def test_deleted_bytes_are_zero_when_copy_mode_has_no_delete_targets(self):
+        self.assertEqual(archive.deleted_bytes_for_report([], 0, 5), 0)
+
+    def test_deleted_bytes_are_reported_only_after_all_targets_are_deleted(self):
+        targets = ["old-a.pdf", "old-b.pdf"]
+        self.assertEqual(archive.deleted_bytes_for_report(targets, 1, 42), 0)
+        self.assertEqual(archive.deleted_bytes_for_report(targets, 2, 42), 42)
+
 
 if __name__ == "__main__":
     unittest.main()
