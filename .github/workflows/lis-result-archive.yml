@@ -19,7 +19,7 @@ on:
       archive_after_days:
         description: 'Keep this many days of LIS result files hot in Supabase (minimum 7)'
         required: true
-        default: '30'
+        default: '14'
       max_objects:
         description: 'Canary limit; 0 processes every eligible file'
         required: true
@@ -60,7 +60,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           LIS_ARCHIVE_MODE: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'cleanup' || github.event.inputs.mode || 'audit' }}
-          LIS_ARCHIVE_AFTER_DAYS: ${{ github.event.inputs.archive_after_days || vars.LIS_ARCHIVE_AFTER_DAYS || '30' }}
+          LIS_ARCHIVE_AFTER_DAYS: ${{ github.event.inputs.archive_after_days || vars.LIS_ARCHIVE_AFTER_DAYS || '14' }}
           LIS_ARCHIVE_MAX_OBJECTS: ${{ github.event.inputs.max_objects || '0' }}
           LIS_ARCHIVE_RESTORE_VERIFIED: ${{ vars.LIS_ARCHIVE_RESTORE_VERIFIED || '0' }}
           LIS_ARCHIVE_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'ARCHIVE_VERIFIED_ORDER_RESULTS' || github.event.inputs.confirmation }}

@@ -28,7 +28,7 @@ SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 BUCKET = os.environ.get("LIS_RESULT_BUCKET", "order-result-files") or "order-result-files"
 DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
 MODE = (os.environ.get("LIS_ARCHIVE_MODE", "audit") or "audit").strip().lower()
-ARCHIVE_AFTER_DAYS = int(os.environ.get("LIS_ARCHIVE_AFTER_DAYS", "30") or "30")
+ARCHIVE_AFTER_DAYS = int(os.environ.get("LIS_ARCHIVE_AFTER_DAYS", "14") or "14")
 MAX_OBJECTS = int(os.environ.get("LIS_ARCHIVE_MAX_OBJECTS", "0") or "0")
 CLEANUP_CONFIRMATION = os.environ.get("LIS_ARCHIVE_CLEANUP_CONFIRMATION", "")
 RESTORE_VERIFIED = os.environ.get("LIS_ARCHIVE_RESTORE_VERIFIED", "0") == "1"

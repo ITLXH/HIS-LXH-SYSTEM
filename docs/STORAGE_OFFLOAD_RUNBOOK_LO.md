@@ -44,7 +44,7 @@ copy ຫຼືລຶບຂໍ້ມູນໄດ້.
 GitHub → Actions → `Supabase Storage Safe Offload` → Run workflow:
 
 - `mode`: `audit`
-- `retention_days`: `30`
+- `retention_days`: `14`
 - `confirmation`: ປ່ອຍວ່າງ
 
 ດາວໂຫຼດ artifact `storage-offload-report-*` ແລະກວດ:
@@ -62,10 +62,10 @@ GitHub → Actions → `Supabase Storage Safe Offload` → Run workflow:
 ຮັນ workflow ອີກຄັ້ງ:
 
 - `mode`: `copy`
-- `retention_days`: `30`
+- `retention_days`: `14`
 - `confirmation`: ປ່ອຍວ່າງ
 
-ຂັ້ນນີ້ copy backup ເກົ່າກວ່າ 30 ມື້ໄປ Drive, ສ້າງ sidecar index
+ຂັ້ນນີ້ copy backup ເກົ່າກວ່າ 14 ມື້ໄປ Drive, ສ້າງ sidecar index
 ແລະກວດ checksum. Supabase ຈະບໍ່ຖືກລຶບ.
 
 ## 4. Restore dry-run ຈາກ Google Drive
@@ -89,7 +89,7 @@ Dry-run ຈະດຶງ ZIP ແລະ Storage blobs ຈາກ Drive ອັດຕ
 ຮັນ `Supabase Storage Safe Offload`:
 
 - `mode`: `cleanup`
-- `retention_days`: `30`
+- `retention_days`: `14`
 - `confirmation`: `OFFLOAD_VERIFIED_BACKUPS`
 
 Cleanup ຈະບໍ່ເລີ່ມຖ້າ:
@@ -105,7 +105,7 @@ Cleanup ຈະບໍ່ເລີ່ມຖ້າ:
 
 Workflow `Supabase DB Backup` ຍັງຮັນທຸກມື້. ຄ່າປອດໄພເລີ່ມຕົ້ນ:
 
-- Supabase hot retention: 30 ມື້
+- Supabase hot retention: 14 ມື້
 - Drive retention: 3650 ມື້
 - Supabase cleanup: ປິດ
 - Drive cleanup: ປິດ
@@ -118,7 +118,7 @@ Workflow `Supabase DB Backup` ຍັງຮັນທຸກມື້. ຄ່າປ
 ## 7. LIS PDF archive ແລະ auto-fetch
 
 Workflow `LIS Result File Safe Archive` ໃຊ້ສຳລັບ bucket `order-result-files` ເທົ່ານັ້ນ.
-ໄຟລ໌ໃນ 30 ມື້ຫຼ້າສຸດຍັງຢູ່ Supabase. ໄຟລ໌ເກົ່າຈະຖືກຕັ້ງຊື່ໃນ Drive
+ໄຟລ໌ໃນ 14 ມື້ຫຼ້າສຸດຍັງຢູ່ Supabase. ໄຟລ໌ເກົ່າຈະຖືກຕັ້ງຊື່ໃນ Drive
 ດ້ວຍ SHA-256 ແທນ HN/ຊື່ໄຟລ໌ ແລະກວດ size + MD5 + SHA-256 ກ່ອນຖືວ່າສຳເລັດ.
 
 HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
@@ -137,7 +137,7 @@ HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
 ລຳດັບເປີດໃຊ້:
 
 1. Deploy gateway ແລະກວດ hot-file redirect.
-2. ຮັນ `audit` ເພື່ອກວດ age/size.
+2. ຮັນ `audit` ເພື່ອກວດ age/size ຂອງເກນ 14 ມື້.
 3. ຮັນ `copy` ດ້ວຍ `max_objects=1` ເປັນ canary.
 4. ກວດວ່າ canary PDF ເປີດຜ່ານ gateway ໄດ້.
 5. ຮັນ copy ທັງໝົດ ແລະກວດ report ວ່າ failure = 0.

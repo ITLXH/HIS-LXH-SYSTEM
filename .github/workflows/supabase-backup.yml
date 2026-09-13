@@ -14,7 +14,7 @@ on:
 env:
   # Supabase keeps a small hot recovery window; Drive is the long-term copy.
   # All deletion switches default to OFF and require a verified restore drill.
-  SUPABASE_RETENTION_DAYS: '30'
+  SUPABASE_RETENTION_DAYS: '14'
   GOOGLE_DRIVE_RETENTION_DAYS: '3650'
 
 permissions:
