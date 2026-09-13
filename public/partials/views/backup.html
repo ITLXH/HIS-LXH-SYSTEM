@@ -27,6 +27,44 @@
     <i class="fas fa-exclamation-triangle me-2"></i><span><strong>ເຕືອນ:</strong> Restore ຈະຂຽນທັບຂໍ້ມູນ HIS ໂດຍ match Primary Key. ຄວນສ້າງ backup ໃໝ່ກ່ອນ.</span>
   </div>
 
+  <section id="lisArchivePanel" class="card lis-archive-card" aria-label="ຍ້າຍ PDF ຜົນກວດໄປ Google Drive">
+    <div class="card-body">
+      <div class="lis-archive-heading">
+        <div>
+          <span class="lis-archive-kicker"><i class="fas fa-shield-alt me-1"></i>SAFE PDF ARCHIVE</span>
+          <h4>ອັບໂຫລດ PDF ໄປ Google Drive</h4>
+          <p>ກວດແລ້ວ copy ສະເພາະໄຟລ໌ເກີນ 14 ມື້; ປຸ່ມນີ້ບໍ່ລຶບໄຟລ໌ຈາກ Supabase.</p>
+        </div>
+        <button id="btnLisArchiveNow" type="button" class="btn btn-primary lis-archive-start-btn">
+          <i class="fas fa-cloud-upload-alt me-1"></i>ເລີ່ມອັບໂຫລດ
+        </button>
+      </div>
+
+      <div class="lis-archive-status-line">
+        <span id="lisArchiveStatusBadge" class="badge bg-secondary">ກຳລັງກວດສອບ</span>
+        <span id="lisArchiveStage">ກຳລັງໂຫຼດສະຖານະ...</span>
+        <span id="lisArchivePercent" class="lis-archive-percent">0%</span>
+      </div>
+      <div class="progress lis-archive-progress" role="progressbar" aria-label="ຄວາມຄືບໜ້າການອັບໂຫລດ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="lisArchiveProgressBar" class="progress-bar progress-bar-striped" style="width:0%"></div>
+      </div>
+
+      <div class="lis-archive-metrics">
+        <div><span>ດຳເນີນແລ້ວ</span><strong id="lisArchiveProcessed">0 / 0 ໄຟລ໌</strong></div>
+        <div><span>ກວດຢືນຢັນແລ້ວ</span><strong id="lisArchiveVerified">0 ໄຟລ໌</strong></div>
+        <div><span>ຂະໜາດ</span><strong id="lisArchiveBytes">0 B / 0 B</strong></div>
+        <div><span>ເວລາເລີ່ມ</span><strong id="lisArchiveStarted">-</strong></div>
+        <div><span>ໃຊ້ເວລາ</span><strong id="lisArchiveElapsed">-</strong></div>
+        <div><span>ຜິດພາດ</span><strong id="lisArchiveFailures">0</strong></div>
+      </div>
+
+      <div class="lis-archive-footer">
+        <span><i class="fas fa-calendar-check me-1"></i><span id="lisArchiveSundayHint">ແນະນຳໃຫ້ກົດທຸກວັນອາທິດ</span></span>
+        <span id="lisArchiveUpdated">ອັບເດດ: -</span>
+      </div>
+    </div>
+  </section>
+
   <section class="card card-outline card-primary backup-workspace-card mb-0">
     <div class="card-header backup-tabs-header">
       <ul class="nav nav-pills backup-source-tabs" id="backupSourceTabs" role="tablist">

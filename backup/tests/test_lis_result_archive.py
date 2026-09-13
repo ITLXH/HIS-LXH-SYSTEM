@@ -24,6 +24,30 @@ spec.loader.exec_module(archive)
 
 
 class LisResultArchiveTests(unittest.TestCase):
+    def test_progress_payload_is_aggregate_and_uses_upsert(self):
+        previous_run_id = archive.RUN_ID
+        previous_state = archive.PROGRESS_STATE.copy()
+        archive.RUN_ID = "12345"
+        archive.PROGRESS_STATE.clear()
+        response = Mock(status_code=200)
+        try:
+            with patch.object(archive, "request_with_retry", return_value=response) as request:
+                archive.publish_progress(
+                    status="in_progress",
+                    stage="copying_and_verifying",
+                    percent=25,
+                    processed_object_count=5,
+                )
+            payload = request.call_args.kwargs["data"].decode("utf-8")
+            self.assertNotIn("path", payload.lower())
+            self.assertNotIn("patient", payload.lower())
+            self.assertEqual(request.call_args.kwargs["headers"]["x-upsert"], "true")
+            self.assertIn('"percent":25', payload)
+        finally:
+            archive.RUN_ID = previous_run_id
+            archive.PROGRESS_STATE.clear()
+            archive.PROGRESS_STATE.update(previous_state)
+
     def test_path_hash_does_not_expose_patient_path(self):
         digest = archive.path_hash("HN0001/report.pdf")
         self.assertEqual(len(digest), 64)
