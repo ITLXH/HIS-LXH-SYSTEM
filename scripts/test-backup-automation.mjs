@@ -51,10 +51,12 @@ assert.match(offloadWorkflow, /safe_drive_offload\.py/);
 assert.match(offloadWorkflow, /github\.event_name == 'workflow_dispatch'[\s\S]*?SUPABASE_CLEANUP_ENABLED/);
 assert.match(offloadWorkflow, /FAIL_ON_STORAGE_WARNING:/);
 assert.match(lisArchiveWorkflow, /name:\s*LIS Result File Safe Archive/);
+assert.match(lisArchiveWorkflow, /cron:\s*['"]30 2 \* \* \*['"]?/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_RESTORE_VERIFIED/);
 assert.match(lisArchiveWorkflow, /ARCHIVE_VERIFIED_ORDER_RESULTS/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_AUTOMATION_ENABLED/);
 assert.match(lisArchiveWorkflow, /archive_after_days:[\s\S]*?default:\s*['"]14['"]?/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_AFTER_DAYS:[\s\S]*?\|\| '14'/);
+assert.match(lisArchiveWorkflow, /github\.event_name == 'schedule' && 'copy'/);
 
 console.log('Backup automation checks passed.');

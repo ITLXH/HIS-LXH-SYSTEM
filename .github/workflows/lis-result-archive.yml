@@ -2,9 +2,10 @@ name: LIS Result File Safe Archive
 
 on:
   schedule:
-    # Sunday 02:30 UTC (09:30 Asia/Bangkok). Cleanup remains disabled until
-    # both production fallback verification and automation variables are set.
-    - cron: '30 2 * * 0'
+    # Daily 02:30 UTC (09:30 Asia/Bangkok). Scheduled runs copy and verify files
+    # older than the hot window. Cleanup remains disabled until both production
+    # fallback verification and automation variables are set.
+    - cron: '30 2 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -59,7 +60,7 @@ jobs:
           GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          LIS_ARCHIVE_MODE: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'cleanup' || github.event.inputs.mode || 'audit' }}
+          LIS_ARCHIVE_MODE: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'cleanup' || github.event_name == 'schedule' && 'copy' || github.event.inputs.mode || 'audit' }}
           LIS_ARCHIVE_AFTER_DAYS: ${{ github.event.inputs.archive_after_days || vars.LIS_ARCHIVE_AFTER_DAYS || '14' }}
           LIS_ARCHIVE_MAX_OBJECTS: ${{ github.event.inputs.max_objects || '0' }}
           LIS_ARCHIVE_RESTORE_VERIFIED: ${{ vars.LIS_ARCHIVE_RESTORE_VERIFIED || '0' }}

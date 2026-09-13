@@ -120,6 +120,8 @@ Workflow `Supabase DB Backup` ຍັງຮັນທຸກມື້. ຄ່າປ
 Workflow `LIS Result File Safe Archive` ໃຊ້ສຳລັບ bucket `order-result-files` ເທົ່ານັ້ນ.
 ໄຟລ໌ໃນ 14 ມື້ຫຼ້າສຸດຍັງຢູ່ Supabase. ໄຟລ໌ເກົ່າຈະຖືກຕັ້ງຊື່ໃນ Drive
 ດ້ວຍ SHA-256 ແທນ HN/ຊື່ໄຟລ໌ ແລະກວດ size + MD5 + SHA-256 ກ່ອນຖືວ່າສຳເລັດ.
+Workflow ຈະຮັນ copy + verify ອັດຕະໂນມັດທຸກມື້ 09:30 ເວລາລາວ;
+ຄ່າ 14 ມື້ແມ່ນເກນອາຍຸໄຟລ໌ ບໍ່ແມ່ນຮອບເວລາຮັນ.
 
 HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
 
@@ -143,7 +145,8 @@ HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
 5. ຮັນ copy ທັງໝົດ ແລະກວດ report ວ່າ failure = 0.
 6. ຕັ້ງ `LIS_ARCHIVE_RESTORE_VERIFIED=1`.
 7. ຮັນ cleanup ດ້ວຍ confirmation `ARCHIVE_VERIFIED_ORDER_RESULTS`.
-8. ຫຼັງກວດ production ຄົບ ຈຶ່ງຕັ້ງ `LIS_ARCHIVE_AUTOMATION_ENABLED=1`.
+8. ຫຼັງກວດ production ຄົບ ຈຶ່ງຕັ້ງ `LIS_ARCHIVE_AUTOMATION_ENABLED=1`
+   ເພື່ອເປີດ scheduled cleanup; scheduled copy ເຮັດວຽກຢູ່ແລ້ວໂດຍບໍ່ຕ້ອງມີ variable ນີ້.
 
 Scheduled cleanup ຈະບໍ່ເຮັດວຽກຖ້າ 2 variables ຂ້າງເທິງບໍ່ແມ່ນ `1`.
 
