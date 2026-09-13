@@ -35,6 +35,13 @@ RESTORE_VERIFIED = os.environ.get("LIS_ARCHIVE_RESTORE_VERIFIED", "0") == "1"
 VERIFY_GATEWAY = os.environ.get("LIS_ARCHIVE_VERIFY_GATEWAY", "0") == "1"
 GATEWAY_URL = os.environ.get("LIS_ARCHIVE_GATEWAY_URL", "").strip()
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "output"))
+PROGRESS_BUCKET = os.environ.get("LIS_ARCHIVE_PROGRESS_BUCKET", "his-backups")
+PROGRESS_PATH = os.environ.get(
+    "LIS_ARCHIVE_PROGRESS_PATH", "_system/lis-archive-progress.json"
+)
+RUN_ID = os.environ.get("GITHUB_RUN_ID", "")
+RUN_NUMBER = os.environ.get("GITHUB_RUN_NUMBER", "")
+PROGRESS_STATE = {}
 
 
 def request_with_retry(method, url, attempts=5, **kwargs):
@@ -60,6 +67,43 @@ def storage_headers(content_type="application/json"):
         "apikey": SERVICE_KEY,
         "Content-Type": content_type,
     }
+
+
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def publish_progress(**changes):
+    """Upsert one sanitized progress record; never expose patient object paths."""
+    if not RUN_ID or not PROGRESS_BUCKET or not PROGRESS_PATH:
+        return
+    PROGRESS_STATE.update(changes)
+    PROGRESS_STATE.update(
+        {
+            "run_id": RUN_ID,
+            "run_number": RUN_NUMBER,
+            "mode": MODE,
+            "archive_after_days": ARCHIVE_AFTER_DAYS,
+            "updated_at": utc_now(),
+        }
+    )
+    payload = json.dumps(PROGRESS_STATE, separators=(",", ":")).encode("utf-8")
+    endpoint = (
+        f"{SUPABASE_URL}/storage/v1/object/{quote(PROGRESS_BUCKET, safe='')}"
+        f"/{quote(PROGRESS_PATH, safe='/')}"
+    )
+    try:
+        response = request_with_retry(
+            "post",
+            endpoint,
+            headers={**storage_headers("application/json"), "x-upsert": "true"},
+            data=payload,
+            timeout=(15, 60),
+        )
+        if response.status_code not in {200, 201}:
+            print(f"::warning::Progress update failed: HTTP {response.status_code}")
+    except Exception as exc:
+        print(f"::warning::Progress update unavailable: {str(exc)[:160]}")
 
 
 def list_objects(prefix="", depth=0):
@@ -368,6 +412,25 @@ def write_report(report):
 
 
 def main():
+    started_at = utc_now()
+    publish_progress(
+        status="in_progress",
+        stage="starting",
+        percent=0,
+        started_at=started_at,
+        finished_at="",
+        storage_object_count=0,
+        storage_bytes=0,
+        eligible_object_count=0,
+        eligible_bytes=0,
+        processed_object_count=0,
+        processed_bytes=0,
+        verified_copy_count=0,
+        verified_copy_bytes=0,
+        copied_now_count=0,
+        copied_now_bytes=0,
+        failure_count=0,
+    )
     if not SUPABASE_URL or not SERVICE_KEY:
         raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
     if BUCKET != "order-result-files":
@@ -386,32 +449,65 @@ def main():
         if not RESTORE_VERIFIED:
             raise RuntimeError("Cleanup blocked until the production Drive fallback is verified")
 
+    publish_progress(stage="connecting")
     drive = build_drive()
     verify_root_folder(drive, DRIVE_FOLDER_ID)
     drive_index = index_drive_files(list_drive_archives(drive))
+    publish_progress(stage="scanning")
     objects = list_objects()
     cutoff = datetime.now(timezone.utc) - timedelta(days=ARCHIVE_AFTER_DAYS)
     candidates, unknown_age = select_candidates(objects, cutoff)
+    total_bytes = sum(object_size(item) for item in objects)
+    eligible_bytes = sum(object_size(item) for item in candidates)
     failures = []
     verified = []
     copied_now = 0
+    copied_now_bytes = 0
+    processed_bytes = 0
+    publish_progress(
+        stage="copying_and_verifying" if candidates else "finalizing",
+        storage_object_count=len(objects),
+        storage_bytes=total_bytes,
+        eligible_object_count=len(candidates),
+        eligible_bytes=eligible_bytes,
+    )
 
-    for item in candidates:
+    for index, item in enumerate(candidates, start=1):
         digest = path_hash(item["path"])
+        item_bytes = object_size(item)
         try:
             match = matching_drive_copy(item, drive_index.get(digest, []))
             if match is None and MODE in {"copy", "cleanup"}:
                 match = upload_archive_copy(drive, item)
                 drive_index.setdefault(digest, []).append(match)
                 copied_now += 1
+                copied_now_bytes += item_bytes
             if match is not None:
                 verified.append(item)
         except Exception as exc:
             failures.append({"path_sha256": digest, "error": str(exc)[:300]})
+        processed_bytes += item_bytes
+        if index == len(candidates) or index % 5 == 0:
+            verified_bytes_so_far = sum(object_size(entry) for entry in verified)
+            publish_progress(
+                status="in_progress",
+                stage="copying_and_verifying",
+                percent=round((index / len(candidates)) * 100) if candidates else 100,
+                processed_object_count=index,
+                processed_bytes=processed_bytes,
+                verified_copy_count=len(verified),
+                verified_copy_bytes=verified_bytes_so_far,
+                copied_now_count=copied_now,
+                copied_now_bytes=copied_now_bytes,
+                failure_count=len(failures),
+            )
 
     gateway_verified_count = 0
     if VERIFY_GATEWAY:
-        if not GATEWAY_URL:
+        publish_progress(stage="verifying_gateway" if candidates else "finalizing", percent=99 if candidates else 100)
+        if not candidates:
+            print("No eligible LIS result files; production gateway sample skipped")
+        elif not GATEWAY_URL:
             failures.append({"path_sha256": "", "error": "Production gateway URL is required"})
         elif not verified:
             failures.append({"path_sha256": "", "error": "No verified Drive copy is available for the gateway drill"})
@@ -431,10 +527,9 @@ def main():
         if len(verified) != len(candidates):
             raise RuntimeError("Cleanup blocked because not every eligible object is verified")
         delete_targets = [item["path"] for item in verified]
+        publish_progress(stage="removing_verified_sources", percent=99)
     deleted = delete_objects(delete_targets)
 
-    total_bytes = sum(object_size(item) for item in objects)
-    eligible_bytes = sum(object_size(item) for item in candidates)
     verified_bytes = sum(object_size(item) for item in verified)
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -461,6 +556,19 @@ def main():
         "failures": failures,
     }
     write_report(report)
+    publish_progress(
+        status="success" if not failures else "failure",
+        stage="completed" if not failures else "completed_with_errors",
+        percent=100 if not failures else PROGRESS_STATE.get("percent", 0),
+        processed_object_count=len(candidates),
+        processed_bytes=eligible_bytes,
+        verified_copy_count=len(verified),
+        verified_copy_bytes=verified_bytes,
+        copied_now_count=copied_now,
+        copied_now_bytes=copied_now_bytes,
+        failure_count=len(failures),
+        finished_at=utc_now(),
+    )
     print(
         f"LIS archive {MODE}: {len(objects)} objects, {len(candidates)} eligible, "
         f"{len(verified)} verified, {copied_now} copied, {deleted} deleted"
@@ -472,5 +580,11 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as exc:
+        publish_progress(
+            status="failure",
+            stage="failed",
+            failure_count=max(1, int(PROGRESS_STATE.get("failure_count", 0))),
+            finished_at=utc_now(),
+        )
         print(f"::error::LIS result archive failed: {exc}")
         sys.exit(1)
