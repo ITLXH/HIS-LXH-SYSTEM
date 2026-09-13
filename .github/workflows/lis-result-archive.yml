@@ -28,6 +28,11 @@ on:
       confirmation:
         description: 'Cleanup only: type ARCHIVE_VERIFIED_ORDER_RESULTS'
         required: false
+      verify_gateway:
+        description: 'Force one production Drive fallback and compare it with Supabase'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -64,6 +69,8 @@ jobs:
           LIS_ARCHIVE_AFTER_DAYS: ${{ github.event.inputs.archive_after_days || vars.LIS_ARCHIVE_AFTER_DAYS || '14' }}
           LIS_ARCHIVE_MAX_OBJECTS: ${{ github.event.inputs.max_objects || '0' }}
           LIS_ARCHIVE_RESTORE_VERIFIED: ${{ vars.LIS_ARCHIVE_RESTORE_VERIFIED || '0' }}
+          LIS_ARCHIVE_VERIFY_GATEWAY: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && '1' || github.event.inputs.mode == 'cleanup' && '1' || github.event.inputs.verify_gateway && '1' || '0' }}
+          LIS_ARCHIVE_GATEWAY_URL: https://his-lxh-system.pages.dev/api/lis/result-file
           LIS_ARCHIVE_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'ARCHIVE_VERIFIED_ORDER_RESULTS' || github.event.inputs.confirmation }}
           OUTPUT_DIR: output
         run: python backup/scripts/lis_result_archive.py

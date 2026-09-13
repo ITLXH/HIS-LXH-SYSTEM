@@ -11,20 +11,27 @@ export async function onRequestGet({ request, env }) {
   const serviceKey = String(env.SUPABASE_SERVICE_ROLE_KEY || '');
   if (!supabaseUrl || !serviceKey) return json({ error: 'Result-file gateway is not configured' }, 503);
 
+  const forceDrive = url.searchParams.get('source') === 'drive';
+  if (forceDrive && request.headers.get('Authorization') !== `Bearer ${serviceKey}`) {
+    return json({ error: 'Archive verification authorization is required' }, 401);
+  }
+
   const encodedPath = objectPath.split('/').map(encodeURIComponent).join('/');
   const supabaseObjectUrl = `${supabaseUrl}/storage/v1/object/${RESULT_BUCKET}/${encodedPath}`;
-  const supabaseResponse = await fetch(supabaseObjectUrl, {
-    method: 'HEAD',
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-  });
-  if (supabaseResponse.ok) {
-    return Response.redirect(
-      `${supabaseUrl}/storage/v1/object/public/${RESULT_BUCKET}/${encodedPath}`,
-      302,
-    );
-  }
-  if (supabaseResponse.status !== 404 && supabaseResponse.status !== 400) {
-    return json({ error: `Supabase lookup failed (${supabaseResponse.status})` }, 502);
+  if (!forceDrive) {
+    const supabaseResponse = await fetch(supabaseObjectUrl, {
+      method: 'HEAD',
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    });
+    if (supabaseResponse.ok) {
+      return Response.redirect(
+        `${supabaseUrl}/storage/v1/object/public/${RESULT_BUCKET}/${encodedPath}`,
+        302,
+      );
+    }
+    if (supabaseResponse.status !== 404 && supabaseResponse.status !== 400) {
+      return json({ error: `Supabase lookup failed (${supabaseResponse.status})` }, 502);
+    }
   }
 
   const folderId = String(env.GOOGLE_DRIVE_FOLDER_ID || '');

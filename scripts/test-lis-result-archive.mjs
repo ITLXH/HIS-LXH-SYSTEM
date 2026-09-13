@@ -76,6 +76,25 @@ try {
   assert.equal(archived.headers.get('X-HIS-Storage-Source'), 'google-drive-archive');
   assert.equal((await archived.arrayBuffer()).byteLength, 4);
 
+  const forced = await onRequestGet({
+    request: new Request(
+      `https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}&source=drive`,
+      { headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } },
+    ),
+    env,
+  });
+  assert.equal(forced.status, 200);
+  assert.equal(forced.headers.get('X-HIS-Storage-Source'), 'google-drive-archive');
+  assert.equal((await forced.arrayBuffer()).byteLength, 4);
+
+  const unauthorizedForced = await onRequestGet({
+    request: new Request(
+      `https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}&source=drive`,
+    ),
+    env,
+  });
+  assert.equal(unauthorizedForced.status, 401);
+
   const invalid = await onRequestGet({
     request: new Request('https://his.example/api/lis/result-file?path=../secret.pdf'),
     env,

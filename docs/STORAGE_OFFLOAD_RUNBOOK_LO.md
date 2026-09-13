@@ -141,7 +141,8 @@ HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
 1. Deploy gateway ແລະກວດ hot-file redirect.
 2. ຮັນ `audit` ເພື່ອກວດ age/size ຂອງເກນ 14 ມື້.
 3. ຮັນ `copy` ດ້ວຍ `max_objects=1` ເປັນ canary.
-4. ກວດວ່າ canary PDF ເປີດຜ່ານ gateway ໄດ້.
+4. ຮັນ canary ດ້ວຍ `verify_gateway=true`; workflow ຈະບັງຄັບດຶງ PDF
+   ຈາກ production Drive gateway ແລະທຽບ size + SHA-256 ກັບ Supabase.
 5. ຮັນ copy ທັງໝົດ ແລະກວດ report ວ່າ failure = 0.
 6. ຕັ້ງ `LIS_ARCHIVE_RESTORE_VERIFIED=1`.
 7. ຮັນ cleanup ດ້ວຍ confirmation `ARCHIVE_VERIFIED_ORDER_RESULTS`.
@@ -149,6 +150,8 @@ HIS ໃຊ້ `/api/lis/result-file` ເປັນ dual-read gateway:
    ເພື່ອເປີດ scheduled cleanup; scheduled copy ເຮັດວຽກຢູ່ແລ້ວໂດຍບໍ່ຕ້ອງມີ variable ນີ້.
 
 Scheduled cleanup ຈະບໍ່ເຮັດວຽກຖ້າ 2 variables ຂ້າງເທິງບໍ່ແມ່ນ `1`.
+ໃນທຸກ scheduled cleanup, workflow ຈະຮັນ production gateway drill ອີກຄັ້ງ;
+ຖ້າ HTTP source, size ຫຼື SHA-256 ບໍ່ກົງ ຈະ fail-closed ແລະບໍ່ລຶບໄຟລ໌.
 
 ## Rollback
 

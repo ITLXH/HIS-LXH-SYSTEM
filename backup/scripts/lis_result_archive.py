@@ -15,7 +15,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode, urlparse
 
 import requests
 
@@ -32,6 +32,8 @@ ARCHIVE_AFTER_DAYS = int(os.environ.get("LIS_ARCHIVE_AFTER_DAYS", "14") or "14")
 MAX_OBJECTS = int(os.environ.get("LIS_ARCHIVE_MAX_OBJECTS", "0") or "0")
 CLEANUP_CONFIRMATION = os.environ.get("LIS_ARCHIVE_CLEANUP_CONFIRMATION", "")
 RESTORE_VERIFIED = os.environ.get("LIS_ARCHIVE_RESTORE_VERIFIED", "0") == "1"
+VERIFY_GATEWAY = os.environ.get("LIS_ARCHIVE_VERIFY_GATEWAY", "0") == "1"
+GATEWAY_URL = os.environ.get("LIS_ARCHIVE_GATEWAY_URL", "").strip()
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "output"))
 
 
@@ -228,6 +230,38 @@ def digest_file(path, algorithm):
     return digest.hexdigest()
 
 
+def verify_gateway_sample(item):
+    parsed = urlparse(GATEWAY_URL)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.username or parsed.password:
+        raise RuntimeError("LIS_ARCHIVE_GATEWAY_URL must be a credential-free HTTPS URL")
+
+    separator = "&" if parsed.query else "?"
+    gateway_url = f"{GATEWAY_URL}{separator}{urlencode({'path': item['path'], 'source': 'drive'})}"
+    with tempfile.TemporaryDirectory(prefix="his-lis-gateway-check-") as temp_dir:
+        source_path = Path(temp_dir) / "source.bin"
+        gateway_path = Path(temp_dir) / "gateway.bin"
+        download_object(item["path"], source_path)
+        response = request_with_retry(
+            "get",
+            gateway_url,
+            headers={"Authorization": f"Bearer {SERVICE_KEY}"},
+            stream=True,
+            timeout=(15, 600),
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Production Drive gateway returned HTTP {response.status_code}")
+        if response.headers.get("X-HIS-Storage-Source") != "google-drive-archive":
+            raise RuntimeError("Production gateway did not confirm the Google Drive archive source")
+        with open(gateway_path, "wb") as handle:
+            for chunk in response.iter_content(chunk_size=8 * 1024 * 1024):
+                if chunk:
+                    handle.write(chunk)
+        if source_path.stat().st_size != gateway_path.stat().st_size:
+            raise RuntimeError("Production gateway sample size does not match Supabase")
+        if digest_file(source_path, "sha256") != digest_file(gateway_path, "sha256"):
+            raise RuntimeError("Production gateway sample SHA-256 does not match Supabase")
+
+
 def upload_archive_copy(drive, item):
     digest = path_hash(item["path"])
     suffix = Path(item["path"]).suffix.lower()
@@ -326,6 +360,7 @@ def write_report(report):
                 ("Eligible bytes", "eligible_bytes"),
                 ("Verified Drive copies", "verified_copy_count"),
                 ("Copied now", "copied_now_count"),
+                ("Production Drive gateway checks", "gateway_verified_count"),
                 ("Deleted from Supabase", "deleted_count"),
                 ("Failures", "failure_count"),
             ):
@@ -374,6 +409,21 @@ def main():
         except Exception as exc:
             failures.append({"path_sha256": digest, "error": str(exc)[:300]})
 
+    gateway_verified_count = 0
+    if VERIFY_GATEWAY:
+        if not GATEWAY_URL:
+            failures.append({"path_sha256": "", "error": "Production gateway URL is required"})
+        elif not verified:
+            failures.append({"path_sha256": "", "error": "No verified Drive copy is available for the gateway drill"})
+        else:
+            try:
+                verify_gateway_sample(verified[0])
+                gateway_verified_count = 1
+            except Exception as exc:
+                failures.append(
+                    {"path_sha256": path_hash(verified[0]["path"]), "error": str(exc)[:300]}
+                )
+
     delete_targets = []
     if MODE == "cleanup":
         if failures:
@@ -400,6 +450,7 @@ def main():
         "verified_copy_count": len(verified),
         "verified_copy_bytes": verified_bytes,
         "copied_now_count": copied_now,
+        "gateway_verified_count": gateway_verified_count,
         "planned_delete_count": len(delete_targets),
         "planned_delete_bytes": verified_bytes if delete_targets else 0,
         "deleted_count": deleted,

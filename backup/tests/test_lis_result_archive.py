@@ -4,6 +4,7 @@ import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +75,36 @@ class LisResultArchiveTests(unittest.TestCase):
         targets = ["old-a.pdf", "old-b.pdf"]
         self.assertEqual(archive.deleted_bytes_for_report(targets, 1, 42), 0)
         self.assertEqual(archive.deleted_bytes_for_report(targets, 2, 42), 42)
+
+    def test_gateway_sample_compares_forced_drive_copy_without_key_in_url(self):
+        previous_url = archive.GATEWAY_URL
+        previous_key = archive.SERVICE_KEY
+        archive.GATEWAY_URL = "https://his.example/api/lis/result-file"
+        archive.SERVICE_KEY = "service-role-test"
+        response = Mock(
+            status_code=200,
+            headers={"X-HIS-Storage-Source": "google-drive-archive"},
+        )
+        response.iter_content.return_value = [b"%PDF-test"]
+
+        def write_source(_object_path, destination):
+            Path(destination).write_bytes(b"%PDF-test")
+
+        try:
+            with patch.object(archive, "download_object", side_effect=write_source), patch.object(
+                archive, "request_with_retry", return_value=response
+            ) as request:
+                archive.verify_gateway_sample({"path": "HN0001/result.pdf"})
+            requested_url = request.call_args.args[1]
+            self.assertIn("source=drive", requested_url)
+            self.assertNotIn("service-role-test", requested_url)
+            self.assertEqual(
+                request.call_args.kwargs["headers"]["Authorization"],
+                "Bearer service-role-test",
+            )
+        finally:
+            archive.GATEWAY_URL = previous_url
+            archive.SERVICE_KEY = previous_key
 
 
 if __name__ == "__main__":

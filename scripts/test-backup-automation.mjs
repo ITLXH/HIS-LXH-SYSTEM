@@ -55,6 +55,8 @@ assert.match(lisArchiveWorkflow, /cron:\s*['"]30 2 \* \* \*['"]?/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_RESTORE_VERIFIED/);
 assert.match(lisArchiveWorkflow, /ARCHIVE_VERIFIED_ORDER_RESULTS/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_AUTOMATION_ENABLED/);
+assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_VERIFY_GATEWAY/);
+assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_GATEWAY_URL:\s*https:\/\/his-lxh-system\.pages\.dev/);
 assert.match(lisArchiveWorkflow, /archive_after_days:[\s\S]*?default:\s*['"]14['"]?/);
 assert.match(lisArchiveWorkflow, /LIS_ARCHIVE_AFTER_DAYS:[\s\S]*?\|\| '14'/);
 assert.match(lisArchiveWorkflow, /github\.event_name == 'schedule' && 'copy'/);
