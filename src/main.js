@@ -20961,9 +20961,9 @@ window.opdTestDeptTemplates = {
     commonMedications: ['ibuprofen', 'paracetamol']
   },
   ent: {
-    label: 'ຫູ-ຄໍ-ດັງ / ENT',
-    quickSymptoms: ['ເຈັບຫູ', 'ຫູອື້', 'ດັງອຸດ', 'ນ້ຳມູກ', 'ເຈັບຄໍ', 'ໄອ'],
-    examSections: ['Ear', 'Nose', 'Throat', 'Hearing', 'Endoscopy note'],
+    label: 'ຫູ-ຕາ-ດັງ-ຄໍ / EENT',
+    quickSymptoms: ['ເຈັບຫູ', 'ຫູອື້', 'ເຈັບຕາ', 'ຕາແດງ', 'ຕາມົວ', 'ດັງອຸດ', 'ນ້ຳມູກ', 'ເຈັບຄໍ', 'ໄອ'],
+    examSections: ['Ear', 'Eye', 'Nose', 'Throat', 'Hearing', 'Endoscopy note'],
     commonDiagnoses: ['H66.9', 'J31.0', 'J02.9'],
     commonInvestigations: ['CBC'],
     commonMedications: ['paracetamol', 'chlorpheniramine']
