@@ -1,4 +1,6 @@
 import JsBarcode from 'jsbarcode';
+import { fitPatientStickerNames } from './patientStickerName.js';
+import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
 
 import { OPD_LAB_ORDER_FORM } from './opdLabOrderForm.js';
 import { buildOpdOrderPrintDocument, normalizeMedicationPrintItem } from './opdOrderPrint.js';
@@ -4359,6 +4361,8 @@ window.loadView = function (v, options = {}) {
 window.executePrint = function (containerId) {
   var targetContainer = document.getElementById(containerId);
   if (!targetContainer) return;
+  // Install the verified sticker-only rule last; leave other documents unchanged.
+  preparePatientStickerPrint(containerId);
 
   // 1. ເຊື່ອງ Wrapper ຫຼັກຂອງລະບົບທັງໝົດ (Sidebar, Header, Main Content)
   var appWrapper = document.querySelector('.wrapper');
@@ -4391,6 +4395,7 @@ window.executePrint = function (containerId) {
           targetContainer.classList.remove('print-active');
           targetContainer.style.display = 'none';
           if (appWrapper) appWrapper.style.display = 'block'; // ເປີດລະບົບຄືນ
+          finishPatientStickerPrint();
         }, 500);
       }, 500);
     }
@@ -7039,6 +7044,7 @@ window.printQRCard = async function (id) {
     $(`#printPhone${i}`).text(phoneLine);
     $(`#printID${i}`).text(d.id);
   });
+  await fitPatientStickerNames(document.getElementById('print-area'));
   window.executePrint('print-area');
 };
 
