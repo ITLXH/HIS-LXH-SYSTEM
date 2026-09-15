@@ -1,5 +1,5 @@
+import { createOnlinePresence } from "./onlinePresence.js";
 import JsBarcode from 'jsbarcode';
-import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
 
@@ -1979,11 +1979,11 @@ window.setAppLanguage = function (lang) {
   localStorage.setItem('hisLanguage', nextLang);
   window.applyAppLanguage();
   window.refreshCurrentViewLocalization();
+  onlinePresence.render();
 };
 
 window.applyAppLanguage = function () {
   const lang = window.getAppLanguage();
-  onlinePresence.render();
   document.documentElement.lang = lang;
   $('#appLanguageSelect').val(lang);
 
@@ -3756,6 +3756,7 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  onlinePresence.stop();
   window.toggleLoading(true);
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
@@ -3775,6 +3776,7 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  onlinePresence.stop();
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
   try {
@@ -3786,7 +3788,6 @@ window.expireAuthSession = async function () {
   window.clearAuthSession();
   window.clearIntendedRoute();
   if (window.history?.replaceState) window.history.replaceState({ view: 'dashboard' }, '', '/dashboard');
-  onlinePresence.stop();
   window.toggleLoading(false);
   $('body').removeClass('auth-checking');
   $('#app-content').hide();
@@ -3806,7 +3807,6 @@ window.getLocalStr = function (dObj) {
 
 window.getLocalDateKey = function (value) {
   if (!value) return '';
-  onlinePresence.stop();
   const raw = String(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const d = new Date(value);
@@ -4014,6 +4014,7 @@ window.getPostLoginView = function (perms) {
 };
 
 window.initApp = async function () {
+  onlinePresence.start(currentUser);
   try {
     $('#login-section').hide();
     $('#app-content').show();
@@ -4045,7 +4046,6 @@ window.initApp = async function () {
           ctx.restore();
         }
       });
-  onlinePresence.start(currentUser);
       window.dashboardNoDataPluginRegistered = true;
     }
 
