@@ -11082,10 +11082,9 @@ window.printOPDCard = async function (s, i, overrideVisit = null) {
     window.renderOpdPatientBarcode(printPatientId, 'popd2_barcode');
 
     Swal.close();
-    // OPD card uses programmatic PDF export (Option B) instead of window.print().
-    // This avoids Chrome's browser-injected date/URL/page-number headers, which
-    // the print dialog otherwise stamps on every printed page.
-    await window.exportOpdCardAsPdf(printPatientId);
+    // Open the browser's print preview directly. This avoids creating or
+    // downloading an OPD PDF file unless the user explicitly chooses Save as PDF.
+    window.executePrint('opd-print-area');
 
   } catch (err) {
     Swal.close();
