@@ -3993,6 +3993,45 @@ h6 {
   }
 }
 
+/* Browser OPD pages use a dedicated zero-margin A4 sheet. The printable
+   inset belongs to each sheet, so page two receives the same inset as page one. */
+@media print {
+  @page his-opd-preview { size: A4 portrait; margin: 0; }
+
+  html:has(#opd-print-area.print-active),
+  body:has(#opd-print-area.print-active) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    overflow: visible !important;
+  }
+
+  body #opd-print-area.opdref.print-active {
+    page: his-opd-preview;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    overflow: visible !important;
+  }
+
+  body #opd-print-area.opdref.print-active .opd-page {
+    page: his-opd-preview;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    padding: 10mm 12mm !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    break-inside: avoid;
+  }
+
+  body #opd-print-area.opdref.print-active .opdref-sheet {
+    width: 186mm !important;
+    max-width: 186mm !important;
+    margin: 0 !important;
+  }
+}
+
 /* html2pdf-safe OPD reference layout. These final overrides intentionally avoid
    flex-based form rows and collapsed table borders because html2canvas can drop
    those during PDF rasterization. */
