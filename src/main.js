@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode';
+import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
 
@@ -49,6 +50,7 @@ const supabaseClient = supabase.createClient(
 );
 console.log("Supabase Client:", supabaseClient);
 
+const onlinePresence = createOnlinePresence(supabaseClient, escapeHisHtml);
 window.authenticatedFetch = async function (url, options = {}) {
   const { data } = await supabaseClient.auth.getSession();
   const accessToken = data?.session?.access_token;
@@ -1981,6 +1983,7 @@ window.setAppLanguage = function (lang) {
 
 window.applyAppLanguage = function () {
   const lang = window.getAppLanguage();
+  onlinePresence.render();
   document.documentElement.lang = lang;
   $('#appLanguageSelect').val(lang);
 
@@ -3783,6 +3786,7 @@ window.expireAuthSession = async function () {
   window.clearAuthSession();
   window.clearIntendedRoute();
   if (window.history?.replaceState) window.history.replaceState({ view: 'dashboard' }, '', '/dashboard');
+  onlinePresence.stop();
   window.toggleLoading(false);
   $('body').removeClass('auth-checking');
   $('#app-content').hide();
@@ -3802,6 +3806,7 @@ window.getLocalStr = function (dObj) {
 
 window.getLocalDateKey = function (value) {
   if (!value) return '';
+  onlinePresence.stop();
   const raw = String(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const d = new Date(value);
@@ -4040,6 +4045,7 @@ window.initApp = async function () {
           ctx.restore();
         }
       });
+  onlinePresence.start(currentUser);
       window.dashboardNoDataPluginRegistered = true;
     }
 

@@ -83,6 +83,15 @@
   <!-- Right side: user + bell + logout -->
   <div class="his-nav-right">
     <select class="his-language-select" id="appLanguageSelect" onchange="window.setAppLanguage(this.value)" aria-label="Language">
+    <div class="his-dropdown his-online-presence">
+      <button type="button" class="his-online-button his-dropdown-toggle" id="his-online-button" data-status="connecting" aria-label="ຜູ້ອອນລາຍ">
+        <span class="his-online-dot" aria-hidden="true"></span><i class="fas fa-user-friends" aria-hidden="true"></i><span id="his-online-count">—</span>
+      </button>
+      <div class="his-dropdown-menu his-dropdown-menu-end his-online-menu">
+        <div class="his-dropdown-header" id="his-online-heading">ກຳລັງເຊື່ອມຕໍ່…</div>
+        <div id="his-online-list"></div>
+      </div>
+    </div>
       <option value="lo">ລາວ</option>
       <option value="en">EN</option>
     </select>
