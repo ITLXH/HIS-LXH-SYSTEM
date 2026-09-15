@@ -17052,15 +17052,15 @@ small,
 
 #opd-print-area.opdref .opd-page-one .opdref-nursing-note-block,
 .opdref-page.opd-page-one .opdref-nursing-note-block {
-  width: 170mm !important;
-  max-width: 170mm !important;
+  width: 100% !important;
+  max-width: 100% !important;
   margin: 2mm auto 0 !important;
 }
 
 #opd-print-area.opdref .opd-page-one .opdref-nursing-note-table,
 .opdref-page.opd-page-one .opdref-nursing-note-table {
-  width: 170mm !important;
-  max-width: 170mm !important;
+  width: 100% !important;
+  max-width: 100% !important;
   border-collapse: collapse !important;
   border: 1.3px solid #000 !important;
   outline: 1.1px solid #000 !important;
