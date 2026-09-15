@@ -14,7 +14,7 @@ import {
   mapHistoryRow
 } from '../src/manpowerSupabase.js';
 
-const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration, leaveMigration] = await Promise.all([
+const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration, leaveMigration, softDeleteMigration] = await Promise.all([
   readFile(new URL('../public/partials/views/manpower.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/main.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/partials/navbar.html', import.meta.url), 'utf8'),
@@ -24,7 +24,8 @@ const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migrati
   readFile(new URL('../src/manpowerSupabase.js', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260912120000_manpower_production.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260912133000_manpower_security_hardening.sql', import.meta.url), 'utf8'),
-  readFile(new URL('../supabase/migrations/20260912170000_manpower_leave_types_notes.sql', import.meta.url), 'utf8')
+  readFile(new URL('../supabase/migrations/20260912170000_manpower_leave_types_notes.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260915110000_manpower_soft_delete_rls.sql', import.meta.url), 'utf8')
 ]);
 
 for (const id of [
@@ -141,6 +142,9 @@ assert.match(leaveMigration, /ADD COLUMN IF NOT EXISTS "Leave_Type" TEXT/);
 assert.match(leaveMigration, /DROP CONSTRAINT IF EXISTS "HIS_One_Manpower_Assignments_replacement_check"/);
 assert.match(leaveMigration, /"Leave_Type" IN \('vacation', 'sick', 'personal'\)/);
 assert.match(leaveMigration, /"Note_Before" TEXT/);
+assert.match(softDeleteMigration, /CREATE POLICY his_manpower_assignments_admin_read_all/);
+assert.match(softDeleteMigration, /FOR SELECT TO authenticated/);
+assert.match(softDeleteMigration, /public\.his_one_is_active_user\(\)[\s\S]*public\.his_one_is_admin\(\)/);
 assert.equal(MANPOWER_STORAGE_KEY, 'his_local_manpower_assignments_v1');
 assert.equal(MANPOWER_HISTORY_STORAGE_KEY, 'his_local_manpower_history_v1');
 assert.deepEqual(calculateManpowerSummary([
