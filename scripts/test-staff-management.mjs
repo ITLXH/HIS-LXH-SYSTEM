@@ -3,8 +3,10 @@ import { readFile } from 'node:fs/promises';
 import {
   STAFF_STORAGE_KEY,
   calculateStaffStats,
+  calculateStaffCropTransform,
   createStaffEmployeeCode,
   filterStaffRecords,
+  getStaffCropBox,
   normalizeStaffRecord,
   validateStaffPhotoFile
 } from '../src/staffManagement.js';
@@ -22,6 +24,7 @@ for (const id of [
   'view-staff', 'staffTotalCount', 'staffDoctorCount', 'staffNurseCount', 'staffActiveCount',
   'staffSearchInput', 'staffTypeFilter', 'staffStatusFilter', 'staffDirectoryGrid',
   'staffEditorModal', 'staffEditorForm', 'staffPhotoInput', 'staffPhotoPreview',
+  'staffAdjustPhotoButton', 'staffPhotoCropOverlay', 'staffPhotoCropCanvas', 'staffPhotoZoom',
   'staffPersistenceBadge', 'staffPhotoPath',
   'staffFullName', 'staffDepartmentType', 'staffStatus'
 ]) {
@@ -63,6 +66,20 @@ assert.deepEqual(filterStaffRecords(records, { query: '', type: 'nurse', status:
 assert.equal(validateStaffPhotoFile({ type: 'image/jpeg', size: 1000 }).ok, true);
 assert.equal(validateStaffPhotoFile({ type: 'image/gif', size: 1000 }).ok, false);
 assert.equal(validateStaffPhotoFile({ type: 'image/png', size: 6 * 1024 * 1024 }).ok, false);
+
+const squareCrop = getStaffCropBox('square');
+const portraitCrop = getStaffCropBox('portrait');
+assert.equal(squareCrop.width, squareCrop.height);
+assert.equal(portraitCrop.width / portraitCrop.height, 3 / 4);
+const constrainedCrop = calculateStaffCropTransform({
+  imageWidth: 1200, imageHeight: 800, preset: 'square', zoom: 1, rotation: 0,
+  offsetX: 9999, offsetY: -9999
+});
+assert.equal(constrainedCrop.offsetY, 0, 'cover transform must not expose empty space vertically');
+assert.ok(constrainedCrop.offsetX < 9999, 'drag offset must stay inside the image');
+assert.match(view, /data-staff-crop-preset="circle"/);
+assert.match(view, /data-staff-crop-preset="square"/);
+assert.match(view, /data-staff-crop-preset="portrait"/);
 
 assert.deepEqual(mapStaffRow({
   ID: 'abc', Employee_Code: 'DOC-1', Full_Name: 'Dr A', Employee_Type: 'doctor',

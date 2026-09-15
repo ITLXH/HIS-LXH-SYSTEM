@@ -92,6 +92,9 @@
                   <button type="button" class="btn btn-sm btn-outline-primary" onclick="document.getElementById('staffPhotoInput').click()">
                     <i class="fas fa-camera me-1"></i> ເລືອກຮູບ
                   </button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="staffAdjustPhotoButton" onclick="window.editCurrentStaffPhoto()">
+                    <i class="fas fa-crop-alt me-1"></i> ປັບຮູບ
+                  </button>
                   <button type="button" class="btn btn-sm btn-outline-danger" id="staffRemovePhotoButton" onclick="window.removeStaffPhoto()">
                     <i class="fas fa-trash-alt me-1"></i> ລຶບຮູບ
                   </button>
@@ -147,6 +150,64 @@
           </div>
         </form>
       </div>
+    </div>
+  </div>
+
+  <div class="staff-crop-overlay" id="staffPhotoCropOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="staffPhotoCropTitle">
+    <div class="staff-crop-dialog">
+      <header class="staff-crop-header">
+        <div>
+          <span class="staff-modal-kicker">PHOTO EDITOR</span>
+          <h5 id="staffPhotoCropTitle">ປັບຮູບພະນັກງານ</h5>
+        </div>
+        <button type="button" class="btn-close" onclick="window.closeStaffPhotoEditor()" aria-label="ປິດ"></button>
+      </header>
+
+      <div class="staff-crop-body">
+        <section class="staff-crop-workspace" aria-label="ພື້ນທີ່ຕັດຮູບ">
+          <canvas id="staffPhotoCropCanvas" width="480" height="360" tabindex="0" aria-label="ລາກຮູບເພື່ອຈັດຕຳແໜ່ງ"></canvas>
+          <p><i class="fas fa-hand-paper"></i> ລາກຮູບເພື່ອຈັດໃບໜ້າໃຫ້ຢູ່ກາງຂອບຕັດ</p>
+        </section>
+
+        <aside class="staff-crop-controls">
+          <div class="staff-crop-control-group">
+            <label>ຮູບແບບຂອບຕັດ</label>
+            <div class="staff-crop-presets" role="group" aria-label="ຮູບແບບຂອບຕັດ">
+              <button type="button" class="is-active" data-staff-crop-preset="circle" onclick="window.setStaffCropPreset('circle')"><span class="staff-preset-shape is-circle"></span>ວົງມົນ</button>
+              <button type="button" data-staff-crop-preset="square" onclick="window.setStaffCropPreset('square')"><span class="staff-preset-shape"></span>1 : 1</button>
+              <button type="button" data-staff-crop-preset="portrait" onclick="window.setStaffCropPreset('portrait')"><span class="staff-preset-shape is-portrait"></span>3 : 4</button>
+            </div>
+          </div>
+
+          <div class="staff-crop-control-group">
+            <div class="staff-crop-label-row"><label for="staffPhotoZoom">ຂະຫຍາຍຮູບ</label><output id="staffPhotoZoomValue" for="staffPhotoZoom">100%</output></div>
+            <div class="staff-crop-zoom-row">
+              <button type="button" onclick="window.changeStaffCropZoom(-0.1)" aria-label="ຫຍໍ້ຮູບ"><i class="fas fa-minus"></i></button>
+              <input id="staffPhotoZoom" type="range" min="100" max="300" step="1" value="100" oninput="window.setStaffCropZoom(this.value)">
+              <button type="button" onclick="window.changeStaffCropZoom(0.1)" aria-label="ຂະຫຍາຍຮູບ"><i class="fas fa-plus"></i></button>
+            </div>
+          </div>
+
+          <div class="staff-crop-control-group">
+            <label>ໝຸນ ແລະຄືນຄ່າ</label>
+            <div class="staff-crop-actions">
+              <button type="button" onclick="window.rotateStaffCrop(-90)"><i class="fas fa-undo"></i> ຊ້າຍ 90°</button>
+              <button type="button" onclick="window.rotateStaffCrop(90)"><i class="fas fa-redo"></i> ຂວາ 90°</button>
+              <button type="button" onclick="window.resetStaffPhotoCrop()"><i class="fas fa-sync-alt"></i> ຄືນຄ່າ</button>
+            </div>
+          </div>
+
+          <div class="staff-crop-preview-note">
+            <i class="fas fa-info-circle"></i>
+            <span>ສ່ວນທີ່ຢູ່ໃນຂອບສີຂາວຈະຖືກນຳໄປໃຊ້. ຮູບຈະຖືກປັບຂະໜາດໃຫ້ເໝາະກັບລະບົບ.</span>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="staff-crop-footer">
+        <button type="button" class="btn btn-outline-secondary" onclick="window.closeStaffPhotoEditor()">ຍົກເລີກ</button>
+        <button type="button" class="btn btn-primary" onclick="window.applyStaffPhotoCrop()"><i class="fas fa-check me-1"></i> ໃຊ້ຮູບນີ້</button>
+      </footer>
     </div>
   </div>
 </div>

@@ -1,6 +1,12 @@
 const STAFF_STORAGE_KEY = 'his_local_staff_profiles_v1';
 const STAFF_MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const STAFF_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const STAFF_CROP_STAGE = Object.freeze({ width: 480, height: 360, padding: 20 });
+const STAFF_CROP_PRESETS = Object.freeze({
+  circle: { ratio: 1, outputWidth: 480, outputHeight: 480 },
+  square: { ratio: 1, outputWidth: 480, outputHeight: 480 },
+  portrait: { ratio: 3 / 4, outputWidth: 480, outputHeight: 640 }
+});
 
 const STAFF_TYPE_META = Object.freeze({
   doctor: { label: 'ແພດ', icon: 'fa-user-md', tone: 'doctor' },
@@ -103,6 +109,43 @@ export function validateStaffPhotoFile(file) {
   return { ok: true, message: '' };
 }
 
+export function getStaffCropBox(preset = 'circle', stage = STAFF_CROP_STAGE) {
+  const config = STAFF_CROP_PRESETS[preset] || STAFF_CROP_PRESETS.circle;
+  const availableWidth = stage.width - (stage.padding * 2);
+  const availableHeight = stage.height - (stage.padding * 2);
+  let width = Math.min(availableWidth, availableHeight * config.ratio);
+  let height = width / config.ratio;
+  if (height > availableHeight) {
+    height = availableHeight;
+    width = height * config.ratio;
+  }
+  return {
+    x: (stage.width - width) / 2,
+    y: (stage.height - height) / 2,
+    width,
+    height,
+    centerX: stage.width / 2,
+    centerY: stage.height / 2
+  };
+}
+
+export function calculateStaffCropTransform({ imageWidth, imageHeight, preset = 'circle', zoom = 1, rotation = 0, offsetX = 0, offsetY = 0 }) {
+  const crop = getStaffCropBox(preset);
+  const sideways = Math.abs(rotation % 180) === 90;
+  const rotatedWidth = sideways ? imageHeight : imageWidth;
+  const rotatedHeight = sideways ? imageWidth : imageHeight;
+  const baseScale = Math.max(crop.width / rotatedWidth, crop.height / rotatedHeight);
+  const scale = baseScale * Math.max(1, Math.min(3, Number(zoom) || 1));
+  const maxOffsetX = Math.max(0, ((rotatedWidth * scale) - crop.width) / 2);
+  const maxOffsetY = Math.max(0, ((rotatedHeight * scale) - crop.height) / 2);
+  return {
+    crop,
+    scale,
+    offsetX: maxOffsetX ? Math.max(-maxOffsetX, Math.min(maxOffsetX, Number(offsetX) || 0)) : 0,
+    offsetY: maxOffsetY ? Math.max(-maxOffsetY, Math.min(maxOffsetY, Number(offsetY) || 0)) : 0
+  };
+}
+
 function cloneDemoRecords() {
   const now = new Date().toISOString();
   return STAFF_DEMO_RECORDS.map(record => normalizeStaffRecord({ ...record, createdAt: now, updatedAt: now }));
@@ -148,34 +191,32 @@ function persistStaffRecords(records) {
   window.localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(records.map(normalizeStaffRecord)));
 }
 
-function resizeStaffPhoto(file) {
+function readStaffPhoto(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('ບໍ່ສາມາດອ່ານຮູບໄດ້'));
-    reader.onload = () => {
-      const image = new Image();
-      image.onerror = () => reject(new Error('ຮູບນີ້ບໍ່ສາມາດເປີດໄດ້'));
-      image.onload = () => {
-        const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
-        const sourceX = Math.max(0, (image.naturalWidth - sourceSize) / 2);
-        const sourceY = Math.max(0, (image.naturalHeight - sourceSize) / 2);
-        const canvas = document.createElement('canvas');
-        canvas.width = 360;
-        canvas.height = 360;
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#eef5fb';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
-      };
-      image.src = reader.result;
-    };
+    reader.onload = () => resolve(String(reader.result || ''));
     reader.readAsDataURL(file);
+  });
+}
+
+function loadStaffPhotoImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onerror = () => reject(new Error('ຮູບນີ້ບໍ່ສາມາດເປີດໄດ້'));
+    image.onload = () => resolve(image);
+    image.src = source;
   });
 }
 
 export function installStaffManagement({ escapeHtml = value => String(value ?? ''), backend = null } = {}) {
   const state = { records: [], initialized: false, mode: 'local' };
+  const cropState = {
+    image: null, source: '', preset: 'circle', zoom: 1, rotation: 0,
+    offsetX: 0, offsetY: 0, dragging: false, pointerId: null,
+    dragStartX: 0, dragStartY: 0, dragOffsetX: 0, dragOffsetY: 0
+  };
   window.staffManagementState = state;
 
   const notify = (title, text, icon = 'info') => {
@@ -310,10 +351,171 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
     const fullName = clean(document.getElementById('staffFullName')?.value);
     const preview = document.getElementById('staffPhotoPreview');
     const removeButton = document.getElementById('staffRemovePhotoButton');
+    const adjustButton = document.getElementById('staffAdjustPhotoButton');
     if (preview) preview.innerHTML = photoData
       ? `<img src="${escapeHtml(photoData)}" alt="ຮູບ ${escapeHtml(fullName)}">`
       : `<span>${escapeHtml(initials(fullName))}</span><i class="fas fa-camera"></i>`;
     if (removeButton) removeButton.disabled = !photoData;
+    if (adjustButton) adjustButton.disabled = !photoData;
+  };
+
+  function currentStaffCropTransform() {
+    if (!cropState.image) return null;
+    const transform = calculateStaffCropTransform({
+      imageWidth: cropState.image.naturalWidth,
+      imageHeight: cropState.image.naturalHeight,
+      preset: cropState.preset,
+      zoom: cropState.zoom,
+      rotation: cropState.rotation,
+      offsetX: cropState.offsetX,
+      offsetY: cropState.offsetY
+    });
+    cropState.offsetX = transform.offsetX;
+    cropState.offsetY = transform.offsetY;
+    return transform;
+  }
+
+  function drawStaffCropImage(context, transform) {
+    context.save();
+    context.translate(transform.crop.centerX + transform.offsetX, transform.crop.centerY + transform.offsetY);
+    context.rotate(cropState.rotation * Math.PI / 180);
+    context.scale(transform.scale, transform.scale);
+    context.drawImage(cropState.image, -cropState.image.naturalWidth / 2, -cropState.image.naturalHeight / 2);
+    context.restore();
+  }
+
+  window.renderStaffPhotoCrop = function () {
+    const canvas = document.getElementById('staffPhotoCropCanvas');
+    if (!canvas || !cropState.image) return;
+    const context = canvas.getContext('2d');
+    const transform = currentStaffCropTransform();
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#24384b';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    drawStaffCropImage(context, transform);
+
+    const crop = transform.crop;
+    context.save();
+    context.fillStyle = 'rgba(5, 15, 24, .68)';
+    context.beginPath();
+    context.rect(0, 0, canvas.width, canvas.height);
+    if (cropState.preset === 'circle') context.arc(crop.centerX, crop.centerY, crop.width / 2, 0, Math.PI * 2);
+    else context.rect(crop.x, crop.y, crop.width, crop.height);
+    context.fill('evenodd');
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = 3;
+    context.beginPath();
+    if (cropState.preset === 'circle') context.arc(crop.centerX, crop.centerY, crop.width / 2, 0, Math.PI * 2);
+    else context.rect(crop.x, crop.y, crop.width, crop.height);
+    context.stroke();
+    context.restore();
+
+    const zoom = document.getElementById('staffPhotoZoom');
+    const zoomValue = document.getElementById('staffPhotoZoomValue');
+    if (zoom) zoom.value = String(Math.round(cropState.zoom * 100));
+    if (zoomValue) zoomValue.textContent = `${Math.round(cropState.zoom * 100)}%`;
+    document.querySelectorAll('[data-staff-crop-preset]').forEach(button => {
+      const selected = button.dataset.staffCropPreset === cropState.preset;
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  };
+
+  window.openStaffPhotoEditor = async function (source) {
+    if (!source) return;
+    try {
+      cropState.image = await loadStaffPhotoImage(source);
+      cropState.source = source;
+      cropState.preset = 'circle';
+      cropState.zoom = 1;
+      cropState.rotation = 0;
+      cropState.offsetX = 0;
+      cropState.offsetY = 0;
+      const overlay = document.getElementById('staffPhotoCropOverlay');
+      if (!overlay) return;
+      overlay.hidden = false;
+      document.body.classList.add('staff-photo-crop-open');
+      window.renderStaffPhotoCrop();
+      document.getElementById('staffPhotoCropCanvas')?.focus();
+    } catch (error) {
+      const input = document.getElementById('staffPhotoInput');
+      if (input) input.value = '';
+      await notify('ເປີດຮູບບໍ່ສຳເລັດ', error.message, 'error');
+    }
+  };
+
+  window.closeStaffPhotoEditor = function () {
+    const overlay = document.getElementById('staffPhotoCropOverlay');
+    if (overlay) overlay.hidden = true;
+    document.body.classList.remove('staff-photo-crop-open');
+    cropState.dragging = false;
+    cropState.pointerId = null;
+    const input = document.getElementById('staffPhotoInput');
+    if (input) input.value = '';
+  };
+
+  window.editCurrentStaffPhoto = function () {
+    const source = clean(document.getElementById('staffPhotoData')?.value);
+    if (source) void window.openStaffPhotoEditor(source);
+  };
+
+  window.setStaffCropPreset = function (preset) {
+    if (!STAFF_CROP_PRESETS[preset]) return;
+    cropState.preset = preset;
+    cropState.offsetX = 0;
+    cropState.offsetY = 0;
+    window.renderStaffPhotoCrop();
+  };
+
+  window.setStaffCropZoom = function (percent) {
+    cropState.zoom = Math.max(1, Math.min(3, Number(percent) / 100 || 1));
+    window.renderStaffPhotoCrop();
+  };
+
+  window.changeStaffCropZoom = function (amount) {
+    cropState.zoom = Math.max(1, Math.min(3, cropState.zoom + Number(amount || 0)));
+    window.renderStaffPhotoCrop();
+  };
+
+  window.rotateStaffCrop = function (degrees) {
+    cropState.rotation = ((cropState.rotation + Number(degrees || 0)) % 360 + 360) % 360;
+    cropState.offsetX = 0;
+    cropState.offsetY = 0;
+    window.renderStaffPhotoCrop();
+  };
+
+  window.resetStaffPhotoCrop = function () {
+    cropState.zoom = 1;
+    cropState.rotation = 0;
+    cropState.offsetX = 0;
+    cropState.offsetY = 0;
+    window.renderStaffPhotoCrop();
+  };
+
+  window.applyStaffPhotoCrop = async function () {
+    try {
+      const transform = currentStaffCropTransform();
+      if (!transform || !cropState.image) return;
+      const output = STAFF_CROP_PRESETS[cropState.preset] || STAFF_CROP_PRESETS.circle;
+      const canvas = document.createElement('canvas');
+      canvas.width = output.outputWidth;
+      canvas.height = output.outputHeight;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const ratio = canvas.width / transform.crop.width;
+      context.save();
+      context.scale(ratio, ratio);
+      context.translate(-transform.crop.x, -transform.crop.y);
+      drawStaffCropImage(context, transform);
+      context.restore();
+      const input = document.getElementById('staffPhotoData');
+      if (input) input.value = canvas.toDataURL('image/jpeg', 0.86);
+      window.renderStaffPhotoPreview();
+      window.closeStaffPhotoEditor();
+    } catch (error) {
+      await notify('ປັບຮູບບໍ່ສຳເລັດ', error?.message || 'Canvas export failed', 'error');
+    }
   };
 
   window.handleStaffPhotoChange = async function (event) {
@@ -325,10 +527,8 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
       return;
     }
     try {
-      const photoData = await resizeStaffPhoto(file);
-      const input = document.getElementById('staffPhotoData');
-      if (input) input.value = photoData;
-      window.renderStaffPhotoPreview();
+      const photoData = await readStaffPhoto(file);
+      await window.openStaffPhotoEditor(photoData);
     } catch (error) {
       await notify('ອ່ານຮູບບໍ່ສຳເລັດ', error.message, 'error');
     }
@@ -442,6 +642,66 @@ export function installStaffManagement({ escapeHtml = value => String(value ?? '
   document.addEventListener('input', event => {
     if (event.target?.id === 'staffFullName') window.renderStaffPhotoPreview();
   });
+
+  document.addEventListener('keydown', event => {
+    const overlay = document.getElementById('staffPhotoCropOverlay');
+    if (!overlay || overlay.hidden) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      window.closeStaffPhotoEditor();
+      return;
+    }
+    if (event.target?.id !== 'staffPhotoCropCanvas') return;
+    const step = event.shiftKey ? 12 : 4;
+    if (event.key === 'ArrowLeft') cropState.offsetX -= step;
+    else if (event.key === 'ArrowRight') cropState.offsetX += step;
+    else if (event.key === 'ArrowUp') cropState.offsetY -= step;
+    else if (event.key === 'ArrowDown') cropState.offsetY += step;
+    else return;
+    event.preventDefault();
+    window.renderStaffPhotoCrop();
+  });
+
+  document.addEventListener('pointerdown', event => {
+    const canvas = event.target?.closest?.('#staffPhotoCropCanvas');
+    if (!canvas || !cropState.image) return;
+    const rect = canvas.getBoundingClientRect();
+    cropState.dragging = true;
+    cropState.pointerId = event.pointerId;
+    cropState.dragStartX = (event.clientX - rect.left) * (canvas.width / rect.width);
+    cropState.dragStartY = (event.clientY - rect.top) * (canvas.height / rect.height);
+    cropState.dragOffsetX = cropState.offsetX;
+    cropState.dragOffsetY = cropState.offsetY;
+    canvas.setPointerCapture?.(event.pointerId);
+    canvas.classList.add('is-dragging');
+  });
+
+  document.addEventListener('pointermove', event => {
+    if (!cropState.dragging || event.pointerId !== cropState.pointerId) return;
+    const canvas = document.getElementById('staffPhotoCropCanvas');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+    cropState.offsetX = cropState.dragOffsetX + x - cropState.dragStartX;
+    cropState.offsetY = cropState.dragOffsetY + y - cropState.dragStartY;
+    window.renderStaffPhotoCrop();
+  });
+
+  const finishCropDrag = event => {
+    if (!cropState.dragging || (event.pointerId != null && event.pointerId !== cropState.pointerId)) return;
+    cropState.dragging = false;
+    cropState.pointerId = null;
+    document.getElementById('staffPhotoCropCanvas')?.classList.remove('is-dragging');
+  };
+  document.addEventListener('pointerup', finishCropDrag);
+  document.addEventListener('pointercancel', finishCropDrag);
+
+  document.addEventListener('wheel', event => {
+    if (event.target?.id !== 'staffPhotoCropCanvas') return;
+    event.preventDefault();
+    window.changeStaffCropZoom(event.deltaY < 0 ? 0.05 : -0.05);
+  }, { passive: false });
 }
 
 export { STAFF_STORAGE_KEY, STAFF_TYPE_META, STAFF_STATUS_META };
