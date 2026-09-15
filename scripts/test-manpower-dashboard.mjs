@@ -176,6 +176,7 @@ assert.equal(filterManpowerHistory(history, { query: 'tester' }).length, 1);
 assert.match(dashboard, /label: 'ເອໂກ້ \+ ລັງສີ'/);
 
 const fallbackSelects = [];
+const fallbackInserts = [];
 const fallbackClient = {
   from() {
     return {
@@ -191,6 +192,21 @@ const fallbackClient = {
           then(resolve, reject) { return Promise.resolve(response).then(resolve, reject); }
         };
         return query;
+      },
+      insert(row) {
+        return {
+          select(columns) {
+            fallbackInserts.push({ row: { ...row }, columns });
+            return {
+              single() {
+                return Promise.resolve({
+                  data: { ID: 'created-id', ...row },
+                  error: null
+                });
+              }
+            };
+          }
+        };
       }
     };
   }
@@ -206,4 +222,46 @@ assert.equal(fallbackRows[0].id, 'legacy-id');
 assert.equal(fallbackSelects.length, 2, 'missing Leave_Type must retry with the legacy assignment columns');
 assert.ok(fallbackSelects[0].includes('Leave_Type'));
 assert.ok(!fallbackSelects[1].includes('Leave_Type'));
+const fallbackCreated = await fallbackBackend.create({
+  date: '2026-09-12', shift: 'morning', staffId: 'staff-id', status: 'working'
+});
+assert.equal(fallbackCreated.id, 'created-id');
+assert.equal(fallbackInserts.length, 1);
+assert.ok(!('Leave_Type' in fallbackInserts[0].row), 'legacy create must omit the missing Leave_Type field');
+assert.ok(!fallbackInserts[0].columns.includes('Leave_Type'), 'legacy create must not request the missing Leave_Type field');
+
+const directCreateAttempts = [];
+const directCreateClient = {
+  from() {
+    return {
+      insert(row) {
+        return {
+          select(columns) {
+            directCreateAttempts.push({ row: { ...row }, columns });
+            return {
+              single() {
+                return Promise.resolve(columns.includes('Leave_Type')
+                  ? { data: null, error: { code: '42703', message: 'column Leave_Type does not exist' } }
+                  : { data: { ID: 'retried-id', ...row }, error: null });
+              }
+            };
+          }
+        };
+      }
+    };
+  }
+};
+const directCreateBackend = createManpowerSupabaseBackend({
+  client: directCreateClient,
+  assignmentsTableName: 'assignments',
+  historyTableName: 'history'
+});
+const retriedCreate = await directCreateBackend.create({
+  date: '2026-09-12', shift: 'night', staffId: 'staff-id', status: 'working'
+});
+assert.equal(retriedCreate.id, 'retried-id');
+assert.equal(directCreateAttempts.length, 2, 'create must retry against the legacy schema');
+assert.ok('Leave_Type' in directCreateAttempts[0].row);
+assert.ok(!('Leave_Type' in directCreateAttempts[1].row));
+assert.ok(!directCreateAttempts[1].columns.includes('Leave_Type'));
 console.log('Manpower production persistence, security, history, realtime and UI checks passed.');
