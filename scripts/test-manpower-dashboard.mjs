@@ -31,7 +31,7 @@ const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migrati
 for (const id of [
   'view-manpower', 'manpowerDate', 'manpowerWorkingCount', 'manpowerAbsentCount',
   'manpowerLeaveCount', 'manpowerSwappedCount', 'manpowerDepartmentList',
-  'manpowerPrintContext', 'manpowerDataBadge', 'manpowerAssignmentModal', 'manpowerStaffSelect', 'manpowerStatusSelect',
+  'manpowerPrintContext', 'manpowerAllShiftsPrint', 'manpowerDataBadge', 'manpowerAssignmentModal', 'manpowerStaffSelect', 'manpowerStatusSelect',
   'manpowerAssignmentDepartment', 'manpowerStaffAvailabilityNote', 'manpowerAssignmentSaveButton',
   'manpowerNewLeaveTypeGroup', 'manpowerNewLeaveType', 'manpowerNewNote',
   'manpowerManagementModal', 'manpowerManageAssignmentId', 'manpowerManageCurrentStaff',
@@ -66,7 +66,8 @@ assert.match(style, /\.manpower-history-toolbar/);
 assert.match(style, /\.manpower-history-table/);
 assert.doesNotMatch(style, /url\('\/luckxay-logo\.jpg'\)/);
 assert.match(style, /\.manpower-view\s*\{[^}]*background:\s*#fff/s);
-assert.match(style, /\.manpower-person-info strong\s*\{[^}]*font-size:\s*14px/s);
+assert.match(style, /\.manpower-person-info strong\s*\{[^}]*font-size:\s*12px/s);
+assert.match(style, /\.manpower-person-info strong\s*\{[^}]*-webkit-line-clamp:\s*2/s);
 assert.match(style, /\.manpower-department h4\s*\{[^}]*font-size:\s*13px/s);
 assert.match(style, /\.manpower-view\s*>\s*\.manpower-datebar\s*\{[^}]*position:\s*absolute/s);
 assert.match(style, /\.manpower-departments\s*\{[^}]*grid-template-columns:\s*1fr/s);
@@ -85,6 +86,13 @@ assert.match(style, /@media print[\s\S]*\.manpower-people\s*\{[^}]*min-height:\s
 assert.match(style, /@media print[\s\S]*\.manpower-person\s*\{[^}]*min-height:\s*14mm/s);
 assert.match(style, /\.manpower-modal \.select2-container/);
 assert.match(view, /window\.printManpowerDashboard\(\)/);
+assert.match(view, /id="manpowerDataBadge" hidden/);
+assert.match(view, /window\.printAllManpowerShifts\(\)/);
+assert.match(view, /> ພິມທຸກກະ<\/button>/);
+assert.match(dashboard, /window\.printAllManpowerShifts/);
+assert.match(dashboard, /Object\.entries\(SHIFTS\)\.map/);
+assert.match(dashboard, /data-print-shift=/);
+assert.match(style, /\.manpower-print-sheet\s*\{[^}]*break-after:\s*page/s);
 assert.match(view, /window\.saveManpowerManagement\(event\)/);
 assert.match(view, /window\.openManpowerHistory\(\)/);
 assert.doesNotMatch(dashboard, /reception:\s*\{/);
@@ -112,7 +120,7 @@ assert.match(dashboard, /LOCAL_PHARMACY_DEMO/);
 assert.match(dashboard, /ຈັດເຂົ້າເວນແລ້ວ/);
 assert.match(dashboard, /sharedState\?\.initialized/);
 assert.match(dashboard, /await staffBackend\.load\(\)/);
-assert.match(dashboard, /Supabase realtime/);
+assert.doesNotMatch(dashboard, /Supabase realtime/);
 assert.match(dashboard, /backend\.loadAssignments/);
 assert.match(dashboard, /backend\.loadHistory/);
 assert.match(dashboard, /backend\.subscribe/);

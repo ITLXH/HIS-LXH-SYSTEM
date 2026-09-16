@@ -6,14 +6,16 @@
       <p>ຈັດພະນັກງານເຂົ້າເວນຕາມວັນທີ, ກະເວລາ ແລະພະແນກ</p>
     </div>
     <div class="manpower-header-actions">
-      <span class="manpower-local-badge" id="manpowerDataBadge"><i class="fas fa-laptop-code"></i> Local test data</span>
+      <span class="manpower-local-badge" id="manpowerDataBadge" hidden><i class="fas fa-laptop-code"></i> Local test data</span>
       <button class="btn btn-outline-primary" type="button" onclick="window.openManpowerHistory()"><i class="fas fa-history me-1"></i> ປະຫວັດເຂົ້າເວນ</button>
       <button class="btn btn-primary" type="button" onclick="window.printManpowerDashboard()"><i class="fas fa-print me-1"></i> ພິມ A4</button>
+      <button class="btn btn-outline-primary" type="button" onclick="window.printAllManpowerShifts()"><i class="fas fa-layer-group me-1"></i> ພິມທຸກກະ</button>
       <button class="btn btn-outline-primary" type="button" onclick="window.loadView('staff')"><i class="fas fa-users-cog me-1"></i> ຈັດການພະນັກງານ</button>
     </div>
   </header>
 
   <div class="manpower-print-context" id="manpowerPrintContext"></div>
+  <div class="manpower-all-shifts-print" id="manpowerAllShiftsPrint" aria-hidden="true"></div>
 
   <section class="manpower-datebar" aria-label="ເລືອກວັນທີ">
     <button type="button" class="btn btn-light" onclick="window.changeManpowerDate(-1)" aria-label="ມື້ກ່ອນ"><i class="fas fa-chevron-left"></i></button>
