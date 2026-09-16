@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   MANPOWER_HISTORY_STORAGE_KEY,
+  MANPOWER_OVERVIEW_STORAGE_KEY,
   MANPOWER_STORAGE_KEY,
   calculateManpowerSummary,
   filterManpowerHistory,
@@ -11,10 +12,11 @@ import {
   assignmentPayload,
   createManpowerSupabaseBackend,
   mapAssignmentRow,
-  mapHistoryRow
+  mapHistoryRow,
+  mapOverviewRow
 } from '../src/manpowerSupabase.js';
 
-const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration, leaveMigration, softDeleteMigration] = await Promise.all([
+const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migration, hardeningMigration, leaveMigration, softDeleteMigration, overviewMigration] = await Promise.all([
   readFile(new URL('../public/partials/views/manpower.html', import.meta.url), 'utf8'),
   readFile(new URL('../src/main.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/partials/navbar.html', import.meta.url), 'utf8'),
@@ -25,12 +27,14 @@ const [view, main, navbar, style, staffView, dashboard, supabaseBackend, migrati
   readFile(new URL('../supabase/migrations/20260912120000_manpower_production.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260912133000_manpower_security_hardening.sql', import.meta.url), 'utf8'),
   readFile(new URL('../supabase/migrations/20260912170000_manpower_leave_types_notes.sql', import.meta.url), 'utf8'),
-  readFile(new URL('../supabase/migrations/20260915110000_manpower_soft_delete_rls.sql', import.meta.url), 'utf8')
+  readFile(new URL('../supabase/migrations/20260915110000_manpower_soft_delete_rls.sql', import.meta.url), 'utf8'),
+  readFile(new URL('../supabase/migrations/20260916050000_manpower_shift_overviews.sql', import.meta.url), 'utf8')
 ]);
 
 for (const id of [
   'view-manpower', 'manpowerDate', 'manpowerWorkingCount', 'manpowerAbsentCount',
   'manpowerLeaveCount', 'manpowerSwappedCount', 'manpowerDepartmentList',
+  'manpowerOverviewLabel', 'manpowerOverview', 'manpowerOverviewSaveState', 'manpowerOverviewPrint',
   'manpowerPrintContext', 'manpowerAllShiftsPrint', 'manpowerDataBadge', 'manpowerAssignmentModal', 'manpowerStaffSelect', 'manpowerStatusSelect',
   'manpowerAssignmentDepartment', 'manpowerStaffAvailabilityNote', 'manpowerAssignmentSaveButton',
   'manpowerNewLeaveTypeGroup', 'manpowerNewLeaveType', 'manpowerNewNote',
@@ -47,6 +51,7 @@ assert.match(main, /window\.isLocalManpowerPreview/);
 assert.match(main, /const previewRequested = new URLSearchParams\(window\.location\.search\)\.get\('preview'\) === '1'/);
 assert.match(main, /if \(v === 'manpower'\)/);
 assert.match(main, /createManpowerSupabaseBackend/);
+assert.match(main, /overviewsTableName:\s*dbTable\('Manpower_Shift_Overviews'\)/);
 assert.match(main, /backend:\s*manpowerSupabaseBackend/);
 assert.match(main, /canManage:\s*\(\) => normalizeHisRole\(currentUser\?\.role\) === 'admin'/);
 assert.match(navbar, /id="nav-manpower"/);
@@ -64,6 +69,8 @@ assert.match(style, /\.manpower-person-role/);
 assert.match(style, /\.manpower-manage/);
 assert.match(style, /\.manpower-history-toolbar/);
 assert.match(style, /\.manpower-history-table/);
+assert.match(style, /\.manpower-overview textarea\s*\{[^}]*resize:\s*vertical/s);
+assert.match(style, /@media print[\s\S]*\.manpower-overview-print\s*\{[^}]*display:\s*block\s*!important/s);
 assert.doesNotMatch(style, /url\('\/luckxay-logo\.jpg'\)/);
 assert.match(style, /\.manpower-view\s*\{[^}]*background:\s*#fff/s);
 assert.match(style, /\.manpower-person-info strong\s*\{[^}]*font-size:\s*12px/s);
@@ -123,6 +130,10 @@ assert.match(dashboard, /await staffBackend\.load\(\)/);
 assert.doesNotMatch(dashboard, /Supabase realtime/);
 assert.match(dashboard, /backend\.loadAssignments/);
 assert.match(dashboard, /backend\.loadHistory/);
+assert.match(dashboard, /backend\.loadOverviews/);
+assert.match(dashboard, /backend\.saveOverview/);
+assert.match(dashboard, /window\.updateManpowerOverview/);
+assert.match(dashboard, /overviewPrintMarkup\(state\.overviews\[shift\]\)/);
 assert.match(dashboard, /backend\.subscribe/);
 assert.match(dashboard, /backend\.create/);
 assert.match(dashboard, /backend\.update/);
@@ -131,7 +142,7 @@ assert.match(dashboard, /mayManage/);
 assert.match(supabaseBackend, /\.on\('postgres_changes'/);
 assert.match(supabaseBackend, /\.is\('Deleted_At', null\)/);
 assert.match(supabaseBackend, /error\.code === '23505'/);
-assert.doesNotMatch(supabaseBackend, /\.upsert\(/);
+assert.match(supabaseBackend, /\.from\(overviewsTableName\)[\s\S]*\.upsert\(payload, \{ onConflict: 'Duty_Date,Shift' \}\)/);
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\."HIS_One_Manpower_Assignments"/);
 assert.match(migration, /CREATE TABLE IF NOT EXISTS public\."HIS_One_Manpower_History"/);
 assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
@@ -153,8 +164,17 @@ assert.match(leaveMigration, /"Note_Before" TEXT/);
 assert.match(softDeleteMigration, /CREATE POLICY his_manpower_assignments_admin_read_all/);
 assert.match(softDeleteMigration, /FOR SELECT TO authenticated/);
 assert.match(softDeleteMigration, /public\.his_one_is_active_user\(\)[\s\S]*public\.his_one_is_admin\(\)/);
+assert.match(overviewMigration, /CREATE TABLE IF NOT EXISTS public\."HIS_One_Manpower_Shift_Overviews"/);
+assert.match(overviewMigration, /UNIQUE \("Duty_Date", "Shift"\)/);
+assert.match(overviewMigration, /char_length\("Overview"\) <= 4000/);
+assert.match(overviewMigration, /ENABLE ROW LEVEL SECURITY/);
+assert.match(overviewMigration, /public\.his_one_is_active_user\(\)/);
+assert.match(overviewMigration, /public\.his_one_is_admin\(\)/);
+assert.match(overviewMigration, /REPLICA IDENTITY FULL/);
+assert.match(overviewMigration, /ALTER PUBLICATION supabase_realtime/);
 assert.equal(MANPOWER_STORAGE_KEY, 'his_local_manpower_assignments_v1');
 assert.equal(MANPOWER_HISTORY_STORAGE_KEY, 'his_local_manpower_history_v1');
+assert.equal(MANPOWER_OVERVIEW_STORAGE_KEY, 'his_local_manpower_overviews_v1');
 assert.deepEqual(calculateManpowerSummary([
   { status: 'working' }, { status: 'working' }, { status: 'leave' },
   { status: 'absent' }, { status: 'swapped' }, { status: 'unknown' }
@@ -178,6 +198,9 @@ assert.deepEqual(mapAssignmentRow({
   leaveType: '', replacementStaffId: '', note: '', createdAt: '', updatedAt: ''
 });
 assert.equal(mapHistoryRow({ Changed_By_Name: 'Admin', Staff_Name: 'Doctor One' }).changedBy, 'Admin');
+assert.deepEqual(mapOverviewRow({ Duty_Date: '2026-09-16', Shift: 'night', Overview: 'Stable', Updated_At: 'now' }), {
+  date: '2026-09-16', shift: 'night', overview: 'Stable', updatedAt: 'now'
+});
 const history = [
   { date: '2026-09-12', shift: 'morning', staffType: 'doctor', action: 'created', staffName: 'Doctor One', changedBy: 'Admin' },
   { date: '2026-09-12', shift: 'night', staffType: 'nurse', action: 'updated', staffName: 'Nurse One', changedBy: 'Tester' }
@@ -226,7 +249,8 @@ const fallbackClient = {
 const fallbackBackend = createManpowerSupabaseBackend({
   client: fallbackClient,
   assignmentsTableName: 'assignments',
-  historyTableName: 'history'
+  historyTableName: 'history',
+  overviewsTableName: 'overviews'
 });
 const fallbackRows = await fallbackBackend.loadAssignments('2026-09-12');
 assert.equal(fallbackRows.length, 1);
@@ -266,7 +290,8 @@ const directCreateClient = {
 const directCreateBackend = createManpowerSupabaseBackend({
   client: directCreateClient,
   assignmentsTableName: 'assignments',
-  historyTableName: 'history'
+  historyTableName: 'history',
+  overviewsTableName: 'overviews'
 });
 const retriedCreate = await directCreateBackend.create({
   date: '2026-09-12', shift: 'night', staffId: 'staff-id', status: 'working'

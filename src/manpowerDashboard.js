@@ -1,6 +1,7 @@
 const STAFF_STORAGE_KEY = 'his_local_staff_profiles_v1';
 export const MANPOWER_STORAGE_KEY = 'his_local_manpower_assignments_v1';
 export const MANPOWER_HISTORY_STORAGE_KEY = 'his_local_manpower_history_v1';
+export const MANPOWER_OVERVIEW_STORAGE_KEY = 'his_local_manpower_overviews_v1';
 
 const TYPES = Object.freeze({
   doctor: { label: 'ແພດ', subtitle: 'Doctor', icon: 'fa-user-md', tone: 'blue', avatar: '/assets/manpower/avatar-doctor.png' },
@@ -107,12 +108,36 @@ function writeHistory(history) {
   window.localStorage.setItem(MANPOWER_HISTORY_STORAGE_KEY, JSON.stringify(history));
 }
 
+function readOverviewStore() {
+  try {
+    const records = JSON.parse(window.localStorage.getItem(MANPOWER_OVERVIEW_STORAGE_KEY) || '{}');
+    return records && typeof records === 'object' && !Array.isArray(records) ? records : {};
+  } catch {
+    return {};
+  }
+}
+
+function overviewsForDate(date, records = readOverviewStore()) {
+  const values = records?.[date] || {};
+  return {
+    morning: clean(values.morning),
+    evening: clean(values.evening),
+    night: clean(values.night)
+  };
+}
+
+function writeLocalOverview(date, shift, overview) {
+  const records = readOverviewStore();
+  records[date] = { ...overviewsForDate(date, records), [shift]: String(overview ?? '').slice(0, 4000) };
+  window.localStorage.setItem(MANPOWER_OVERVIEW_STORAGE_KEY, JSON.stringify(records));
+}
+
 function createId() {
   return window.crypto?.randomUUID?.() || `shift-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export function installManpowerDashboard({ escapeHtml = value => String(value ?? ''), staffBackend = null, backend = null, getCurrentUser = null, canManage = null } = {}) {
-  const state = { date: today(), shift: 'morning', staff: [], assignments: [], history: [], mode: 'local', initialized: false, unsubscribe: null, refreshTimer: null };
+  const state = { date: today(), shift: 'morning', staff: [], assignments: [], history: [], overviews: overviewsForDate(today()), mode: 'local', initialized: false, unsubscribe: null, refreshTimer: null, overviewSaveTimers: new Map(), overviewSaveVersions: new Map(), pendingOverviewValues: new Map() };
   window.manpowerDashboardState = state;
 
   const isLocalMode = () => state.mode === 'local';
@@ -187,9 +212,28 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     window.renderManpowerHistory?.();
   };
 
-  const loadProductionAssignments = async () => {
+  const loadProductionOverviews = async () => {
+    if (isLocalMode() || !backend?.loadOverviews) return;
+    const loadedDate = state.date;
+    const records = await backend.loadOverviews(loadedDate);
+    if (state.date !== loadedDate) return;
+    const loadedOverviews = { morning: '', evening: '', night: '' };
+    records.forEach(item => {
+      if (Object.hasOwn(loadedOverviews, item.shift)) loadedOverviews[item.shift] = item.overview;
+    });
+    Object.keys(loadedOverviews).forEach(shift => {
+      const pendingKey = `${loadedDate}|${shift}`;
+      if (state.pendingOverviewValues.has(pendingKey)) loadedOverviews[shift] = state.pendingOverviewValues.get(pendingKey);
+    });
+    state.overviews = loadedOverviews;
+  };
+
+  const loadProductionAssignments = async ({ includeOverviews = false } = {}) => {
     if (isLocalMode() || !backend?.loadAssignments) return;
-    state.assignments = await backend.loadAssignments(state.date);
+    if (includeOverviews) {
+      const [assignments] = await Promise.all([backend.loadAssignments(state.date), loadProductionOverviews()]);
+      state.assignments = assignments;
+    } else state.assignments = await backend.loadAssignments(state.date);
     window.renderManpowerDashboard();
   };
 
@@ -197,7 +241,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     window.clearTimeout(state.refreshTimer);
     state.refreshTimer = window.setTimeout(async () => {
       try {
-        await loadProductionAssignments();
+        if (scope === 'overviews') await loadProductionOverviews();
+        else await loadProductionAssignments();
+        window.renderManpowerDashboard();
         if (scope === 'history' && document.getElementById('manpowerHistoryModal')?.classList.contains('show')) {
           await window.loadManpowerHistory?.();
         }
@@ -262,6 +308,10 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       <article><span class="is-purple"><i class="fas fa-exchange-alt"></i></span><small>ປ່ຽນເວນ</small><strong>${summary.swapped}</strong></article>`;
   }
 
+  function overviewPrintMarkup(overview) {
+    return `<section class="manpower-overview"><div class="manpower-overview-heading"><label><i class="fas fa-clipboard-list"></i> ສະພາບລວມ:</label></div><div class="manpower-overview-print">${escapeHtml(clean(overview) || '—')}</div></section>`;
+  }
+
   function renderAllShiftsPrint() {
     const container = document.getElementById('manpowerAllShiftsPrint');
     if (!container) return;
@@ -275,6 +325,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         <section class="manpower-summary">${summaryMarkup(summary)}</section>
         <nav class="manpower-shifts" aria-label="${escapeHtml(shiftMeta.label)}"><button type="button" class="active"><i class="fas ${shift === 'morning' ? 'fa-sun' : shift === 'evening' ? 'fa-cloud-sun' : 'fa-moon'}"></i><span>${shiftMeta.label}</span><small>${shiftMeta.time}</small></button></nav>
         <main class="manpower-departments">${departmentMarkup(assignments, false)}</main>
+        ${overviewPrintMarkup(state.overviews[shift])}
       </section>`;
     }).join('');
   }
@@ -294,6 +345,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         if (!Array.isArray(state.assignments)) state.assignments = [];
         state.history = readJson(MANPOWER_HISTORY_STORAGE_KEY);
         if (!Array.isArray(state.history)) state.history = [];
+        state.overviews = overviewsForDate(state.date);
         seedAssignments();
       } else {
         const legacy = readJson(MANPOWER_STORAGE_KEY);
@@ -308,7 +360,8 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
             console.warn('Local manpower migration deferred:', migrationError);
           }
         }
-        state.assignments = await backend.loadAssignments(state.date);
+        const [assignments] = await Promise.all([backend.loadAssignments(state.date), loadProductionOverviews()]);
+        state.assignments = assignments;
         state.history = [];
         if (!state.unsubscribe && backend?.subscribe) state.unsubscribe = backend.subscribe(scope => scheduleRealtimeRefresh(scope));
       }
@@ -351,6 +404,70 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     const container = document.getElementById('manpowerDepartmentList');
     if (!container) return;
     container.innerHTML = departmentMarkup(visibleAssignments);
+    const overview = state.overviews[state.shift] || '';
+    const overviewInput = document.getElementById('manpowerOverview');
+    if (overviewInput && overviewInput.value !== overview) overviewInput.value = overview;
+    if (overviewInput) overviewInput.disabled = !mayManage();
+    const overviewPrint = document.getElementById('manpowerOverviewPrint');
+    if (overviewPrint) overviewPrint.textContent = clean(overview) || '—';
+    const overviewState = document.getElementById('manpowerOverviewSaveState');
+    if (overviewState) {
+      const scopeKey = `${state.date}|${state.shift}`;
+      if (!mayManage()) overviewState.textContent = 'ສະເພາະ Admin ແກ້ໄຂໄດ້';
+      else if (overviewState.dataset.scope !== scopeKey) {
+        overviewState.textContent = '';
+        overviewState.className = '';
+      }
+      overviewState.dataset.scope = scopeKey;
+    }
+  };
+
+  const showOverviewSaveState = (message, tone = '') => {
+    const element = document.getElementById('manpowerOverviewSaveState');
+    if (!element) return;
+    element.textContent = message;
+    element.className = tone ? `is-${tone}` : '';
+    element.dataset.scope = `${state.date}|${state.shift}`;
+  };
+
+  window.updateManpowerOverview = function (value) {
+    if (!mayManage()) return;
+    const overview = String(value ?? '').slice(0, 4000);
+    const scope = { date: state.date, shift: state.shift };
+    state.overviews[scope.shift] = overview;
+    const overviewPrint = document.getElementById('manpowerOverviewPrint');
+    if (overviewPrint) overviewPrint.textContent = clean(overview) || '—';
+    if (isLocalMode()) {
+      writeLocalOverview(scope.date, scope.shift, overview);
+      showOverviewSaveState('ບັນທຶກແລ້ວ', 'saved');
+      return;
+    }
+    if (!backend?.saveOverview) return showOverviewSaveState('ບັນທຶກບໍ່ໄດ້', 'error');
+    const scopeKey = `${scope.date}|${scope.shift}`;
+    state.pendingOverviewValues.set(scopeKey, overview);
+    window.clearTimeout(state.overviewSaveTimers.get(scopeKey));
+    const version = (state.overviewSaveVersions.get(scopeKey) || 0) + 1;
+    state.overviewSaveVersions.set(scopeKey, version);
+    showOverviewSaveState('ກຳລັງບັນທຶກ...', 'saving');
+    const timer = window.setTimeout(async () => {
+      try {
+        await backend.saveOverview({ ...scope, overview });
+        if (version === state.overviewSaveVersions.get(scopeKey)) {
+          state.pendingOverviewValues.delete(scopeKey);
+          state.overviewSaveTimers.delete(scopeKey);
+        }
+        if (version === state.overviewSaveVersions.get(scopeKey) && state.date === scope.date && state.shift === scope.shift) {
+          showOverviewSaveState('ບັນທຶກແລ້ວ', 'saved');
+        }
+      } catch (error) {
+        console.error('Save manpower overview failed:', error);
+        state.overviewSaveTimers.delete(scopeKey);
+        if (version === state.overviewSaveVersions.get(scopeKey) && state.date === scope.date && state.shift === scope.shift) {
+          showOverviewSaveState('ບັນທຶກບໍ່ສຳເລັດ', 'error');
+        }
+      }
+    }, 600);
+    state.overviewSaveTimers.set(scopeKey, timer);
   };
 
   window.selectManpowerShift = function (shift) {
@@ -362,9 +479,12 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   window.setManpowerDate = async function (date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(clean(date))) return;
     state.date = date;
-    if (isLocalMode()) window.renderManpowerDashboard();
+    if (isLocalMode()) {
+      state.overviews = overviewsForDate(state.date);
+      window.renderManpowerDashboard();
+    }
     else {
-      try { await loadProductionAssignments(); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
     }
   };
 
@@ -372,17 +492,23 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     const date = new Date(`${state.date}T12:00:00`);
     date.setDate(date.getDate() + Number(days || 0));
     state.date = localDate(date);
-    if (isLocalMode()) window.renderManpowerDashboard();
+    if (isLocalMode()) {
+      state.overviews = overviewsForDate(state.date);
+      window.renderManpowerDashboard();
+    }
     else {
-      try { await loadProductionAssignments(); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
     }
   };
 
   window.goToManpowerToday = async function () {
     state.date = today();
-    if (isLocalMode()) window.renderManpowerDashboard();
+    if (isLocalMode()) {
+      state.overviews = overviewsForDate(state.date);
+      window.renderManpowerDashboard();
+    }
     else {
-      try { await loadProductionAssignments(); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
     }
   };
 
@@ -709,6 +835,10 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       if (event.key === MANPOWER_HISTORY_STORAGE_KEY) {
         state.history = readJson(MANPOWER_HISTORY_STORAGE_KEY);
         window.renderManpowerHistory?.();
+      }
+      if (event.key === MANPOWER_OVERVIEW_STORAGE_KEY) {
+        state.overviews = overviewsForDate(state.date);
+        window.renderManpowerDashboard?.();
       }
     });
   }

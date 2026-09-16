@@ -69,7 +69,8 @@ const staffSupabaseBackend = createStaffSupabaseBackend({
 const manpowerSupabaseBackend = createManpowerSupabaseBackend({
   client: supabaseClient,
   assignmentsTableName: dbTable('Manpower_Assignments'),
-  historyTableName: dbTable('Manpower_History')
+  historyTableName: dbTable('Manpower_History'),
+  overviewsTableName: dbTable('Manpower_Shift_Overviews')
 });
 installStaffManagement({ escapeHtml: escapeHisHtml, backend: staffSupabaseBackend });
 installManpowerDashboard({

@@ -39,6 +39,15 @@
 
   <main id="manpowerDepartmentList" class="manpower-departments"></main>
 
+  <section class="manpower-overview" aria-labelledby="manpowerOverviewLabel">
+    <div class="manpower-overview-heading">
+      <label id="manpowerOverviewLabel" for="manpowerOverview"><i class="fas fa-clipboard-list"></i> ສະພາບລວມ:</label>
+      <span id="manpowerOverviewSaveState" aria-live="polite"></span>
+    </div>
+    <textarea id="manpowerOverview" rows="4" maxlength="4000" placeholder="ຂຽນສະພາບລວມຂອງກະນີ້..." oninput="window.updateManpowerOverview(this.value)"></textarea>
+    <div id="manpowerOverviewPrint" class="manpower-overview-print"></div>
+  </section>
+
   <div class="modal fade" id="manpowerAssignmentModal" tabindex="-1" aria-labelledby="manpowerAssignmentTitle" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
       <form id="manpowerAssignmentForm" class="modal-content manpower-modal" onsubmit="window.saveManpowerAssignment(event)">

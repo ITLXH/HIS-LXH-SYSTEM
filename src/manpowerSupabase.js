@@ -42,6 +42,15 @@ function mapHistoryRow(row = {}) {
   };
 }
 
+function mapOverviewRow(row = {}) {
+  return {
+    date: clean(row.Duty_Date),
+    shift: clean(row.Shift),
+    overview: clean(row.Overview),
+    updatedAt: clean(row.Updated_At)
+  };
+}
+
 function assignmentPayload(record = {}) {
   const status = clean(record.status) || 'working';
   return {
@@ -69,8 +78,8 @@ function isOptionalManpowerColumnMissing(error) {
     || message.includes('note_after');
 }
 
-export function createManpowerSupabaseBackend({ client, assignmentsTableName, historyTableName }) {
-  if (!client || !assignmentsTableName || !historyTableName) throw new Error('Manpower Supabase backend requires client and table names');
+export function createManpowerSupabaseBackend({ client, assignmentsTableName, historyTableName, overviewsTableName }) {
+  if (!client || !assignmentsTableName || !historyTableName || !overviewsTableName) throw new Error('Manpower Supabase backend requires client and table names');
   let channel = null;
   let hasLeaveTypeSchema = null;
   const assignmentColumns = 'ID,Duty_Date,Shift,Staff_ID,Status,Leave_Type,Replacement_Staff_ID,Note,Created_At,Updated_At';
@@ -131,6 +140,32 @@ export function createManpowerSupabaseBackend({ client, assignmentsTableName, hi
       }
       if (error) throw new Error(errorMessage('Manpower history', error));
       return (data || []).map(mapHistoryRow);
+    },
+
+    async loadOverviews(date) {
+      let query = client
+        .from(overviewsTableName)
+        .select('Duty_Date,Shift,Overview,Updated_At')
+        .order('Shift', { ascending: true });
+      if (clean(date)) query = query.eq('Duty_Date', clean(date));
+      const { data, error } = await query;
+      if (error) throw new Error(errorMessage('Manpower shift overviews', error));
+      return (data || []).map(mapOverviewRow);
+    },
+
+    async saveOverview({ date, shift, overview } = {}) {
+      const payload = {
+        Duty_Date: clean(date),
+        Shift: clean(shift),
+        Overview: String(overview ?? '').slice(0, 4000)
+      };
+      const { data, error } = await client
+        .from(overviewsTableName)
+        .upsert(payload, { onConflict: 'Duty_Date,Shift' })
+        .select('Duty_Date,Shift,Overview,Updated_At')
+        .single();
+      if (error) throw new Error(errorMessage('Save manpower shift overview', error));
+      return mapOverviewRow(data);
     },
 
     async create(record) {
@@ -236,6 +271,7 @@ export function createManpowerSupabaseBackend({ client, assignmentsTableName, hi
         .channel(`manpower-live-${crypto.randomUUID?.() || Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: assignmentsTableName }, payload => onChange?.('assignments', payload))
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: historyTableName }, payload => onChange?.('history', payload))
+        .on('postgres_changes', { event: '*', schema: 'public', table: overviewsTableName }, payload => onChange?.('overviews', payload))
         .subscribe();
       return () => {
         if (channel) client.removeChannel(channel);
@@ -245,4 +281,4 @@ export function createManpowerSupabaseBackend({ client, assignmentsTableName, hi
   };
 }
 
-export { assignmentPayload, mapAssignmentRow, mapHistoryRow };
+export { assignmentPayload, mapAssignmentRow, mapHistoryRow, mapOverviewRow };
