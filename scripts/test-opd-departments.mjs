@@ -17,6 +17,8 @@ const expected = [
   ['reproductive_obgyn', 'Reproductive&OB-GYN ລະບົບສືບພັນແລະປະສູດພະຍາດຍິງ'],
   ['ncds', 'NCDs(DM/HN/DLP/Ob/CV/CA) ກູມພະຍາດຊຳເຮື້ອ'],
   ['immune_lymphatic', 'Immune-Lymphatic ພູມຕູ້ມກັນ-ຕ່ອມນຳ້ເຫຼືອງ'],
+  ['infectious_disease', 'Infectious Diseases ກຸ່ມພະຍາດຕິດເຊື້ອ'],
+  ['endocrinology', 'Endocrinology ກຸ່ມພະຍາດຕ່ອມໄຮ້ທໍ່'],
   ['ent', 'EENT ຫູຕາດັງຄໍ'],
   ['hematology', 'Hematology ກຸ່ມພະຍາດເລືອດ'],
 ];
@@ -25,6 +27,11 @@ assert.equal(resolveOpdDepartmentKey('Cardiology'), 'cardiovescular');
 assert.equal(resolveOpdDepartmentKey('Orthopedic'), 'muscular_skeletal');
 assert.equal(resolveOpdDepartmentKey('Hematology (OPD)'), 'hematology');
 assert.equal(resolveOpdDepartmentKey('ກຸ່ມພະຍາດເລືອດ'), 'hematology');
+assert.equal(resolveOpdDepartmentKey('Infectious Disease'), 'infectious_disease');
+assert.equal(resolveOpdDepartmentKey('Infectious Diseases'), 'infectious_disease');
+assert.equal(resolveOpdDepartmentKey('ກຸ່ມພະຍາດຕິດເຊື້ອ'), 'infectious_disease');
+assert.equal(resolveOpdDepartmentKey('Endocrinology'), 'endocrinology');
+assert.equal(resolveOpdDepartmentKey('ກຸ່ມພະຍາດຕ່ອມໄຮ້ທໍ່'), 'endocrinology');
 assert.equal(resolveOpdDepartmentKey('ENT ຫູດັງຄໍ'), 'ent');
 assert.equal(resolveOpdDepartmentKey('Ophthalmology'), 'ent');
 assert.equal(resolveOpdDepartmentKey('ພະຍາດຕາ'), 'ent');
@@ -59,6 +66,8 @@ assert.doesNotMatch(dashboard, /Top 8 ບໍລິການຍອດຮິດ|Mo
 assert.match(main, /getOpdDepartmentFromVisit\(v\)/);
 assert.match(main, /OPD_DEPARTMENTS\.map\(item => opdDepartmentCounts\[item\.key\]\)/);
 assert.match(main, /ent:\s*\{[\s\S]*?label:\s*'ຫູ-ຕາ-ດັງ-ຄໍ \/ EENT'[\s\S]*?examSections:\s*\['Ear', 'Eye'/);
+assert.match(main, /infectious_disease:\s*'im'/);
+assert.match(main, /endocrinology:\s*'im'/);
 assert.match(main, /focus: 'opdTestDeptPicker', text: 'ກຸ່ມພະຍາດທີ່ມາຮັບບໍລິການ\/group of disease service'/);
 assert.match(main, /clinicalNote\.departmentKey \|\| clinicalNote\.department/);
 

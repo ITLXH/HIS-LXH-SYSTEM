@@ -8300,12 +8300,22 @@ table.dataTable thead > tr > td.sorting_desc:after {
   grid-column: span 6;
 }
 
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary {
+  align-items: stretch;
+}
+
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel {
   grid-column: span 3;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel--span-4 {
   grid-column: span 12;
+}
+
+@media (min-width: 1200px) {
+  #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel--third-width {
+    grid-column: span 4;
+  }
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread .dashboard-report-panel,
@@ -8322,12 +8332,12 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread .dashboard-report-panel-head h6 {
-  font-size: 15px;
+  font-size: 17px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread .dashboard-report-panel-head p,
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-split-title {
-  font-size: 12.5px;
+  font-size: 14px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-panel > .dashboard-report-panel-head {
@@ -8337,13 +8347,13 @@ table.dataTable thead > tr > td.sorting_desc:after {
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-panel > .dashboard-report-panel-head h6 {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.2;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-panel > .dashboard-report-panel-head p {
   margin-top: 2px;
-  font-size: 9.5px;
+  font-size: 12px;
   line-height: 1.2;
   text-align: left;
 }
@@ -8351,6 +8361,26 @@ table.dataTable thead > tr > td.sorting_desc:after {
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--hero,
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-panel--time .dashboard-report-chart--short {
   height: 184px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-panel--disease-groups .dashboard-report-chart--hero {
+  height: 250px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-panel--departments .dashboard-report-chart--medium {
+  height: 250px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-title {
+  font-size: 12.5px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-rank-name strong {
+  font-size: 11px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-staff-rank-value {
+  font-size: 12px;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-summary .dashboard-report-chart--medium {
@@ -8375,6 +8405,7 @@ table.dataTable thead > tr > td.sorting_desc:after {
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail {
   gap: 10px;
+  align-items: stretch;
 }
 
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel,
@@ -8382,9 +8413,69 @@ table.dataTable thead > tr > td.sorting_desc:after {
   padding: 10px 12px 8px;
 }
 
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel {
+  width: 100%;
+  height: 100%;
+}
+
 #dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail .dashboard-report-panel-head {
   margin-bottom: 6px;
   padding-bottom: 6px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:not(.dashboard-report-panel--span-4) > .dashboard-report-panel-head {
+  min-height: 68px;
+  box-sizing: border-box;
+}
+
+/* PDF page 2: compact only the four demographic cards in the first row so
+   Province & District remains fully inside the A4 landscape boundary. */
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:nth-child(-n + 4) {
+  padding: 8px 10px 6px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:nth-child(-n + 4) > .dashboard-report-panel-head {
+  min-height: 50px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:nth-child(-n + 4) .dashboard-report-panel-head h6 {
+  font-size: 14px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:nth-child(-n + 4) .dashboard-report-panel-head p {
+  font-size: 11px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-report-grid--spread-detail > .dashboard-report-panel:nth-child(-n + 4) .dashboard-report-chart--compact {
+  height: 120px;
+}
+
+/* PDF page 1: reduce all five KPI cards so the two chart rows stay within A4. */
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-kpi-grid--spread {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-tile {
+  min-height: 88px;
+  padding: 9px 12px 8px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-title {
+  font-size: 11px;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-value {
+  margin-top: 4px;
+  font-size: 2rem;
+}
+
+#dashboardPrintArea.dashboard-a4-sheet.dashboard-pdf-capture:not(.dashboard-export-mode) .dashboard-kpi-grid--spread .dashboard-kpi-note {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.2;
 }
 
 #dashboardPrintArea canvas {

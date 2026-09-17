@@ -9,6 +9,8 @@ export const OPD_DEPARTMENTS = Object.freeze([
   { key: 'reproductive_obgyn', label: 'Reproductive&OB-GYN ລະບົບສືບພັນແລະປະສູດພະຍາດຍິງ' },
   { key: 'ncds', label: 'NCDs(DM/HN/DLP/Ob/CV/CA) ກູມພະຍາດຊຳເຮື້ອ' },
   { key: 'immune_lymphatic', label: 'Immune-Lymphatic ພູມຕູ້ມກັນ-ຕ່ອມນຳ້ເຫຼືອງ' },
+  { key: 'infectious_disease', label: 'Infectious Diseases ກຸ່ມພະຍາດຕິດເຊື້ອ' },
+  { key: 'endocrinology', label: 'Endocrinology ກຸ່ມພະຍາດຕ່ອມໄຮ້ທໍ່' },
   { key: 'ent', label: 'EENT ຫູຕາດັງຄໍ' },
   { key: 'hematology', label: 'Hematology ກຸ່ມພະຍາດເລືອດ' },
 ]);
@@ -35,6 +37,8 @@ export function resolveOpdDepartmentKey(value) {
     [/reproductive|obgyn|ob\s*&\s*gyn|ob-gyn|ສືບພັນ|ປະສູດ/, 'reproductive_obgyn'],
     [/ncd|dm\/hn|chronic|ຊຳເຮື້ອ/, 'ncds'],
     [/immune|lymph|ພູມ|ນຳ້ເຫຼືອງ/, 'immune_lymphatic'],
+    [/infectious|communicable disease|ພະຍາດຕິດເຊື້ອ/, 'infectious_disease'],
+    [/endocrin|endocrine|ຕ່ອມໄຮ້ທໍ່/, 'endocrinology'],
     [/\beent\b|\bent\b|otorhino|ophthalmolog|eye disease|ພະຍາດຕາ|^ຕາ$|ຫູ|ດັງ|ຄໍ/, 'ent'],
     [/hematolog|blood disease|ພະຍາດເລືອດ/, 'hematology'],
   ];

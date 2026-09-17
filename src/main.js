@@ -4829,7 +4829,7 @@ window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInR
   }
 };
 
-window.dashboardChartIds = ['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
+window.dashboardChartIds = ['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown'];
 
 window.refreshDashboardChartLayout = function () {
   const resizeCharts = () => {
@@ -4865,13 +4865,16 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
   const hasUsableData = safeData.some(value => value > 0);
   const showZeroCategories = (ctxId === 'chartSpecialist' && safeLabels.length > 0)
     || (ctxId === 'chartOpdDepartments' && safeLabels.length === OPD_DEPARTMENTS.length);
-  const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartDept', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
+  const compactDashboardCharts = new Set(['chartOpdDepartments', 'chartSpecialist', 'chartChannel', 'chartGender', 'chartSite', 'chartTime', 'chartAge', 'chartInsurance', 'chartOrganization', 'chartOccupation', 'chartProvinceBreakdown', 'chartDistrictBreakdown']);
   const isCompactDashboardChart = compactDashboardCharts.has(ctxId);
-  const legendFontSize = isCompactDashboardChart ? 11 : 12;
-  const tickFontSize = isCompactDashboardChart ? 11 : 12;
-  const yTickFontSize = ctxId === 'chartOpdDepartments' ? 9 : (isCompactDashboardChart ? 12 : 13);
-  const dataLabelSize = isCompactDashboardChart ? 11 : 12;
-  const layoutPadding = isCompactDashboardChart
+  const isCompactCircularChart = ['chartGender', 'chartSite'].includes(ctxId);
+  const legendFontSize = isCompactDashboardChart ? 12 : 13;
+  const tickFontSize = isCompactDashboardChart ? 12 : 13;
+  const yTickFontSize = ctxId === 'chartOpdDepartments' ? 11 : (isCompactDashboardChart ? 13 : 14);
+  const dataLabelSize = isCompactCircularChart ? 16 : (isCompactDashboardChart ? 12 : 13);
+  const layoutPadding = isCompactCircularChart
+    ? { right: 4, top: 4, left: 4, bottom: 0 }
+    : isCompactDashboardChart
     ? { right: isHorizontal ? 40 : 10, top: isHorizontal ? 8 : 26, left: 4, bottom: 4 }
     : { right: isHorizontal ? 70 : 18, top: isHorizontal ? 12 : 42, left: 10, bottom: 10 };
 
@@ -4882,7 +4885,12 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
       legend: { 
         display: !['bar'].includes(type) && safeLabels.length > 0 && hasUsableData,
         position: 'bottom',
-        labels: { boxWidth: isCompactDashboardChart ? 8 : 10, padding: isCompactDashboardChart ? 8 : 15, font: { size: legendFontSize, family: "'Noto Sans Lao', sans-serif" } }
+        labels: {
+          boxWidth: isCompactDashboardChart ? 8 : 10,
+          padding: isCompactDashboardChart ? 8 : 15,
+          color: isCompactCircularChart ? '#000000' : undefined,
+          font: { size: legendFontSize, family: "'Noto Sans Lao', sans-serif" }
+        }
       },
       tooltip: {
         enabled: hasUsableData || showZeroCategories,
@@ -4901,7 +4909,7 @@ window.createChart = function (ctxId, type, labels, data, colors, isHorizontal =
           if (isCompactDashboardChart) return safeData.length <= (isHorizontal ? 12 : 8);
           return true;
         },
-        color: (type === 'bar' || isHorizontal) ? '#334155' : '#ffffff',
+        color: isCompactCircularChart ? '#000000' : ((type === 'bar' || isHorizontal) ? '#334155' : '#ffffff'),
         font: { weight: '700', size: dataLabelSize },
         anchor: (type === 'bar' || isHorizontal) ? 'end' : 'center',
         align: (type === 'bar' || isHorizontal) ? (isHorizontal ? 'end' : 'top') : 'center',
@@ -5092,7 +5100,7 @@ window.renderDashboardCharts = function (visits) {
     .map(item => String(typeof item === 'string' ? item : item?.value || '').trim().toLowerCase())
     .filter(Boolean));
   const nonClinicalRecorderNames = new Set(['admin', 'administrator', 'system', 'opd doctor', '-', 'ບໍ່ລະບຸ']);
-  let gender = {}, deptType = {}, site = {}, opdGender = {}, timeSlot = {
+  let gender = {}, site = {}, opdGender = {}, timeSlot = {
     '08:00 - 16:00': 0,
     '16:00 - 21:00': 0,
     '21:00 - 08:00': 0
@@ -5145,9 +5153,6 @@ window.renderDashboardCharts = function (visits) {
     let dist = p.District || p.district || "";
     if (dist) district[dist] = (district[dist] || 0) + 1;
 
-    let dept = (visitType || 'OPD').toString().trim() || 'OPD';
-    deptType[dept] = (deptType[dept] || 0) + 1;
-
     // Simplified Site: In-site vs Out-site
     let sValue = (v.Site || "In-site").toString().toLowerCase();
     let siteKey = (sValue.includes('on') || sValue.includes('out')) ? 'Out-site' : 'In-site';
@@ -5192,7 +5197,6 @@ window.renderDashboardCharts = function (visits) {
   window.renderDashboardStaffActivity('dashboardDoctorActivity', topDocs.labels, topDocs.data, 'doctor');
   window.renderDashboardStaffActivity('dashboardNurseActivity', topNurses.labels, topNurses.data, 'nurse');
   window.createChart('chartGender', 'doughnut', Object.keys(gender), Object.values(gender), ['#1B6BB0', '#DD1F26', '#94a3b8']);
-  window.createChart('chartDept', 'pie', Object.keys(deptType), Object.values(deptType), ['#1B6BB0', '#DD1F26']);
   window.createChart('chartSite', 'pie', Object.keys(site), Object.values(site), ['#7baede', '#3a8dc7']);
   
   window.createChart('chartTime', 'bar', Object.keys(timeSlot), Object.values(timeSlot), [palette[2], palette[1], palette[7]], false);
@@ -5365,6 +5369,13 @@ window.exportDashboardPDF = async function () {
     injectedHeaders.push({ p, header });
   });
 
+  // Page 2 is denser than the live dashboard. Compact its first four cards
+  // only while capturing the PDF so Province & District is not clipped below
+  // the A4 landscape boundary. Give Chart.js time to resize to the new boxes.
+  source.classList.add('dashboard-pdf-capture');
+  window.refreshDashboardChartLayout();
+  await new Promise(r => setTimeout(r, 450));
+
   let blobUrl = null;
   try {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true });
@@ -5410,8 +5421,10 @@ window.exportDashboardPDF = async function () {
     Swal.fire('ຜິດພາດ', 'ບໍ່ສາມາດສ້າງ PDF ໄດ້: ' + err.message, 'error');
   } finally {
     window.__dashExporting = false;
+    source.classList.remove('dashboard-pdf-capture');
     injectedHeaders.forEach(({ header }) => header.remove());
     prevStyles.forEach(({ el, cssText }) => { el.style.cssText = cssText; });
+    window.refreshDashboardChartLayout();
     // Resume the dashboard auto-refresh we paused for the capture, and refresh
     // once so the charts reflect any data that arrived while frozen.
     clearInterval(dashRefreshInterval);
@@ -21224,6 +21237,8 @@ window.opdTestDeptTemplateKey = function (key = window.opdTestState.dept) {
     reproductive_obgyn: 'obgyn',
     ncds: 'im',
     immune_lymphatic: 'im',
+    infectious_disease: 'im',
+    endocrinology: 'im',
     ent: 'ent',
     hematology: 'im',
     ophthalmology: 'general'
