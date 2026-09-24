@@ -95,6 +95,11 @@ async function probeSupabaseConnection(timeoutMs = SUPABASE_REQUEST_TIMEOUT_MS) 
     networkProbeInFlight = false;
   }
 }
+window.probeHisNetworkConnection = async () => {
+  if (!navigator.onLine) return;
+  window.setHisNetworkStatus?.('restoring');
+  await probeSupabaseConnection(5000);
+};
 window.addEventListener('online', () => window.setTimeout(probeSupabaseConnection, 250));
 window.addEventListener('his-network-status', (event) => {
   if (['offline', 'restoring'].includes(event.detail?.state)) {
@@ -3248,6 +3253,14 @@ async function loadPartials() {
   const failures = results.filter(result => !result.ok);
 
   document.getElementById('partial-navbar').innerHTML = navbarResult?.html || '';
+  const networkStatusButton = document.getElementById('his-network-banner');
+  const navbarActions = document.querySelector('#partial-navbar .his-nav-right');
+  if (networkStatusButton && navbarActions) {
+    navbarActions.prepend(networkStatusButton);
+    networkStatusButton.classList.add('his-network-button--in-nav');
+    networkStatusButton.addEventListener('click', () => window.probeHisNetworkConnection?.());
+  }
+  window.renderHisNetworkStatus?.();
   document.getElementById('partial-views').innerHTML = views.map(name => {
     const result = viewResults.get(name);
     if (result?.ok) return result.html;
