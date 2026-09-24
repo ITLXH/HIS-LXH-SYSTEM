@@ -4608,6 +4608,11 @@ window.enterOfflineStickerOnlyMode = function () {
   $('#app-content').show();
   $('#sidebarUserName').text('Offline Print');
   $('#his-nav-items').children().hide();
+  const $offlineStickerNav = $('#nav-offline_sticker');
+  const $settingsDropdown = $offlineStickerNav.closest('.his-dropdown');
+  $settingsDropdown.addClass('open').show();
+  $settingsDropdown.children('.his-dropdown-toggle').show();
+  $settingsDropdown.find('.his-dropdown-menu [id^="nav-"]').hide();
   $('#nav-offline_sticker').show();
   $('.his-nav-right .his-dropdown').hide();
   window.loadView('offline_sticker', { replace: true, updateUrl: false });
