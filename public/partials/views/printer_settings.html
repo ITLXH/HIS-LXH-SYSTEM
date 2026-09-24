@@ -1,0 +1,118 @@
+<div id="view-printer_settings" class="printer-settings-view" style="display:none;">
+  <header class="printer-settings-header">
+    <div>
+      <span class="printer-settings-eyebrow"><i class="fas fa-print"></i> PRINT CONTROL CENTER</span>
+      <h2>ຕັ້ງຄ່າການພິມ</h2>
+      <p>ກຳນົດຂະໜາດເຈ້ຍ, Scale, Margin ແລະ Printer profile ແຍກຕາມແຕ່ລະຄອມ</p>
+    </div>
+    <div class="printer-settings-header-actions">
+      <span class="printer-local-badge"><i class="fas fa-laptop"></i> Local device settings</span>
+      <button type="button" class="btn btn-outline-primary" onclick="window.exportPrinterSettings()"><i class="fas fa-file-export me-1"></i> Export</button>
+      <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('printerSettingsImport').click()"><i class="fas fa-file-import me-1"></i> Import</button>
+      <input id="printerSettingsImport" type="file" accept="application/json" hidden onchange="window.importPrinterSettings(this.files?.[0]); this.value='';">
+    </div>
+  </header>
+
+  <section class="printer-device-card">
+    <div class="printer-device-icon"><i class="fas fa-desktop"></i></div>
+    <div class="printer-device-copy">
+      <span>ຄອມພິວເຕີ/Device ປັດຈຸບັນ</span>
+      <strong id="printerDeviceId">-</strong>
+      <small>ຄ່ານີ້ເກັບຢູ່ໃນ Browser ຂອງຄອມນີ້ເທົ່ານັ້ນ</small>
+    </div>
+    <label class="printer-device-name">
+      <span>ຊື່ຈຸດໃຊ້ງານ</span>
+      <div class="input-group">
+        <input id="printerDeviceName" class="form-control" type="text" maxlength="60" placeholder="ຕົວຢ່າງ: OPD-PC-01">
+        <button class="btn btn-primary" type="button" onclick="window.savePrinterDeviceName()"><i class="fas fa-save me-1"></i>ບັນທຶກ</button>
+      </div>
+    </label>
+  </section>
+
+  <div class="printer-settings-workspace">
+    <aside class="printer-job-panel">
+      <div class="printer-panel-title">
+        <span>ປະເພດເອກະສານ</span>
+        <small>ເລືອກໜ້າພິມທີ່ຈະຕັ້ງຄ່າ</small>
+      </div>
+      <nav id="printerJobList" class="printer-job-list"></nav>
+    </aside>
+
+    <main class="printer-profile-panel">
+      <div class="printer-profile-heading">
+        <div>
+          <span id="printerProfileCode">PATIENT_STICKER</span>
+          <h3 id="printerProfileTitle">Patient Sticker</h3>
+          <p id="printerProfileDescription">ຕັ້ງຄ່າສຳລັບໜ້າພິມນີ້</p>
+        </div>
+        <label class="printer-enable-switch">
+          <input id="printerProfileEnabled" type="checkbox">
+          <span>ນຳໃຊ້ Profile ນີ້</span>
+        </label>
+      </div>
+
+      <form id="printerProfileForm" onsubmit="window.savePrinterProfile(event)">
+        <div class="printer-form-section">
+          <h4><i class="fas fa-print"></i> Printer ແລະເຈ້ຍ</h4>
+          <div class="printer-form-grid printer-form-grid--3">
+            <label><span>ຊື່ Printer/Profile</span><input id="printerProfilePrinterName" class="form-control" maxlength="80" placeholder="Xprinter XP-420B"></label>
+            <label><span>Paper preset</span><select id="printerProfilePaper" class="form-select" onchange="window.changePrinterPaperPreset()"></select></label>
+            <label><span>ທິດທາງ</span><select id="printerProfileOrientation" class="form-select"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label>
+            <label><span>ກວ້າງ (mm)</span><input id="printerProfileWidth" class="form-control" type="number" min="20" max="500" step="0.1"></label>
+            <label><span>ສູງ (mm)</span><input id="printerProfileHeight" class="form-control" type="number" min="20" max="500" step="0.1"></label>
+            <label><span>Scale (%)</span><input id="printerProfileScale" class="form-control" type="number" min="25" max="200" step="1"></label>
+          </div>
+        </div>
+
+        <div class="printer-form-section">
+          <h4><i class="fas fa-expand-arrows-alt"></i> Margin ແລະຕຳແໜ່ງ</h4>
+          <div class="printer-form-grid printer-form-grid--4">
+            <label><span>ເທິງ (mm)</span><input id="printerProfileMarginTop" class="form-control" type="number" min="0" max="50" step="0.1"></label>
+            <label><span>ຂວາ (mm)</span><input id="printerProfileMarginRight" class="form-control" type="number" min="0" max="50" step="0.1"></label>
+            <label><span>ລຸ່ມ (mm)</span><input id="printerProfileMarginBottom" class="form-control" type="number" min="0" max="50" step="0.1"></label>
+            <label><span>ຊ້າຍ (mm)</span><input id="printerProfileMarginLeft" class="form-control" type="number" min="0" max="50" step="0.1"></label>
+            <label><span>Offset X (mm)</span><input id="printerProfileOffsetX" class="form-control" type="number" min="-30" max="30" step="0.1"></label>
+            <label><span>Offset Y (mm)</span><input id="printerProfileOffsetY" class="form-control" type="number" min="-30" max="30" step="0.1"></label>
+            <label><span>ຈຳນວນ Copy</span><input id="printerProfileCopies" class="form-control" type="number" min="1" max="20" step="1"></label>
+            <label><span>Font scale (%)</span><input id="printerProfileFontScale" class="form-control" type="number" min="40" max="160" step="1"></label>
+          </div>
+        </div>
+
+        <div class="printer-form-section" id="printerStickerOptions">
+          <h4><i class="fas fa-tags"></i> ການຈັດວາງ Sticker/Card</h4>
+          <div class="printer-form-grid printer-form-grid--4">
+            <label><span>ຈຳນວນຕໍ່ໃບ</span><input id="printerProfileItems" class="form-control" type="number" min="1" max="3" step="1"></label>
+            <label><span>Card ກວ້າງ (mm)</span><input id="printerProfileItemWidth" class="form-control" type="number" min="20" max="300" step="0.1"></label>
+            <label><span>Card ສູງ (mm)</span><input id="printerProfileItemHeight" class="form-control" type="number" min="15" max="300" step="0.1"></label>
+            <label><span>ຊ່ອງຫວ່າງ (mm)</span><input id="printerProfileGap" class="form-control" type="number" min="0" max="30" step="0.1"></label>
+          </div>
+        </div>
+
+        <div class="printer-options-row">
+          <label><input id="printerProfileBackground" type="checkbox"> <span>ພິມ Background graphics</span></label>
+          <label><input id="printerProfileHeaderFooter" type="checkbox"> <span>ສະແດງ Header/Footer</span></label>
+        </div>
+
+        <div class="printer-profile-actions">
+          <span id="printerSettingsSaveState" class="printer-save-state"><i class="fas fa-shield-alt"></i> ບັນທຶກສະເພາະຄອມນີ້</span>
+          <button type="button" class="btn btn-outline-danger" onclick="window.resetPrinterProfile()"><i class="fas fa-undo me-1"></i>Reset</button>
+          <button type="button" class="btn btn-outline-primary" onclick="window.previewPrinterProfile()"><i class="fas fa-eye me-1"></i>Preview</button>
+          <button type="button" class="btn btn-outline-dark" onclick="window.testPrinterProfile()"><i class="fas fa-vial me-1"></i>Test print</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>ບັນທຶກ Profile</button>
+        </div>
+      </form>
+    </main>
+
+    <aside class="printer-preview-panel">
+      <div class="printer-panel-title">
+        <span>ຕົວຢ່າງຂະໜາດ</span>
+        <small>Preview ສຳລັບກວດອັດຕາສ່ວນ</small>
+      </div>
+      <div id="printerPreviewStage" class="printer-preview-stage"></div>
+      <div class="printer-preview-note">
+        <i class="fas fa-info-circle"></i>
+        Browser ບໍ່ສາມາດເລືອກ Printer ໃຫ້ອັດຕະໂນມັດ. ໃຫ້ເລືອກ Printer ຕາມຊື່ທີ່ກຳນົດໃນ Print dialog.
+      </div>
+    </aside>
+  </div>
+</div>

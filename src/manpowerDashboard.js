@@ -12,10 +12,10 @@ const TYPES = Object.freeze({
 });
 
 const STATUSES = Object.freeze({
-  working: { label: 'ເຂົ້າເວນ', icon: 'fa-check-circle' },
+  working: { label: 'ເຂົ້າປະຈຳການ', icon: 'fa-check-circle' },
   leave: { label: 'ລາ', icon: 'fa-bed' },
   absent: { label: 'ຂາດ', icon: 'fa-times-circle' },
-  swapped: { label: 'ປ່ຽນເວນ', icon: 'fa-exchange-alt' }
+  swapped: { label: 'ສັບປ່ຽນຜູ້ປະຈຳການ', icon: 'fa-exchange-alt' }
 });
 
 const LEAVE_TYPES = Object.freeze({
@@ -31,10 +31,10 @@ const SHIFTS = Object.freeze({
 });
 
 const HISTORY_ACTIONS = Object.freeze({
-  created: { label: 'ເພີ່ມເຂົ້າເວນ', icon: 'fa-user-plus', tone: 'created' },
+  created: { label: 'ເພີ່ມຜູ້ເຂົ້າປະຈຳການ', icon: 'fa-user-plus', tone: 'created' },
   updated: { label: 'ປ່ຽນສະຖານະ', icon: 'fa-edit', tone: 'updated' },
-  replaced: { label: 'ປ່ຽນຜູ້ຮັບເວນ', icon: 'fa-exchange-alt', tone: 'replaced' },
-  deleted: { label: 'ເອົາອອກຈາກເວນ', icon: 'fa-user-minus', tone: 'deleted' }
+  replaced: { label: 'ສັບປ່ຽນຜູ້ປະຈຳການ', icon: 'fa-exchange-alt', tone: 'replaced' },
+  deleted: { label: 'ນຳອອກຈາກລາຍຊື່ປະຈຳການ', icon: 'fa-user-minus', tone: 'deleted' }
 });
 
 const LOCAL_PHARMACY_DEMO = Object.freeze({
@@ -284,28 +284,28 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       const note = clean(assignment.note);
       return `<article class="manpower-person">
         <div class="manpower-person-photo">${photo(staff, meta)}</div>
-        <div class="manpower-person-info"><strong title="${escapeHtml(staff.fullName)}">${escapeHtml(staff.fullName)}</strong><small>${escapeHtml(staff.specialty || meta.subtitle)}</small><span class="manpower-person-role">${escapeHtml(meta.label)}</span><span class="manpower-status manpower-status--${assignment.status}"><i class="fas ${status.icon}"></i>${status.label}</span>${note ? `<span class="manpower-note" title="${escapeHtml(note)}"><i class="fas fa-sticky-note"></i>${escapeHtml(note)}</span>` : ''}</div>
-        ${manageAllowed ? `<button type="button" class="manpower-remove" onclick="window.removeManpowerAssignment('${escapeHtml(assignment.id)}')" aria-label="ເອົາ ${escapeHtml(staff.fullName)} ອອກຈາກເວນ"><i class="fas fa-times"></i></button>
-        <button type="button" class="manpower-manage" onclick="window.openManpowerManagement('${escapeHtml(assignment.id)}')"><i class="fas fa-sliders-h"></i> ຈັດການ</button>` : ''}
+        <div class="manpower-person-info"><strong title="${escapeHtml(staff.fullName)}">${escapeHtml(staff.fullName)}</strong><small>${escapeHtml(staff.specialty || meta.subtitle)}</small><span class="manpower-person-role">${escapeHtml(meta.label)}</span>${note ? `<span class="manpower-note" title="${escapeHtml(note)}"><i class="fas fa-sticky-note"></i>${escapeHtml(note)}</span>` : ''}</div>
+        <div class="manpower-person-footer"><span class="manpower-status manpower-status--${assignment.status}"><i class="fas ${status.icon}"></i>${status.label}</span>${manageAllowed ? `<button type="button" class="manpower-manage" onclick="window.openManpowerManagement('${escapeHtml(assignment.id)}')"><i class="fas fa-sliders-h"></i> ຈັດການ</button>` : ''}</div>
+        ${manageAllowed ? `<button type="button" class="manpower-remove" onclick="window.removeManpowerAssignment('${escapeHtml(assignment.id)}')" aria-label="ນຳ ${escapeHtml(staff.fullName)} ອອກຈາກລາຍຊື່ປະຈຳການ"><i class="fas fa-times"></i></button>` : ''}
       </article>`;
     };
     return Object.entries(TYPES).map(([type, meta]) => {
       const departmentStaff = assignedStaff.filter(item => resolveManpowerStaffType(item.staff) === type);
       const people = departmentStaff.length
         ? departmentStaff.map(item => personCard(item, meta)).join('')
-        : '<div class="manpower-empty">ຍັງບໍ່ມີຜູ້ເຂົ້າເວນໃນພະແນກນີ້</div>';
+        : '<div class="manpower-empty">ຍັງບໍ່ມີຜູ້ເຂົ້າປະຈຳການໃນພະແນກນີ້</div>';
       return `<section class="manpower-department manpower-department--${meta.tone}">
-        <header><div class="manpower-department-title"><h4><i class="fas ${meta.icon}"></i>${meta.label}</h4><small>${meta.subtitle}</small></div><div class="manpower-department-actions"><strong>${departmentStaff.length} ຄົນ</strong>${manageAllowed ? `<button type="button" onclick="window.openManpowerAssignment('${type}')" aria-label="ເພີ່ມ ${meta.label} ເຂົ້າເວນ"><i class="fas fa-plus"></i><span>ເພີ່ມ</span></button>` : ''}</div></header>
+        <header><div class="manpower-department-title"><h4><i class="fas ${meta.icon}"></i>${meta.label}</h4><small>${meta.subtitle}</small></div><div class="manpower-department-actions"><strong>${departmentStaff.length} ຄົນ</strong>${manageAllowed ? `<button type="button" onclick="window.openManpowerAssignment('${type}')" aria-label="ເພີ່ມ ${meta.label} ເຂົ້າປະຈຳການ"><i class="fas fa-plus"></i><span>ເພີ່ມ</span></button>` : ''}</div></header>
         <div class="manpower-people">${people}</div>
       </section>`;
     }).join('');
   }
 
   function summaryMarkup(summary) {
-    return `<article><span class="is-green"><i class="fas fa-user-check"></i></span><small>ເຂົ້າເວນ</small><strong>${summary.working}</strong></article>
+    return `<article><span class="is-green"><i class="fas fa-user-check"></i></span><small>ເຂົ້າປະຈຳການ</small><strong>${summary.working}</strong></article>
       <article><span class="is-red"><i class="fas fa-user-times"></i></span><small>ຂາດ</small><strong>${summary.absent}</strong></article>
       <article><span class="is-orange"><i class="fas fa-bed"></i></span><small>ລາ</small><strong>${summary.leave}</strong></article>
-      <article><span class="is-purple"><i class="fas fa-exchange-alt"></i></span><small>ປ່ຽນເວນ</small><strong>${summary.swapped}</strong></article>`;
+      <article><span class="is-purple"><i class="fas fa-exchange-alt"></i></span><small>ສັບປ່ຽນຜູ້ປະຈຳການ</small><strong>${summary.swapped}</strong></article>`;
   }
 
   function overviewPrintMarkup(overview) {
@@ -320,7 +320,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       const assignments = visibleAssignmentsForShift(shift);
       const summary = calculateManpowerSummary(assignments);
       return `<section class="manpower-print-sheet${assignments.length > 24 ? ' manpower-print-dense' : ''}" data-print-shift="${shift}">
-        <header class="manpower-header"><div><span class="manpower-eyebrow"><i class="fas fa-calendar-check"></i> DAILY MANPOWER</span><h3>ຕາຕະລາງເຂົ້າເວນ</h3><p>ຈັດພະນັກງານເຂົ້າເວນຕາມວັນທີ, ກະເວລາ ແລະພະແນກ</p></div></header>
+        <header class="manpower-header"><div><span class="manpower-eyebrow"><i class="fas fa-calendar-check"></i> DAILY MANPOWER</span><h3>ຕາຕະລາງການປະຈຳການ</h3><p>ຈັດພະນັກງານເຂົ້າປະຈຳການຕາມວັນທີ, ຮອບເວລາ ແລະພະແນກ</p></div></header>
         <div class="manpower-print-context"><strong>ວັນທີ ${escapeHtml(`${day}/${month}/${year}`)}</strong><span>${shiftMeta.label} ${shiftMeta.time}</span></div>
         <section class="manpower-summary">${summaryMarkup(summary)}</section>
         <nav class="manpower-shifts" aria-label="${escapeHtml(shiftMeta.label)}"><button type="button" class="active"><i class="fas ${shift === 'morning' ? 'fa-sun' : shift === 'evening' ? 'fa-cloud-sun' : 'fa-moon'}"></i><span>${shiftMeta.label}</span><small>${shiftMeta.time}</small></button></nav>
@@ -484,7 +484,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       window.renderManpowerDashboard();
     }
     else {
-      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດຕາຕະລາງປະຈຳການບໍ່ສຳເລັດ', error.message); }
     }
   };
 
@@ -497,7 +497,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       window.renderManpowerDashboard();
     }
     else {
-      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດຕາຕະລາງປະຈຳການບໍ່ສຳເລັດ', error.message); }
     }
   };
 
@@ -508,7 +508,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       window.renderManpowerDashboard();
     }
     else {
-      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດເວນບໍ່ສຳເລັດ', error.message); }
+      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດຕາຕະລາງປະຈຳການບໍ່ສຳເລັດ', error.message); }
     }
   };
 
@@ -569,7 +569,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       .sort((a, b) => clean(b.changedAt).localeCompare(clean(a.changedAt)));
     if (count) count.textContent = `${records.length} ລາຍການ`;
     if (!records.length) {
-      body.innerHTML = '<tr><td colspan="7" class="manpower-history-empty"><i class="fas fa-history"></i><strong>ຍັງບໍ່ມີປະຫວັດຕາມເງື່ອນໄຂນີ້</strong><small>ລອງປ່ຽນຕົວກອງ ຫຼືເພີ່ມ/ຈັດການເວນ</small></td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="manpower-history-empty"><i class="fas fa-history"></i><strong>ຍັງບໍ່ມີປະຫວັດຕາມເງື່ອນໄຂນີ້</strong><small>ລອງປ່ຽນຕົວກອງ ຫຼືເພີ່ມ/ຈັດການການປະຈຳການ</small></td></tr>';
       return;
     }
     body.innerHTML = records.map(item => {
@@ -583,7 +583,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       let detail = `${beforeStatus} → ${afterStatus}`;
       if (item.action === 'created') detail = `ສະຖານະ: ${afterStatus}`;
       if (item.action === 'deleted') detail = `ສະຖານະກ່ອນລຶບ: ${beforeStatus}`;
-      if (item.replacementAfterName) detail += `<small>ຮັບເວນແທນ: ${escapeHtml(item.replacementAfterName)}</small>`;
+      if (item.replacementAfterName) detail += `<small>ເຂົ້າປະຈຳການແທນ: ${escapeHtml(item.replacementAfterName)}</small>`;
       if (item.noteAfter) detail += `<small>ໝາຍເຫດ: ${escapeHtml(item.noteAfter)}</small>`;
       return `<tr>
         <td><span class="manpower-history-action manpower-history-action--${action.tone}"><i class="fas ${action.icon}"></i>${action.label}</span></td>
@@ -604,16 +604,18 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     view?.classList.toggle('manpower-print-all', allShifts);
     view?.classList.toggle('manpower-print-dense', !allShifts && document.querySelectorAll('#manpowerDepartmentList .manpower-person').length > 24);
     app?.classList.add('print-active');
+    const profilePrepared = window.preparePrinterPrint?.('view-manpower', 'manpower') === true;
     const landscapeRule = document.createElement('style');
     landscapeRule.id = 'manpowerLandscapePrintRule';
     landscapeRule.textContent = '@media print { @page { size: A4 landscape; margin: 4mm; } }';
     document.getElementById(landscapeRule.id)?.remove();
-    document.head.appendChild(landscapeRule);
+    if (!profilePrepared) document.head.appendChild(landscapeRule);
     const cleanup = () => {
       app?.classList.remove('print-active');
       view?.classList.remove('manpower-print-all');
       view?.classList.remove('manpower-print-dense');
       landscapeRule.remove();
+      window.finishPrinterPrint?.();
     };
     window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
@@ -641,7 +643,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   };
 
   window.openManpowerAssignment = function (type = 'doctor') {
-    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
+    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດການການປະຈຳການໄດ້', 'warning');
     const meta = TYPES[type] || TYPES.doctor;
     const assignedIds = new Set(selectedAssignments().map(item => item.staffId));
     const departmentStaff = state.staff.filter(item => resolveManpowerStaffType(item) === type);
@@ -659,7 +661,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         ? `<option value=""></option><optgroup label="${escapeHtml(meta.label)} — ສາມາດເພີ່ມໄດ້">${choices.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.fullName)}${item.specialty ? ` — ${escapeHtml(item.specialty)}` : ''}</option>`).join('')}</optgroup>`
         : '<option value="">ບໍ່ມີພະນັກງານວ່າງໃນພະແນກນີ້</option>';
       const assignedOptions = alreadyAssigned.length
-        ? `<optgroup label="ຈັດເຂົ້າເວນແລ້ວ">${alreadyAssigned.map(item => `<option value="" disabled>${escapeHtml(item.fullName)} — ຢູ່ໃນເວນແລ້ວ</option>`).join('')}</optgroup>`
+        ? `<optgroup label="ເຂົ້າປະຈຳການແລ້ວ">${alreadyAssigned.map(item => `<option value="" disabled>${escapeHtml(item.fullName)} — ເຂົ້າປະຈຳການແລ້ວ</option>`).join('')}</optgroup>`
         : '';
       select.innerHTML = `${availableOptions}${assignedOptions}`;
       select.disabled = !departmentStaff.length;
@@ -668,7 +670,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     if (saveButton) saveButton.disabled = !choices.length;
     if (availabilityNote) {
       availabilityNote.innerHTML = departmentStaff.length
-        ? `<i class="fas fa-users"></i> ${escapeHtml(meta.label)}: ພົບ ${departmentStaff.length} ຄົນ · ວ່າງເພີ່ມ ${choices.length} ຄົນ · ຢູ່ໃນເວນແລ້ວ ${alreadyAssigned.length} ຄົນ`
+        ? `<i class="fas fa-users"></i> ${escapeHtml(meta.label)}: ພົບ ${departmentStaff.length} ຄົນ · ວ່າງເພີ່ມ ${choices.length} ຄົນ · ເຂົ້າປະຈຳການແລ້ວ ${alreadyAssigned.length} ຄົນ`
         : '<i class="fas fa-user-plus"></i> ຍັງບໍ່ມີພະນັກງານໃນພະແນກນີ້; ກະລຸນາເພີ່ມໃນໜ້າຈັດການພະນັກງານ';
     }
     const statusSelect = document.getElementById('manpowerStatusSelect');
@@ -693,7 +695,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
 
   window.saveManpowerAssignment = async function (event) {
     event?.preventDefault();
-    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
+    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດການການປະຈຳການໄດ້', 'warning');
     const staffId = clean(document.getElementById('manpowerStaffSelect')?.value);
     if (!staffId) return;
     const status = clean(document.getElementById('manpowerStatusSelect')?.value) || 'working';
@@ -714,21 +716,21 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       window.bootstrap?.Modal?.getInstance(document.getElementById('manpowerAssignmentModal'))?.hide();
       window.renderManpowerDashboard();
     } catch (error) {
-      await notify('ບັນທຶກເວນບໍ່ສຳເລັດ', error.message);
+      await notify('ບັນທຶກການຈັດການປະຈຳການບໍ່ສຳເລັດ', error.message);
     } finally {
       if (saveButton) saveButton.disabled = false;
     }
   };
 
   window.removeManpowerAssignment = async function (assignmentId) {
-    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
+    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດການການປະຈຳການໄດ້', 'warning');
     const assignment = state.assignments.find(item => item.id === assignmentId);
     if (!assignment) return;
     const staff = staffById(assignment.staffId);
     let confirmed = true;
     if (window.Swal?.fire) {
       const result = await window.Swal.fire({
-        title: 'ເອົາອອກຈາກເວນ?',
+        title: 'ນຳອອກຈາກລາຍຊື່ປະຈຳການ?',
         text: staff?.fullName || '',
         icon: 'warning',
         showCancelButton: true,
@@ -737,7 +739,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         confirmButtonColor: '#d9233f'
       });
       confirmed = result.isConfirmed;
-    } else confirmed = window.confirm?.(`ເອົາ ${staff?.fullName || ''} ອອກຈາກເວນ?`) !== false;
+    } else confirmed = window.confirm?.(`ນຳ ${staff?.fullName || ''} ອອກຈາກລາຍຊື່ປະຈຳການ?`) !== false;
     if (!confirmed) return;
     try {
       if (isLocalMode()) {
@@ -755,7 +757,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   };
 
   window.openManpowerManagement = function (assignmentId) {
-    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
+    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດການການປະຈຳການໄດ້', 'warning');
     const assignment = state.assignments.find(item => item.id === assignmentId);
     const currentStaff = assignment ? state.staff.find(item => item.id === assignment.staffId) : null;
     if (!assignment || !currentStaff) return;
@@ -786,7 +788,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
 
   window.saveManpowerManagement = async function (event) {
     event?.preventDefault();
-    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດເວນໄດ້', 'warning');
+    if (!mayManage()) return notify('ບໍ່ມີສິດ', 'ສະເພາະ Admin ເທົ່ານັ້ນທີ່ສາມາດຈັດການການປະຈຳການໄດ້', 'warning');
     const assignmentId = clean(document.getElementById('manpowerManageAssignmentId')?.value);
     const status = clean(document.getElementById('manpowerManageStatus')?.value) || 'working';
     const leaveType = status === 'leave' ? (clean(document.getElementById('manpowerLeaveType')?.value) || 'vacation') : '';
@@ -820,7 +822,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       window.bootstrap?.Modal?.getInstance(document.getElementById('manpowerManagementModal'))?.hide();
       window.renderManpowerDashboard();
     } catch (error) {
-      await notify('ຈັດການເວນບໍ່ສຳເລັດ', error.message);
+      await notify('ຈັດການການປະຈຳການບໍ່ສຳເລັດ', error.message);
     }
   };
 

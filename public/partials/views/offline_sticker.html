@@ -1,0 +1,64 @@
+<div id="view-offline_sticker" style="display:none;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2 pb-3" style="border-bottom:2px solid var(--border-color);">
+    <div>
+      <h3 class="fw-bold m-0 text-dark"><i class="fas fa-tags text-primary me-2"></i><span data-i18n="offlineSticker.title">ພິມ Sticker Offline</span></h3>
+      <p class="text-muted mb-0 mt-1" style="font-size:12px;" data-i18n="offlineSticker.subtitle">ປ້ອນຂໍ້ມູນເອງ ແລະພິມໄດ້ໂດຍບໍ່ເຊື່ອມ Supabase</p>
+    </div>
+    <span class="badge bg-success-subtle text-success border px-3 py-2"><i class="fas fa-print me-1"></i>Offline Print</span>
+  </div>
+
+  <div class="alert alert-info d-flex align-items-start gap-2" role="note">
+    <i class="fas fa-info-circle mt-1"></i>
+    <div data-i18n="offlineSticker.notice">ໜ້ານີ້ພິມ sticker ເທົ່ານັ້ນ. ຂໍ້ມູນທີ່ປ້ອນຈະບໍ່ຖືກບັນທຶກໃນຖານຂໍ້ມູນ ຫຼື sync ເຂົ້າທະບຽນຄົນເຈັບ. ກວດລະຫັດ ແລະຊື່ກ່ອນພິມ.</div>
+  </div>
+
+  <div class="card card-outline card-primary">
+    <div class="card-header"><h5 class="card-title mb-0"><i class="fas fa-pen me-2"></i><span data-i18n="offlineSticker.formTitle">ຂໍ້ມູນທີ່ຈະສະແດງເທິງ Sticker</span></h5></div>
+    <div class="card-body">
+      <form id="offlineStickerForm" onsubmit="event.preventDefault(); window.printOfflineSticker();">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="offlineStickerId" class="form-label fw-semibold"><span data-i18n="offlineSticker.id">ລະຫັດຄົນເຈັບ / Sticker ID</span> <span class="text-danger">*</span></label>
+            <input id="offlineStickerId" class="form-control" maxlength="40" autocomplete="off" required placeholder="LXH2026-00001">
+          </div>
+          <div class="col-md-8">
+            <label for="offlineStickerName" class="form-label fw-semibold"><span data-i18n="offlineSticker.name">ຊື່ ແລະ ນາມສະກຸນ</span> <span class="text-danger">*</span></label>
+            <input id="offlineStickerName" class="form-control" maxlength="120" autocomplete="off" required placeholder="ປ້ອນຊື່-ນາມສະກຸນ">
+          </div>
+          <div class="col-md-4">
+            <label for="offlineStickerDob" class="form-label fw-semibold" data-i18n="offlineSticker.dob">ວັນເດືອນປີເກີດ</label>
+            <input id="offlineStickerDob" type="date" class="form-control">
+          </div>
+          <div class="col-md-2">
+            <label for="offlineStickerAge" class="form-label fw-semibold" data-i18n="offlineSticker.age">ອາຍຸ (ປີ)</label>
+            <input id="offlineStickerAge" type="number" min="0" max="130" class="form-control" inputmode="numeric" placeholder="ຄຳນວນຈາກວັນເກີດ">
+          </div>
+          <div class="col-md-6">
+            <label for="offlineStickerVillage" class="form-label fw-semibold" data-i18n="offlineSticker.village">ບ້ານ / ທີ່ຢູ່</label>
+            <input id="offlineStickerVillage" class="form-control" maxlength="120" autocomplete="off">
+          </div>
+          <div class="col-md-4">
+            <label for="offlineStickerDistrict" class="form-label fw-semibold" data-i18n="offlineSticker.district">ເມືອງ</label>
+            <input id="offlineStickerDistrict" class="form-control" maxlength="100" autocomplete="off">
+          </div>
+          <div class="col-md-4">
+            <label for="offlineStickerProvince" class="form-label fw-semibold" data-i18n="offlineSticker.province">ແຂວງ</label>
+            <input id="offlineStickerProvince" class="form-control" maxlength="100" autocomplete="off">
+          </div>
+          <div class="col-md-4">
+            <label for="offlineStickerPhone" class="form-label fw-semibold" data-i18n="offlineSticker.phone">ເບີໂທ</label>
+            <input id="offlineStickerPhone" class="form-control" maxlength="40" inputmode="tel" autocomplete="off">
+          </div>
+          <div class="col-md-8">
+            <label for="offlineStickerPayer" class="form-label fw-semibold" data-i18n="offlineSticker.payer">ປະກັນ / ອົງກອນ (ຖ້າມີ)</label>
+            <input id="offlineStickerPayer" class="form-control" maxlength="100" autocomplete="off">
+          </div>
+        </div>
+        <div class="d-flex flex-wrap justify-content-end gap-2 mt-4">
+          <button type="button" class="btn btn-outline-secondary" onclick="window.clearOfflineStickerForm()"><i class="fas fa-eraser me-1"></i><span data-i18n="offlineSticker.clear">ລ້າງຟອມ</span></button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-print me-1"></i><span data-i18n="offlineSticker.print">ພິມ 3 Sticker</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

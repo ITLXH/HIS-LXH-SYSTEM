@@ -16,6 +16,63 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables.net-bs5/1.13.4/dataTables.bootstrap5.min.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
 
+  <!-- Keep connection feedback available even when third-party scripts fail to load. -->
+  <style>
+    #his-network-banner[hidden] { display: none !important; }
+    #his-network-banner {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 100001;
+      padding: 10px 16px;
+      color: #fff;
+      background: #a52834;
+      text-align: center;
+      font: 600 14px/1.4 system-ui, sans-serif;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+    }
+    #his-network-banner[data-state="restoring"] { background: #9a6700; }
+  </style>
+  <script>
+    (() => {
+      let state = 'online';
+      const render = () => {
+        const banner = document.getElementById('his-network-banner');
+        if (!banner) return;
+        banner.dataset.state = state;
+        banner.hidden = state === 'online';
+        banner.textContent = state === 'offline'
+          ? 'ທ່ານກຳລັງ Offline — ລໍຖ້າ Internet ກັບມາ. ການບັນທຶກ/ເຊື່ອມຖານຂໍ້ມູນອາດບໍ່ສຳເລັດ; ກວດລາຍການກ່ອນລອງຊ້ຳ.'
+          : 'ອິນເຕີເນັດກັບມາແລ້ວ — ກຳລັງກວດການເຊື່ອມຕໍ່ລະບົບ...';
+      };
+      window.setHisNetworkStatus = (nextState) => {
+        if (!['online', 'offline', 'restoring'].includes(nextState)) return;
+        const previousState = state;
+        state = nextState;
+        window.hisNetworkState = nextState;
+        render();
+        if (previousState !== nextState) {
+          window.dispatchEvent(new CustomEvent('his-network-status', { detail: { state: nextState } }));
+        }
+      };
+      window.addEventListener('offline', () => window.setHisNetworkStatus('offline'));
+      window.addEventListener('online', () => window.setHisNetworkStatus('restoring'));
+      window.addEventListener('error', (event) => {
+        const resource = event.target;
+        const url = resource?.src || resource?.href || '';
+        if (url.startsWith('https://')) window.setHisNetworkStatus('offline');
+      }, true);
+      document.addEventListener('DOMContentLoaded', () => {
+        const previousState = state;
+        if (!navigator.onLine) state = 'offline';
+        window.hisNetworkState = state;
+        render();
+        if (previousState !== state) {
+          window.dispatchEvent(new CustomEvent('his-network-status', { detail: { state } }));
+        }
+      });
+    })();
+  </script>
+
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
@@ -37,9 +94,11 @@
   <link rel="stylesheet" href="/src/style.css">
   <link rel="stylesheet" href="/src/staffManagement.css">
   <link rel="stylesheet" href="/src/manpowerDashboard.css">
+  <link rel="stylesheet" href="/src/printerSettings.css">
 </head>
 
 <body class="hold-transition auth-checking">
+  <div id="his-network-banner" role="status" aria-live="assertive" hidden></div>
   <div id="loading">
     <div class="his-data-loader his-system-loader" role="status" aria-live="polite">
       <span class="his-data-loader__logo-shell" aria-hidden="true">

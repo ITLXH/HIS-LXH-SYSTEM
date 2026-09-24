@@ -1,5 +1,5 @@
-import { createOnlinePresence } from "./onlinePresence.js";
 import JsBarcode from 'jsbarcode';
+import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
 
@@ -27,6 +27,7 @@ import { installStaffManagement } from './staffManagement.js';
 import { createStaffSupabaseBackend } from './staffSupabase.js';
 import { installManpowerDashboard } from './manpowerDashboard.js';
 import { createManpowerSupabaseBackend } from './manpowerSupabase.js';
+import { installPrinterSettings } from './printerSettings.js';
 import {
   HIS_ROLE_ACTION_DEFAULTS,
   HIS_ROLE_PAGE_DEFAULTS,
@@ -44,19 +45,88 @@ const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6eXJvd3pnaHJjZnBtaGtyZWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MTI2NzcsImV4cCI6MjA5NzE4ODY3N30.aTIC9Ov8jo-WhdUTZ_bZswmOgauC53R7vjYGcUln8Q0";
 
+const SUPABASE_REQUEST_TIMEOUT_MS = 20000;
+async function fetchWithNetworkStatus(input, init = {}) {
+  const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : String(input?.url || '');
+  const isHealthProbe = requestUrl.startsWith(`${SUPABASE_URL}/auth/v1/health`);
+  if (!isHealthProbe && (!navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState))) {
+    window.setHisNetworkStatus?.('offline');
+    throw new TypeError('HIS_OFFLINE: waiting for the internet connection to return.');
+  }
+
+  const timeoutSignal = AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS);
+  const signal = init.signal && typeof AbortSignal.any === 'function'
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
+
+  try {
+    const response = await fetch(input, { ...init, signal });
+    window.setHisNetworkStatus?.(response.status >= 500 ? 'offline' : 'online');
+    return response;
+  } catch (error) {
+    if (timeoutSignal.aborted || error?.name === 'TypeError') {
+      window.setHisNetworkStatus?.('offline');
+    }
+    throw error;
+  }
+}
+
 const supabaseClient = supabase.createClient(
   SUPABASE_URL,
-  SUPABASE_ANON_KEY
+  SUPABASE_ANON_KEY,
+  { global: { fetch: fetchWithNetworkStatus } }
 );
+let networkProbeInFlight = false;
+let networkReconnectTimer = null;
+async function probeSupabaseConnection(timeoutMs = SUPABASE_REQUEST_TIMEOUT_MS) {
+  if (networkProbeInFlight || !navigator.onLine) return;
+  networkProbeInFlight = true;
+  try {
+    const response = await fetchWithNetworkStatus(`${SUPABASE_URL}/auth/v1/health`, {
+      method: 'GET',
+      headers: { apikey: SUPABASE_ANON_KEY },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (response.status >= 500) window.setHisNetworkStatus?.('offline');
+  } catch {
+    window.setHisNetworkStatus?.('offline');
+  } finally {
+    networkProbeInFlight = false;
+  }
+}
+window.addEventListener('online', () => window.setTimeout(probeSupabaseConnection, 250));
+window.addEventListener('his-network-status', (event) => {
+  if (['offline', 'restoring'].includes(event.detail?.state)) {
+    if (!networkReconnectTimer) {
+      networkReconnectTimer = window.setInterval(() => {
+        if (!navigator.onLine || !['offline', 'restoring'].includes(window.hisNetworkState)) return;
+        probeSupabaseConnection();
+      }, 10000);
+    }
+    return;
+  }
+  if (networkReconnectTimer) window.clearInterval(networkReconnectTimer);
+  networkReconnectTimer = null;
+});
+if (['offline', 'restoring'].includes(window.hisNetworkState)) {
+  window.dispatchEvent(new CustomEvent('his-network-status', { detail: { state: window.hisNetworkState } }));
+}
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`/his-offline-sw.js?v=${encodeURIComponent(HIS_BUILD_ID)}`, {
+    scope: '/',
+    updateViaCache: 'none'
+  }).catch(error => console.warn('Offline app shell cache is unavailable:', error));
+}
 console.log("Supabase Client:", supabaseClient);
-
 const onlinePresence = createOnlinePresence(supabaseClient, escapeHisHtml);
+
 window.authenticatedFetch = async function (url, options = {}) {
   const { data } = await supabaseClient.auth.getSession();
   const accessToken = data?.session?.access_token;
   const headers = new Headers(options.headers || {});
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
-  return fetch(url, { ...options, headers });
+  return fetchWithNetworkStatus(url, { ...options, headers });
 };
 
 const DB_TABLE_PREFIX = "HIS_One_";
@@ -64,7 +134,10 @@ const dbTable = (name) => `${DB_TABLE_PREFIX}${name}`;
 
 const staffSupabaseBackend = createStaffSupabaseBackend({
   client: supabaseClient,
-  tableName: dbTable('Staff_Profiles')
+  tableName: dbTable('Staff_Profiles'),
+  deleteRecord: (record) => window.deleteRecordsWithRecovery(
+    'Staff_Profiles', { ID: record.id }, 'Staff', `Delete staff profile ${record.fullName || record.id}`
+  )
 });
 const manpowerSupabaseBackend = createManpowerSupabaseBackend({
   client: supabaseClient,
@@ -80,6 +153,7 @@ installManpowerDashboard({
   getCurrentUser: () => currentUser,
   canManage: () => normalizeHisRole(currentUser?.role) === 'admin'
 });
+installPrinterSettings();
 
 function sha256Fallback(text) {
   const rightRotate = (value, amount) => (value >>> amount) | (value << (32 - amount));
@@ -144,6 +218,9 @@ window.hashPassword = async function (password) {
 };
 
 let currentUser = null;
+let offlineStickerOnlyMode = false;
+let authSessionRestoreInFlight = false;
+let offlineAuthRestoreTimer = null;
 let masterDataStore = {};
 let queueDataStore = [];
 let dashRefreshInterval = null;
@@ -217,11 +294,28 @@ window.appTranslations = {
     'nav.report': 'ຄິວຄົນເຈັບ',
     'nav.visitHistory': 'ປະຫວັດການກວດ',
     'nav.patients': 'ຄົນເຈັບ',
+    'nav.offlineSticker': 'ພິມ Sticker Offline',
     'nav.triage': 'ຊັກປະຫວັດ',
     'nav.opd': 'OPD',
     'nav.vaccines': 'ວັກຊີນ',
     'nav.appointments': 'ນັດໝາຍ',
-    'nav.manpower': 'ຈັດການເວນຍາມ',
+    'nav.manpower': 'ຈັດການປະຈຳການ',
+    'nav.printerSettings': 'ຕັ້ງຄ່າການພິມ',
+    'offlineSticker.title': 'ພິມ Sticker Offline',
+    'offlineSticker.subtitle': 'ປ້ອນຂໍ້ມູນເອງ ແລະພິມໄດ້ໂດຍບໍ່ເຊື່ອມ Supabase',
+    'offlineSticker.notice': 'ໜ້ານີ້ພິມ sticker ເທົ່ານັ້ນ. ຂໍ້ມູນທີ່ປ້ອນຈະບໍ່ຖືກບັນທຶກໃນຖານຂໍ້ມູນ ຫຼື sync ເຂົ້າທະບຽນຄົນເຈັບ. ກວດລະຫັດ ແລະຊື່ກ່ອນພິມ.',
+    'offlineSticker.formTitle': 'ຂໍ້ມູນທີ່ຈະສະແດງເທິງ Sticker',
+    'offlineSticker.id': 'ລະຫັດຄົນເຈັບ / Sticker ID',
+    'offlineSticker.name': 'ຊື່ ແລະ ນາມສະກຸນ',
+    'offlineSticker.dob': 'ວັນເດືອນປີເກີດ',
+    'offlineSticker.age': 'ອາຍຸ (ປີ)',
+    'offlineSticker.village': 'ບ້ານ / ທີ່ຢູ່',
+    'offlineSticker.district': 'ເມືອງ',
+    'offlineSticker.province': 'ແຂວງ',
+    'offlineSticker.phone': 'ເບີໂທ',
+    'offlineSticker.payer': 'ປະກັນ / ອົງກອນ (ຖ້າມີ)',
+    'offlineSticker.clear': 'ລ້າງຟອມ',
+    'offlineSticker.print': 'ພິມ 3 Sticker',
     'nav.settings': 'ຕັ້ງຄ່າ',
     'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'ແຜງຄວບຄຸມ IPD',
@@ -385,11 +479,28 @@ window.appTranslations = {
     'nav.report': 'Queue',
     'nav.visitHistory': 'Visit History',
     'nav.patients': 'Patients',
+    'nav.offlineSticker': 'Offline Sticker',
     'nav.triage': 'Triage',
     'nav.opd': 'OPD',
     'nav.vaccines': 'Vaccines',
     'nav.appointments': 'Appointments',
     'nav.manpower': 'Duty Roster',
+    'nav.printerSettings': 'Printer Settings',
+    'offlineSticker.title': 'Offline Sticker Printing',
+    'offlineSticker.subtitle': 'Enter details manually and print without a Supabase connection',
+    'offlineSticker.notice': 'This page only prints stickers. Entered information is not saved to the database or synced to patient registration. Check the ID and name before printing.',
+    'offlineSticker.formTitle': 'Information to print on the sticker',
+    'offlineSticker.id': 'Patient ID / Sticker ID',
+    'offlineSticker.name': 'Full name',
+    'offlineSticker.dob': 'Date of birth',
+    'offlineSticker.age': 'Age (years)',
+    'offlineSticker.village': 'Village / Address',
+    'offlineSticker.district': 'District',
+    'offlineSticker.province': 'Province',
+    'offlineSticker.phone': 'Phone number',
+    'offlineSticker.payer': 'Insurance / Organization (optional)',
+    'offlineSticker.clear': 'Clear form',
+    'offlineSticker.print': 'Print 3 stickers',
     'nav.settings': 'Settings',
     'nav.ipdManagement': 'IPD',
     'nav.ipdDashboard': 'IPD Dashboard',
@@ -2004,6 +2115,7 @@ window.applyAppLanguage = function () {
     'nav-report': 'nav.report',
     'nav-visit_history': 'nav.visitHistory',
     'nav-patients': 'nav.patientList',
+    'nav-offline_sticker': 'nav.offlineSticker',
     'nav-triage': 'nav.triage',
     'nav-opd_queue': 'nav.opdQueue',
     'nav-opd_consultation': 'nav.opdConsultation',
@@ -2016,7 +2128,8 @@ window.applyAppLanguage = function () {
     'nav-ipd_discharge': 'nav.ipdDischarge',
     'nav-vaccines': 'nav.vaccines',
     'nav-appointments': 'nav.appointments',
-    'nav-manpower': 'nav.manpower'
+    'nav-manpower': 'nav.manpower',
+    'nav-printer_settings': 'nav.printerSettings'
   };
   Object.entries(navTextMap).forEach(([id, key]) => {
     $('#' + id).children('span').first().text(window.t(key));
@@ -2060,6 +2173,7 @@ window.HIS_NAV_ROUTES = {
   opd_observation: { view: 'opd_observation', navId: 'opd_observation', path: '/opd/observation' },
   opd_observation_list: { view: 'opd_observation_list', navId: 'opd_observation_list', path: '/opd/observation/list' },
   patients: { view: 'patients', navId: 'patients', path: '/patients' },
+  offline_sticker: { view: 'offline_sticker', navId: 'offline_sticker', path: '/offline-sticker' },
   ipd_dashboard: { view: 'ipd_ward_bed', navId: 'ipd_dashboard', path: '/ipd/dashboard', mode: 'ipd_dashboard' },
   ipd_admission: { view: 'ipd_ward_bed', navId: 'ipd_admission', path: '/ipd/admission', mode: 'ipd_admission' },
   ipd_ward_bed: { view: 'ipd_ward_bed', navId: 'ipd_ward_bed', path: '/ipd/bed-management', mode: 'ipd_bed_management' },
@@ -2068,6 +2182,7 @@ window.HIS_NAV_ROUTES = {
   ipd_config: { view: 'ipd_config', navId: 'ipd_config', path: '/ipd_config' },
   staff: { view: 'staff', navId: 'staff', path: '/staff' },
   manpower: { view: 'manpower', navId: 'manpower', path: '/manpower' },
+  printer_settings: { view: 'printer_settings', navId: 'printer_settings', path: '/printer-settings' },
   settings: { view: 'settings', navId: 'settings', path: '/settings' },
   orgs: { view: 'orgs', navId: 'orgs', path: '/orgs' },
   users: { view: 'users', navId: 'users', path: '/users' },
@@ -2089,6 +2204,7 @@ window.HIS_PATH_ROUTES = {
   '/vaccines': 'vaccines',
   '/appointments': 'appointments',
   '/patients': 'patients',
+  '/offline-sticker': 'offline_sticker',
   '/opd': 'opd_queue',
   '/opd/queue': 'opd_queue',
   '/opd/consultation': 'opd_consultation',
@@ -2107,6 +2223,8 @@ window.HIS_PATH_ROUTES = {
   '/ipd_config': 'ipd_config',
   '/staff': 'staff',
   '/manpower': 'manpower',
+  '/printer-settings': 'printer_settings',
+  '/printer_settings': 'printer_settings',
   '/settings': 'settings',
   '/orgs': 'orgs',
   '/users': 'users',
@@ -2268,6 +2386,24 @@ window.initLocalManpowerPreview = function () {
   $('#nav-staff').closest('.his-dropdown').show();
   window.toggleLoading(false);
   window.loadView('manpower', { replace: true, force: true, updateUrl: false });
+};
+
+window.isLocalPrinterSettingsPreview = function () {
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLoopback = ['localhost', '127.0.0.1', '::1'].includes(host);
+  const previewRequested = new URLSearchParams(window.location.search).get('preview') === '1';
+  return isLoopback && previewRequested && window.parseProtectedRoute?.()?.view === 'printer_settings';
+};
+
+window.initLocalPrinterSettingsPreview = function () {
+  $('body').removeClass('auth-checking');
+  $('#login-section').hide();
+  $('#app-content').show();
+  $('#sidebarUserName').text('Printer Settings Local Test');
+  $('#his-nav-items [id^="nav-"]').hide();
+  $('#nav-printer_settings').show().closest('.his-dropdown').show();
+  window.toggleLoading(false);
+  window.loadView('printer_settings', { replace: true, force: true, updateUrl: false });
 };
 
 window.emrLabCategoryConfig = [
@@ -2469,8 +2605,12 @@ window.saveLabCategoryMapping = async function (labId, category, sortOrder) {
 
   if (!normalizedCategory && !normalizedSortOrder) {
     if (!existing) return { error: null };
-    const { error } = await supabaseClient.from(dbTable('MasterData')).delete().eq('ID', existing.id);
-    return { error };
+    try {
+      await window.deleteRecordsWithRecovery('MasterData', { ID: existing.id }, 'Labs', `Remove lab category mapping ${normalizedLabId}`);
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
   }
 
   const ensureResult = await window.ensureLabCategoriesExist([normalizedCategory]);
@@ -2506,8 +2646,12 @@ window.deleteLabCategoryMappings = async function (labIds) {
   });
 
   if (!mappingIds.length) return { error: null };
-  const { error } = await supabaseClient.from(dbTable('MasterData')).delete().in('ID', mappingIds);
-  return { error };
+  try {
+    await window.deleteRecordsWithRecovery('MasterData', { ID: mappingIds }, 'Labs', `Remove category mappings for lab${mappingIds.length > 1 ? 's' : ''} ${Array.isArray(labIds) ? labIds.join(', ') : labIds}`);
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
 };
 
 window.isOpdTestLabOrderFormMode = function () {
@@ -3019,12 +3163,12 @@ window.decorateDataTableUi = function (tableNode) {
 // PARTIAL LOADER — fetch & inject HTML files
 // ==========================================
 async function loadPartials() {
-  const views = [
-    'dashboard', 'report', 'visit_history', 'patients', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
+  const fullViews = [
+    'dashboard', 'report', 'visit_history', 'patients', 'offline_sticker', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
-    'labs', 'services', 'locations', 'users', 'staff', 'manpower', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
+    'labs', 'services', 'locations', 'users', 'staff', 'manpower', 'printer_settings', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
   ];
-  const modals = [
+  const fullModals = [
     'patient-modal',
     'triage-modal',
     'appointment-qr-modal',
@@ -3034,8 +3178,12 @@ async function loadPartials() {
     'patient-timeline-modal',
     'emr-modals'
   ];
+  const offlineShellOnly = !navigator.onLine || window.hisNetworkState === 'offline';
+  const views = offlineShellOnly ? ['offline_sticker'] : fullViews;
+  const modals = offlineShellOnly ? [] : fullModals;
 
   const PARTIAL_CACHE_BUST = HIS_BUILD_ID;
+  let partialHostUnavailable = false;
   const partialRequests = [
     { type: 'navbar', name: 'navbar', url: '/partials/navbar.html' },
     ...views.map(name => ({ type: 'view', name, url: `/partials/views/${name}.html` })),
@@ -3045,23 +3193,31 @@ async function loadPartials() {
 
   const wait = ms => new Promise(resolve => window.setTimeout(resolve, ms));
   const fetchPartial = async (request) => {
+    if (partialHostUnavailable) {
+      return { ...request, ok: false, error: `${request.url}: skipped after connection failure` };
+    }
     const sep = request.url.includes('?') ? '&' : '?';
     const url = `${request.url}${sep}v=${PARTIAL_CACHE_BUST}`;
     let lastError;
 
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      const timeout = window.setTimeout(() => controller.abort(), 8000);
       try {
         const response = await fetch(url, {
           cache: attempt === 1 ? 'default' : 'reload',
           signal: controller.signal
         });
+        if (response.status >= 500) partialHostUnavailable = true;
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return { ...request, ok: true, html: await response.text() };
       } catch (error) {
         lastError = error;
-        if (attempt < 3) await wait(300 * attempt);
+        if (error?.name === 'AbortError' || error instanceof TypeError) {
+          partialHostUnavailable = true;
+          break;
+        }
+        if (attempt < 2) await wait(300 * attempt);
       } finally {
         window.clearTimeout(timeout);
       }
@@ -3139,6 +3295,7 @@ $(document).ready(async function () {
     beforeReload: () => window.clearAuthSession?.()
   });
   // Load all HTML partials first, then init the app
+  if (navigator.onLine) await probeSupabaseConnection(5000);
   await loadPartials();
   window.applyAppLanguage();
   window.captureProtectedRouteForLogin();
@@ -3374,6 +3531,10 @@ $(document).ready(async function () {
   });
 
   setTimeout(async () => {
+    if (window.isLocalPrinterSettingsPreview?.()) {
+      window.initLocalPrinterSettingsPreview();
+      return;
+    }
     if (window.isLocalManpowerPreview?.()) {
       window.initLocalManpowerPreview();
       return;
@@ -3393,6 +3554,13 @@ $(document).ready(async function () {
         window.applyButtonPermissions();
       }, 500);
     } else if (!currentUser) {
+      const cachedUserSession = validateHisAuthSessionRecord(window.readAuthSession());
+      const canUseOfflineSticker = (!navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState))
+        && cachedUserSession.valid;
+      if (canUseOfflineSticker) {
+        window.enterOfflineStickerOnlyMode();
+        return;
+      }
       $('body').removeClass('auth-checking');
       $('#app-content').hide();
       $('#login-section').show();
@@ -3421,7 +3589,14 @@ window.doLogin = async function () {
     if (authError || !authData?.user?.id) {
       window.toggleLoading(false);
       $('body').removeClass('auth-checking');
-      Swal.fire('ແຈ້ງເຕືອນ', 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ', 'error');
+      const connectionUnavailable = !navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState);
+      Swal.fire(
+        'ແຈ້ງເຕືອນ',
+        connectionUnavailable
+          ? 'ບໍ່ສາມາດເຊື່ອມຕໍ່ລະບົບໄດ້. ກວດສອບອິນເຕີເນັດ ແລ້ວລອງເຂົ້າໃໝ່.'
+          : 'ອີເມວ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ',
+        'error'
+      );
       return;
     }
 
@@ -3918,6 +4093,8 @@ window.clearAuthSession = function () {
 };
 
 window.restoreAuthSession = async function () {
+  if (authSessionRestoreInFlight) return false;
+  authSessionRestoreInFlight = true;
   try {
     const storedSession = window.readAuthSession();
     const storedValidation = validateHisAuthSessionRecord(storedSession);
@@ -3939,6 +4116,9 @@ window.restoreAuthSession = async function () {
 
     if (error || !data || data.length === 0 || data[0].Status !== 'active') {
       if (error) console.warn('Restore login session failed:', error);
+      if (error && (!navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState))) {
+        return false;
+      }
       await supabaseClient.auth.signOut();
       window.clearAuthSession();
       return false;
@@ -3961,10 +4141,47 @@ window.restoreAuthSession = async function () {
     return true;
   } catch (err) {
     console.warn('Restore login session failed:', err);
-    window.clearAuthSession();
+    if (navigator.onLine && !['offline', 'restoring'].includes(window.hisNetworkState)) {
+      window.clearAuthSession();
+    }
     return false;
+  } finally {
+    authSessionRestoreInFlight = false;
   }
 };
+
+window.addEventListener('his-network-status', (event) => {
+  if (event.detail?.state !== 'online' || currentUser) return;
+  const validation = validateHisAuthSessionRecord(window.readAuthSession());
+  if (!validation.valid) return;
+  if (offlineAuthRestoreTimer) window.clearTimeout(offlineAuthRestoreTimer);
+
+  const restoreWhenReady = async () => {
+    if (currentUser) return;
+    if (authSessionRestoreInFlight) {
+      offlineAuthRestoreTimer = window.setTimeout(restoreWhenReady, 500);
+      return;
+    }
+
+    offlineAuthRestoreTimer = null;
+    $('body').addClass('auth-checking');
+    window.toggleLoading(true);
+    const restored = await window.restoreAuthSession();
+    if (!restored || !currentUser) {
+      window.toggleLoading(false);
+      $('body').removeClass('auth-checking');
+      return;
+    }
+
+    offlineStickerOnlyMode = false;
+    $('#login-section').hide();
+    $('#app-content').show();
+    await window.initApp();
+    window.applyButtonPermissions?.();
+  };
+
+  offlineAuthRestoreTimer = window.setTimeout(restoreWhenReady, 300);
+});
 
 window.canUserAccessView = function (view, perms) {
   if (!view) return false;
@@ -3974,7 +4191,9 @@ window.canUserAccessView = function (view, perms) {
   const permissionMap = {
     opd_test: 'opd',
     opd_observation_list: 'opd_observation',
-    ipd_chart: 'ipd_inpatient_list'
+    ipd_chart: 'ipd_inpatient_list',
+    printer_settings: 'settings',
+    offline_sticker: 'patients'
   };
   const permissionKey = permissionMap[view] || view;
   return roleAllowsHisPage(role, permissionKey) && permissionList.includes(permissionKey);
@@ -4137,7 +4356,14 @@ window.initApp = async function () {
     console.error("InitApp Error:", e);
     window.toggleLoading(false);
     $('body').removeClass('auth-checking');
-    Swal.fire('ແຈ້ງເຕືອນ', 'ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດໜ້າຈໍ.', 'error');
+    const offline = !navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState);
+    Swal.fire(
+      offline ? 'ກຳລັງ Offline' : 'ແຈ້ງເຕືອນ',
+      offline
+        ? 'ລະບົບກຳລັງລໍຖ້າ Internet ກັບມາ. ສາມາດເປີດໃຊ້ແຖບພິມ Sticker Offline ໄດ້.'
+        : 'ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດໜ້າຈໍ.',
+      offline ? 'warning' : 'error'
+    );
   }
 };
 
@@ -4182,10 +4408,17 @@ window.loadView = function (v, options = {}) {
   let routeTarget = window.resolveHisRouteTarget ? window.resolveHisRouteTarget(v, options) : { view: v, navId: v, routeKey: v, path: `/${v}` };
   const requestedView = routeTarget.view;
   const localPreviewAllowed = !currentUser && (
+    (requestedView === 'offline_sticker' && offlineStickerOnlyMode)
+    ||
     (requestedView === 'opd_test' && window.isLocalOpdTestPreview?.())
     || (requestedView === 'staff' && window.isLocalStaffPreview?.())
     || (requestedView === 'manpower' && window.isLocalManpowerPreview?.())
+    || (requestedView === 'printer_settings' && window.isLocalPrinterSettingsPreview?.())
   );
+  if (offlineStickerOnlyMode && requestedView !== 'offline_sticker') {
+    window.loadView('offline_sticker', { replace: true, updateUrl: false });
+    return;
+  }
   if (!localPreviewAllowed && currentUser && !window.canUserAccessView(requestedView, currentUser.permissions)) {
     const safeView = window.getPostLoginView(parseHisPagePermissions(currentUser.permissions));
     if (!options.permissionRedirect && safeView && safeView !== requestedView) {
@@ -4252,7 +4485,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'settings', 'staff', 'manpower', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'offline_sticker', 'settings', 'staff', 'manpower', 'printer_settings', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -4312,6 +4545,7 @@ window.loadView = function (v, options = {}) {
   if (v === 'users') _runLoad(() => window.loadUsers());
   if (v === 'staff') _runLoad(() => window.initStaffManagement());
   if (v === 'manpower') _runLoad(() => window.initManpowerDashboard());
+  if (v === 'printer_settings') _runLoad(() => window.initPrinterSettings());
   if (v === 'services') _runLoad(() => window.loadServicesMasterView());
   if (v === 'locations') _runLoad(() => window.loadLocationsMasterView());
   if (v === 'appointments') _runLoad(() => window.loadAppointments());
@@ -4340,7 +4574,7 @@ window.loadView = function (v, options = {}) {
     window.loadMasterList();
   }
 
-  if (!systemSettings.hospitalName) {
+  if (v !== 'offline_sticker' && !offlineStickerOnlyMode && !systemSettings.hospitalName) {
     supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
       (data || []).forEach(r => { if (r.Key === 'HospitalName') systemSettings.hospitalName = r.Value; });
       window.setBrandName(systemSettings.hospitalName);
@@ -4365,10 +4599,25 @@ window.loadView = function (v, options = {}) {
   $('#his-nav-items').removeClass('open');
 };
 
+window.enterOfflineStickerOnlyMode = function () {
+  offlineStickerOnlyMode = true;
+  currentUser = null;
+  $('body').removeClass('auth-checking');
+  $('#loading').hide();
+  $('#login-section').hide();
+  $('#app-content').show();
+  $('#sidebarUserName').text('Offline Print');
+  $('#his-nav-items').children().hide();
+  $('#nav-offline_sticker').show();
+  $('.his-nav-right .his-dropdown').hide();
+  window.loadView('offline_sticker', { replace: true, updateUrl: false });
+};
+
 window.executePrint = function (containerId) {
   var targetContainer = document.getElementById(containerId);
   if (!targetContainer) return;
-  // Install the verified sticker-only rule last; leave other documents unchanged.
+  // Apply optional general settings first, then the verified sticker-only rule.
+  window.preparePrinterPrint?.(containerId);
   preparePatientStickerPrint(containerId);
 
   // 1. ເຊື່ອງ Wrapper ຫຼັກຂອງລະບົບທັງໝົດ (Sidebar, Header, Main Content)
@@ -4402,6 +4651,7 @@ window.executePrint = function (containerId) {
           targetContainer.classList.remove('print-active');
           targetContainer.style.display = 'none';
           if (appWrapper) appWrapper.style.display = 'block'; // ເປີດລະບົບຄືນ
+          window.finishPrinterPrint?.();
           finishPatientStickerPrint();
         }, 500);
       }, 500);
@@ -7024,27 +7274,28 @@ window.submitPatientForm = async function (e) {
 window.delPatient = async function (id) {
   const result = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ລຶບ' });
   if (result.isConfirmed) {
-    await supabaseClient.from(dbTable('Patients')).delete().eq('Patient_ID', id);
-    window.initPatientTable();
-    window.preloadDropdownData();
+    try {
+      await window.deleteRecordsWithRecovery('Patients', { Patient_ID: id }, 'Patients', `Delete patient ${id}`);
+      window.initPatientTable();
+      window.preloadDropdownData();
+      Swal.fire('ສຳເລັດ!', 'ລຶບແລ້ວ. ສາມາດ Return ໄດ້ພາຍໃນ 30 ວັນ', 'success');
+    } catch (error) {
+      Swal.fire('Error', error.message, 'error');
+    }
   }
 };
 
-window.printQRCard = async function (id) {
-  Swal.fire({ title: 'ກຳລັງສ້າງ Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-  const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
-  if (error || !data) return Swal.fire('ຜິດພາດ', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
-  Swal.close();
-
-  const d = {
-    id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
-    lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age || '',
-    phone: data.Phone_Number || '-', address: data.Address || '',
-    district: data.District || '', province: data.Province || '',
-    payer: data.Insurance_Company || data.Organization_Name || data.Name_Org || ''
-  };
+window.printPatientStickerDetails = async function (d) {
+  if (!document.getElementById('print-area')) {
+    Swal.fire('ພິມບໍ່ໄດ້', 'ບໍ່ພົບພື້ນທີ່ Sticker. ກະລຸນາໂຫຼດໜ້າຈໍຄືນເມື່ອ Internet ກັບມາ.', 'error');
+    return;
+  }
   const fullName = `${d.title} ${d.firstname} ${d.lastname}`.trim();
-  const dobText = `${d.dob} (${window.formatAgeFromDob(d.dob, d.age) || '-'})`;
+  const formattedAge = window.formatAgeFromDob(d.dob, d.age);
+  const ageText = formattedAge || (d.age !== '' && d.age !== null && d.age !== undefined
+    ? `${d.age} ${window.t('patients.yearUnit')}`
+    : '-');
+  const dobText = d.dob ? `${d.dob} (${ageText})` : ageText;
   const addrLine1 = (d.address && `ບ້ານ: ${d.address}`) || '-';
   const addrLine2 = (d.district && `ເມືອງ: ${d.district}`) || '-';
   const addrLine3 = (d.province && `ແຂວງ: ${d.province}`) || '-';
@@ -7066,6 +7317,57 @@ window.printQRCard = async function (id) {
   });
   await fitPatientStickerNames(document.getElementById('print-area'));
   window.executePrint('print-area');
+};
+
+window.printQRCard = async function (id) {
+  Swal.fire({ title: 'ກຳລັງສ້າງ Sticker...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
+  if (error || !data) {
+    Swal.close();
+    const offline = !navigator.onLine || ['offline', 'restoring'].includes(window.hisNetworkState);
+    return Swal.fire(
+      offline ? 'ກຳລັງ Offline' : 'ຜິດພາດ',
+      offline ? 'ກຳລັງລໍຖ້າ Internet ກັບມາ. ຖ້າຕ້ອງການພິມທັນທີ ໃຫ້ໃຊ້ແຖບ “ພິມ Sticker Offline”.' : 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ',
+      offline ? 'warning' : 'error'
+    );
+  }
+  Swal.close();
+
+  await window.printPatientStickerDetails({
+    id: data.Patient_ID, title: data.Title || '', firstname: data.First_Name || '',
+    lastname: data.Last_Name || '', dob: data.Date_of_Birth || '', age: data.Age ?? '',
+    phone: data.Phone_Number || '-', address: data.Address || '',
+    district: data.District || '', province: data.Province || '',
+    payer: data.Insurance_Company || data.Organization_Name || data.Name_Org || ''
+  });
+};
+
+window.printOfflineSticker = async function () {
+  const id = String($('#offlineStickerId').val() || '').trim();
+  const name = String($('#offlineStickerName').val() || '').trim();
+  if (!id || !name) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາປ້ອນລະຫັດ Sticker ແລະຊື່ຄົນເຈັບ.', 'warning');
+    return;
+  }
+
+  await window.printPatientStickerDetails({
+    id,
+    title: '',
+    firstname: name,
+    lastname: '',
+    dob: String($('#offlineStickerDob').val() || '').trim(),
+    age: String($('#offlineStickerAge').val() || '').trim(),
+    address: String($('#offlineStickerVillage').val() || '').trim(),
+    district: String($('#offlineStickerDistrict').val() || '').trim(),
+    province: String($('#offlineStickerProvince').val() || '').trim(),
+    phone: String($('#offlineStickerPhone').val() || '').trim() || '-',
+    payer: String($('#offlineStickerPayer').val() || '').trim()
+  });
+};
+
+window.clearOfflineStickerForm = function () {
+  document.getElementById('offlineStickerForm')?.reset();
+  document.getElementById('offlineStickerId')?.focus();
 };
 
 window.openQRScanner = function () {
@@ -8350,34 +8652,21 @@ window.deleteVisitFlow = async function (visitId, patientId) {
   if (r.isConfirmed) {
     Swal.fire({ title: 'ກຳລັງລຶບ...', didOpen: () => Swal.showLoading() });
     
-    // Use both Visit_ID and Patient_ID to ensure we delete the correct record
-    let query = supabaseClient.from(dbTable('Visits')).delete().eq('Visit_ID', visitId);
-    
-    // If Patient_ID is provided, add it to the filter for extra safety
-    if (patientId) {
-      query = query.eq('Patient_ID', patientId);
-      console.log('Using Patient_ID filter for safety');
-    }
-    
-    const { data, error, count } = await query.select();
-    
-    console.log('Delete result - Data:', data);
-    console.log('Delete result - Error:', error);
-    console.log('Delete result - Count:', count);
-    console.log('=========================');
-    
-    if (error) {
-      console.error('Delete error:', error);
-      Swal.fire('ຜິດພາດ!', error.message, 'error');
-    } else {
-      if (count && count > 1) {
+    try {
+      const filters = { Visit_ID: visitId };
+      if (patientId) filters.Patient_ID = patientId;
+      const deletedCount = await window.deleteRecordsWithRecovery('Visits', filters, 'Triage', `Delete visit ${visitId} for patient ${patientId || 'N/A'}`);
+      if (deletedCount > 1) {
         console.warn('WARNING: Multiple records deleted! Visit_ID may not be unique in database.');
-        Swal.fire('ຄຳເຕືອນ!', `ລຶບ ${count} ລາຍການ (Visit_ID ອາດຈະຊ້ຳກັນ)`, 'warning');
+        Swal.fire('ຄຳເຕືອນ!', `ລຶບ ${deletedCount} ລາຍການ (Visit_ID ອາດຈະຊ້ຳກັນ)`, 'warning');
       } else {
-        Swal.fire('ສຳເລັດ!', 'ລຶບແລ້ວ', 'success');
+        Swal.fire('ສຳເລັດ!', 'ລຶບແລ້ວ. ສາມາດ Return ໄດ້ພາຍໃນ 30 ວັນ', 'success');
       }
       window.loadTriageQueue();
       window.loadQueue();
+    } catch (error) {
+      console.error('Delete error:', error);
+      Swal.fire('ຜິດພາດ!', error.message, 'error');
     }
   }
 };
@@ -11629,13 +11918,13 @@ window.openPatientVacModal = async function () {
 window.delPatient = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from(dbTable('Patients')).delete().eq('Patient_ID', id);
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
+    try {
+      await window.deleteRecordsWithRecovery('Patients', { Patient_ID: id }, 'Patients', `Delete patient ${id}`);
       window.initPatientTable();
-      window.logAction('Delete', `ລຶບຄົນເຈັບ: ${id}`, 'Patients');
-      Swal.fire('ສຳເລັດ!', 'ລຶບຂໍ້ມູນຄົນເຈັບແລ້ວ', 'success');
+      window.preloadDropdownData();
+      Swal.fire('ສຳເລັດ!', 'ລຶບຂໍ້ມູນຄົນເຈັບແລ້ວ. ສາມາດ Return ໄດ້ພາຍໃນ 30 ວັນ', 'success');
+    } catch (error) {
+      Swal.fire('Error', error.message, 'error');
     }
   }
 };
@@ -11731,8 +12020,10 @@ window.submitApptForm = async function (e) {
 window.deleteAppt = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from(dbTable('Appointments')).delete().eq('Appt_ID', id);
-    window.loadAppointments();
+    try {
+      await window.deleteRecordsWithRecovery('Appointments', { Appt_ID: id }, 'Appointments', `Delete appointment ${id}`);
+      window.loadAppointments();
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -11900,13 +12191,11 @@ window.editVacMaster = function (id, n, d, ds, i) {
 window.delVacMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from(dbTable('Vaccines_Master')).delete().eq('Vac_ID', id);
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
+    try {
+      await window.deleteRecordsWithRecovery('Vaccines_Master', { Vac_ID: id }, 'Vaccines', `Delete vaccine ${id}`);
       window.loadVaccineMaster();
       Swal.fire('ສຳເລັດ!', 'ລຶບວັກຊີນແລ້ວ', 'success');
-    }
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -12027,8 +12316,10 @@ window.submitPatientVacForm = async function (e) {
 window.delPatientVac = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບປະຫວັດ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from(dbTable('Patient_Vaccines')).delete().eq('Record_ID', id);
-    window.loadPatientVaccines();
+    try {
+      await window.deleteRecordsWithRecovery('Patient_Vaccines', { Record_ID: id }, 'Vaccines', `Delete patient vaccine record ${id}`);
+      window.loadPatientVaccines();
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -12086,8 +12377,10 @@ window.editDrugMaster = function (id, n, d) {
 window.delDrugMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from(dbTable('Drugs_Master')).delete().eq('Drug_ID', id);
-    window.loadDrugsMaster();
+    try {
+      await window.deleteRecordsWithRecovery('Drugs_Master', { Drug_ID: id }, 'Drugs', `Delete drug ${id}`);
+      window.loadDrugsMaster();
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -12205,11 +12498,14 @@ window.editLabMaster = function (id, n, d, category, sortOrder) {
 window.delLabMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from(dbTable('Labs_Master')).delete().eq('Lab_ID', id);
-    await window.deleteLabCategoryMappings(id);
-    await window.loadMasterDataGlobal();
-    window.loadLabsMaster();
-    window.preloadDropdownData();
+    try {
+      await window.deleteRecordsWithRecovery('Labs_Master', { Lab_ID: id }, 'Labs', `Delete lab ${id}`);
+      const mappingResult = await window.deleteLabCategoryMappings(id);
+      if (mappingResult.error) throw mappingResult.error;
+      await window.loadMasterDataGlobal();
+      window.loadLabsMaster();
+      window.preloadDropdownData();
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -13061,7 +13357,7 @@ window.masterCategoryGroups = [
     icon: 'fa-clock',
     summary: 'ຂໍ້ມູນ shift ແລະ ຕາຕະລາງການເຮັດວຽກ',
     categories: [
-      { key: 'Shift', label: 'ກະເວນ', description: 'ເວລາກະເວນຂອງພະນັກງານໂຮງໝໍ' }
+      { key: 'Shift', label: 'ຜຽນປະຈຳການ', description: 'ຮອບເວລາປະຈຳການຂອງພະນັກງານໂຮງໝໍ' }
     ]
   }
 ];
@@ -13216,12 +13512,10 @@ window.addMaster = async function () {
 window.delMaster = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    const { error } = await supabaseClient.from(dbTable('MasterData')).delete().eq('ID', id);
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
+    try {
+      await window.deleteRecordsWithRecovery('MasterData', { ID: id }, 'Settings', `Delete master data entry ${id}`);
       window.loadMasterDataGlobal();
-    }
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -13422,8 +13716,10 @@ window.editLocation = function (id, d, p) {
 window.delLocation = async function (id) {
   let r = await Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' });
   if (r.isConfirmed) {
-    await supabaseClient.from(dbTable('Locations')).delete().eq('ID', id);
-    window.loadLocationsMasterView();
+    try {
+      await window.deleteRecordsWithRecovery('Locations', { ID: id }, 'Locations', `Delete location ${id}`);
+      window.loadLocationsMasterView();
+    } catch (error) { Swal.fire('Error', error.message, 'error'); }
   }
 };
 
@@ -13462,8 +13758,7 @@ window.delLocation = function (id) {
   Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' }).then(async r => {
     if (r.isConfirmed) {
       try {
-        const { error } = await supabaseClient.from(dbTable('Locations')).delete().eq('ID', id);
-        if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
+        await window.deleteRecordsWithRecovery('Locations', { ID: id }, 'Locations', `Delete location ${id}`);
         window.loadLocationsMasterView();
         Swal.fire('ລຶບແລ້ວ', '', 'success');
       } catch (err) {
@@ -13549,8 +13844,7 @@ window.delService = function (id) {
   Swal.fire({ title: 'ລຶບ?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ລຶບ' }).then(async r => {
     if (r.isConfirmed) {
       try {
-        const { error } = await supabaseClient.from(dbTable('Service_Lists')).delete().eq('ID', id);
-        if (error) { console.error('Error:', error); Swal.fire('Error', error.message, 'error'); return; }
+        await window.deleteRecordsWithRecovery('Service_Lists', { ID: id }, 'Services', `Delete service ${id}`);
         window.loadServicesMasterView();
         Swal.fire('ລຶບແລ້ວ', '', 'success');
       } catch (err) {
@@ -14606,8 +14900,11 @@ window.bulkDelete = async function (type) {
     if (result.isConfirmed) {
       Swal.fire({ title: 'ກຳລັງລຶບ...', didOpen: () => Swal.showLoading() });
       try {
-        const { error } = await supabaseClient.from(cfg.table).delete().in(cfg.col, ids);
-        if (error) throw error;
+        const moduleByType = {
+          vacMaster: 'Vaccines', drugs: 'Drugs', labs: 'Labs',
+          orgs: 'Organizations', locations: 'Locations', services: 'Services'
+        };
+        await window.deleteRecordsWithRecovery(cfg.table, { [cfg.col]: ids }, moduleByType[type] || type, `Bulk delete ${ids.length} selected record(s)`);
 
         if (type === 'labs') {
           const mappingResult = await window.deleteLabCategoryMappings(ids);
@@ -14665,6 +14962,60 @@ window.logAction = function (action, details, module) {
   }
 };
 
+window.deleteRecordsWithRecovery = async function (tableName, filters, module, details) {
+  const fullTableName = String(tableName || '').startsWith(DB_TABLE_PREFIX)
+    ? String(tableName)
+    : dbTable(tableName);
+  const { data, error } = await supabaseClient.rpc('his_one_delete_to_activity_log', {
+    p_table_name: fullTableName,
+    p_filters: filters || {},
+    p_module: module || '',
+    p_details: details || ''
+  });
+  if (error) throw error;
+  const deletedCount = Number(data) || 0;
+  if (deletedCount > 0) window.invalidateViewCache?.('activity_log');
+  return deletedCount;
+};
+
+window.restoreDeletedLog = async function (logId) {
+  const isAdmin = normalizeHisRole(currentUser?.role) === 'admin';
+  if (!isAdmin) return Swal.fire('ບໍ່ມີສິດ', 'ກະລຸນາໃຫ້ຜູ້ດູແລລະບົບກູ້ຄືນຂໍ້ມູນ', 'warning');
+
+  const confirm = await Swal.fire({
+    title: 'ກູ້ຄືນຂໍ້ມູນ?',
+    text: 'ຂໍ້ມູນທີ່ລຶບຈະຖືກນຳກັບເຂົ້າລະບົບ ຖ້າບໍ່ມີລາຍການຊ້ຳ.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Return',
+    cancelButtonText: 'ຍົກເລີກ'
+  });
+  if (!confirm.isConfirmed) return;
+
+  Swal.fire({ title: 'ກຳລັງກູ້ຄືນ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+  try {
+    const { error } = await supabaseClient.rpc('his_one_restore_activity_log', { p_log_id: Number(logId) });
+    if (error) throw error;
+  } catch (error) {
+    Swal.fire('ກູ້ຄືນບໍ່ສຳເລັດ', error.message, 'error');
+    return;
+  }
+  await window.loadActivityLog();
+  Swal.fire('ສຳເລັດ', 'ກູ້ຄືນຂໍ້ມູນແລ້ວ', 'success');
+};
+
+window.showRecoverableActivityLogs = function () {
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  $('#logStartDate').val(window.getLocalStr(start));
+  $('#logEndDate').val(window.getLocalStr(new Date()));
+  $('#logModuleFilter').val('');
+  $('#logUserFilter').val('');
+  $('#logActionFilter').val('Delete');
+  window.invalidateViewCache?.('activity_log');
+  window.loadActivityLog();
+};
+
 window.loadActivityLog = async function () {
   const today = window.getLocalStr(new Date());
   if (!$('#logStartDate').val()) $('#logStartDate').val(today);
@@ -14677,7 +15028,7 @@ window.loadActivityLog = async function () {
   let act = $('#logActionFilter').val();
 
   if ($.fn.DataTable.isDataTable('#activityLogTable')) $('#activityLogTable').DataTable().destroy();
-  $('#activityLogTableBody').html(window.getHospitalTableLoadingRow(5));
+  $('#activityLogTableBody').html(window.getHospitalTableLoadingRow(6));
 
   try {
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
@@ -14713,31 +15064,46 @@ window.loadActivityLog = async function () {
     // Render rows
     const actionBadge = (a) => {
       let al = (a || '').toLowerCase();
-      if (al === 'login') return `<span class="badge bg-primary">${a}</span>`;
-      if (al === 'logout') return `<span class="badge bg-secondary">${a}</span>`;
-      if (al === 'add' || al === 'save') return `<span class="badge bg-success">${a}</span>`;
-      if (al === 'edit') return `<span class="badge bg-warning text-dark">${a}</span>`;
-      if (al === 'delete') return `<span class="badge bg-danger">${a}</span>`;
-      return `<span class="badge bg-info text-dark">${a}</span>`;
+      const label = escapeHisHtml(a || '-');
+      if (al === 'login') return `<span class="badge bg-primary">${label}</span>`;
+      if (al === 'logout') return `<span class="badge bg-secondary">${label}</span>`;
+      if (al === 'add' || al === 'save') return `<span class="badge bg-success">${label}</span>`;
+      if (al === 'edit') return `<span class="badge bg-warning text-dark">${label}</span>`;
+      if (al === 'delete') return `<span class="badge bg-danger">${label}</span>`;
+      if (al === 'return') return `<span class="badge bg-success">${label}</span>`;
+      return `<span class="badge bg-info text-dark">${label}</span>`;
     };
 
     let h = '';
     rows.forEach(l => {
       let d = new Date(l.timestamp);
       let dateStr = d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const canRestore = normalizeHisRole(currentUser?.role) === 'admin'
+        && l.action === 'Delete' && l.deleted_record && !l.restored_at
+        && d.getTime() >= Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const rowAction = canRestore
+        ? `<button type="button" class="btn btn-sm btn-outline-success" onclick="window.restoreDeletedLog('${encodeURIComponent(String(l.id))}')" title="Return ພາຍໃນ 30 ວັນ"><i class="fas fa-undo me-1"></i>Return</button>`
+        : (l.restored_at
+          ? '<span class="badge bg-success-subtle text-success border">Returned</span>'
+          : (l.action === 'Delete' && l.deleted_table && !l.deleted_record
+            ? '<span class="text-muted small">ກູ້ຄືນແລ້ວ</span>'
+            : (l.action === 'Delete' && d.getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000
+              ? '<span class="text-muted small">ໝົດໄລຍະ 30 ວັນ</span>'
+              : '<span class="text-muted">-</span>')));
       h += `<tr>
-                <td class="text-muted small">${dateStr}</td>
-                <td><span class="fw-bold">${l.user_name || '-'}</span><br><small class="text-muted">${l.user_id || ''}</small></td>
+                <td class="text-muted small">${escapeHisHtml(dateStr)}</td>
+                <td><span class="fw-bold">${escapeHisHtml(l.user_name || '-')}</span><br><small class="text-muted">${escapeHisHtml(l.user_id || '')}</small></td>
                 <td>${actionBadge(l.action)}</td>
-                <td class="small">${l.details || '-'}</td>
-                <td><span class="badge bg-light text-dark border">${l.module || '-'}</span></td>
+                <td class="small">${escapeHisHtml(l.details || '-')}</td>
+                <td><span class="badge bg-light text-dark border">${escapeHisHtml(l.module || '-')}</span></td>
+                <td class="text-center">${rowAction}</td>
               </tr>`;
     });
 
     // No rows: show a colspan placeholder but DO NOT init DataTables —
-    // a single colspan cell vs 5 headers throws "Incorrect column count".
+    // a single colspan cell vs the six headers throws "Incorrect column count".
     if (rows.length === 0) {
-      $('#activityLogTableBody').html('<tr><td colspan="5" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2"></i>ບໍ່ມີ Log ໃນຊ່ວງວັນທີນີ້</td></tr>');
+      $('#activityLogTableBody').html('<tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-inbox me-2"></i>ບໍ່ມີ Log ໃນຊ່ວງວັນທີນີ້</td></tr>');
       return;
     }
     $('#activityLogTableBody').html(h);
@@ -14747,7 +15113,7 @@ window.loadActivityLog = async function () {
     });
   } catch (err) {
     console.error('loadActivityLog error:', err);
-    $('#activityLogTableBody').html(`<tr><td colspan="5" class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle me-2"></i>${err.message}</td></tr>`);
+    $('#activityLogTableBody').html(`<tr><td colspan="6" class="text-center text-danger py-4"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHisHtml(err.message)}</td></tr>`);
   }
 };
 
@@ -14757,10 +15123,10 @@ window.exportActivityLogCSV = function () {
     return;
   }
   let dt = $('#activityLogTable').DataTable();
-  let rows = [['ວັນທີ / ເວລາ', 'ຜູ້ໃຊ້', 'User ID', 'ການກະທຳ', 'ລາຍລະອຽດ', 'Module']];
+  let rows = [['ວັນທີ / ເວລາ', 'ຜູ້ໃຊ້ (User ID)', 'ການກະທຳ', 'ລາຍລະອຽດ', 'Module', 'Return']];
   dt.rows().data().each(function (r) {
     let cells = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       let div = document.createElement('div');
       div.innerHTML = r[i] || '';
       cells.push(div.innerText.replace(/\n/g, ' ').trim());
@@ -18416,8 +18782,11 @@ window.deleteIpdWard = async function (wardId) {
     confirmButtonColor: '#dc2626'
   });
   if (!confirm.isConfirmed) return;
-  const { error } = await supabaseClient.from(dbTable('Wards')).delete().eq('Ward_ID', wardId);
-  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  try {
+    await window.deleteRecordsWithRecovery('Wards', { Ward_ID: wardId }, 'IPD', `Delete ward ${ward?.Ward_Name || wardId}`);
+  } catch (error) {
+    return Swal.fire(window.t('common.error'), error.message, 'error');
+  }
   await window.loadIpdWardBedManagement();
   Swal.fire({ title: window.t('common.saved'), icon: 'success', timer: 1100, showConfirmButton: false });
 };
@@ -18442,8 +18811,11 @@ window.deleteIpdBed = async function (bedId) {
     confirmButtonColor: '#dc2626'
   });
   if (!confirm.isConfirmed) return;
-  const { error } = await supabaseClient.from(dbTable('Beds')).delete().eq('Bed_ID', bedId);
-  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  try {
+    await window.deleteRecordsWithRecovery('Beds', { Bed_ID: bedId }, 'IPD', `Delete bed ${bed.Bed_Number || bedId}`);
+  } catch (error) {
+    return Swal.fire(window.t('common.error'), error.message, 'error');
+  }
   await window.loadIpdWardBedManagement();
   Swal.fire({ title: window.t('common.saved'), icon: 'success', timer: 1100, showConfirmButton: false });
 };
@@ -18464,8 +18836,11 @@ window.deleteIpdRoom = async function (roomId) {
     confirmButtonColor: '#dc2626'
   });
   if (!confirm.isConfirmed) return;
-  const { error } = await supabaseClient.from(dbTable('Rooms')).delete().eq('Room_ID', roomId);
-  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  try {
+    await window.deleteRecordsWithRecovery('Rooms', { Room_ID: roomId }, 'IPD', `Delete room ${room?.Room_Number || roomId}`);
+  } catch (error) {
+    return Swal.fire(window.t('common.error'), error.message, 'error');
+  }
   await window.loadIpdWardBedManagement();
   Swal.fire({ title: window.t('common.saved'), icon: 'success', timer: 1100, showConfirmButton: false });
 };
@@ -18565,8 +18940,11 @@ window.ipdDeleteClinical = async function (tableName, idColumn, id) {
     cancelButtonText: window.t('common.cancel')
   });
   if (!confirm.isConfirmed) return;
-  const { error } = await supabaseClient.from(dbTable(tableName)).delete().eq(idColumn, id);
-  if (error) return Swal.fire(window.t('common.error'), error.message, 'error');
+  try {
+    await window.deleteRecordsWithRecovery(tableName, { [idColumn]: id }, 'IPD', `Delete ${tableName} record ${id}`);
+  } catch (error) {
+    return Swal.fire(window.t('common.error'), error.message, 'error');
+  }
   await window.loadIpdClinicalChart(window.ipdCurrentChartAdmissionId);
 };
 

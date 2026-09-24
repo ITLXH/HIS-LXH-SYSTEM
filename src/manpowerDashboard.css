@@ -65,25 +65,26 @@
 .manpower-department header button { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--dept-color) 30%, white); border-radius: 6px; background: rgba(255,255,255,.72); color: var(--dept-color); font-size: 9px; font-weight: 800; }
 
 .manpower-people { display: grid; grid-template-columns: repeat(6, minmax(175px, 1fr)); align-items: start; gap: 7px; padding: 8px; overflow-x: auto; }
-.manpower-person { position: relative; min-width: 0; min-height: 92px; align-items: stretch; gap: 8px; padding: 7px 7px 25px; border: 1px solid #dbe7ef; border-radius: 7px; background: rgba(255,255,255,.96); box-shadow: 0 2px 7px rgba(31, 70, 103, .04); }
-.manpower-person-photo { display: flex; width: 54px; height: 66px; flex: 0 0 54px; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; background: #e8f1f8; color: #376d95; font-size: 14px; font-weight: 800; }
+.manpower-person { position: relative; display: grid; min-width: 0; min-height: 92px; grid-template-columns: 54px minmax(0, 1fr); grid-template-rows: auto auto; align-items: start; column-gap: 8px; row-gap: 5px; padding: 7px; border: 1px solid #dbe7ef; border-radius: 7px; background: rgba(255,255,255,.96); box-shadow: 0 2px 7px rgba(31, 70, 103, .04); }
+.manpower-person-photo { display: flex; width: 54px; height: 66px; grid-column: 1; grid-row: 1; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; background: #e8f1f8; color: #376d95; font-size: 14px; font-weight: 800; }
 .manpower-person-photo img { width: 100%; height: 100%; object-fit: cover; }
 .manpower-person-photo img.is-department-avatar { object-position: center 28%; }
-.manpower-person-info { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: center; }
+.manpower-person-info { display: flex; min-width: 0; grid-column: 2; grid-row: 1; align-self: stretch; flex-direction: column; justify-content: center; padding-right: 14px; }
 .manpower-person-info strong,
 .manpower-person-info small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manpower-person-info strong { display: -webkit-box; min-height: 2.4em; overflow: hidden; color: #123d67; font-size: 12px; line-height: 1.2; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .manpower-person-info small { margin-top: 1px; color: #66829a; font-size: 8.5px; }
 .manpower-person-role { margin-top: 1px; color: #8798a6; font-size: 8px; }
-.manpower-status { align-self: flex-start; margin-top: 4px; padding: 2px 6px; border-radius: 5px; font-size: 7.5px; font-weight: 800; }
-.manpower-status i { margin-right: 4px; }
+.manpower-person-footer { display: flex; min-width: 0; grid-column: 1 / -1; grid-row: 2; align-items: flex-start; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.manpower-status { align-self: flex-start; margin-top: 0; padding: 4px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 800; line-height: 1.2; }
+.manpower-status i { margin-right: 5px; }
 .manpower-status--working { background: #e5f8f1; color: #08775e; }
 .manpower-status--leave { background: #fff2de; color: #9a6200; }
 .manpower-status--absent { background: #ffe8eb; color: #b92d42; }
 .manpower-status--swapped { background: #f0e9ff; color: #6940ad; }
-.manpower-remove { align-self: flex-start; border: 0; background: transparent; color: #a5b3bf; font-size: 9px; }
+.manpower-remove { position: absolute; top: 4px; right: 5px; border: 0; background: transparent; color: #a5b3bf; font-size: 9px; }
 .manpower-remove:hover { color: #dc3545; }
-.manpower-manage { position: absolute; right: 6px; bottom: 5px; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--dept-color) 23%, white); border-radius: 5px; background: var(--dept-soft); color: var(--dept-color); font-size: 7.5px; font-weight: 800; }
+.manpower-manage { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--dept-color) 23%, white); border-radius: 5px; background: var(--dept-soft); color: var(--dept-color); font-size: 7.5px; font-weight: 800; }
 .manpower-manage:hover { border-color: var(--dept-color); }
 .manpower-replacement { display: block; max-width: 100%; margin-top: 3px; overflow: hidden; color: #6b4a9a; font-size: 7px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .manpower-replacement i { margin-right: 4px; }
@@ -251,8 +252,9 @@
   .manpower-department-title > small { display: inline; margin: 0; font-size: 6pt; line-height: 1.2; white-space: nowrap; }
   .manpower-department-actions > strong { min-width: 0; font-size: 8pt; }
   .manpower-people { min-height: 16mm; grid-template-columns: repeat(6, minmax(0, 1fr)); align-content: center; gap: 1mm; padding: 1mm; overflow: visible; }
-  .manpower-person { min-height: 14mm; gap: 1.2mm; padding: 1mm; border-width: .25mm; border-radius: 1.5mm; box-shadow: 0 .4mm 1.2mm rgba(31, 70, 103, .07); }
-  .manpower-person-photo { width: 10mm; height: 12mm; flex: 0 0 10mm; border-radius: 1.2mm; font-size: 6pt; }
+  .manpower-person { min-height: 14mm; grid-template-columns: 10mm minmax(0, 1fr); column-gap: 1.2mm; row-gap: 1mm; padding: 1mm; border-width: .25mm; border-radius: 1.5mm; box-shadow: 0 .4mm 1.2mm rgba(31, 70, 103, .07); }
+  .manpower-person-photo { width: 10mm; height: 12mm; border-radius: 1.2mm; font-size: 6pt; }
+  .manpower-person-info { padding-right: 0; }
   .manpower-person-info strong { font-size: 10.5pt; line-height: 1.15; }
   .manpower-person-info strong,
   .manpower-person-info small { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
@@ -274,7 +276,7 @@
   #view-manpower.manpower-print-dense .manpower-header { min-height: 10mm; }
   #view-manpower.manpower-print-dense .manpower-summary article { min-height: 8mm; }
   #view-manpower.manpower-print-dense .manpower-people { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  #view-manpower.manpower-print-dense .manpower-person { min-height: 10mm; gap: .8mm; padding: .7mm; }
+  #view-manpower.manpower-print-dense .manpower-person { min-height: 10mm; grid-template-columns: 7mm minmax(0, 1fr); column-gap: .8mm; row-gap: .6mm; padding: .7mm; }
   #view-manpower.manpower-print-dense .manpower-person-photo { width: 7mm; height: 8mm; flex: 0 0 7mm; font-size: 4.7pt; }
   #view-manpower.manpower-print-dense .manpower-person-info strong { font-size: 6.6pt; line-height: 1.08; }
   #view-manpower.manpower-print-dense .manpower-person-info small { display: none; }
@@ -283,7 +285,7 @@
   .manpower-print-sheet.manpower-print-dense .manpower-header { min-height: 10mm; }
   .manpower-print-sheet.manpower-print-dense .manpower-summary article { min-height: 8mm; }
   .manpower-print-sheet.manpower-print-dense .manpower-people { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .manpower-print-sheet.manpower-print-dense .manpower-person { min-height: 10mm; gap: .8mm; padding: .7mm; }
+  .manpower-print-sheet.manpower-print-dense .manpower-person { min-height: 10mm; grid-template-columns: 7mm minmax(0, 1fr); column-gap: .8mm; row-gap: .6mm; padding: .7mm; }
   .manpower-print-sheet.manpower-print-dense .manpower-person-photo { width: 7mm; height: 8mm; flex: 0 0 7mm; font-size: 4.7pt; }
   .manpower-print-sheet.manpower-print-dense .manpower-person-info strong { font-size: 6.6pt; line-height: 1.08; }
   .manpower-print-sheet.manpower-print-dense .manpower-person-info small,

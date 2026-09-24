@@ -55,7 +55,7 @@ async function signedAvatarUrl(client, path) {
   return data?.signedUrl || '';
 }
 
-export function createStaffSupabaseBackend({ client, tableName }) {
+export function createStaffSupabaseBackend({ client, tableName, deleteRecord }) {
   if (!client || !tableName) throw new Error('Staff Supabase backend requires a client and table name');
   return {
     async load() {
@@ -104,10 +104,15 @@ export function createStaffSupabaseBackend({ client, tableName }) {
     },
 
     async remove(record) {
-      const { error } = await client.from(tableName).delete().eq('ID', record.id);
-      if (error) throw new Error(`Staff Profile delete: ${error.message}`);
+      if (typeof deleteRecord === 'function') {
+        await deleteRecord(record);
+      } else {
+        const { error } = await client.from(tableName).delete().eq('ID', record.id);
+        if (error) throw new Error(`Staff Profile delete: ${error.message}`);
+      }
       const photoPath = clean(record.photoPath);
-      if (photoPath) {
+      // Keep the avatar available during the 30-day recovery period.
+      if (photoPath && typeof deleteRecord !== 'function') {
         const { error: photoError } = await client.storage.from(STAFF_AVATAR_BUCKET).remove([photoPath]);
         if (photoError) console.warn('Staff avatar cleanup failed:', photoError.message);
       }
