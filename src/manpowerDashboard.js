@@ -263,20 +263,20 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   }
 
   function photo(staff, meta) {
-    return staff.photoData
-      ? `<img src="${escapeHtml(staff.photoData)}" alt="${escapeHtml(staff.fullName)}">`
-      : `<img class="is-department-avatar" src="${escapeHtml(meta.avatar)}" alt="Avatar ${escapeHtml(meta.subtitle)}">`;
+    const source = staff.photoData || meta.avatar;
+    const avatarClass = staff.photoData ? '' : ' class="is-department-avatar"';
+    return `<img${avatarClass} src="${escapeHtml(source)}" data-manpower-fallback="${escapeHtml(meta.avatar)}" alt="${escapeHtml(staff.photoData ? staff.fullName : `Avatar ${meta.subtitle}`)}">`;
   }
 
-  function visibleAssignmentsForShift(shift) {
+  function visibleAssignmentsForShift(shift, staffRecords = state.staff) {
     return assignmentsForShift(shift).filter(assignment => {
-      const staff = state.staff.find(person => person.id === assignment.staffId);
+      const staff = staffRecords.find(person => person.id === assignment.staffId);
       return staff && Boolean(resolveManpowerStaffType(staff));
     });
   }
 
-  function departmentMarkup(visibleAssignments, interactive = true) {
-    const assignedStaff = visibleAssignments.map(assignment => ({ assignment, staff: state.staff.find(person => person.id === assignment.staffId) }))
+  function departmentMarkup(visibleAssignments, interactive = true, staffRecords = state.staff) {
+    const assignedStaff = visibleAssignments.map(assignment => ({ assignment, staff: staffRecords.find(person => person.id === assignment.staffId) }))
       .filter(item => item.staff);
     const manageAllowed = interactive && mayManage();
     const personCard = ({ assignment, staff }, meta) => {
@@ -312,19 +312,19 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     return `<section class="manpower-overview"><div class="manpower-overview-heading"><label><i class="fas fa-clipboard-list"></i> ສະພາບລວມ:</label></div><div class="manpower-overview-print">${escapeHtml(clean(overview) || '—')}</div></section>`;
   }
 
-  function renderAllShiftsPrint() {
+  function renderAllShiftsPrint(staffRecords = state.staff) {
     const container = document.getElementById('manpowerAllShiftsPrint');
     if (!container) return;
     const [year, month, day] = state.date.split('-');
     container.innerHTML = Object.entries(SHIFTS).map(([shift, shiftMeta]) => {
-      const assignments = visibleAssignmentsForShift(shift);
+      const assignments = visibleAssignmentsForShift(shift, staffRecords);
       const summary = calculateManpowerSummary(assignments);
       return `<section class="manpower-print-sheet${assignments.length > 24 ? ' manpower-print-dense' : ''}" data-print-shift="${shift}">
         <header class="manpower-header"><div><span class="manpower-eyebrow"><i class="fas fa-calendar-check"></i> DAILY MANPOWER</span><h3>ຕາຕະລາງການປະຈຳການ</h3><p>ຈັດພະນັກງານເຂົ້າປະຈຳການຕາມວັນທີ, ຮອບເວລາ ແລະພະແນກ</p></div></header>
         <div class="manpower-print-context"><strong>ວັນທີ ${escapeHtml(`${day}/${month}/${year}`)}</strong><span>${shiftMeta.label} ${shiftMeta.time}</span></div>
         <section class="manpower-summary">${summaryMarkup(summary)}</section>
         <nav class="manpower-shifts" aria-label="${escapeHtml(shiftMeta.label)}"><button type="button" class="active"><i class="fas ${shift === 'morning' ? 'fa-sun' : shift === 'evening' ? 'fa-cloud-sun' : 'fa-moon'}"></i><span>${shiftMeta.label}</span><small>${shiftMeta.time}</small></button></nav>
-        <main class="manpower-departments">${departmentMarkup(assignments, false)}</main>
+        <main class="manpower-departments">${departmentMarkup(assignments, false, staffRecords)}</main>
         ${overviewPrintMarkup(state.overviews[shift])}
       </section>`;
     }).join('');
@@ -599,27 +599,129 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
 
   function printManpower({ allShifts = false } = {}) {
     const view = document.getElementById('view-manpower');
-    const app = document.getElementById('app-content');
-    if (allShifts) renderAllShiftsPrint();
-    view?.classList.toggle('manpower-print-all', allShifts);
-    view?.classList.toggle('manpower-print-dense', !allShifts && document.querySelectorAll('#manpowerDepartmentList .manpower-person').length > 24);
-    app?.classList.add('print-active');
-    const profilePrepared = window.preparePrinterPrint?.('view-manpower', 'manpower') === true;
-    const landscapeRule = document.createElement('style');
-    landscapeRule.id = 'manpowerLandscapePrintRule';
-    landscapeRule.textContent = '@media print { @page { size: A4 landscape; margin: 4mm; } }';
-    document.getElementById(landscapeRule.id)?.remove();
-    if (!profilePrepared) document.head.appendChild(landscapeRule);
-    const cleanup = () => {
-      app?.classList.remove('print-active');
-      view?.classList.remove('manpower-print-all');
-      view?.classList.remove('manpower-print-dense');
-      landscapeRule.remove();
+    if (!view) return;
+    const printWindow = window.open('', '_blank', 'popup,width=1280,height=900');
+    if (!printWindow) {
+      document.getElementById('manpowerAllShiftsPrint')?.replaceChildren();
+      void notify('ບໍ່ສາມາດເປີດໜ້າພິມ', 'ກະລຸນາອະນຸຍາດ Pop-up ສຳລັບເວັບນີ້ ແລ້ວກົດພິມອີກຄັ້ງ', 'warning');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write('<!doctype html><html lang="lo"><head><meta charset="utf-8"><title>Manpower Print</title></head><body>ກຳລັງກະກຽມໜ້າພິມ ແລະໂຫຼດຮູບ...</body></html>');
+    printWindow.document.close();
+
+    const buildPrintDocument = async () => {
+      let printStaff = state.staff;
+      if (allShifts && !isLocalMode() && staffBackend?.load) {
+        try {
+          const freshRecords = await Promise.race([
+            staffBackend.load(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timed out refreshing staff photos')), 10000))
+          ]);
+          if (Array.isArray(freshRecords)) {
+            printStaff = freshRecords.filter(item => item?.id && item?.fullName && item?.status !== 'inactive');
+          }
+        } catch (error) {
+          console.warn('Unable to refresh staff photos for printing:', error);
+        }
+      }
+
+      if (printWindow.closed) {
+        document.getElementById('manpowerAllShiftsPrint')?.replaceChildren();
+        window.finishPrinterPrint?.();
+        return;
+      }
+
+      if (allShifts) renderAllShiftsPrint(printStaff);
+      const printView = view.cloneNode(true);
+      const isDense = !allShifts
+        && view.querySelectorAll('#manpowerDepartmentList .manpower-person').length > 24;
+      printView.classList.toggle('manpower-print-all', allShifts);
+      printView.classList.toggle('manpower-print-dense', isDense);
+      printView.classList.add('print-active');
+
+      const profilePrepared = window.preparePrinterPrint?.('view-manpower', 'manpower') === true;
+      const printerStyle = profilePrepared
+        ? document.getElementById('hisPrinterRuntimeStyle')?.outerHTML || ''
+        : '';
+      const styleLinks = Array.from(document.querySelectorAll('link[rel~="stylesheet"]'))
+        .map(link => `<link rel="stylesheet" href="${escapeHtml(link.href)}">`)
+        .join('');
+      const inlineStyles = Array.from(document.querySelectorAll('style'))
+        .filter(style => style.id !== 'hisPrinterRuntimeStyle')
+        .map(style => style.outerHTML)
+        .join('');
+
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html>
+      <html lang="lo"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <base href="${escapeHtml(document.baseURI)}"><title>Manpower Print</title>${styleLinks}${inlineStyles}${printerStyle}
+      <style id="manpower-print-page-rule">
+        @media print {
+          @page { size: 297mm 210mm; margin: 4mm; }
+          html, body { width: 289mm !important; min-width: 0 !important; max-width: 289mm !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
+          html body > #view-manpower.print-active { display: block !important; page: auto !important; position: absolute !important; inset: 0 auto auto 0 !important; left: 0 !important; top: 0 !important; width: 289mm !important; min-width: 0 !important; max-width: 289mm !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; zoom: 1 !important; }
+        }
+        @media screen {
+          body { margin: 0; padding: 12px; background: #e9eef3; }
+          body > #view-manpower { display: block !important; width: 289mm; max-width: 100%; margin: 0 auto; background: #fff; }
+        }
+      </style></head><body>${printView.outerHTML}
+      <script>
+        (() => {
+          let printStarted = false;
+          const waitForImage = image => new Promise(resolve => {
+            image.loading = 'eager';
+            if (image.complete) return resolve();
+            const done = () => resolve();
+            image.addEventListener('load', done, { once: true });
+            image.addEventListener('error', done, { once: true });
+            setTimeout(done, 10000);
+          });
+          const prepareImages = async () => {
+            const images = Array.from(document.querySelectorAll('#view-manpower img'));
+            await Promise.all(images.map(async image => {
+              await waitForImage(image);
+              if (image.naturalWidth > 0) {
+                try { await image.decode(); } catch {}
+                return;
+              }
+              const fallback = image.dataset.manpowerFallback;
+              if (!fallback || image.getAttribute('src') === fallback) return;
+              image.src = fallback;
+              await waitForImage(image);
+              if (image.naturalWidth > 0) {
+                try { await image.decode(); } catch {}
+              }
+            }));
+          };
+          const printAfterReady = async () => {
+            if (printStarted) return;
+            printStarted = true;
+            await prepareImages();
+            await Promise.race([
+              Promise.resolve(document.fonts?.ready).catch(() => {}),
+              new Promise(resolve => setTimeout(resolve, 4000))
+            ]);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              window.focus();
+              const closeAfterPrint = () => setTimeout(() => window.close(), 250);
+              window.addEventListener('afterprint', closeAfterPrint, { once: true });
+              window.print();
+              setTimeout(closeAfterPrint, 1200);
+            }));
+          };
+          window.addEventListener('load', printAfterReady, { once: true });
+          setTimeout(() => { if (document.readyState === 'complete') void printAfterReady(); }, 5000);
+        })();
+      <\/script></body></html>`);
+      printWindow.document.close();
+      document.getElementById('manpowerAllShiftsPrint')?.replaceChildren();
       window.finishPrinterPrint?.();
     };
-    window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
-    window.setTimeout(cleanup, 1000);
+
+    void buildPrintDocument();
   }
 
   window.printManpowerDashboard = function () {

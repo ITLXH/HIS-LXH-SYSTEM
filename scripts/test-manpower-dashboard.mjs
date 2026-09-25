@@ -114,7 +114,10 @@ assert.ok(departmentPositions.every(position => position >= 0), 'all requested d
 assert.deepEqual([...departmentPositions].sort((a, b) => a - b), departmentPositions, 'departments must use the requested display order');
 assert.match(dashboard, /window\.openManpowerManagement/);
 assert.match(dashboard, /minimumResultsForSearch:\s*0/);
-assert.match(dashboard, /manpowerLandscapePrintRule/);
+assert.match(dashboard, /window\.open\('', '_blank', 'popup,width=1280,height=900'\)/);
+assert.match(dashboard, /@page \{ size: 297mm 210mm; margin: 4mm; \}/);
+assert.match(dashboard, /page: auto !important/);
+assert.match(dashboard, /window\.addEventListener\('load', printAfterReady/);
 assert.match(dashboard, /label: 'ລາພັກ'/);
 assert.match(dashboard, /label: 'ລາປ່ວຍ'/);
 assert.match(dashboard, /label: 'ລາກິດ'/);
