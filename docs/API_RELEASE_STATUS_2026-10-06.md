@@ -8,4 +8,6 @@ Existing user migration checks in `scripts/test-triage-clinical-crud.mjs` and th
 
 Unresolved production evidence: aggregate screenshot counts cannot prove whether all 547 Postgres errors originate in LIS. Shared project and error-propagation mechanism are confirmed; actual SQLSTATE/message/timestamps and correlated Gateway/LIS Worker details are needed. Production quota/billing status also requires dashboard review; lowering request counts does not resolve an exhausted quota by itself.
 
-Git commit/push result: staged scope validated; commit/push result will be recorded after remote verification.
+Git result: implementation commit `243c680c61cf4421558a845f1347bc3f4ebbac32` pushed successfully to `origin/codex/reduce-api-requests-20261006`. Draft PR: https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/1. Main was not merged or changed by this task. This release-status update is a documentation-only follow-up commit.
+
+GitHub connector creation returned HTTP 403 (integration access); the installed GitHub CLI created the PR using the same existing Git credential already used for the successful push, without printing/persisting credentials. The PR is attached to this chat. No production integration, 547-error root-cause closure or measured production request reduction is claimed.
