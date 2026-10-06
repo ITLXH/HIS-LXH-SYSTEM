@@ -48,3 +48,11 @@ Run `npm run test:clinical-reads` for the new source-executing regressions and `
 For the local browser check, run `node scripts/generate-workflow-fixture.mjs`, then `npm run dev -- --host 127.0.0.1 --port 5174 --strictPort`. Open `/scripts/fixtures/his-workflow.html` and click **Run workflow checks**. Backend traffic fails closed to mocks; never reload the fixture's history URL such as `/dashboard` as a standalone app page. Stop the server after checks.
 
 Only the 11 source/test/fixture/MD/screenshot files listed in the reviewed staged diff are included. Preserve/exclude `scripts/test-triage-clinical-crud.mjs`, `supabase/migrations/20260924100000_activity_log_recovery.sql` and untracked `supabase/migrations/20260926100000_activity_log_recovery_schema_cache.sql`. The isolated test export will be removed after verification. Release branch remains `codex/reduce-api-requests-20261006`; existing draft PR https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/1 contains earlier pushed fixes. New commit/push outcome will be recorded after the attempt.
+
+## Commit and push outcome
+
+Scoped implementation commit: **`78f0b54` — Preserve patient retrieval and complete clinical refresh data**. Source matches the tested staged export after normalizing Git's Windows line-ending conversion; only documentation was updated afterward.
+
+`git push origin codex/reduce-api-requests-20261006` was attempted after verification. GitHub again rejected it with HTTP **403**: **`You must verify your email address`**, directing the account owner to https://github.com/settings/emails. This was an actual GitHub account rejection, not an automatic sandbox approval rejection or test failure. No verification bypass attempted. This new fix is local and is not yet in the existing remote draft PR or production. Complete normal GitHub email verification, then retry the authorized review-branch push; update PR validation and perform staging integration before any merge/deploy.
+
+No additional code changes were made after the passing staged tests. The server was stopped, and the task-owned isolated export was removed. The three unrelated user files remain untouched and uncommitted by this task.
