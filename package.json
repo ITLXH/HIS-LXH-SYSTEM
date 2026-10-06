@@ -21,6 +21,7 @@
     "test:loading-ui": "node scripts/test-hospital-loading-ui.mjs",
     "test:notifications": "node scripts/test-clinical-notifications.mjs",
     "test:request-refresh": "node scripts/test-request-refresh.mjs",
+    "test:clinical-reads": "node scripts/test-clinical-read-safety.mjs",
     "test:triage-ui": "node scripts/test-triage-actions-ui.mjs",
     "test:triage-crud": "node scripts/test-triage-clinical-crud.mjs",
     "test:version-refresh": "node scripts/test-version-refresh.mjs",

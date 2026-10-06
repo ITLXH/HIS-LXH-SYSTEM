@@ -42,6 +42,8 @@ import {
 } from '../shared/his-permissions.js';
 
 import { createCoalescedRefresh } from './requestRefresh.js';
+import { createPatientLookupAjax } from './patientLookup.js';
+import { readPatientScopedRows, createConcurrentRead } from './clinicalReads.js';
 
 const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
@@ -251,7 +253,6 @@ let systemSettings = {
 };
 let servicesDataStore = [];
 let locationsDataStore = [];
-let allPatientsList = [];
 let vaccinesMasterList = [];
 let activeOrgsList = [];
 let drugsMasterList = [];
@@ -3391,12 +3392,18 @@ $(document).ready(async function () {
       }
     });
 
-    $('#a_patient').select2({ dropdownParent: $('#apptModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
+    const patientLookupAjax = createPatientLookupAjax({
+      client: supabaseClient, table: () => dbTable('Patients'), getSession: () => currentUser,
+      normalizeOldId: value => window.normalizePatientCode(value),
+    });
+    const patientLookupOptions = { ajax: patientLookupAjax, width: '100%',
+      language: { errorLoading: () => 'ບໍ່ສາມາດໂຫຼດຄົນເຈັບໄດ້ — ກະລຸນາຄົ້ນຫາອີກຄັ້ງ' } };
+    $('#a_patient').select2({ ...patientLookupOptions, dropdownParent: $('#apptModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
       let d = $(this).select2('data');
       if (d && d.length > 0 && d[0].id) {
         $('#a_target_id').val(d[0].id);
         let txt = d[0].text;
-        $('#a_target_name').val(txt.includes(' - ') ? txt.split(' - ')[1] : txt);
+        $('#a_target_name').val(d[0].patientName ?? (txt.includes(' - ') ? txt.slice(txt.indexOf(' - ') + 3) : txt));
       } else {
         $('#a_target_id').val('');
         $('#a_target_name').val('');
@@ -3415,12 +3422,12 @@ $(document).ready(async function () {
       }
     });
 
-    $('#pv_patient').select2({ dropdownParent: $('#patientVacModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
+    $('#pv_patient').select2({ ...patientLookupOptions, dropdownParent: $('#patientVacModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
       let d = $(this).select2('data');
       if (d && d.length > 0 && d[0].id) {
         $('#pv_patient_id').val(d[0].id);
         let txt = d[0].text;
-        $('#pv_patient_name').val(txt.includes(' - ') ? txt.split(' - ')[1] : txt);
+        $('#pv_patient_name').val(d[0].patientName ?? (txt.includes(' - ') ? txt.slice(txt.indexOf(' - ') + 3) : txt));
       } else {
         $('#pv_patient_id').val('');
         $('#pv_patient_name').val('');
@@ -3948,6 +3955,7 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  window.resetClinicalReadDisplays?.();
   window.resetClinicalAlertRefresh?.();
   window.teardownPublicQueueView?.();
   window.opdTestStopLisPolling?.();
@@ -3971,6 +3979,7 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  window.resetClinicalReadDisplays?.();
   window.resetClinicalAlertRefresh?.();
   window.teardownPublicQueueView?.();
   window.opdTestStopLisPolling?.();
@@ -4865,12 +4874,6 @@ window.checkAlerts = createCoalescedRefresh(window.checkAlerts, {
 
 window.preloadDropdownDataCallback = function (resolve) {
   let promises = [
-    window.fetchSupabaseRows('Patients', { select: '*', orderBy: 'Patient_ID', ascending: false }).then((data) => {
-      allPatientsList = (data || []).map(p => ({ id: p.Patient_ID, oldId: window.normalizePatientCode(p.Old_Patient_ID || ''), fullname: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() }));
-      let opts = '<option value=""></option>';
-      allPatientsList.forEach(p => { opts += `<option value="${p.id}">${p.id}${p.oldId ? ` / Old: ${p.oldId}` : ''} - ${p.fullname}</option>`; });
-      if (typeof jQuery !== 'undefined') { $('#a_patient').html(opts).trigger('change'); $('#pv_patient').html(opts).trigger('change'); }
-    }),
     supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name').limit(9999).then(({ data, error }) => {
       if (error) { console.warn('Organization dropdown preload failed:', error); return; }
       activeOrgsList = [];
@@ -4884,18 +4887,23 @@ window.preloadDropdownDataCallback = function (resolve) {
       activeOrgsList.forEach(o => { opts += `<option value="${o.id}">${o.name}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_org').html(opts).trigger('change'); }
     }),
-    supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data, error }) => {
+      if (error) { console.warn('Drug dropdown preload failed:', error); return; }
       drugsMasterList = (data || []).map(r => ({ id: r.Drug_ID, name: r.Drug_Name, desc: r.Description || '' }));
       let o = '<option value=""></option>';
       drugsMasterList.forEach(d => { o += `<option value="${d.name}">${d.name}${d.desc ? ' (' + d.desc + ')' : ''}</option>`; });
       if (typeof jQuery !== 'undefined') $('#emrAddDrugSelect').html(o).trigger('change');
     }),
-    supabaseClient.from(dbTable('Labs_Master')).select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Labs_Master')).select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data, error }) => {
+      if (error) { console.warn('Lab dropdown preload failed:', error); return; }
       labsMasterList = window.applyLabCategoriesToList((data || []).map(r => ({ id: r.Lab_ID, name: r.Lab_Name, desc: r.Description || '' })));
       if (document.getElementById('labCheckboxContainer')) window.renderEMRLabPicker();
     })
   ];
-  Promise.all(promises).then(() => resolve());
+  return Promise.allSettled(promises).then(results => {
+    results.forEach(result => { if (result.status === 'rejected') console.warn('Dropdown preload failed:', result.reason); });
+    resolve();
+  });
 }
 
 window.preloadDropdownData = function () { window.preloadDropdownDataCallback(function () { }); };
@@ -4939,6 +4947,23 @@ window.setDashShift = function (type) {
   window.fetchDashboardData();
 };
 
+window.clinicalReadGeneration = 0;
+window.clinicalLoadedRanges = {};
+window.resetClinicalReadDisplays = function () {
+  window.clinicalReadGeneration++;
+  window.clinicalLoadedRanges = {};
+  for (const render of [window.renderDashboardCharts, window.renderReportPage, window.renderVisitHistoryPage]) {
+    try { render([]); } catch (error) { console.warn('Clinical display reset failed:', error); }
+  }
+  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp, #repObservation').text('—');
+  $('#dashRefreshTime, #repRefreshTime, #visitRefreshTime, #dashReportRangeLabel, #dashReportStartLabel, #dashReportEndLabel').text('—');
+  $('#a_patient, #pv_patient').empty().append(new Option('', '')).val(null).trigger('change');
+};
+window.clinicalReadFailureLabel = function (view, sDate, eDate) {
+  const loadedRange = window.clinicalLoadedRanges[view] || '—';
+  return `ໂຫຼດ ${sDate} - ${eDate} ບໍ່ສຳເລັດ; ຂໍ້ມູນທີ່ສະແດງ: ${loadedRange} — ກະລຸນາລອງອີກຄັ້ງ`;
+};
+
 window.fetchDashboardData = async function (rangeType) {
   let sDate = $('#dashStartDate').val();
   let eDate = $('#dashEndDate').val();
@@ -4966,14 +4991,12 @@ window.fetchDashboardData = async function (rangeType) {
   const activeShiftType = window.currentDashShiftType || 'all';
   const visitRange = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
-  $('#dashReportStartLabel').text(sDate);
-  $('#dashReportEndLabel').text(eDate);
-  $('#dashRangePresetLabel').text(dashRangeLabels[activeRangeType] || dashRangeLabels.custom);
-  $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
-  $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
-  let d = new Date();
-  $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp').html(window.getHospitalDataLoaderHtml({ compact: true, detail: false }));
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#dashStartDate').val() === sDate && $('#dashEndDate').val() === eDate
+    && (window.currentDashShiftType || 'all') === activeShiftType;
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -4985,12 +5008,12 @@ window.fetchDashboardData = async function (rangeType) {
         .select('*')
         .gte('Date', visitRange.startIso)
         .lte('Date', visitRange.endIso)
+        .order('Date', { ascending: true })
+        .order('Visit_ID', { ascending: true })
         .range(startRange, startRange + 999);
       
-      if (error) { 
-        console.error('Dashboard Range Error:', error); 
-        break; 
-      }
+      if (error) throw error;
+      if (!isCurrent()) return;
       if (!chunk || chunk.length === 0) break;
       
       data = data.concat(chunk);
@@ -5016,17 +5039,10 @@ window.fetchDashboardData = async function (rangeType) {
     const pIds = [...new Set(data.map(v => v.Patient_ID).filter(id => !!id))];
     let pMap = {};
     if (pIds.length > 0) {
-      let pStart = 0;
-      while (true) {
-        const { data: pChunk, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('*')
-          .in('Patient_ID', pIds)
-          .range(pStart, pStart + 999);
-        if (pError || !pChunk || pChunk.length === 0) break;
-        pChunk.forEach(p => pMap[p.Patient_ID] = p);
-        if (pChunk.length < 1000) break;
-        pStart += 1000;
-      }
+      const patients = await readPatientScopedRows({ client: supabaseClient,
+        table: dbTable('Patients'), ids: pIds, select: '*', orderBy: 'Patient_ID' });
+      if (!isCurrent()) return;
+      patients.forEach(p => pMap[p.Patient_ID] = p);
     }
 
     // 3. Mark "New" vs "Returning" - Same logic as Triage & Report
@@ -5053,15 +5069,10 @@ window.fetchDashboardData = async function (rangeType) {
       });
       
       // Second: Check database for any other visits
-      for (let i = 0; i < pIds.length; i += 100) {
-        const chunkIds = pIds.slice(i, i + 100);
-        const { data: allPatientVisits, error: avError } = await supabaseClient
-          .from(dbTable('Visits'))
-          .select('Visit_ID, Patient_ID, Date')
-          .in('Patient_ID', chunkIds)
-          .order('Date', { ascending: true });
-        
-        if (avError || !allPatientVisits || allPatientVisits.length === 0) break;
+      {
+        const allPatientVisits = await readPatientScopedRows({ client: supabaseClient,
+          table: dbTable('Visits'), ids: pIds, select: 'Visit_ID,Patient_ID,Date', orderBy: 'Visit_ID' });
+        if (!isCurrent()) return;
         
         const currentVisitKeys = new Set(
           data.map(v => `${v.Patient_ID}|${v.Date}`)
@@ -5082,7 +5093,6 @@ window.fetchDashboardData = async function (rangeType) {
           }
         });
         
-        if (allPatientVisits.length < 1000) break;
       }
     }
 
@@ -5095,10 +5105,19 @@ window.fetchDashboardData = async function (rangeType) {
       };
     });
 
+    if (!isCurrent()) return;
+    window.clinicalLoadedRanges.dashboard = `${sDate} - ${eDate} / ${dashShiftLabels[activeShiftType] || dashShiftLabels.all}`;
+    $('#dashReportStartLabel').text(sDate);
+    $('#dashReportEndLabel').text(eDate);
+    $('#dashRangePresetLabel').text(dashRangeLabels[activeRangeType] || dashRangeLabels.custom);
+    $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
+    $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
+    $('#dashRefreshTime').text(`${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
     window.renderDashboardCharts(visitsWithDetails);
 
   } catch (err) {
     console.error(' Dashboard Error:', err);
+    if (isCurrent()) $('#dashRefreshTime').text(window.clinicalReadFailureLabel('dashboard', sDate, eDate));
   }
 };
 
@@ -5759,10 +5778,6 @@ window.fetchReportData = function () {
   let sDate = $('#repStartDate').val();
   let eDate = $('#repEndDate').val();
   if (!sDate || !eDate) return;
-  let d = new Date();
-  $('#repRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  if ($.fn.DataTable.isDataTable('#reportTable')) { $('#reportTable').DataTable().destroy(); }
-  $('#reportTable tbody').html(window.getHospitalTableLoadingRow(9));
   return window._fetchReportData(sDate, eDate);
 };
 window.fetchReportData = createCoalescedRefresh(window.fetchReportData, {
@@ -5893,6 +5908,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       .lte('Registration_Date', eDate)
       .not('Registration_Date', 'is', null)
       .order('Registration_Date', { ascending: false })
+      .order('Patient_ID', { ascending: true })
       .range(pStart, pStart + 999);
     if (pErr) throw pErr;
     if (!chunk || chunk.length === 0) break;
@@ -5911,6 +5927,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       .lte('Date', visitRange.endIso)
       .not('Date', 'is', null)
       .order('Date', { ascending: false })
+      .order('Visit_ID', { ascending: true })
       .range(vStart, vStart + 999);
     if (vErr) throw vErr;
     if (!chunk || chunk.length === 0) break;
@@ -5928,11 +5945,9 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
 
   const extraPIds = [...new Set(visitsInRange.map(v => v.Patient_ID).filter(id => id && !patientMap[id]))];
   if (extraPIds.length > 0) {
-    for (let i = 0; i < extraPIds.length; i += 100) {
-      const chunk = extraPIds.slice(i, i + 100);
-      const { data: extra } = await supabaseClient.from(dbTable('Patients')).select('*').in('Patient_ID', chunk);
-      (extra || []).forEach(p => { patientMap[p.Patient_ID] = p; });
-    }
+    const extra = await readPatientScopedRows({ client: supabaseClient, table: dbTable('Patients'),
+      ids: extraPIds, select: '*', orderBy: 'Patient_ID' });
+    extra.forEach(p => { patientMap[p.Patient_ID] = p; });
   }
 
   const allPatients = Object.values(patientMap);
@@ -5950,15 +5965,9 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
     visitsByPatient[v.Patient_ID].push(v);
   });
 
-  for (let i = 0; i < allPIds.length; i += 100) {
-    const chunk = allPIds.slice(i, i + 100);
-    const { data: allV } = await supabaseClient.from(dbTable('Visits'))
-      .select('Patient_ID')
-      .in('Patient_ID', chunk);
-    const counts = {};
-    (allV || []).forEach(v => { counts[v.Patient_ID] = (counts[v.Patient_ID] || 0) + 1; });
-    Object.assign(visitCountMap, counts);
-  }
+  const allV = await readPatientScopedRows({ client: supabaseClient, table: dbTable('Visits'),
+    ids: allPIds, select: 'Patient_ID,Visit_ID', orderBy: 'Visit_ID' });
+  allV.forEach(v => { visitCountMap[v.Patient_ID] = (visitCountMap[v.Patient_ID] || 0) + 1; });
 
   return allPatients.map(p => {
     const candidateVisits = visitsByPatient[p.Patient_ID] || [];
@@ -5993,14 +6002,21 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
 };
 
 window._fetchReportData = async function (sDate, eDate) {
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#repStartDate').val() === sDate && $('#repEndDate').val() === eDate;
   try {
     const processed = await window.buildPatientVisitSummaryData(sDate, eDate);
+    if (!isCurrent()) return;
     window.renderReportPage(processed);
+    window.clinicalLoadedRanges.report = `${sDate} - ${eDate}`;
+    $('#repRefreshTime').text(`ອັບເດດ: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
     window.updateReportObservationStats(sDate, eDate);
   } catch (err) {
     console.error('Report Fetch Error:', err);
-    Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນລາຍງານໄດ້: ' + err.message, 'error');
-    window.renderReportPage([]);
+    if (isCurrent()) $('#repRefreshTime').text(window.clinicalReadFailureLabel('report', sDate, eDate));
   }
 };
 
@@ -6095,21 +6111,27 @@ window.fetchVisitHistoryData = function () {
   let eDate = $('#visitEndDate').val();
   if (!sDate || !eDate) return;
 
-  let d = new Date();
-  $('#visitRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  if ($.fn.DataTable.isDataTable('#visitHistoryTable')) $('#visitHistoryTable').DataTable().destroy();
-  $('#visitHistoryTable tbody').html(window.getHospitalTableLoadingRow(10, 'ກຳລັງໂຫຼດປະຫວັດ...'));
-  window._fetchVisitHistoryData(sDate, eDate);
+  return window._fetchVisitHistoryData(sDate, eDate);
 };
+window.fetchVisitHistoryData = createCoalescedRefresh(window.fetchVisitHistoryData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-visit_history').is(':visible'),
+});
 
 window._fetchVisitHistoryData = async function (sDate, eDate) {
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#visitStartDate').val() === sDate && $('#visitEndDate').val() === eDate;
   try {
     const processed = await window.buildPatientVisitSummaryData(sDate, eDate);
+    if (!isCurrent()) return;
     window.renderVisitHistoryPage(processed.filter(r => r.latestVisit));
+    window.clinicalLoadedRanges.history = `${sDate} - ${eDate}`;
+    $('#visitRefreshTime').text(`ອັບເດດ: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
   } catch (err) {
     console.error('Visit History Fetch Error:', err);
-    Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນປະຫວັດການກວດໄດ້: ' + err.message, 'error');
-    window.renderVisitHistoryPage([]);
+    if (isCurrent()) $('#visitRefreshTime').text(window.clinicalReadFailureLabel('history', sDate, eDate));
   }
 };
 
@@ -9860,6 +9882,12 @@ window.convertObservationToIpd = async function (observationId) {
 
 window.updateReportObservationStats = async function (sDate, eDate) {
   if (!$('#repObservation').length) return;
+  const requestUser = currentUser;
+  const generation = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && generation === window.clinicalReadGeneration
+    && $('#repStartDate').val() === sDate && $('#repEndDate').val() === eDate;
+  $('#repObservation').text('—');
   try {
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
     const { count, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
@@ -9867,10 +9895,10 @@ window.updateReportObservationStats = async function (sDate, eDate) {
       .gte('start_datetime', range.startIso)
       .lte('start_datetime', range.endIso);
     if (error) throw error;
-    $('#repObservation').text(count || 0);
+    if (isCurrent()) $('#repObservation').text(count || 0);
   } catch (err) {
     console.warn('Report observation stat failed:', err);
-    $('#repObservation').text('0');
+    if (isCurrent()) $('#repObservation').text('—');
   }
 };
 
@@ -11983,6 +12011,7 @@ window.exportCoverPageAsPdf = async function (suffix, prefix) {
 
 window.openApptModal = function () {
   $('#apptForm')[0].reset();
+  $('#a_patient').val(null).trigger('change');
   $('#typePatient').prop('checked', true);
   window.toggleApptCustomerType();
   $('#a_id').val('');
@@ -21092,12 +21121,29 @@ window.opdTestLisRequest = async function (path, payload) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body.success === false) {
-      throw new Error(body.error || `LIS request failed (${response.status})`);
+      const error = new Error(typeof body.error === 'string' ? body.error
+        : body.error?.message || `LIS request failed (${response.status})`);
+      error.status = response.status;
+      error.code = body.error?.code || body.code;
+      throw error;
     }
     return body;
   } finally {
     window.clearTimeout(timeout);
   }
+};
+const sharedLisRead = createConcurrentRead(window.opdTestLisRequest, () => currentUser);
+const unsharedLisRequest = window.opdTestLisRequest;
+window.opdTestLisRequest = function (path, payload) {
+  const readTables = ['lis_one_test_orders', 'lis_one_order_result_files'];
+  const readFields = ['table', 'select', 'filter', 'order', 'limit'];
+  if (path !== '/api/data' || !readTables.includes(payload?.table)
+      || Object.keys(payload || {}).some(key => !readFields.includes(key))) {
+    return unsharedLisRequest(path, payload);
+  }
+  const key = JSON.stringify([window.opdTestLisApiBase(), path,
+    Object.fromEntries(Object.entries(payload).sort(([a], [b]) => a.localeCompare(b)))]);
+  return sharedLisRead(key, path, payload);
 };
 
 window.opdTestLisFileKey = function (file) {

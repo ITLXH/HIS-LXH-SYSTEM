@@ -16,7 +16,7 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
     dateKey, requests: [], channels: new Set(), archive: 'success',
     tables: {
       HIS_One_Users: [{ ID: 1, Auth_User_ID: authId, Email: user.email, Name: 'Workflow Test Admin', Role: 'admin', Status: 'active', Permissions: '["all"]', ButtonPermissions: '{}', Must_Change_Password: false }],
-      HIS_One_Patients: [{ Patient_ID: 'PTEST01', First_Name: 'Synthetic', Last_Name: 'Patient', Registration_Date: dateKey, Date_of_Birth: '1990-01-01', Gender: 'Male', Title: 'Mr' }],
+      HIS_One_Patients: [{ Patient_ID: 'PTEST01', Old_Patient_ID: 'OLDTEST01', Phone_Number: '02012345678', First_Name: 'Synthetic', Last_Name: 'Patient', Registration_Date: dateKey, Date_of_Birth: '1990-01-01', Gender: 'Male', Title: 'Mr' }],
       HIS_One_Visits: [{ Visit_ID: 'VTEST01', Patient_ID: 'PTEST01', Patient_Name: 'Synthetic Patient', Date: today.toISOString(), Status: 'Waiting OPD', Department: 'OPD', Visit_Type: 'OPD', Symptoms: 'Fixture only', Lab_Orders_JSON: '[]', Prescription_JSON: '[]' }],
       HIS_One_Settings: [{ Key: 'HospitalName', Value: 'Local Workflow Test Hospital' }],
       HIS_One_Organizations: [{ Org_ID: 'ORGTEST01', Org_Code: 'FIXTURE', Org_Name: 'Synthetic Organization', Name: 'Synthetic Contact' }],
@@ -36,6 +36,14 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
     let rows = [...(state.tables[table] || [])];
     for (const [field, filter] of params) {
       if (['select', 'order', 'limit', 'offset', 'on_conflict'].includes(field)) continue;
+      if (field === 'or') {
+        const expressions = filter.replace(/^\(|\)$/g, '').split(',');
+        rows = rows.filter(row => expressions.some(expression => {
+          const [column, op, pattern] = expression.split('.');
+          return op === 'ilike' && String(row[column] || '').toLowerCase().includes(pattern.replaceAll('%', '').toLowerCase());
+        }));
+        continue;
+      }
       const dot = filter.indexOf('.');
       const op = filter.slice(0, dot), value = filter.slice(dot + 1);
       if (op === 'eq') rows = rows.filter(row => String(row[field]) === value);
@@ -45,13 +53,20 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
       if (op === 'is' && value === 'null') rows = rows.filter(row => row[field] == null);
       if (op === 'not' && value === 'is.null') rows = rows.filter(row => row[field] != null);
     }
+    const orders = (params.get('order') || '').split(',').filter(Boolean).map(value => value.split('.'));
+    rows.sort((a, b) => {
+      for (const [column, direction] of orders) {
+        if (a[column] !== b[column]) return (String(a[column]) < String(b[column]) ? -1 : 1) * (direction === 'desc' ? -1 : 1);
+      }
+      return 0;
+    });
     return rows;
   }
   window.fetch = async (input, options = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url, location.origin);
     const method = options.method || 'GET';
     if (url.origin === location.origin && !url.pathname.startsWith('/api/')) return nativeFetch(input, options);
-    state.requests.push({ path: url.pathname, method });
+    state.requests.push({ path: url.pathname, method, search: url.search });
     if (url.pathname.includes('/auth/v1/token')) return json({ access_token: jwt, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, expires_at: exp, user });
     if (url.pathname.includes('/auth/v1/user')) return json(user);
     if (url.pathname.includes('/auth/v1/logout')) return new Response(null, { status: 204 });

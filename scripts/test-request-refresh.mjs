@@ -340,4 +340,13 @@ organizationResponse = { data: [] };
 await new Promise(resolve => organizationWindow.preloadDropdownDataCallback(resolve));
 assert.equal(organizationOptions, '<option value=""></option>', 'successful empty response clears old choices');
 assert.equal(organizationReads, 3, 'one organization read per preload, without schema-error retries');
+const lastDrugs = organization.drugsMasterList;
+organization.supabaseClient = { from() { return {
+  select() { return this; }, limit() { return this; }, order() { return this; },
+  then(_resolve, reject) { return Promise.reject(new Error('Mock transport failure')).then(_resolve, reject); },
+}; } };
+let preloadCompleted = false;
+await organizationWindow.preloadDropdownDataCallback(() => { preloadCompleted = true; });
+assert.equal(preloadCompleted, true, 'transport failure cannot leave login waiting forever');
+assert.equal(organization.drugsMasterList, lastDrugs, 'failed transport retains master choices');
 console.log('Organization schema projection, dropdown labels and failure preservation checks passed.');
