@@ -23,3 +23,7 @@ Remote main remains `9a3b39eed3db3312096ca1310e240b4c1357f1db`; review branch re
 Current source locations were inspected; no live data measurements were made. Historical counts/timings in `DATA_LOADING_PERFORMANCE_AUDIT.md` are dated August 2026 and should not be presented as current production measurements. No application code, database, UXI or LIS checkout was changed. Only this Markdown file is new; whitespace check is sufficient for this documentation-only change, and previous application tests are not claimed as validation of the proposed future fixes.
 
 After the three projects' staging checks, verify together: HIS patient lookup into LIS/UXI, orders/results/PDFs and HIS alerts/acknowledgements, patient switching, offline/reconnect, multiple users and logout. Compare equal-duration Gateway/Auth/Storage/Postgres log windows under similar active-user load after an eventual deployment, grouping by endpoint and SQLSTATE. Roll back a release if clinical correctness regresses. Preserve all existing unrelated user edits.
+
+## Push outcome
+
+This documentation was committed locally. The push was rejected by GitHub HTTP 403: `You must verify your email address` (https://github.com/settings/emails). This is a GitHub account prerequisite, not a test failure or sandbox approval rejection. No bypass attempted. Earlier API fixes/audits remain pushed through remote `bd47671`; this documentation is local until email verification and a successful retry. No merge/deployment occurred.
