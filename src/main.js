@@ -41,6 +41,8 @@ import {
   sanitizeHisPagePermissions
 } from '../shared/his-permissions.js';
 
+import { createCoalescedRefresh } from './requestRefresh.js';
+
 const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6eXJvd3pnaHJjZnBtaGtyZWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MTI2NzcsImV4cCI6MjA5NzE4ODY3N30.aTIC9Ov8jo-WhdUTZ_bZswmOgauC53R7vjYGcUln8Q0";
@@ -61,7 +63,8 @@ async function fetchWithNetworkStatus(input, init = {}) {
 
   try {
     const response = await fetch(input, { ...init, signal });
-    window.setHisNetworkStatus?.(response.status >= 500 ? 'offline' : 'online');
+    // An endpoint's HTTP error is not evidence that the connection is offline.
+    if (response.ok) window.setHisNetworkStatus?.('online');
     return response;
   } catch (error) {
     if (timeoutSignal.aborted || error?.name === 'TypeError') {
@@ -3945,6 +3948,9 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  window.resetClinicalAlertRefresh?.();
+  window.teardownPublicQueueView?.();
+  window.opdTestStopLisPolling?.();
   onlinePresence.stop();
   window.toggleLoading(true);
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
@@ -3965,6 +3971,9 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  window.resetClinicalAlertRefresh?.();
+  window.teardownPublicQueueView?.();
+  window.opdTestStopLisPolling?.();
   onlinePresence.stop();
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
@@ -4512,6 +4521,7 @@ window.loadView = function (v, options = {}) {
     $('.content-wrapper').css('margin-left', '0');
     window.initPublicQueueView();
   } else {
+    window.teardownPublicQueueView?.();
     $('#partial-navbar').show();
     $('.main-sidebar').show();
     $('.content-wrapper').css('margin-left', '');
@@ -4596,15 +4606,15 @@ window.loadView = function (v, options = {}) {
 
   if (v === 'dashboard') {
     window.setDashRange('today');
-    dashRefreshInterval = setInterval(() => { window.fetchDashboardData(); window.checkAlerts(); }, 120000);
+    dashRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchDashboardData(); window.checkAlerts(); } }, 120000);
   }
   if (v === 'report') {
     window.setReportRange('today');
-    reportRefreshInterval = setInterval(() => { window.fetchReportData(); window.checkAlerts(); }, 120000);
+    reportRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchReportData(); window.checkAlerts(); } }, 120000);
   }
   if (v === 'visit_history') {
     window.setVisitHistoryRange('today');
-    reportRefreshInterval = setInterval(() => { window.fetchVisitHistoryData(); window.checkAlerts(); }, 120000);
+    reportRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchVisitHistoryData(); window.checkAlerts(); } }, 120000);
   }
 
   // Close menus
@@ -4695,13 +4705,22 @@ window.executePrint = function (containerId) {
   });
 };
 
+let lastAppointmentAlerts = [];
+let alertRefreshGeneration = 0;
+window.resetClinicalAlertRefresh = function () {
+  alertRefreshGeneration++;
+  lastAppointmentAlerts = [];
+};
 window.checkAlerts = async function () {
+  const generation = alertRefreshGeneration;
   const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
   const todayRange = window.getLocalDayIsoBounds(today);
-  const { data: appts } = await supabaseClient
+  const { data: appts, error: appointmentError } = await supabaseClient
     .from(dbTable('Appointments'))
     .select('Appt_ID,Patient_Name,Appt_Date,Appt_Time,Type,Status')
-    .eq('Status', 'Pending');
+    .eq('Status', 'Pending')
+    .then(result => result, error => ({ data: null, error }));
+  if (generation !== alertRefreshGeneration) return;
   const appointmentAlerts = [];
   (appts || []).forEach(r => {
     if (!r.Appt_Date) return;
@@ -4712,6 +4731,10 @@ window.checkAlerts = async function () {
     }
   });
   appointmentAlerts.sort((a, b) => a.daysOut - b.daysOut);
+  if (appointmentError) {
+    console.warn('Appointment alert load failed:', appointmentError);
+    appointmentAlerts.push(...lastAppointmentAlerts);
+  } else lastAppointmentAlerts = appointmentAlerts;
 
   const roomAlerts = [];
   try {
@@ -4723,6 +4746,7 @@ window.checkAlerts = async function () {
       .order('Date', { ascending: false })
       .limit(100);
     if (opdError) throw opdError;
+    if (generation !== alertRefreshGeneration) return;
     (opdRows || []).forEach(r => {
       if (!window.isOpdRoomMatch || !window.isOpdRoomMatch(r.Department)) return;
       const d = r.Date ? new Date(r.Date) : null;
@@ -4738,10 +4762,11 @@ window.checkAlerts = async function () {
     opdActiveRoomAlerts = roomAlerts;
   } catch (err) {
     console.warn('OPD room alert load failed:', err);
-    opdActiveRoomAlerts = [];
+    roomAlerts.push(...opdActiveRoomAlerts);
   }
 
   const lisResultAlerts = window.getLisResultNotificationAlerts?.() || [];
+  if (generation !== alertRefreshGeneration) return;
   (() => {
     const count = appointmentAlerts.length + roomAlerts.length + lisResultAlerts.length;
     let badge = $('#bell-count');
@@ -4834,6 +4859,9 @@ window.checkAlerts = async function () {
 };
 
 window.renderNotifications = function () { window.checkAlerts(); };
+window.checkAlerts = createCoalescedRefresh(window.checkAlerts, {
+  shouldRun: () => Boolean(currentUser) || window.isLocalOpdTestPreview?.(),
+});
 
 window.preloadDropdownDataCallback = function (resolve) {
   let promises = [
@@ -5072,6 +5100,10 @@ window.fetchDashboardData = async function (rangeType) {
     console.error(' Dashboard Error:', err);
   }
 };
+
+window.fetchDashboardData = createCoalescedRefresh(window.fetchDashboardData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-dashboard').is(':visible'),
+});
 
 window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInRange) {
   try {
@@ -5696,7 +5728,7 @@ window.exportDashboardPDF = async function () {
     // Resume the dashboard auto-refresh we paused for the capture, and refresh
     // once so the charts reflect any data that arrived while frozen.
     clearInterval(dashRefreshInterval);
-    dashRefreshInterval = setInterval(() => { window.fetchDashboardData(); window.checkAlerts(); }, 120000);
+    dashRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchDashboardData(); window.checkAlerts(); } }, 120000);
     window.fetchDashboardData();
     Swal.close();
     if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
@@ -5730,8 +5762,11 @@ window.fetchReportData = function () {
   $('#repRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
   if ($.fn.DataTable.isDataTable('#reportTable')) { $('#reportTable').DataTable().destroy(); }
   $('#reportTable tbody').html(window.getHospitalTableLoadingRow(9));
-  window._fetchReportData(sDate, eDate);
+  return window._fetchReportData(sDate, eDate);
 };
+window.fetchReportData = createCoalescedRefresh(window.fetchReportData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-report').is(':visible'),
+});
 
 // Pipeline helpers
 window.getPatientStage = function (visit) {
@@ -8140,7 +8175,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         .order('Date', { ascending: false })
         .range(startRange, startRange + 999);
 
-      if (error) { console.error("OPD Fetch Range Error:", error); break; }
+      if (error) throw error;
       if (!chunk || chunk.length === 0) break;
       visitsInRange = visitsInRange.concat(chunk);
       if (chunk.length < 1000) break;
@@ -8155,11 +8190,12 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       
       // Recover ONLY active patients from TODAY who might be "lost"
       // We filter by today's date to avoid showing old records
-      const { data: visitsActive } = await supabaseClient.from(dbTable('Visits'))
+      const { data: visitsActive, error: activeError } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
         .in('Status', ['Waiting OPD', 'Calling OPD', 'Waiting Lab', 'Calling Lab', 'Triage', 'Waiting Triage'])
         .order('Date', { ascending: false })
         .limit(200);
+      if (activeError) throw activeError;
 
       // Filter fallback results to TODAY only
       const today = sDate;
@@ -8216,12 +8252,13 @@ window._fetchOpdQueue = async function (sDate, eDate) {
           .in('Patient_ID', chunkIds);
         // Compatibility fallback for installations whose Patients table has not
         // added the optional insurance columns yet. The queue must still load.
-        if (patientResponse.error) {
+        if (patientResponse.error && ['42703', 'PGRST204'].includes(patientResponse.error.code)) {
           console.warn('OPD payer columns are unavailable; loading legacy patient fields.', patientResponse.error);
           patientResponse = await supabaseClient.from(dbTable('Patients'))
             .select(patientFields)
             .in('Patient_ID', chunkIds);
         }
+        if (patientResponse.error) throw patientResponse.error;
         const patients = patientResponse.data;
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
@@ -8362,7 +8399,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     });
   } catch (err) {
     console.error("OPD Overall Fetch Error:", err);
-    return [];
+    throw err;
   }
 };
 
@@ -9841,8 +9878,13 @@ window.updateReportObservationStats = async function (sDate, eDate) {
 // ============================================================
 let opdQueueChannel = null;
 let opdQueuePollInterval = null;
+let opdQueueGeneration = 0;
+let opdQueueRealtimeReady = false;
+let opdQueuePollRunning = false;
+let opdQueueLastPollAt = 0;
 let lisResultPollInterval = null;
 let lisResultPollRunning = false;
+let lisResultGeneration = 0;
 let lisResultNotificationsSeeded = false;
 const lisNotifiedResultFileIds = new Set();
 let lisReadResultFileIds = new Set();
@@ -9908,7 +9950,7 @@ window.isWaitingOpdStatus = function (status) {
   return window.normalizeVisitStatus(status) === 'Waiting OPD';
 };
 
-window.seedOpdNotifiedVisits = async function () {
+window.seedOpdNotifiedVisits = async function (generation = opdQueueGeneration) {
   opdNotifiedVisitIds.clear();
   try {
     const { data } = await supabaseClient.from(dbTable('Visits'))
@@ -9918,6 +9960,7 @@ window.seedOpdNotifiedVisits = async function () {
     // Mark every currently-waiting visit as already notified so the doctor
     // doesn't get a flood of toasts on login; new arrivals after this point
     // still alert exactly once via realtime / poll.
+    if (generation !== opdQueueGeneration) return;
     (data || []).forEach(r => {
       if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.add(r.Visit_ID);
     });
@@ -9943,7 +9986,11 @@ window.handleOpdQueueNotification = function (row) {
   if (typeof window.checkAlerts === 'function') window.checkAlerts();
 };
 
-window.pollOpdQueueNotifications = async function () {
+window.pollOpdQueueNotifications = async function (options = {}) {
+  if (opdQueuePollRunning) return;
+  if (!options.force && opdQueueRealtimeReady && Date.now() - opdQueueLastPollAt < 60000) return;
+  const generation = opdQueueGeneration;
+  opdQueuePollRunning = true;
   try {
     const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
     const todayRange = window.getLocalDayIsoBounds(today);
@@ -9955,6 +10002,8 @@ window.pollOpdQueueNotifications = async function () {
       .order('Date', { ascending: false })
       .limit(100);
     if (error) throw error;
+    if (generation !== opdQueueGeneration) return;
+    opdQueueLastPollAt = Date.now();
     const rows = data || [];
     // Drop tracking for visits no longer in the queue, so a re-queued visit
     // (same Visit_ID re-entering 'Waiting OPD') alerts again as a fresh arrival.
@@ -9965,10 +10014,16 @@ window.pollOpdQueueNotifications = async function () {
     rows.reverse().forEach(row => window.handleOpdQueueNotification(row));
   } catch (e) {
     console.warn('OPD notification poll failed:', e);
+  } finally {
+    if (generation === opdQueueGeneration) opdQueuePollRunning = false;
   }
 };
 
 window.setupOpdQueueRealtime = async function () {
+  const generation = ++opdQueueGeneration;
+  opdQueueRealtimeReady = false;
+  opdQueuePollRunning = false;
+  opdQueueLastPollAt = 0;
   if (opdQueueChannel) {
     try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
     opdQueueChannel = null;
@@ -9979,22 +10034,31 @@ window.setupOpdQueueRealtime = async function () {
   }
 
   // Seed with currently-existing "Waiting OPD" visit IDs so we only notify on NEW arrivals
-  await window.seedOpdNotifiedVisits();
+  await window.seedOpdNotifiedVisits(generation);
+  if (generation !== opdQueueGeneration) return;
 
   opdQueueChannel = supabaseClient.channel('opd-queue-notifications')
     .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
+      if (generation !== opdQueueGeneration) return;
       const row = payload.new || payload.old;
       if (!row) return;
       if ($('#view-opd').is(':visible')) window.loadQueue();
       window.handleOpdQueueNotification(row);
     })
-    .subscribe();
+    .subscribe(status => {
+      if (generation !== opdQueueGeneration) return;
+      opdQueueRealtimeReady = status === 'SUBSCRIBED';
+      if (opdQueueRealtimeReady) void window.pollOpdQueueNotifications({ force: true });
+    });
 
-  // Realtime can be unavailable depending on Supabase project settings; poll as a quiet fallback.
+  // Reconcile every minute while connected; retain the 15-second fallback on disconnect.
   opdQueuePollInterval = setInterval(window.pollOpdQueueNotifications, 15000);
 };
 
 window.teardownOpdQueueRealtime = function () {
+  opdQueueGeneration++;
+  opdQueueRealtimeReady = false;
+  opdQueuePollRunning = false;
   if (opdQueueChannel) {
     try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
     opdQueueChannel = null;
@@ -10151,7 +10215,7 @@ window.lisResultAcknowledgmentUserId = function () {
   return String(currentUser?.id || currentUser?.name || currentUser?.role || '').trim();
 };
 
-window.loadLisResultAcknowledgments = async function () {
+window.loadLisResultAcknowledgments = async function (generation = lisResultGeneration) {
   const userId = window.lisResultAcknowledgmentUserId();
   if (!userId || window.isLocalOpdTestPreview?.()) {
     window.loadLisResultReadState();
@@ -10167,6 +10231,7 @@ window.loadLisResultAcknowledgments = async function () {
     .eq('Acknowledged_By', userId)
     .order('Acknowledged_At', { ascending: false })
     .limit(1000);
+  if (generation !== lisResultGeneration) return;
   if (error) {
     lisResultAcknowledgmentPersistence = 'unavailable';
     console.error('Result acknowledgement table unavailable:', error);
@@ -10397,14 +10462,17 @@ window.enrichLisResultFiles = async function (files) {
   }));
 };
 
-window.seedLisResultNotifications = async function () {
+window.seedLisResultNotifications = async function (generation = lisResultGeneration) {
   lisNotifiedResultFileIds.clear();
-  await window.loadLisResultAcknowledgments();
+  await window.loadLisResultAcknowledgments(generation);
+  if (generation !== lisResultGeneration) return;
   const files = await window.fetchRecentLisResultFiles(200);
+  if (generation !== lisResultGeneration) return;
   files.forEach(file => {
     if (file?.id != null) lisNotifiedResultFileIds.add(String(file.id));
   });
   const enrichedFiles = await window.enrichLisResultFiles(files);
+  if (generation !== lisResultGeneration) return;
   const recentCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
   lisActiveResultAlerts = enrichedFiles
     .map(file => window.normalizeLisResultNotification(file))
@@ -10425,37 +10493,44 @@ window.seedLisResultNotifications = async function () {
 
 window.pollLisResultNotifications = async function () {
   if (!window.isLisResultNotificationRecipient() || lisResultPollRunning) return;
+  const generation = lisResultGeneration;
   lisResultPollRunning = true;
   try {
     if (!lisResultNotificationsSeeded) {
-      await window.seedLisResultNotifications();
+      await window.seedLisResultNotifications(generation);
       return;
     }
     const files = await window.fetchRecentLisResultFiles(100);
+    if (generation !== lisResultGeneration) return;
     const newFiles = files.filter(file => file?.id != null && !lisNotifiedResultFileIds.has(String(file.id)));
     if (!newFiles.length) return;
     const enrichedFiles = await window.enrichLisResultFiles(newFiles);
+    if (generation !== lisResultGeneration) return;
     window.handleLisResultNotificationFiles(enrichedFiles, { source: 'global-poll' });
   } catch (error) {
     console.warn('LIS result notification poll failed:', error);
   } finally {
-    lisResultPollRunning = false;
+    if (generation === lisResultGeneration) lisResultPollRunning = false;
   }
 };
 
 window.setupLisResultNotifications = async function () {
   window.teardownLisResultNotifications();
+  const generation = lisResultGeneration;
   if (!window.isLisResultNotificationRecipient()) return;
   window.requestOpdNotificationPermission?.();
   try {
-    await window.seedLisResultNotifications();
+    await window.seedLisResultNotifications(generation);
   } catch (error) {
     console.warn('Unable to seed LIS result notifications:', error);
   }
-  lisResultPollInterval = window.setInterval(window.pollLisResultNotifications, 30000);
+  if (generation === lisResultGeneration && window.isLisResultNotificationRecipient()) {
+    lisResultPollInterval = window.setInterval(window.pollLisResultNotifications, 30000);
+  }
 };
 
 window.teardownLisResultNotifications = function () {
+  lisResultGeneration++;
   if (lisResultPollInterval) window.clearInterval(lisResultPollInterval);
   lisResultPollInterval = null;
   lisResultPollRunning = false;
@@ -10537,13 +10612,16 @@ window.renderOpdQueueOrderBadges = function (row, index) {
 
 window.loadQueue = async function () {
   try {
+    const requestUser = currentUser;
     let sDate = $('#opdStartDate').val();
     let eDate = $('#opdEndDate').val();
-    if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
-    $('#queueTableBody').html(window.getHospitalTableLoadingRow(11));
+    const requestRoom = window.getOpdMyRoom();
+    if (!queueDataStore.length) $('#queueTableBody').html(window.getHospitalTableLoadingRow(11));
     window.populateOpdMyRoomFilter();
 
     const allQueueRows = await window._fetchOpdQueue(sDate, eDate);
+    if (requestUser !== currentUser || sDate !== $('#opdStartDate').val()
+      || eDate !== $('#opdEndDate').val() || requestRoom !== window.getOpdMyRoom()) return;
     const myRoom = window.getOpdMyRoom();
     const q = myRoom
       ? (allQueueRows || []).filter(r => window.isOpdRoomMatch(r.department, myRoom))
@@ -10628,6 +10706,8 @@ window.loadQueue = async function () {
       });
     }
     $('#queueTableBody').html(h);
+    $('#queueTableBody').removeAttr('title');
+    $('#opdQueueRefreshNotice').remove();
     $('#queueTable').DataTable({
       responsive: true,
       autoWidth: false,
@@ -10650,9 +10730,17 @@ window.loadQueue = async function () {
   } catch (err) {
     console.error("Critical loadQueue Error:", err);
     let msg = escapeHisHtml(err.message || "Unknown error");
-    $('#queueTableBody').html(`<tr><td colspan="11" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
+    if (queueDataStore.length) {
+      $('#queueTableBody').attr('title', `Refresh failed; showing previous queue: ${err.message || 'Unknown error'}`);
+      $('#opdQueueRefreshNotice').remove();
+      $('#queueTable').before(`<div id="opdQueueRefreshNotice" class="alert alert-warning py-2" role="status">ອັບເດດຄິວບໍ່ສຳເລັດ; ກຳລັງສະແດງຂໍ້ມູນຄັ້ງກ່ອນ. <small>${msg}</small></div>`);
+    } else $('#queueTableBody').html(`<tr><td colspan="11" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
   }
 };
+
+window.loadQueue = createCoalescedRefresh(window.loadQueue, {
+  shouldRun: () => Boolean(currentUser) && $('#view-opd').is(':visible'),
+});
 
 window.viewEMR = function (i) {
   const q = queueDataStore[i];
@@ -15163,8 +15251,22 @@ window.exportActivityLogCSV = function () {
 // PUBLIC QUEUE & VOICE CALL
 // ==========================================
 let publicQueueChannel = null;
+let publicQueueClock = null;
+let publicQueueGeneration = 0;
+
+window.teardownPublicQueueView = function () {
+  publicQueueGeneration++;
+  if (publicQueueClock) clearInterval(publicQueueClock);
+  publicQueueClock = null;
+  if (publicQueueChannel) {
+    void supabaseClient.removeChannel(publicQueueChannel);
+    publicQueueChannel = null;
+  }
+};
 
 window.initPublicQueueView = async function () {
+  window.teardownPublicQueueView();
+  const generation = publicQueueGeneration;
   console.log("Initializing Public Queue View...");
 
   $('#tvOpdList, #tvTriageList').html(window.getHospitalDataLoaderHtml({ compact: true }));
@@ -15173,7 +15275,7 @@ window.initPublicQueueView = async function () {
   $('#tvHospitalName').text(systemSettings.hospitalName || "HIS HOSPITAL");
   
   // Update Clock
-  setInterval(() => {
+  publicQueueClock = setInterval(() => {
     let now = new Date();
     $('#tvClock').text(now.toLocaleTimeString('en-GB', { hour12: false }));
     $('#tvDate').text(now.toLocaleDateString('lo-LA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
@@ -15187,6 +15289,7 @@ window.initPublicQueueView = async function () {
   
   publicQueueChannel = supabaseClient.channel('public-queue-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
+      if (generation !== publicQueueGeneration || !$('#view-public-queue').is(':visible')) return;
       console.log('Queue Change Detected:', payload);
       window.refreshPublicQueueDisplay();
       
@@ -15199,6 +15302,8 @@ window.initPublicQueueView = async function () {
 };
 
 window.refreshPublicQueueDisplay = async function () {
+  if (!$('#view-public-queue').is(':visible')) return;
+  const generation = publicQueueGeneration;
   let today = window.getLocalStr(new Date());
   const todayRange = window.getLocalDayIsoBounds(today);
   const { data: visits, error } = await supabaseClient.from(dbTable('Visits'))
@@ -15208,6 +15313,7 @@ window.refreshPublicQueueDisplay = async function () {
     .order('Date', { ascending: true });
 
   if (error) return console.error('refreshPublicQueueDisplay error:', error);
+  if (generation !== publicQueueGeneration || !$('#view-public-queue').is(':visible')) return;
 
   let opdWait = [];
   let triageWait = [];
@@ -15217,7 +15323,7 @@ window.refreshPublicQueueDisplay = async function () {
     if (v.Status === 'Waiting OPD' || v.Status === 'Calling OPD') opdWait.push(v);
     else if (v.Status === 'Triage' || v.Status === 'Calling Triage') triageWait.push(v);
     
-    if (v.Status.startsWith('Calling')) callingNow = v;
+    if (String(v.Status || '').startsWith('Calling')) callingNow = v;
   });
 
   // Update Calling Now Card
@@ -15269,6 +15375,10 @@ window.refreshPublicQueueDisplay = async function () {
   });
   $('#tvTriageList').html(triageHtml || '<p class="text-center opacity-30 mt-5">ບໍ່ມີຄິວລໍຖ້າ</p>');
 };
+
+window.refreshPublicQueueDisplay = createCoalescedRefresh(window.refreshPublicQueueDisplay, {
+  shouldRun: () => $('#view-public-queue').is(':visible'),
+});
 
 window.triggerPublicCall = async function (visitId, cn, dept) {
   console.log(`Calling Patient ID: ${cn} to ${dept}`);
@@ -21178,9 +21288,14 @@ window.opdTestNotifyNewLisResults = function (files) {
 window.opdTestFetchLisResults = async function (options = {}) {
   const root = document.getElementById('view-opd_test');
   const state = window.opdTestState;
+  const selectedVisit = window.opdTestSelectedVisit;
+  const requestUser = currentUser;
   const patientId = window.opdTestLisPatientId();
   const visitDateKey = window.opdTestLisVisitDateKey();
   const resultScopeKey = `${patientId}:${visitDateKey}`;
+  const isCurrentRequest = () => selectedVisit === window.opdTestSelectedVisit
+    && requestUser === currentUser && state.lisFetchToken === requestToken
+    && resultScopeKey === `${window.opdTestLisPatientId()}:${window.opdTestLisVisitDateKey()}`;
   if (!root || root.style.display === 'none' || !patientId || state.lisFetchInFlight) return;
 
   if (state.lisResultPatientId !== resultScopeKey) {
@@ -21191,6 +21306,8 @@ window.opdTestFetchLisResults = async function (options = {}) {
   }
 
   state.lisFetchInFlight = true;
+  const requestToken = {};
+  state.lisFetchToken = requestToken;
   window.opdTestRenderLisResults({ loading: true });
   try {
     const orderResponse = await window.opdTestLisRequest('/api/data', {
@@ -21200,6 +21317,7 @@ window.opdTestFetchLisResults = async function (options = {}) {
       order: 'order_datetime.desc',
       limit: 80
     });
+    if (!isCurrentRequest()) return;
     const orders = (Array.isArray(orderResponse.data) ? orderResponse.data : [])
       .filter(order => window.getLocalDateKey(order?.order_datetime) === visitDateKey);
     const safeOrderIds = orders
@@ -21230,6 +21348,7 @@ window.opdTestFetchLisResults = async function (options = {}) {
       order: orderById.get(String(file.order_id || '')) || null
     })).filter(file => file.publicUrl);
 
+    if (!isCurrentRequest()) return;
     const wasLoaded = state.lisResultsLoaded;
     const previousKeys = new Set((state.lisResults || []).map(window.opdTestLisFileKey));
     state.lisOrders = orders;
@@ -21252,15 +21371,18 @@ window.opdTestFetchLisResults = async function (options = {}) {
     }
   } catch (error) {
     console.warn('Unable to load LIS results:', error);
+    if (!isCurrentRequest()) return;
     const message = error?.name === 'AbortError'
       ? 'LIS ຕອບກັບຊ້າເກີນໄປ'
       : (error?.message || 'Unknown LIS error');
     window.opdTestRenderLisResults({ error: message });
     if (options.manual) window.opdTestSimpleAlert('ດຶງຜົນ LIS ບໍ່ສຳເລັດ', message, 'error');
   } finally {
-    state.lisFetchInFlight = false;
-    document.getElementById('opdTestLisRefreshBtn')?.removeAttribute('disabled');
-    document.querySelector('#opdTestLisRefreshBtn i')?.classList.remove('fa-spin');
+    if (state.lisFetchToken === requestToken) {
+      state.lisFetchInFlight = false;
+      document.getElementById('opdTestLisRefreshBtn')?.removeAttribute('disabled');
+      document.querySelector('#opdTestLisRefreshBtn i')?.classList.remove('fa-spin');
+    }
   }
 };
 
@@ -24571,8 +24693,16 @@ window.opdTestRenderExternalResultStates = function () {
   }).join('');
 };
 
+const opdExternalReads = new Set();
 window.opdTestSyncExternalResults = async function (requestedType, options = {}) {
   const type = requestedType === 'medication' ? 'medication' : window.opdTestInvestigationTypeMeta(requestedType).type;
+  const selectedVisit = window.opdTestSelectedVisit;
+  const requestUser = currentUser;
+  const patientId = window.opdTestLisPatientId();
+  const root = document.getElementById('view-opd_test');
+  if (options.silent && (!root || root.style.display === 'none' || document.hidden)) return;
+  const readKey = `${type}:${selectedVisit?.visitId || ''}:${patientId}`;
+  if (opdExternalReads.has(readKey)) return;
   const provider = type === 'medication'
     ? (window.opdTestPharmacyStatusProvider || window.fetchOPDTestPharmacyStatuses)
     : (window.opdTestRisResultProvider || window.fetchOPDTestRisResults);
@@ -24587,18 +24717,25 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
     );
     return;
   }
+  opdExternalReads.add(readKey);
   try {
     const state = window.opdTestState;
     const sourceItems = type === 'medication'
       ? state.medications
       : state.orders.filter(item => window.opdTestInvestigationTypeForItem(item) === type);
-    const response = await provider({ patientId: window.opdTestLisPatientId(), type, orders: sourceItems, medications: sourceItems });
+    if (options.silent && !sourceItems.length) return;
+    const response = await provider({ patientId, type, orders: sourceItems, medications: sourceItems });
+    if (requestUser !== currentUser || selectedVisit !== window.opdTestSelectedVisit || patientId !== window.opdTestLisPatientId()) return;
     const updates = Array.isArray(response) ? response : (response?.results || response?.orders || response?.medications || []);
     let updated = 0;
     updates.forEach(payload => {
       const identifiers = [payload.localOrderId, payload.orderNo, payload.externalOrderId, payload.risOrderId, payload.prescriptionItemId].filter(Boolean).map(String);
       const target = sourceItems.find(item => [item.localOrderId, item.orderNo, item.externalOrderId, item.risOrderId, item.prescriptionItemId].filter(Boolean).map(String).some(id => identifiers.includes(id)));
       if (!target) return;
+      const fields = type === 'medication'
+        ? ['pharmacyStatus', 'status', 'dispensedAt', 'dispensedBy']
+        : ['risStatus', 'resultStatus', 'resultPdfUrl', 'resultUrl', 'report', 'findings', 'releasedAt'];
+      const before = fields.map(field => target[field]);
       if (type === 'medication') {
         target.pharmacyStatus = payload.pharmacyStatus || payload.status || target.pharmacyStatus;
         target.status = target.pharmacyStatus;
@@ -24613,7 +24750,7 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
         target.findings = payload.findings || target.findings;
         target.releasedAt = payload.releasedAt || payload.released_at || target.releasedAt;
       }
-      updated += 1;
+      if (fields.some((field, index) => before[index] !== target[field])) updated += 1;
     });
     if (updated) window.opdTestMarkDirty();
     window.opdTestRenderLegacyOrders();
@@ -24621,6 +24758,8 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
   } catch (error) {
     console.error('OPD external result sync failed:', error);
     if (!options.silent) window.opdTestSimpleAlert('ອັບເດດບໍ່ສຳເລັດ', error?.message || 'ກະລຸນາກວດສອບ API ແລະ network.', 'error');
+  } finally {
+    opdExternalReads.delete(readKey);
   }
 };
 

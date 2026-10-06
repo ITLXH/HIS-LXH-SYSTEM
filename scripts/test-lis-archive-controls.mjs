@@ -52,7 +52,7 @@ const dispatch = fs.readFileSync(new URL('../functions/api/backup/lis-archive-ru
 assert.match(html, /id="btnLisArchiveNow"/);
 assert.match(html, /id="lisArchiveProgressBar"/);
 assert.match(html, /id="lisArchivePercent"/);
-assert.match(dashboard, /setInterval\(refresh, POLL_MS\)/);
+assert.match(dashboard, /setTimeout\(refresh, nextPollMs\)/);
 assert.match(dispatch, /mode:\s*'copy'/);
 assert.match(dispatch, /archive_after_days:\s*'14'/);
 assert.match(dispatch, /destructive:\s*false/);

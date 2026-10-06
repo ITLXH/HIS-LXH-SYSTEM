@@ -69,3 +69,6 @@ output/
 
 # Local OCR experiment model (large binary, not used by the application)
 /eng.traineddata
+
+# Generated from index.html for loopback-only workflow testing
+/scripts/fixtures/his-workflow.html

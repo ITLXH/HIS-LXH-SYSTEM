@@ -31,7 +31,7 @@ assert.match(main, /key: 'ServiceDepartment', label: '8 ພະແນກບໍລ
 assert.match(main, /masterDataStore\.ServiceDepartment\?\.length/);
 assert.match(main, /\.insert\(\{ Category: c, Value: v \}\)/);
 assert.match(main, /\.update\(\{ Value: newVal \}\)\.eq\('ID', id\)/);
-assert.match(main, /\.delete\(\)\.eq\('ID', id\)/);
+assert.match(main, /deleteRecordsWithRecovery\('MasterData', \{ ID: id \}, 'Settings'/);
 assert.match(dashboard, /8 ພະແນກບໍລິການ\/Department service/);
 assert.doesNotMatch(dashboard, /Triage Clinical Departments/);
 
@@ -71,7 +71,8 @@ const deleteSource = main.slice(
   main.indexOf('window.deleteVisitFlow = async function'),
   main.indexOf('// ============================================================\n// OPD Follow-up / Observation'),
 );
-assert.match(deleteSource, /from\(dbTable\('Visits'\)\)\.delete\(\)\.eq\('Visit_ID',\s*visitId\)/);
-assert.match(deleteSource, /query\s*=\s*query\.eq\('Patient_ID',\s*patientId\)/);
+assert.match(deleteSource, /const filters = \{ Visit_ID: visitId \}/);
+assert.match(deleteSource, /if \(patientId\) filters\.Patient_ID = patientId/);
+assert.match(deleteSource, /deleteRecordsWithRecovery\('Visits', filters, 'Triage'/);
 
 console.log('Triage Clinical Department CRUD wiring checks passed.');

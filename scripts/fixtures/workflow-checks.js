@@ -1,0 +1,83 @@
+// Run the real login, navigation, queue, LIS notifications and logout against mocks.
+const panel = document.createElement('aside');
+panel.style.cssText = 'position:fixed;right:8px;top:8px;z-index:200002;background:white;color:#111;padding:12px;border:2px solid #1683d8;width:420px;max-height:85vh;overflow:auto;font:13px system-ui';
+panel.innerHTML = '<strong>HIS authenticated workflow — LOCAL MOCKS</strong><p>No production data or network calls.</p><button id="workflow-run">Run workflow checks</button><pre id="workflow-results" style="white-space:pre-wrap">Ready</pre>';
+document.body.append(panel);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function until(test, message) {
+  const start = Date.now();
+  while (!test()) { if (Date.now() - start > 12000) throw new Error(message); await wait(100); }
+}
+panel.querySelector('button').onclick = async () => {
+  const out = document.getElementById('workflow-results');
+  const lines = [];
+  const check = (value, label) => { if (!value) throw new Error(label); lines.push(`PASS ${label}`); out.textContent = lines.join('\n'); };
+  panel.querySelector('button').disabled = true;
+  try {
+    await until(() => window.doLogin && document.querySelector('#view-opd'), 'app/partials did not initialize');
+    document.getElementById('loginEmail').value = 'fixture@example.invalid';
+    document.getElementById('loginPass').value = 'fixture-test-password';
+    await window.doLogin();
+    await until(() => location.pathname === '/dashboard' && document.getElementById('app-content').style.display !== 'none' && document.getElementById('view-dashboard').style.display !== 'none', 'login did not finish dashboard initialization');
+    check(document.getElementById('sidebarUserName').textContent.includes('Workflow Test Admin'), 'actual login loads staff profile');
+    window.loadView('opd');
+    await window.loadQueue();
+    check(document.getElementById('queueTableBody').textContent.includes('Synthetic Patient'), 'OPD queue renders synthetic patient');
+    const mock = window.hisWorkflowMock;
+    const before = mock.requests.length;
+    await Promise.all(Array.from({ length: 20 }, () => window.loadQueue()));
+    check(mock.requests.length - before < 20, 'queue refresh burst coalesces backend reads');
+    mock.failTable = 'HIS_One_Visits';
+    await window.loadQueue();
+    check(document.getElementById('queueTableBody').textContent.includes('Synthetic Patient') && document.getElementById('opdQueueRefreshNotice'), 'failed refresh preserves queue and shows warning');
+    mock.failTable = null;
+    await window.loadQueue();
+    check(!document.getElementById('opdQueueRefreshNotice'), 'successful refresh clears stale queue warning');
+    document.getElementById('opdStartDate').value = '2026-01-01';
+    document.getElementById('opdEndDate').value = '2026-01-01';
+    await window.loadQueue();
+    check(!document.getElementById('queueTableBody').textContent.includes('Synthetic Patient'), 'date filter excludes current visits');
+    document.getElementById('opdStartDate').value = mock.dateKey;
+    document.getElementById('opdEndDate').value = mock.dateKey;
+    await window.loadQueue();
+    mock.tables.HIS_One_Patients.push({ ...mock.tables.HIS_One_Patients[0], Patient_ID: 'PTEST02', First_Name: 'Second Synthetic' });
+    const arrival = { ...mock.tables.HIS_One_Visits[0], Visit_ID: 'VTEST02', Patient_ID: 'PTEST02', Patient_Name: 'Second Synthetic Patient' };
+    mock.tables.HIS_One_Visits.push(arrival);
+    mock.emit(arrival);
+    await window.loadQueue();
+    check(document.getElementById('queueTableBody').textContent.includes('Second Synthetic Patient'), 'realtime arrival refreshes queue');
+    mock.channelStatus('CHANNEL_ERROR');
+    await window.pollOpdQueueNotifications();
+    mock.channelStatus('SUBSCRIBED');
+    await wait(250);
+    check(mock.channels.size >= 1, 'disconnect/reconnect preserves subscription');
+    mock.tables.lis_one_order_result_files.push({ id: 'FILETEST01', order_id: 'OTEST01', uploaded_at: new Date().toISOString(), file_name: 'fixture.pdf', storage_path: 'fixture/report.pdf' });
+    await window.pollLisResultNotifications();
+    await window.checkAlerts();
+    check(document.getElementById('bell-list').textContent.includes('PTEST01'), 'new LIS result appears in notification bell');
+    const ackWrites = () => mock.requests.filter(request => request.method === 'POST' && request.path.endsWith('/HIS_One_Result_Acknowledgments')).length;
+    const ackBefore = ackWrites();
+    await window.acknowledgeLisResultNotification('FILETEST01');
+    await window.checkAlerts();
+    check(!window.getLisResultNotificationAlerts().some(item => item.fileId === 'FILETEST01') && ackWrites() === ackBefore + 1, 'LIS acknowledgement writes once and removes alert');
+    window.loadView('public-queue');
+    await window.refreshPublicQueueDisplay();
+    check(document.getElementById('tvOpdList').textContent.includes('Synthetic Patient'), 'TV queue renders current visits');
+    window.loadView('opd');
+    check(![...mock.channels].some(channel => channel.name === 'public-queue-updates'), 'leaving TV removes its channel');
+    const response = await window.authenticatedFetch('/api/mock-error');
+    check(response.status === 500 && window.hisNetworkState === 'online', 'one endpoint 500 leaves app connection online');
+    window.loadView('backup');
+    await wait(500);
+    await window.refreshLisArchiveStatus();
+    check(document.getElementById('lisArchivePercent').textContent === '100%', 'Backup view renders archive completion');
+    await window.logout();
+    check(mock.channels.size === 0 && document.getElementById('app-content').style.display === 'none', 'logout removes all channels and hides app');
+    await wait(250);
+    const afterLogout = mock.requests.length;
+    mock.emit(arrival);
+    await wait(500);
+    check(mock.requests.length === afterLogout, 'old realtime events after logout make no requests');
+    out.textContent += `\nAll ${lines.length} authenticated workflow checks passed.\nBackend/auth/realtime were mocked; production integration is not claimed.`;
+  } catch (error) { out.textContent += `\nFAIL ${error.message}`; console.error(error); }
+};
