@@ -11,3 +11,7 @@ Unresolved production evidence: aggregate screenshot counts cannot prove whether
 Git result: implementation commit `243c680c61cf4421558a845f1347bc3f4ebbac32` pushed successfully to `origin/codex/reduce-api-requests-20261006`. Draft PR: https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/1. Main was not merged or changed by this task. This release-status update is a documentation-only follow-up commit.
 
 GitHub connector creation returned HTTP 403 (integration access); the installed GitHub CLI created the PR using the same existing Git credential already used for the successful push, without printing/persisting credentials. The PR is attached to this chat. No production integration, 547-error root-cause closure or measured production request reduction is claimed.
+
+## Follow-up: Organizations 42703 evidence
+
+New user screenshot identifies missing `HIS_One_Organizations.Contact_Name` and separate 57014 timeouts. Found the exact projection in HIS login/CRUD dropdown preload; no matching references found in inspected LIS source. Removed the nonexistent column, reused existing `Name`, and preserved previous choices on read failure. All 20 exact-staged-tree test scripts, 17 mocked actual-app browser workflows, syntax/whitespace checks and build passed. Fix commit `a0461b5` pushed to the same draft PR; main remains unchanged. See `POSTGRES_ERROR_ATTRIBUTION_2026-10-06.md` for evidence, limitations and browser proof. The actual timeout SQL statements and the remaining earlier 547-error attribution are still pending.
