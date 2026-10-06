@@ -301,3 +301,43 @@ await notificationPoll;
 assert.equal(notificationsHandled, 0, 'late LIS poll cannot notify a logged-out session');
 assert.equal(vm.runInContext('lisResultPollRunning', notification), true, 'old LIS poll cannot release a newer guard');
 console.log('Global LIS logout, setup and late-response lifecycle checks passed.');
+
+const organizationSchema = fs.readFileSync(new URL('../supabase/restore_chunks/01_schema_only.sql', import.meta.url), 'utf8')
+  .match(/CREATE TABLE IF NOT EXISTS public\."HIS_One_Organizations" \(([\s\S]*?)\);/)[1];
+const organizationColumns = new Set([...organizationSchema.matchAll(/"([^"]+)"/g)].map(match => match[1]));
+let organizationResponse = { data: [
+  { Org_ID: 'ORG1', Org_Code: 'TEST', Org_Name: 'Synthetic Org', Name: 'Synthetic Contact' },
+  { Org_ID: 'ORG2', Org_Code: 'TEST2', Org_Name: 'Second Org', Name: null },
+] };
+let organizationReads = 0;
+let organizationOptions = '';
+const organizationWindow = { fetchSupabaseRows: async () => [], applyLabCategoriesToList: rows => rows };
+const organization = vm.createContext({ window: organizationWindow, console: quiet, dbTable: name => name,
+  allPatientsList: [], activeOrgsList: [], drugsMasterList: [], labsMasterList: [], jQuery: {},
+  document: { getElementById: () => null },
+  $: selector => ({ html(value) { if (selector === '#a_org') organizationOptions = value; return this; }, trigger() { return this; } }),
+  supabaseClient: { from(table) { return {
+    select(fields) {
+      if (table === 'Organizations') {
+        organizationReads++;
+        for (const field of fields.split(',')) assert.ok(organizationColumns.has(field), `organization projection must use schema field: ${field}`);
+      }
+      return this;
+    }, limit() { return this; }, order() { return this; },
+    then(callback) { return Promise.resolve(table === 'Organizations' ? organizationResponse : { data: [] }).then(callback); },
+  }; } },
+});
+vm.runInContext(block('window.preloadDropdownDataCallback =', 'window.currentDashRangeType ='), organization);
+await new Promise(resolve => organizationWindow.preloadDropdownDataCallback(resolve));
+assert.match(organizationOptions, /value="ORG1">TEST - Synthetic Org \(Synthetic Contact\)/);
+assert.match(organizationOptions, /value="ORG2">TEST2 - Second Org<\/option>/);
+const lastOrganizationOptions = organizationOptions;
+organizationResponse = { data: null, error: { code: '42501', message: 'Read failed' } };
+await new Promise(resolve => organizationWindow.preloadDropdownDataCallback(resolve));
+assert.equal(organizationOptions, lastOrganizationOptions, 'failed organization preload preserves dropdown choices');
+assert.equal(organization.activeOrgsList.length, 2);
+organizationResponse = { data: [] };
+await new Promise(resolve => organizationWindow.preloadDropdownDataCallback(resolve));
+assert.equal(organizationOptions, '<option value=""></option>', 'successful empty response clears old choices');
+assert.equal(organizationReads, 3, 'one organization read per preload, without schema-error retries');
+console.log('Organization schema projection, dropdown labels and failure preservation checks passed.');

@@ -4871,10 +4871,11 @@ window.preloadDropdownDataCallback = function (resolve) {
       allPatientsList.forEach(p => { opts += `<option value="${p.id}">${p.id}${p.oldId ? ` / Old: ${p.oldId}` : ''} - ${p.fullname}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_patient').html(opts).trigger('change'); $('#pv_patient').html(opts).trigger('change'); }
     }),
-    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name,Contact_Name').limit(9999).then(({ data }) => {
+    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name').limit(9999).then(({ data, error }) => {
+      if (error) { console.warn('Organization dropdown preload failed:', error); return; }
       activeOrgsList = [];
       (data || []).forEach(r => {
-        let contact = r.Name || r.Contact_Name;
+        let contact = r.Name;
         let displayName = `${r.Org_Code} - ${r.Org_Name}`;
         if (contact) displayName += ` (${contact})`;
         activeOrgsList.push({ id: r.Org_ID, name: displayName });

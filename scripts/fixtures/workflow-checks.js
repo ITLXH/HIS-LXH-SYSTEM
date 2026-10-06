@@ -20,6 +20,7 @@ panel.querySelector('button').onclick = async () => {
     await window.doLogin();
     await until(() => location.pathname === '/dashboard' && document.getElementById('app-content').style.display !== 'none' && document.getElementById('view-dashboard').style.display !== 'none', 'login did not finish dashboard initialization');
     check(document.getElementById('sidebarUserName').textContent.includes('Workflow Test Admin'), 'actual login loads staff profile');
+    check(document.getElementById('a_org').textContent.includes('FIXTURE - Synthetic Organization (Synthetic Contact)'), 'login organization dropdown uses existing Name column');
     window.loadView('opd');
     await window.loadQueue();
     check(document.getElementById('queueTableBody').textContent.includes('Synthetic Patient'), 'OPD queue renders synthetic patient');

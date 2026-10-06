@@ -19,6 +19,7 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
       HIS_One_Patients: [{ Patient_ID: 'PTEST01', First_Name: 'Synthetic', Last_Name: 'Patient', Registration_Date: dateKey, Date_of_Birth: '1990-01-01', Gender: 'Male', Title: 'Mr' }],
       HIS_One_Visits: [{ Visit_ID: 'VTEST01', Patient_ID: 'PTEST01', Patient_Name: 'Synthetic Patient', Date: today.toISOString(), Status: 'Waiting OPD', Department: 'OPD', Visit_Type: 'OPD', Symptoms: 'Fixture only', Lab_Orders_JSON: '[]', Prescription_JSON: '[]' }],
       HIS_One_Settings: [{ Key: 'HospitalName', Value: 'Local Workflow Test Hospital' }],
+      HIS_One_Organizations: [{ Org_ID: 'ORGTEST01', Org_Code: 'FIXTURE', Org_Name: 'Synthetic Organization', Name: 'Synthetic Contact' }],
       HIS_One_MasterData: [{ ID: 1, Category: 'Department', Value: 'OPD' }],
       HIS_One_Result_Acknowledgments: [], lis_one_order_result_files: [],
       lis_one_test_orders: [{ order_id: 'OTEST01', patient_id: 'PTEST01', patient_name: 'Synthetic Patient', order_datetime: today.toISOString(), status: 'completed', test_name: 'Fixture Lab' }],
@@ -67,6 +68,9 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
     if (url.pathname.startsWith('/rest/v1/rpc/')) return json([]);
     if (url.pathname.startsWith('/rest/v1/')) {
       const table = decodeURIComponent(url.pathname.slice('/rest/v1/'.length));
+      if (table === 'HIS_One_Organizations' && (url.searchParams.get('select') || '').split(',').includes('Contact_Name')) {
+        return json({ code: '42703', message: 'column HIS_One_Organizations.Contact_Name does not exist' }, 400);
+      }
       if (state.failTable === table) return json({ code: '42501', message: 'Mock read failure' }, 403);
       const all = state.tables[table] ||= [];
       let rows = select(table, url.searchParams);
