@@ -41,6 +41,10 @@ import {
   sanitizeHisPagePermissions
 } from '../shared/his-permissions.js';
 
+import { createCoalescedRefresh } from './requestRefresh.js';
+import { createPatientLookupAjax } from './patientLookup.js';
+import { readPatientScopedRows, createConcurrentRead } from './clinicalReads.js';
+
 const SUPABASE_URL = "https://pzyrowzghrcfpmhkreag.supabase.co";
 
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6eXJvd3pnaHJjZnBtaGtyZWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MTI2NzcsImV4cCI6MjA5NzE4ODY3N30.aTIC9Ov8jo-WhdUTZ_bZswmOgauC53R7vjYGcUln8Q0";
@@ -61,7 +65,8 @@ async function fetchWithNetworkStatus(input, init = {}) {
 
   try {
     const response = await fetch(input, { ...init, signal });
-    window.setHisNetworkStatus?.(response.status >= 500 ? 'offline' : 'online');
+    // An endpoint's HTTP error is not evidence that the connection is offline.
+    if (response.ok) window.setHisNetworkStatus?.('online');
     return response;
   } catch (error) {
     if (timeoutSignal.aborted || error?.name === 'TypeError') {
@@ -248,7 +253,6 @@ let systemSettings = {
 };
 let servicesDataStore = [];
 let locationsDataStore = [];
-let allPatientsList = [];
 let vaccinesMasterList = [];
 let activeOrgsList = [];
 let drugsMasterList = [];
@@ -3388,12 +3392,18 @@ $(document).ready(async function () {
       }
     });
 
-    $('#a_patient').select2({ dropdownParent: $('#apptModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
+    const patientLookupAjax = createPatientLookupAjax({
+      client: supabaseClient, table: () => dbTable('Patients'), getSession: () => currentUser,
+      normalizeOldId: value => window.normalizePatientCode(value),
+    });
+    const patientLookupOptions = { ajax: patientLookupAjax, width: '100%',
+      language: { errorLoading: () => 'ບໍ່ສາມາດໂຫຼດຄົນເຈັບໄດ້ — ກະລຸນາຄົ້ນຫາອີກຄັ້ງ' } };
+    $('#a_patient').select2({ ...patientLookupOptions, dropdownParent: $('#apptModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
       let d = $(this).select2('data');
       if (d && d.length > 0 && d[0].id) {
         $('#a_target_id').val(d[0].id);
         let txt = d[0].text;
-        $('#a_target_name').val(txt.includes(' - ') ? txt.split(' - ')[1] : txt);
+        $('#a_target_name').val(d[0].patientName ?? (txt.includes(' - ') ? txt.slice(txt.indexOf(' - ') + 3) : txt));
       } else {
         $('#a_target_id').val('');
         $('#a_target_name').val('');
@@ -3412,12 +3422,12 @@ $(document).ready(async function () {
       }
     });
 
-    $('#pv_patient').select2({ dropdownParent: $('#patientVacModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
+    $('#pv_patient').select2({ ...patientLookupOptions, dropdownParent: $('#patientVacModal'), placeholder: "-- ຄົ້ນຫາຄົນເຈັບ --", allowClear: true }).on('change', function () {
       let d = $(this).select2('data');
       if (d && d.length > 0 && d[0].id) {
         $('#pv_patient_id').val(d[0].id);
         let txt = d[0].text;
-        $('#pv_patient_name').val(txt.includes(' - ') ? txt.split(' - ')[1] : txt);
+        $('#pv_patient_name').val(d[0].patientName ?? (txt.includes(' - ') ? txt.slice(txt.indexOf(' - ') + 3) : txt));
       } else {
         $('#pv_patient_id').val('');
         $('#pv_patient_name').val('');
@@ -3945,6 +3955,11 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  window.teardownManpowerReads?.();
+  window.resetClinicalReadDisplays?.();
+  window.resetClinicalAlertRefresh?.();
+  window.teardownPublicQueueView?.();
+  window.opdTestStopLisPolling?.();
   onlinePresence.stop();
   window.toggleLoading(true);
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
@@ -3965,6 +3980,11 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  window.teardownManpowerReads?.();
+  window.resetClinicalReadDisplays?.();
+  window.resetClinicalAlertRefresh?.();
+  window.teardownPublicQueueView?.();
+  window.opdTestStopLisPolling?.();
   onlinePresence.stop();
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
@@ -4402,7 +4422,7 @@ window.VIEW_CACHE_TTL_MS = 60_000;
 window.VIEW_LIVE = new Set([
   'dashboard', 'report', 'triage', 'opd',
   'opd_observation', 'opd_observation_list',
-  'ipd_ward_bed', 'ipd_chart', 'public-queue', 'backup'
+  'ipd_ward_bed', 'ipd_chart', 'public-queue', 'backup', 'manpower'
 ]);
 window.shouldLoadView = function (view, options = {}) {
   if (options && options.force) return true;
@@ -4464,6 +4484,7 @@ window.loadView = function (v, options = {}) {
     return;
   }
   v = routeTarget.view;
+  if (v !== 'manpower') window.teardownManpowerReads?.();
   document.body.classList.toggle('opd-test-workspace-active', v === 'opd_test');
   const _runLoad = (fn) => {
     if (window.shouldLoadView(v, options)) {
@@ -4512,6 +4533,7 @@ window.loadView = function (v, options = {}) {
     $('.content-wrapper').css('margin-left', '0');
     window.initPublicQueueView();
   } else {
+    window.teardownPublicQueueView?.();
     $('#partial-navbar').show();
     $('.main-sidebar').show();
     $('.content-wrapper').css('margin-left', '');
@@ -4596,15 +4618,15 @@ window.loadView = function (v, options = {}) {
 
   if (v === 'dashboard') {
     window.setDashRange('today');
-    dashRefreshInterval = setInterval(() => { window.fetchDashboardData(); window.checkAlerts(); }, 120000);
+    dashRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchDashboardData(); window.checkAlerts(); } }, 120000);
   }
   if (v === 'report') {
     window.setReportRange('today');
-    reportRefreshInterval = setInterval(() => { window.fetchReportData(); window.checkAlerts(); }, 120000);
+    reportRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchReportData(); window.checkAlerts(); } }, 120000);
   }
   if (v === 'visit_history') {
     window.setVisitHistoryRange('today');
-    reportRefreshInterval = setInterval(() => { window.fetchVisitHistoryData(); window.checkAlerts(); }, 120000);
+    reportRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchVisitHistoryData(); window.checkAlerts(); } }, 120000);
   }
 
   // Close menus
@@ -4695,13 +4717,22 @@ window.executePrint = function (containerId) {
   });
 };
 
+let lastAppointmentAlerts = [];
+let alertRefreshGeneration = 0;
+window.resetClinicalAlertRefresh = function () {
+  alertRefreshGeneration++;
+  lastAppointmentAlerts = [];
+};
 window.checkAlerts = async function () {
+  const generation = alertRefreshGeneration;
   const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
   const todayRange = window.getLocalDayIsoBounds(today);
-  const { data: appts } = await supabaseClient
+  const { data: appts, error: appointmentError } = await supabaseClient
     .from(dbTable('Appointments'))
     .select('Appt_ID,Patient_Name,Appt_Date,Appt_Time,Type,Status')
-    .eq('Status', 'Pending');
+    .eq('Status', 'Pending')
+    .then(result => result, error => ({ data: null, error }));
+  if (generation !== alertRefreshGeneration) return;
   const appointmentAlerts = [];
   (appts || []).forEach(r => {
     if (!r.Appt_Date) return;
@@ -4712,6 +4743,10 @@ window.checkAlerts = async function () {
     }
   });
   appointmentAlerts.sort((a, b) => a.daysOut - b.daysOut);
+  if (appointmentError) {
+    console.warn('Appointment alert load failed:', appointmentError);
+    appointmentAlerts.push(...lastAppointmentAlerts);
+  } else lastAppointmentAlerts = appointmentAlerts;
 
   const roomAlerts = [];
   try {
@@ -4723,6 +4758,7 @@ window.checkAlerts = async function () {
       .order('Date', { ascending: false })
       .limit(100);
     if (opdError) throw opdError;
+    if (generation !== alertRefreshGeneration) return;
     (opdRows || []).forEach(r => {
       if (!window.isOpdRoomMatch || !window.isOpdRoomMatch(r.Department)) return;
       const d = r.Date ? new Date(r.Date) : null;
@@ -4738,10 +4774,11 @@ window.checkAlerts = async function () {
     opdActiveRoomAlerts = roomAlerts;
   } catch (err) {
     console.warn('OPD room alert load failed:', err);
-    opdActiveRoomAlerts = [];
+    roomAlerts.push(...opdActiveRoomAlerts);
   }
 
   const lisResultAlerts = window.getLisResultNotificationAlerts?.() || [];
+  if (generation !== alertRefreshGeneration) return;
   (() => {
     const count = appointmentAlerts.length + roomAlerts.length + lisResultAlerts.length;
     let badge = $('#bell-count');
@@ -4834,19 +4871,17 @@ window.checkAlerts = async function () {
 };
 
 window.renderNotifications = function () { window.checkAlerts(); };
+window.checkAlerts = createCoalescedRefresh(window.checkAlerts, {
+  shouldRun: () => Boolean(currentUser) || window.isLocalOpdTestPreview?.(),
+});
 
 window.preloadDropdownDataCallback = function (resolve) {
   let promises = [
-    window.fetchSupabaseRows('Patients', { select: '*', orderBy: 'Patient_ID', ascending: false }).then((data) => {
-      allPatientsList = (data || []).map(p => ({ id: p.Patient_ID, oldId: window.normalizePatientCode(p.Old_Patient_ID || ''), fullname: `${p.First_Name || ''} ${p.Last_Name || ''}`.trim() }));
-      let opts = '<option value=""></option>';
-      allPatientsList.forEach(p => { opts += `<option value="${p.id}">${p.id}${p.oldId ? ` / Old: ${p.oldId}` : ''} - ${p.fullname}</option>`; });
-      if (typeof jQuery !== 'undefined') { $('#a_patient').html(opts).trigger('change'); $('#pv_patient').html(opts).trigger('change'); }
-    }),
-    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name,Contact_Name').limit(9999).then(({ data }) => {
+    supabaseClient.from(dbTable('Organizations')).select('Org_Code,Org_Name,Org_ID,Name').limit(9999).then(({ data, error }) => {
+      if (error) { console.warn('Organization dropdown preload failed:', error); return; }
       activeOrgsList = [];
       (data || []).forEach(r => {
-        let contact = r.Name || r.Contact_Name;
+        let contact = r.Name;
         let displayName = `${r.Org_Code} - ${r.Org_Name}`;
         if (contact) displayName += ` (${contact})`;
         activeOrgsList.push({ id: r.Org_ID, name: displayName });
@@ -4855,18 +4890,23 @@ window.preloadDropdownDataCallback = function (resolve) {
       activeOrgsList.forEach(o => { opts += `<option value="${o.id}">${o.name}</option>`; });
       if (typeof jQuery !== 'undefined') { $('#a_org').html(opts).trigger('change'); }
     }),
-    supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Drugs_Master')).select('Drug_ID,Drug_Name,Description').order('Drug_Name').then(({ data, error }) => {
+      if (error) { console.warn('Drug dropdown preload failed:', error); return; }
       drugsMasterList = (data || []).map(r => ({ id: r.Drug_ID, name: r.Drug_Name, desc: r.Description || '' }));
       let o = '<option value=""></option>';
       drugsMasterList.forEach(d => { o += `<option value="${d.name}">${d.name}${d.desc ? ' (' + d.desc + ')' : ''}</option>`; });
       if (typeof jQuery !== 'undefined') $('#emrAddDrugSelect').html(o).trigger('change');
     }),
-    supabaseClient.from(dbTable('Labs_Master')).select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data }) => {
+    supabaseClient.from(dbTable('Labs_Master')).select('Lab_ID,Lab_Name,Description').order('Lab_Name').then(({ data, error }) => {
+      if (error) { console.warn('Lab dropdown preload failed:', error); return; }
       labsMasterList = window.applyLabCategoriesToList((data || []).map(r => ({ id: r.Lab_ID, name: r.Lab_Name, desc: r.Description || '' })));
       if (document.getElementById('labCheckboxContainer')) window.renderEMRLabPicker();
     })
   ];
-  Promise.all(promises).then(() => resolve());
+  return Promise.allSettled(promises).then(results => {
+    results.forEach(result => { if (result.status === 'rejected') console.warn('Dropdown preload failed:', result.reason); });
+    resolve();
+  });
 }
 
 window.preloadDropdownData = function () { window.preloadDropdownDataCallback(function () { }); };
@@ -4910,6 +4950,48 @@ window.setDashShift = function (type) {
   window.fetchDashboardData();
 };
 
+window.clinicalReadGeneration = 0;
+window.clinicalLoadedRanges = {};
+window.resetClinicalReadDisplays = function () {
+  window.clinicalReadGeneration++;
+  window.viewLoadCache = {};
+  if (window.ipdWardBedState) Object.assign(window.ipdWardBedState, {
+    wards: [], rooms: [], beds: [], movements: [], admissions: [], medicationOrders: [], medicationAdministrations: [], specimenTasks: [], patientsById: {}, filteredBeds: [], filteredAdmissions: []
+  });
+  window.patientDetailReadSequence = (window.patientDetailReadSequence || 0) + 1;
+  Swal.close();
+  const closingSession = currentUser;
+  $('.modal').each(function () {
+    const modal = bootstrap.Modal.getInstance(this);
+    modal?.hide();
+    if (modal) {
+      // Backdrop animation can delay _showElement until after logout cleanup.
+      this.addEventListener('shown.bs.modal', () => {
+        if (!currentUser || currentUser === closingSession) modal.hide();
+      }, { once: true });
+    }
+    // Hide immediately even when Bootstrap is still completing a show animation.
+    $(this).removeClass('show').css('display', 'none').attr('aria-hidden', 'true').removeAttr('aria-modal');
+  });
+  $('.modal-backdrop').remove();
+  $('body').removeClass('modal-open').css({ overflow: '', paddingRight: '' });
+  $('#patientProfileModal [id^="view_p_"]').not('img, #view_p_photo_placeholder').text('—');
+  $('#view_p_photo').attr('src', '').hide();
+  $('#btn_edit_from_view').off('click');
+  window.resetIpdClinicalReadDisplay?.();
+  window.clinicalLoadedRanges = {};
+  for (const render of [window.renderDashboardCharts, window.renderReportPage, window.renderVisitHistoryPage]) {
+    try { render([]); } catch (error) { console.warn('Clinical display reset failed:', error); }
+  }
+  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp, #repObservation').text('—');
+  $('#dashRefreshTime, #repRefreshTime, #visitRefreshTime, #dashReportRangeLabel, #dashReportStartLabel, #dashReportEndLabel').text('—');
+  $('#a_patient, #pv_patient').empty().append(new Option('', '')).val(null).trigger('change');
+};
+window.clinicalReadFailureLabel = function (view, sDate, eDate) {
+  const loadedRange = window.clinicalLoadedRanges[view] || '—';
+  return `ໂຫຼດ ${sDate} - ${eDate} ບໍ່ສຳເລັດ; ຂໍ້ມູນທີ່ສະແດງ: ${loadedRange} — ກະລຸນາລອງອີກຄັ້ງ`;
+};
+
 window.fetchDashboardData = async function (rangeType) {
   let sDate = $('#dashStartDate').val();
   let eDate = $('#dashEndDate').val();
@@ -4937,14 +5019,12 @@ window.fetchDashboardData = async function (rangeType) {
   const activeShiftType = window.currentDashShiftType || 'all';
   const visitRange = window.getLocalDateRangeIsoBounds(sDate, eDate);
 
-  $('#dashReportStartLabel').text(sDate);
-  $('#dashReportEndLabel').text(eDate);
-  $('#dashRangePresetLabel').text(dashRangeLabels[activeRangeType] || dashRangeLabels.custom);
-  $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
-  $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
-  let d = new Date();
-  $('#dashRefreshTime').text(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  $('#dash-total, #dash-new, #dash-old, #dash-ins, #dash-corp').html(window.getHospitalDataLoaderHtml({ compact: true, detail: false }));
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#dashStartDate').val() === sDate && $('#dashEndDate').val() === eDate
+    && (window.currentDashShiftType || 'all') === activeShiftType;
 
   try {
     // 1. Fetch Visits with range (Strict Filtering)
@@ -4956,12 +5036,12 @@ window.fetchDashboardData = async function (rangeType) {
         .select('*')
         .gte('Date', visitRange.startIso)
         .lte('Date', visitRange.endIso)
+        .order('Date', { ascending: true })
+        .order('Visit_ID', { ascending: true })
         .range(startRange, startRange + 999);
       
-      if (error) { 
-        console.error('Dashboard Range Error:', error); 
-        break; 
-      }
+      if (error) throw error;
+      if (!isCurrent()) return;
       if (!chunk || chunk.length === 0) break;
       
       data = data.concat(chunk);
@@ -4987,17 +5067,10 @@ window.fetchDashboardData = async function (rangeType) {
     const pIds = [...new Set(data.map(v => v.Patient_ID).filter(id => !!id))];
     let pMap = {};
     if (pIds.length > 0) {
-      let pStart = 0;
-      while (true) {
-        const { data: pChunk, error: pError } = await supabaseClient.from(dbTable('Patients'))
-          .select('*')
-          .in('Patient_ID', pIds)
-          .range(pStart, pStart + 999);
-        if (pError || !pChunk || pChunk.length === 0) break;
-        pChunk.forEach(p => pMap[p.Patient_ID] = p);
-        if (pChunk.length < 1000) break;
-        pStart += 1000;
-      }
+      const patients = await readPatientScopedRows({ client: supabaseClient,
+        table: dbTable('Patients'), ids: pIds, select: '*', orderBy: 'Patient_ID' });
+      if (!isCurrent()) return;
+      patients.forEach(p => pMap[p.Patient_ID] = p);
     }
 
     // 3. Mark "New" vs "Returning" - Same logic as Triage & Report
@@ -5024,15 +5097,10 @@ window.fetchDashboardData = async function (rangeType) {
       });
       
       // Second: Check database for any other visits
-      for (let i = 0; i < pIds.length; i += 100) {
-        const chunkIds = pIds.slice(i, i + 100);
-        const { data: allPatientVisits, error: avError } = await supabaseClient
-          .from(dbTable('Visits'))
-          .select('Visit_ID, Patient_ID, Date')
-          .in('Patient_ID', chunkIds)
-          .order('Date', { ascending: true });
-        
-        if (avError || !allPatientVisits || allPatientVisits.length === 0) break;
+      {
+        const allPatientVisits = await readPatientScopedRows({ client: supabaseClient,
+          table: dbTable('Visits'), ids: pIds, select: 'Visit_ID,Patient_ID,Date', orderBy: 'Visit_ID' });
+        if (!isCurrent()) return;
         
         const currentVisitKeys = new Set(
           data.map(v => `${v.Patient_ID}|${v.Date}`)
@@ -5053,7 +5121,6 @@ window.fetchDashboardData = async function (rangeType) {
           }
         });
         
-        if (allPatientVisits.length < 1000) break;
       }
     }
 
@@ -5066,12 +5133,25 @@ window.fetchDashboardData = async function (rangeType) {
       };
     });
 
+    if (!isCurrent()) return;
+    window.clinicalLoadedRanges.dashboard = `${sDate} - ${eDate} / ${dashShiftLabels[activeShiftType] || dashShiftLabels.all}`;
+    $('#dashReportStartLabel').text(sDate);
+    $('#dashReportEndLabel').text(eDate);
+    $('#dashRangePresetLabel').text(dashRangeLabels[activeRangeType] || dashRangeLabels.custom);
+    $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
+    $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
+    $('#dashRefreshTime').text(`${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
     window.renderDashboardCharts(visitsWithDetails);
 
   } catch (err) {
     console.error(' Dashboard Error:', err);
+    if (isCurrent()) $('#dashRefreshTime').text(window.clinicalReadFailureLabel('dashboard', sDate, eDate));
   }
 };
+
+window.fetchDashboardData = createCoalescedRefresh(window.fetchDashboardData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-dashboard').is(':visible'),
+});
 
 window.updateDashboardOperationalStats = async function (sDate, eDate, visitsInRange) {
   try {
@@ -5696,7 +5776,7 @@ window.exportDashboardPDF = async function () {
     // Resume the dashboard auto-refresh we paused for the capture, and refresh
     // once so the charts reflect any data that arrived while frozen.
     clearInterval(dashRefreshInterval);
-    dashRefreshInterval = setInterval(() => { window.fetchDashboardData(); window.checkAlerts(); }, 120000);
+    dashRefreshInterval = setInterval(() => { if (!document.hidden) { window.fetchDashboardData(); window.checkAlerts(); } }, 120000);
     window.fetchDashboardData();
     Swal.close();
     if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
@@ -5726,12 +5806,11 @@ window.fetchReportData = function () {
   let sDate = $('#repStartDate').val();
   let eDate = $('#repEndDate').val();
   if (!sDate || !eDate) return;
-  let d = new Date();
-  $('#repRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  if ($.fn.DataTable.isDataTable('#reportTable')) { $('#reportTable').DataTable().destroy(); }
-  $('#reportTable tbody').html(window.getHospitalTableLoadingRow(9));
-  window._fetchReportData(sDate, eDate);
+  return window._fetchReportData(sDate, eDate);
 };
+window.fetchReportData = createCoalescedRefresh(window.fetchReportData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-report').is(':visible'),
+});
 
 // Pipeline helpers
 window.getPatientStage = function (visit) {
@@ -5857,6 +5936,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       .lte('Registration_Date', eDate)
       .not('Registration_Date', 'is', null)
       .order('Registration_Date', { ascending: false })
+      .order('Patient_ID', { ascending: true })
       .range(pStart, pStart + 999);
     if (pErr) throw pErr;
     if (!chunk || chunk.length === 0) break;
@@ -5875,6 +5955,7 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
       .lte('Date', visitRange.endIso)
       .not('Date', 'is', null)
       .order('Date', { ascending: false })
+      .order('Visit_ID', { ascending: true })
       .range(vStart, vStart + 999);
     if (vErr) throw vErr;
     if (!chunk || chunk.length === 0) break;
@@ -5892,11 +5973,9 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
 
   const extraPIds = [...new Set(visitsInRange.map(v => v.Patient_ID).filter(id => id && !patientMap[id]))];
   if (extraPIds.length > 0) {
-    for (let i = 0; i < extraPIds.length; i += 100) {
-      const chunk = extraPIds.slice(i, i + 100);
-      const { data: extra } = await supabaseClient.from(dbTable('Patients')).select('*').in('Patient_ID', chunk);
-      (extra || []).forEach(p => { patientMap[p.Patient_ID] = p; });
-    }
+    const extra = await readPatientScopedRows({ client: supabaseClient, table: dbTable('Patients'),
+      ids: extraPIds, select: '*', orderBy: 'Patient_ID' });
+    extra.forEach(p => { patientMap[p.Patient_ID] = p; });
   }
 
   const allPatients = Object.values(patientMap);
@@ -5914,15 +5993,9 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
     visitsByPatient[v.Patient_ID].push(v);
   });
 
-  for (let i = 0; i < allPIds.length; i += 100) {
-    const chunk = allPIds.slice(i, i + 100);
-    const { data: allV } = await supabaseClient.from(dbTable('Visits'))
-      .select('Patient_ID')
-      .in('Patient_ID', chunk);
-    const counts = {};
-    (allV || []).forEach(v => { counts[v.Patient_ID] = (counts[v.Patient_ID] || 0) + 1; });
-    Object.assign(visitCountMap, counts);
-  }
+  const allV = await readPatientScopedRows({ client: supabaseClient, table: dbTable('Visits'),
+    ids: allPIds, select: 'Patient_ID,Visit_ID', orderBy: 'Visit_ID' });
+  allV.forEach(v => { visitCountMap[v.Patient_ID] = (visitCountMap[v.Patient_ID] || 0) + 1; });
 
   return allPatients.map(p => {
     const candidateVisits = visitsByPatient[p.Patient_ID] || [];
@@ -5957,14 +6030,21 @@ window.buildPatientVisitSummaryData = async function (sDate, eDate) {
 };
 
 window._fetchReportData = async function (sDate, eDate) {
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#repStartDate').val() === sDate && $('#repEndDate').val() === eDate;
   try {
     const processed = await window.buildPatientVisitSummaryData(sDate, eDate);
+    if (!isCurrent()) return;
     window.renderReportPage(processed);
+    window.clinicalLoadedRanges.report = `${sDate} - ${eDate}`;
+    $('#repRefreshTime').text(`ອັບເດດ: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
     window.updateReportObservationStats(sDate, eDate);
   } catch (err) {
     console.error('Report Fetch Error:', err);
-    Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນລາຍງານໄດ້: ' + err.message, 'error');
-    window.renderReportPage([]);
+    if (isCurrent()) $('#repRefreshTime').text(window.clinicalReadFailureLabel('report', sDate, eDate));
   }
 };
 
@@ -6059,21 +6139,27 @@ window.fetchVisitHistoryData = function () {
   let eDate = $('#visitEndDate').val();
   if (!sDate || !eDate) return;
 
-  let d = new Date();
-  $('#visitRefreshTime').text(`ອັບເດດ: ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-  if ($.fn.DataTable.isDataTable('#visitHistoryTable')) $('#visitHistoryTable').DataTable().destroy();
-  $('#visitHistoryTable tbody').html(window.getHospitalTableLoadingRow(10, 'ກຳລັງໂຫຼດປະຫວັດ...'));
-  window._fetchVisitHistoryData(sDate, eDate);
+  return window._fetchVisitHistoryData(sDate, eDate);
 };
+window.fetchVisitHistoryData = createCoalescedRefresh(window.fetchVisitHistoryData, {
+  shouldRun: () => Boolean(currentUser) && $('#view-visit_history').is(':visible'),
+});
 
 window._fetchVisitHistoryData = async function (sDate, eDate) {
+  const requestUser = currentUser;
+  const requestGeneration = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && requestGeneration === window.clinicalReadGeneration
+    && $('#visitStartDate').val() === sDate && $('#visitEndDate').val() === eDate;
   try {
     const processed = await window.buildPatientVisitSummaryData(sDate, eDate);
+    if (!isCurrent()) return;
     window.renderVisitHistoryPage(processed.filter(r => r.latestVisit));
+    window.clinicalLoadedRanges.history = `${sDate} - ${eDate}`;
+    $('#visitRefreshTime').text(`ອັບເດດ: ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
   } catch (err) {
     console.error('Visit History Fetch Error:', err);
-    Swal.fire('Error', 'ບໍ່ສາມາດໂຫຼດຂໍ້ມູນປະຫວັດການກວດໄດ້: ' + err.message, 'error');
-    window.renderVisitHistoryPage([]);
+    if (isCurrent()) $('#visitRefreshTime').text(window.clinicalReadFailureLabel('history', sDate, eDate));
   }
 };
 
@@ -6664,17 +6750,21 @@ window.refreshPatientOrgDropdown = async function () {
 // PATIENT VIEW & DATA
 // ==========================================
 window.viewPatientDetail = async function (id) {
-  console.log("viewPatientDetail called for ID:", id);
+  const session = currentUser;
+  if (!session) return;
+  const generation = window.clinicalReadGeneration;
+  const sequence = window.patientDetailReadSequence = (window.patientDetailReadSequence || 0) + 1;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && sequence === window.patientDetailReadSequence;
   try {
     Swal.fire({ title: 'ກຳລັງດຶງຂໍ້ມູນ...', didOpen: () => Swal.showLoading() });
     const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
+    if (!isCurrent()) return;
     Swal.close();
     if (error || !data) {
       console.error("Fetch error:", error);
       return Swal.fire('Error', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
     }
 
-    console.log("Patient data fetched:", data);
 
     const fullname = `${data.Title || ''} ${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
     $('#view_p_name').text(fullname);
@@ -6710,7 +6800,6 @@ window.viewPatientDetail = async function (id) {
     $('#view_p_emer_contact').text(`${data.Emergency_Contact || ''} (${data.Emergency_Relation || ''})`);
 
     if (data.Photo_URL) {
-      console.log("Setting photo URL:", data.Photo_URL);
       $('#view_p_photo').attr('src', data.Photo_URL).show();
       $('#view_p_photo_placeholder').hide();
     } else {
@@ -6728,9 +6817,9 @@ window.viewPatientDetail = async function (id) {
       window.editPatient(id);
     });
 
-    console.log("Showing modal...");
     $('#patientProfileModal').modal('show');
   } catch (err) {
+    if (!isCurrent()) return;
     console.error("viewPatientDetail error:", err);
     Swal.fire('Error', 'ເກີດຂໍ້ຜິດພາດ: ' + err.message, 'error');
   }
@@ -6807,10 +6896,22 @@ window.applyPatientRegistryFilters = function (query, request) {
     }, builder);
   };
 
-  query = applyTokenFilter(query, request?.search?.value, [
-    'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
-    'Phone_Number', 'Name_Org', 'Insurance_Company'
-  ]);
+  const code = window.normalizePatientCode(request?.search?.value);
+  const fullCode = code.match(/^(LXH\d{4})-?(\d{6})$/);
+  if (fullCode) {
+    // HN searches must not scan names, phones and organizations with %term%.
+    const variants = [`${fullCode[1]}-${fullCode[2]}`, `${fullCode[1]}${fullCode[2]}`];
+    query = query.or(['Patient_ID', 'Old_Patient_ID'].flatMap(column =>
+      variants.map(value => `${column}.eq.${value}`)).join(','));
+  } else if (/^LXH\d{0,4}(?:-\d{0,5})?$/.test(code)) {
+    // Preserve prefix searches, including historical HNs stored as Old ID.
+    query = query.or(`Patient_ID.ilike.${code}%,Old_Patient_ID.ilike.${code}%`);
+  } else {
+    query = applyTokenFilter(query, request?.search?.value, [
+      'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
+      'Phone_Number', 'Name_Org', 'Insurance_Company'
+    ]);
+  }
   query = applyTokenFilter(query, request?.columns?.[3]?.search?.value, ['Old_Patient_ID']);
   query = applyTokenFilter(query, request?.columns?.[4]?.search?.value, ['First_Name', 'Last_Name']);
   query = applyTokenFilter(query, request?.columns?.[7]?.search?.value, ['Phone_Number']);
@@ -6853,6 +6954,11 @@ window.initPatientTable = function () {
   ];
   const displayText = value => escapeHisHtml(String(value ?? '').trim() || '-');
   const jsArg = value => encodeURIComponent(String(value ?? '')).replace(/'/g, '%27');
+  let registrySequence = 0;
+  let registryAbort = null;
+  let registryOwner = null;
+  let registryGeneration = null;
+  let lastRegistryPage = null;
 
   const patientTable = $('#patientTable').DataTable({
     responsive: true,
@@ -6863,24 +6969,47 @@ window.initPatientTable = function () {
     lengthMenu: [[10, 25, 50], [10, 25, 50]],
     order: [[2, 'desc']],
     ajax: async function (request, callback) {
+      const sequence = ++registrySequence;
+      registryAbort?.abort();
+      const controller = new AbortController();
+      registryAbort = controller;
+      const session = currentUser;
+      const generation = window.clinicalReadGeneration;
+      const isCurrent = () => sequence === registrySequence && session === currentUser
+        && generation === window.clinicalReadGeneration;
+      if (registryOwner !== session || registryGeneration !== generation) {
+        window.__patientRegistryTotalCount = null;
+        lastRegistryPage = null;
+        registryOwner = session;
+        registryGeneration = generation;
+      }
       const pageSize = Math.min(Math.max(Number(request.length) || 10, 10), 50);
       const rangeStart = Math.max(Number(request.start) || 0, 0);
       const orderIndex = Number(request?.order?.[0]?.column ?? 2);
       const orderColumn = sortColumns[orderIndex] || 'Patient_ID';
       const ascending = request?.order?.[0]?.dir === 'asc';
       const hasFilters = window.patientRegistryHasFilters(request);
+      const pageKey = JSON.stringify([
+        String(request.search?.value || ''), request.columns?.map(column => String(column.search?.value || '')),
+        orderColumn, ascending, rangeStart, pageSize,
+        $('#patientDateFrom').val(), $('#patientDateTo').val()
+      ]);
 
       try {
+        const needsCount = hasFilters || window.__patientRegistryTotalCount === null;
         let pageQuery = supabaseClient.from(dbTable('Patients'))
-          .select(selectFields, { count: 'exact' });
+          .select(selectFields, needsCount ? { count: 'exact' } : {})
+          .abortSignal(controller.signal);
         pageQuery = window.applyPatientRegistryFilters(pageQuery, request)
           .order(orderColumn, { ascending, nullsFirst: false })
           .range(rangeStart, rangeStart + pageSize - 1);
 
         const totalQuery = window.__patientRegistryTotalCount === null && hasFilters
           ? supabaseClient.from(dbTable('Patients')).select('Patient_ID', { head: true, count: 'exact' })
+            .abortSignal(controller.signal)
           : Promise.resolve(null);
         const [pageResult, totalResult] = await Promise.all([pageQuery, totalQuery]);
+        if (!isCurrent()) return;
         if (pageResult.error) throw pageResult.error;
         if (totalResult?.error) console.warn('Patient total count could not be loaded:', totalResult.error);
 
@@ -6891,9 +7020,10 @@ window.initPatientTable = function () {
         } catch (visitCountError) {
           console.warn('Patient visit counts could not be loaded:', visitCountError);
         }
+        if (!isCurrent()) return;
         rows.forEach(row => { row.__visitCount = Number(visitCounts[row.Patient_ID] || 0); });
 
-        const filteredCount = Number(pageResult.count || 0);
+        const filteredCount = needsCount ? Number(pageResult.count || 0) : window.__patientRegistryTotalCount;
         if (!hasFilters) window.__patientRegistryTotalCount = filteredCount;
         else if (totalResult && !totalResult.error) window.__patientRegistryTotalCount = Number(totalResult.count || 0);
         const totalCount = window.__patientRegistryTotalCount ?? filteredCount;
@@ -6901,20 +7031,26 @@ window.initPatientTable = function () {
           .removeClass('alert alert-danger py-2 small patient-fast-load-note')
           .empty()
           .hide();
-        callback({
+        const response = {
           draw: Number(request.draw) || 0,
           recordsTotal: totalCount,
           recordsFiltered: filteredCount,
           data: rows
-        });
+        };
+        lastRegistryPage = { key: pageKey, response };
+        callback(response);
       } catch (err) {
+        if (!isCurrent()) return;
         console.error('Error loading patients:', err);
         $('#patientLoadAllNotice')
           .removeClass('patient-fast-load-note')
           .addClass('alert alert-danger py-2 small')
           .html(`<i class="fas fa-exclamation-circle me-1"></i>${window.t('patients.loadError')}: ${escapeHisHtml(err?.message || 'Unknown error')}`)
           .show();
-        callback({ draw: Number(request.draw) || 0, recordsTotal: 0, recordsFiltered: 0, data: [] });
+        // Retain a successful page only when every search/date/page still matches.
+        const previous = lastRegistryPage?.key === pageKey ? lastRegistryPage.response : null;
+        callback(previous ? { ...previous, draw: Number(request.draw) || 0 }
+          : { draw: Number(request.draw) || 0, recordsTotal: 0, recordsFiltered: 0, data: [] });
       }
     },
     columns: [
@@ -8140,7 +8276,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
         .order('Date', { ascending: false })
         .range(startRange, startRange + 999);
 
-      if (error) { console.error("OPD Fetch Range Error:", error); break; }
+      if (error) throw error;
       if (!chunk || chunk.length === 0) break;
       visitsInRange = visitsInRange.concat(chunk);
       if (chunk.length < 1000) break;
@@ -8155,11 +8291,12 @@ window._fetchOpdQueue = async function (sDate, eDate) {
       
       // Recover ONLY active patients from TODAY who might be "lost"
       // We filter by today's date to avoid showing old records
-      const { data: visitsActive } = await supabaseClient.from(dbTable('Visits'))
+      const { data: visitsActive, error: activeError } = await supabaseClient.from(dbTable('Visits'))
         .select('*')
         .in('Status', ['Waiting OPD', 'Calling OPD', 'Waiting Lab', 'Calling Lab', 'Triage', 'Waiting Triage'])
         .order('Date', { ascending: false })
         .limit(200);
+      if (activeError) throw activeError;
 
       // Filter fallback results to TODAY only
       const today = sDate;
@@ -8216,12 +8353,13 @@ window._fetchOpdQueue = async function (sDate, eDate) {
           .in('Patient_ID', chunkIds);
         // Compatibility fallback for installations whose Patients table has not
         // added the optional insurance columns yet. The queue must still load.
-        if (patientResponse.error) {
+        if (patientResponse.error && ['42703', 'PGRST204'].includes(patientResponse.error.code)) {
           console.warn('OPD payer columns are unavailable; loading legacy patient fields.', patientResponse.error);
           patientResponse = await supabaseClient.from(dbTable('Patients'))
             .select(patientFields)
             .in('Patient_ID', chunkIds);
         }
+        if (patientResponse.error) throw patientResponse.error;
         const patients = patientResponse.data;
         if (patients) patients.forEach(p => pMap[p.Patient_ID] = p);
       }
@@ -8362,7 +8500,7 @@ window._fetchOpdQueue = async function (sDate, eDate) {
     });
   } catch (err) {
     console.error("OPD Overall Fetch Error:", err);
-    return [];
+    throw err;
   }
 };
 
@@ -9822,6 +9960,12 @@ window.convertObservationToIpd = async function (observationId) {
 
 window.updateReportObservationStats = async function (sDate, eDate) {
   if (!$('#repObservation').length) return;
+  const requestUser = currentUser;
+  const generation = window.clinicalReadGeneration;
+  const isCurrent = () => Boolean(requestUser) && currentUser === requestUser
+    && generation === window.clinicalReadGeneration
+    && $('#repStartDate').val() === sDate && $('#repEndDate').val() === eDate;
+  $('#repObservation').text('—');
   try {
     const range = window.getLocalDateRangeIsoBounds(sDate, eDate);
     const { count, error } = await window.obsFrom(OPD_OBSERVATION_TABLE)
@@ -9829,10 +9973,10 @@ window.updateReportObservationStats = async function (sDate, eDate) {
       .gte('start_datetime', range.startIso)
       .lte('start_datetime', range.endIso);
     if (error) throw error;
-    $('#repObservation').text(count || 0);
+    if (isCurrent()) $('#repObservation').text(count || 0);
   } catch (err) {
     console.warn('Report observation stat failed:', err);
-    $('#repObservation').text('0');
+    if (isCurrent()) $('#repObservation').text('—');
   }
 };
 
@@ -9841,8 +9985,13 @@ window.updateReportObservationStats = async function (sDate, eDate) {
 // ============================================================
 let opdQueueChannel = null;
 let opdQueuePollInterval = null;
+let opdQueueGeneration = 0;
+let opdQueueRealtimeReady = false;
+let opdQueuePollRunning = false;
+let opdQueueLastPollAt = 0;
 let lisResultPollInterval = null;
 let lisResultPollRunning = false;
+let lisResultGeneration = 0;
 let lisResultNotificationsSeeded = false;
 const lisNotifiedResultFileIds = new Set();
 let lisReadResultFileIds = new Set();
@@ -9908,7 +10057,7 @@ window.isWaitingOpdStatus = function (status) {
   return window.normalizeVisitStatus(status) === 'Waiting OPD';
 };
 
-window.seedOpdNotifiedVisits = async function () {
+window.seedOpdNotifiedVisits = async function (generation = opdQueueGeneration) {
   opdNotifiedVisitIds.clear();
   try {
     const { data } = await supabaseClient.from(dbTable('Visits'))
@@ -9918,6 +10067,7 @@ window.seedOpdNotifiedVisits = async function () {
     // Mark every currently-waiting visit as already notified so the doctor
     // doesn't get a flood of toasts on login; new arrivals after this point
     // still alert exactly once via realtime / poll.
+    if (generation !== opdQueueGeneration) return;
     (data || []).forEach(r => {
       if (r.Visit_ID && window.isOpdRoomMatch(r.Department)) opdNotifiedVisitIds.add(r.Visit_ID);
     });
@@ -9943,7 +10093,11 @@ window.handleOpdQueueNotification = function (row) {
   if (typeof window.checkAlerts === 'function') window.checkAlerts();
 };
 
-window.pollOpdQueueNotifications = async function () {
+window.pollOpdQueueNotifications = async function (options = {}) {
+  if (opdQueuePollRunning) return;
+  if (!options.force && opdQueueRealtimeReady && Date.now() - opdQueueLastPollAt < 60000) return;
+  const generation = opdQueueGeneration;
+  opdQueuePollRunning = true;
   try {
     const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
     const todayRange = window.getLocalDayIsoBounds(today);
@@ -9955,6 +10109,8 @@ window.pollOpdQueueNotifications = async function () {
       .order('Date', { ascending: false })
       .limit(100);
     if (error) throw error;
+    if (generation !== opdQueueGeneration) return;
+    opdQueueLastPollAt = Date.now();
     const rows = data || [];
     // Drop tracking for visits no longer in the queue, so a re-queued visit
     // (same Visit_ID re-entering 'Waiting OPD') alerts again as a fresh arrival.
@@ -9965,10 +10121,16 @@ window.pollOpdQueueNotifications = async function () {
     rows.reverse().forEach(row => window.handleOpdQueueNotification(row));
   } catch (e) {
     console.warn('OPD notification poll failed:', e);
+  } finally {
+    if (generation === opdQueueGeneration) opdQueuePollRunning = false;
   }
 };
 
 window.setupOpdQueueRealtime = async function () {
+  const generation = ++opdQueueGeneration;
+  opdQueueRealtimeReady = false;
+  opdQueuePollRunning = false;
+  opdQueueLastPollAt = 0;
   if (opdQueueChannel) {
     try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
     opdQueueChannel = null;
@@ -9979,22 +10141,31 @@ window.setupOpdQueueRealtime = async function () {
   }
 
   // Seed with currently-existing "Waiting OPD" visit IDs so we only notify on NEW arrivals
-  await window.seedOpdNotifiedVisits();
+  await window.seedOpdNotifiedVisits(generation);
+  if (generation !== opdQueueGeneration) return;
 
   opdQueueChannel = supabaseClient.channel('opd-queue-notifications')
     .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
+      if (generation !== opdQueueGeneration) return;
       const row = payload.new || payload.old;
       if (!row) return;
       if ($('#view-opd').is(':visible')) window.loadQueue();
       window.handleOpdQueueNotification(row);
     })
-    .subscribe();
+    .subscribe(status => {
+      if (generation !== opdQueueGeneration) return;
+      opdQueueRealtimeReady = status === 'SUBSCRIBED';
+      if (opdQueueRealtimeReady) void window.pollOpdQueueNotifications({ force: true });
+    });
 
-  // Realtime can be unavailable depending on Supabase project settings; poll as a quiet fallback.
+  // Reconcile every minute while connected; retain the 15-second fallback on disconnect.
   opdQueuePollInterval = setInterval(window.pollOpdQueueNotifications, 15000);
 };
 
 window.teardownOpdQueueRealtime = function () {
+  opdQueueGeneration++;
+  opdQueueRealtimeReady = false;
+  opdQueuePollRunning = false;
   if (opdQueueChannel) {
     try { supabaseClient.removeChannel(opdQueueChannel); } catch (e) {}
     opdQueueChannel = null;
@@ -10151,7 +10322,7 @@ window.lisResultAcknowledgmentUserId = function () {
   return String(currentUser?.id || currentUser?.name || currentUser?.role || '').trim();
 };
 
-window.loadLisResultAcknowledgments = async function () {
+window.loadLisResultAcknowledgments = async function (generation = lisResultGeneration) {
   const userId = window.lisResultAcknowledgmentUserId();
   if (!userId || window.isLocalOpdTestPreview?.()) {
     window.loadLisResultReadState();
@@ -10167,6 +10338,7 @@ window.loadLisResultAcknowledgments = async function () {
     .eq('Acknowledged_By', userId)
     .order('Acknowledged_At', { ascending: false })
     .limit(1000);
+  if (generation !== lisResultGeneration) return;
   if (error) {
     lisResultAcknowledgmentPersistence = 'unavailable';
     console.error('Result acknowledgement table unavailable:', error);
@@ -10397,14 +10569,17 @@ window.enrichLisResultFiles = async function (files) {
   }));
 };
 
-window.seedLisResultNotifications = async function () {
+window.seedLisResultNotifications = async function (generation = lisResultGeneration) {
   lisNotifiedResultFileIds.clear();
-  await window.loadLisResultAcknowledgments();
+  await window.loadLisResultAcknowledgments(generation);
+  if (generation !== lisResultGeneration) return;
   const files = await window.fetchRecentLisResultFiles(200);
+  if (generation !== lisResultGeneration) return;
   files.forEach(file => {
     if (file?.id != null) lisNotifiedResultFileIds.add(String(file.id));
   });
   const enrichedFiles = await window.enrichLisResultFiles(files);
+  if (generation !== lisResultGeneration) return;
   const recentCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
   lisActiveResultAlerts = enrichedFiles
     .map(file => window.normalizeLisResultNotification(file))
@@ -10425,37 +10600,44 @@ window.seedLisResultNotifications = async function () {
 
 window.pollLisResultNotifications = async function () {
   if (!window.isLisResultNotificationRecipient() || lisResultPollRunning) return;
+  const generation = lisResultGeneration;
   lisResultPollRunning = true;
   try {
     if (!lisResultNotificationsSeeded) {
-      await window.seedLisResultNotifications();
+      await window.seedLisResultNotifications(generation);
       return;
     }
     const files = await window.fetchRecentLisResultFiles(100);
+    if (generation !== lisResultGeneration) return;
     const newFiles = files.filter(file => file?.id != null && !lisNotifiedResultFileIds.has(String(file.id)));
     if (!newFiles.length) return;
     const enrichedFiles = await window.enrichLisResultFiles(newFiles);
+    if (generation !== lisResultGeneration) return;
     window.handleLisResultNotificationFiles(enrichedFiles, { source: 'global-poll' });
   } catch (error) {
     console.warn('LIS result notification poll failed:', error);
   } finally {
-    lisResultPollRunning = false;
+    if (generation === lisResultGeneration) lisResultPollRunning = false;
   }
 };
 
 window.setupLisResultNotifications = async function () {
   window.teardownLisResultNotifications();
+  const generation = lisResultGeneration;
   if (!window.isLisResultNotificationRecipient()) return;
   window.requestOpdNotificationPermission?.();
   try {
-    await window.seedLisResultNotifications();
+    await window.seedLisResultNotifications(generation);
   } catch (error) {
     console.warn('Unable to seed LIS result notifications:', error);
   }
-  lisResultPollInterval = window.setInterval(window.pollLisResultNotifications, 30000);
+  if (generation === lisResultGeneration && window.isLisResultNotificationRecipient()) {
+    lisResultPollInterval = window.setInterval(window.pollLisResultNotifications, 30000);
+  }
 };
 
 window.teardownLisResultNotifications = function () {
+  lisResultGeneration++;
   if (lisResultPollInterval) window.clearInterval(lisResultPollInterval);
   lisResultPollInterval = null;
   lisResultPollRunning = false;
@@ -10537,13 +10719,16 @@ window.renderOpdQueueOrderBadges = function (row, index) {
 
 window.loadQueue = async function () {
   try {
+    const requestUser = currentUser;
     let sDate = $('#opdStartDate').val();
     let eDate = $('#opdEndDate').val();
-    if ($.fn.DataTable.isDataTable('#queueTable')) $('#queueTable').DataTable().destroy();
-    $('#queueTableBody').html(window.getHospitalTableLoadingRow(11));
+    const requestRoom = window.getOpdMyRoom();
+    if (!queueDataStore.length) $('#queueTableBody').html(window.getHospitalTableLoadingRow(11));
     window.populateOpdMyRoomFilter();
 
     const allQueueRows = await window._fetchOpdQueue(sDate, eDate);
+    if (requestUser !== currentUser || sDate !== $('#opdStartDate').val()
+      || eDate !== $('#opdEndDate').val() || requestRoom !== window.getOpdMyRoom()) return;
     const myRoom = window.getOpdMyRoom();
     const q = myRoom
       ? (allQueueRows || []).filter(r => window.isOpdRoomMatch(r.department, myRoom))
@@ -10628,6 +10813,8 @@ window.loadQueue = async function () {
       });
     }
     $('#queueTableBody').html(h);
+    $('#queueTableBody').removeAttr('title');
+    $('#opdQueueRefreshNotice').remove();
     $('#queueTable').DataTable({
       responsive: true,
       autoWidth: false,
@@ -10650,9 +10837,17 @@ window.loadQueue = async function () {
   } catch (err) {
     console.error("Critical loadQueue Error:", err);
     let msg = escapeHisHtml(err.message || "Unknown error");
-    $('#queueTableBody').html(`<tr><td colspan="11" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
+    if (queueDataStore.length) {
+      $('#queueTableBody').attr('title', `Refresh failed; showing previous queue: ${err.message || 'Unknown error'}`);
+      $('#opdQueueRefreshNotice').remove();
+      $('#queueTable').before(`<div id="opdQueueRefreshNotice" class="alert alert-warning py-2" role="status">ອັບເດດຄິວບໍ່ສຳເລັດ; ກຳລັງສະແດງຂໍ້ມູນຄັ້ງກ່ອນ. <small>${msg}</small></div>`);
+    } else $('#queueTableBody').html(`<tr><td colspan="11" class="text-center py-4 text-danger">ເກີດຂໍ້ຜິດພາດໃນການໂຫຼດຂໍ້ມູນ: <br><small>${msg}</small></td></tr>`);
   }
 };
+
+window.loadQueue = createCoalescedRefresh(window.loadQueue, {
+  shouldRun: () => Boolean(currentUser) && $('#view-opd').is(':visible'),
+});
 
 window.viewEMR = function (i) {
   const q = queueDataStore[i];
@@ -11894,6 +12089,7 @@ window.exportCoverPageAsPdf = async function (suffix, prefix) {
 
 window.openApptModal = function () {
   $('#apptForm')[0].reset();
+  $('#a_patient').val(null).trigger('change');
   $('#typePatient').prop('checked', true);
   window.toggleApptCustomerType();
   $('#a_id').val('');
@@ -15163,8 +15359,22 @@ window.exportActivityLogCSV = function () {
 // PUBLIC QUEUE & VOICE CALL
 // ==========================================
 let publicQueueChannel = null;
+let publicQueueClock = null;
+let publicQueueGeneration = 0;
+
+window.teardownPublicQueueView = function () {
+  publicQueueGeneration++;
+  if (publicQueueClock) clearInterval(publicQueueClock);
+  publicQueueClock = null;
+  if (publicQueueChannel) {
+    void supabaseClient.removeChannel(publicQueueChannel);
+    publicQueueChannel = null;
+  }
+};
 
 window.initPublicQueueView = async function () {
+  window.teardownPublicQueueView();
+  const generation = publicQueueGeneration;
   console.log("Initializing Public Queue View...");
 
   $('#tvOpdList, #tvTriageList').html(window.getHospitalDataLoaderHtml({ compact: true }));
@@ -15173,7 +15383,7 @@ window.initPublicQueueView = async function () {
   $('#tvHospitalName').text(systemSettings.hospitalName || "HIS HOSPITAL");
   
   // Update Clock
-  setInterval(() => {
+  publicQueueClock = setInterval(() => {
     let now = new Date();
     $('#tvClock').text(now.toLocaleTimeString('en-GB', { hour12: false }));
     $('#tvDate').text(now.toLocaleDateString('lo-LA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
@@ -15187,6 +15397,7 @@ window.initPublicQueueView = async function () {
   
   publicQueueChannel = supabaseClient.channel('public-queue-updates')
     .on('postgres_changes', { event: '*', schema: 'public', table: dbTable('Visits') }, payload => {
+      if (generation !== publicQueueGeneration || !$('#view-public-queue').is(':visible')) return;
       console.log('Queue Change Detected:', payload);
       window.refreshPublicQueueDisplay();
       
@@ -15199,6 +15410,8 @@ window.initPublicQueueView = async function () {
 };
 
 window.refreshPublicQueueDisplay = async function () {
+  if (!$('#view-public-queue').is(':visible')) return;
+  const generation = publicQueueGeneration;
   let today = window.getLocalStr(new Date());
   const todayRange = window.getLocalDayIsoBounds(today);
   const { data: visits, error } = await supabaseClient.from(dbTable('Visits'))
@@ -15208,6 +15421,7 @@ window.refreshPublicQueueDisplay = async function () {
     .order('Date', { ascending: true });
 
   if (error) return console.error('refreshPublicQueueDisplay error:', error);
+  if (generation !== publicQueueGeneration || !$('#view-public-queue').is(':visible')) return;
 
   let opdWait = [];
   let triageWait = [];
@@ -15217,7 +15431,7 @@ window.refreshPublicQueueDisplay = async function () {
     if (v.Status === 'Waiting OPD' || v.Status === 'Calling OPD') opdWait.push(v);
     else if (v.Status === 'Triage' || v.Status === 'Calling Triage') triageWait.push(v);
     
-    if (v.Status.startsWith('Calling')) callingNow = v;
+    if (String(v.Status || '').startsWith('Calling')) callingNow = v;
   });
 
   // Update Calling Now Card
@@ -15269,6 +15483,10 @@ window.refreshPublicQueueDisplay = async function () {
   });
   $('#tvTriageList').html(triageHtml || '<p class="text-center opacity-30 mt-5">ບໍ່ມີຄິວລໍຖ້າ</p>');
 };
+
+window.refreshPublicQueueDisplay = createCoalescedRefresh(window.refreshPublicQueueDisplay, {
+  shouldRun: () => $('#view-public-queue').is(':visible'),
+});
 
 window.triggerPublicCall = async function (visitId, cn, dept) {
   console.log(`Calling Patient ID: ${cn} to ${dept}`);
@@ -18967,8 +19185,12 @@ window.ipdDeleteClinical = async function (tableName, idColumn, id) {
 };
 
 window.fetchIpdClinicalData = async function (admissionId) {
+  const session = currentUser;
+  const generation = window.clinicalReadGeneration;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && String(window.ipdCurrentChartAdmissionId) === String(admissionId);
   if (!window.ipdWardBedState.admissions.length) {
     await window.fetchIpdWardBedData();
+    if (!isCurrent()) return null;
     window.prepareIpdUnfilteredState();
   }
   const admission = window.ipdWardBedState.admissions.find(a => String(a.Admission_ID) === String(admissionId));
@@ -19007,12 +19229,13 @@ window.fetchIpdClinicalData = async function (admissionId) {
     window.ipdLoadProviders()
   ]);
 
-  if (visitsRes.error) console.warn('IPD linked visits/LIS load error:', visitsRes.error);
+  if (!isCurrent()) return null;
+  if (visitsRes.error) throw visitsRes.error;
 
   window.ipdClinicalState = {
     admissionId,
     admission,
-    visits: visitsRes.error ? [] : (visitsRes.data || []),
+    visits: visitsRes.data || [],
     doctorNotes,
     nursingNotes,
     vitals,
@@ -19036,16 +19259,42 @@ window.fetchIpdClinicalData = async function (admissionId) {
   return window.ipdClinicalState;
 };
 
+const readIpdClinicalData = createConcurrentRead(window.fetchIpdClinicalData, () => currentUser);
+window.fetchIpdClinicalData = admissionId => readIpdClinicalData(`${window.clinicalReadGeneration}|${admissionId}`, admissionId);
+
+window.resetIpdClinicalReadDisplay = function () {
+  window.ipdClinicalState = { admissionId: null, admission: null, visits: [], doctorNotes: [], nursingNotes: [], vitals: [], medicationOrders: [], medicationAdministrations: [], specimenTasks: [], radiology: [], procedures: [], billing: [], dischargeSummary: null, rounds: [], providers: [], movements: [], timelineFilter: 'all', timelineLimit: 200 };
+  window.ipdCurrentChartAdmissionId = null;
+  window.ipdActiveVisitId = null;
+  window.ipdCurrentChartReadOnly = true;
+  window.clearInterval(window.ipdCareTaskClock);
+  window.ipdCareTaskClock = null;
+  chartInstances.ipdVitalsTrendChart?.destroy();
+  chartInstances.ipdVitalsTrendChart = null;
+  $('#ipdChartSummaryPanel, #ipdClinicalSnapshot, #ipdCareTaskAlerts, #ipdPatientTimeline, #ipdMedicationAdministrationsList, #ipdSpecimenTasksList, #ipdVitalsList, #ipdDoctorNotesList, #ipdNursingNotesList, #ipdMedicationOrdersList, #ipdVisitsList, #ipdLabResultsList, #ipdRadiologyList, #ipdProceduresList, #ipdChartSummaryContent, #ipdDischargeSummaryView').empty();
+  $('#ipdChartSubtitle').text('—');
+  $('#ipdCareTaskDueCount').text('—');
+  $('#ipdChartReadOnlyBanner').remove();
+};
+
 window.loadIpdClinicalChart = async function (admissionId) {
   if (!admissionId) return;
+  if (String(window.ipdClinicalState.admissionId || '') !== String(admissionId)) window.resetIpdClinicalReadDisplay();
+  const session = currentUser;
+  const generation = window.clinicalReadGeneration;
   window.ipdCurrentChartAdmissionId = admissionId;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && String(window.ipdCurrentChartAdmissionId) === String(admissionId);
   $('#ipdChartSummaryPanel').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData'), compact: true }));
   try {
-    await window.fetchIpdClinicalData(admissionId);
+    const data = await window.fetchIpdClinicalData(admissionId);
+    if (!data || !isCurrent()) return;
     window.renderIpdChartPage(admissionId);
   } catch (err) {
+    if (!isCurrent()) return;
     console.error('IPD chart load error:', err);
-    $('#ipdChartSummaryPanel').html(`<div class="alert alert-danger mb-0">${window.ipdEscape(err.message || err)}</div>`);
+    const retained = String(window.ipdClinicalState.admissionId || '') === String(admissionId)
+      ? ' — ຂໍ້ມູນດ້ານລຸ່ມແມ່ນຈາກການໂຫຼດສຳເລັດຄັ້ງກ່ອນ; ກະລຸນາລອງໂຫຼດອີກຄັ້ງ' : '';
+    $('#ipdChartSummaryPanel').html(`<div class="alert alert-danger mb-0">${window.ipdEscape(err.message || err)}${retained}</div>`);
   }
 };
 
@@ -20981,12 +21230,29 @@ window.opdTestLisRequest = async function (path, payload) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body.success === false) {
-      throw new Error(body.error || `LIS request failed (${response.status})`);
+      const error = new Error(typeof body.error === 'string' ? body.error
+        : body.error?.message || `LIS request failed (${response.status})`);
+      error.status = response.status;
+      error.code = body.error?.code || body.code;
+      throw error;
     }
     return body;
   } finally {
     window.clearTimeout(timeout);
   }
+};
+const sharedLisRead = createConcurrentRead(window.opdTestLisRequest, () => currentUser);
+const unsharedLisRequest = window.opdTestLisRequest;
+window.opdTestLisRequest = function (path, payload) {
+  const readTables = ['lis_one_test_orders', 'lis_one_order_result_files'];
+  const readFields = ['table', 'select', 'filter', 'order', 'limit'];
+  if (path !== '/api/data' || !readTables.includes(payload?.table)
+      || Object.keys(payload || {}).some(key => !readFields.includes(key))) {
+    return unsharedLisRequest(path, payload);
+  }
+  const key = JSON.stringify([window.opdTestLisApiBase(), path,
+    Object.fromEntries(Object.entries(payload).sort(([a], [b]) => a.localeCompare(b)))]);
+  return sharedLisRead(key, path, payload);
 };
 
 window.opdTestLisFileKey = function (file) {
@@ -21178,9 +21444,14 @@ window.opdTestNotifyNewLisResults = function (files) {
 window.opdTestFetchLisResults = async function (options = {}) {
   const root = document.getElementById('view-opd_test');
   const state = window.opdTestState;
+  const selectedVisit = window.opdTestSelectedVisit;
+  const requestUser = currentUser;
   const patientId = window.opdTestLisPatientId();
   const visitDateKey = window.opdTestLisVisitDateKey();
   const resultScopeKey = `${patientId}:${visitDateKey}`;
+  const isCurrentRequest = () => selectedVisit === window.opdTestSelectedVisit
+    && requestUser === currentUser && state.lisFetchToken === requestToken
+    && resultScopeKey === `${window.opdTestLisPatientId()}:${window.opdTestLisVisitDateKey()}`;
   if (!root || root.style.display === 'none' || !patientId || state.lisFetchInFlight) return;
 
   if (state.lisResultPatientId !== resultScopeKey) {
@@ -21191,6 +21462,8 @@ window.opdTestFetchLisResults = async function (options = {}) {
   }
 
   state.lisFetchInFlight = true;
+  const requestToken = {};
+  state.lisFetchToken = requestToken;
   window.opdTestRenderLisResults({ loading: true });
   try {
     const orderResponse = await window.opdTestLisRequest('/api/data', {
@@ -21200,6 +21473,7 @@ window.opdTestFetchLisResults = async function (options = {}) {
       order: 'order_datetime.desc',
       limit: 80
     });
+    if (!isCurrentRequest()) return;
     const orders = (Array.isArray(orderResponse.data) ? orderResponse.data : [])
       .filter(order => window.getLocalDateKey(order?.order_datetime) === visitDateKey);
     const safeOrderIds = orders
@@ -21230,6 +21504,7 @@ window.opdTestFetchLisResults = async function (options = {}) {
       order: orderById.get(String(file.order_id || '')) || null
     })).filter(file => file.publicUrl);
 
+    if (!isCurrentRequest()) return;
     const wasLoaded = state.lisResultsLoaded;
     const previousKeys = new Set((state.lisResults || []).map(window.opdTestLisFileKey));
     state.lisOrders = orders;
@@ -21252,15 +21527,18 @@ window.opdTestFetchLisResults = async function (options = {}) {
     }
   } catch (error) {
     console.warn('Unable to load LIS results:', error);
+    if (!isCurrentRequest()) return;
     const message = error?.name === 'AbortError'
       ? 'LIS ຕອບກັບຊ້າເກີນໄປ'
       : (error?.message || 'Unknown LIS error');
     window.opdTestRenderLisResults({ error: message });
     if (options.manual) window.opdTestSimpleAlert('ດຶງຜົນ LIS ບໍ່ສຳເລັດ', message, 'error');
   } finally {
-    state.lisFetchInFlight = false;
-    document.getElementById('opdTestLisRefreshBtn')?.removeAttribute('disabled');
-    document.querySelector('#opdTestLisRefreshBtn i')?.classList.remove('fa-spin');
+    if (state.lisFetchToken === requestToken) {
+      state.lisFetchInFlight = false;
+      document.getElementById('opdTestLisRefreshBtn')?.removeAttribute('disabled');
+      document.querySelector('#opdTestLisRefreshBtn i')?.classList.remove('fa-spin');
+    }
   }
 };
 
@@ -24571,8 +24849,16 @@ window.opdTestRenderExternalResultStates = function () {
   }).join('');
 };
 
+const opdExternalReads = new Set();
 window.opdTestSyncExternalResults = async function (requestedType, options = {}) {
   const type = requestedType === 'medication' ? 'medication' : window.opdTestInvestigationTypeMeta(requestedType).type;
+  const selectedVisit = window.opdTestSelectedVisit;
+  const requestUser = currentUser;
+  const patientId = window.opdTestLisPatientId();
+  const root = document.getElementById('view-opd_test');
+  if (options.silent && (!root || root.style.display === 'none' || document.hidden)) return;
+  const readKey = `${type}:${selectedVisit?.visitId || ''}:${patientId}`;
+  if (opdExternalReads.has(readKey)) return;
   const provider = type === 'medication'
     ? (window.opdTestPharmacyStatusProvider || window.fetchOPDTestPharmacyStatuses)
     : (window.opdTestRisResultProvider || window.fetchOPDTestRisResults);
@@ -24587,18 +24873,25 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
     );
     return;
   }
+  opdExternalReads.add(readKey);
   try {
     const state = window.opdTestState;
     const sourceItems = type === 'medication'
       ? state.medications
       : state.orders.filter(item => window.opdTestInvestigationTypeForItem(item) === type);
-    const response = await provider({ patientId: window.opdTestLisPatientId(), type, orders: sourceItems, medications: sourceItems });
+    if (options.silent && !sourceItems.length) return;
+    const response = await provider({ patientId, type, orders: sourceItems, medications: sourceItems });
+    if (requestUser !== currentUser || selectedVisit !== window.opdTestSelectedVisit || patientId !== window.opdTestLisPatientId()) return;
     const updates = Array.isArray(response) ? response : (response?.results || response?.orders || response?.medications || []);
     let updated = 0;
     updates.forEach(payload => {
       const identifiers = [payload.localOrderId, payload.orderNo, payload.externalOrderId, payload.risOrderId, payload.prescriptionItemId].filter(Boolean).map(String);
       const target = sourceItems.find(item => [item.localOrderId, item.orderNo, item.externalOrderId, item.risOrderId, item.prescriptionItemId].filter(Boolean).map(String).some(id => identifiers.includes(id)));
       if (!target) return;
+      const fields = type === 'medication'
+        ? ['pharmacyStatus', 'status', 'dispensedAt', 'dispensedBy']
+        : ['risStatus', 'resultStatus', 'resultPdfUrl', 'resultUrl', 'report', 'findings', 'releasedAt'];
+      const before = fields.map(field => target[field]);
       if (type === 'medication') {
         target.pharmacyStatus = payload.pharmacyStatus || payload.status || target.pharmacyStatus;
         target.status = target.pharmacyStatus;
@@ -24613,7 +24906,7 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
         target.findings = payload.findings || target.findings;
         target.releasedAt = payload.releasedAt || payload.released_at || target.releasedAt;
       }
-      updated += 1;
+      if (fields.some((field, index) => before[index] !== target[field])) updated += 1;
     });
     if (updated) window.opdTestMarkDirty();
     window.opdTestRenderLegacyOrders();
@@ -24621,6 +24914,8 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
   } catch (error) {
     console.error('OPD external result sync failed:', error);
     if (!options.silent) window.opdTestSimpleAlert('ອັບເດດບໍ່ສຳເລັດ', error?.message || 'ກະລຸນາກວດສອບ API ແລະ network.', 'error');
+  } finally {
+    opdExternalReads.delete(readKey);
   }
 };
 

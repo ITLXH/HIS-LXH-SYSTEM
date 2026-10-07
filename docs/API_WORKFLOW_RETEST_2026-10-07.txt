@@ -1,0 +1,29 @@
+PASS actual login loads staff profile
+PASS login organization dropdown uses existing Name column
+PASS appointment old HN search selects correct patient
+PASS shared preload preserves patient selection without registry read
+PASS vaccine name search selects correct patient
+PASS existing patient details retain HN and phone
+PASS dashboard complete patient visit total
+PASS failed dashboard retains complete total and warning
+PASS report retrieves patient rows
+PASS failed report retains complete rows and warning
+PASS visit history retrieves patient encounters
+PASS failed visit history retains complete rows and warning
+PASS OPD queue renders synthetic patient
+PASS queue refresh burst coalesces backend reads
+PASS failed refresh preserves queue and shows warning
+PASS successful refresh clears stale queue warning
+PASS date filter excludes current visits
+PASS realtime arrival refreshes queue
+PASS disconnect/reconnect preserves subscription
+PASS new LIS result appears in notification bell
+PASS LIS acknowledgement writes once and removes alert
+PASS TV queue renders current visits
+PASS leaving TV removes its channel
+PASS one endpoint 500 leaves app connection online
+PASS Backup view renders archive completion
+PASS logout removes all channels and hides app
+PASS old realtime events after logout make no requests
+All 27 authenticated workflow checks passed.
+Backend/auth/realtime were mocked; production integration is not claimed.
