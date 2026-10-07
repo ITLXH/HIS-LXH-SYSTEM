@@ -1,0 +1,13 @@
+PASS HN prefix preserves all 16 matches
+PASS second page reaches remaining six patients
+PASS full HN accepts lowercase and copied spaces
+PASS real Supabase URL uses ID equality
+PASS Old ID search returns correct patient
+PASS multiword Lao name remains searchable
+PASS phone search remains complete
+PASS failed same-search refresh preserves page and shows error
+PASS failed new HN does not display previous patient
+PASS recovery loads the intended patient
+PASS HTTP read failure does not mark network offline
+PASS registry workflow issues no patient writes
+ALL 12 REGISTRY BROWSER CHECKS PASSED

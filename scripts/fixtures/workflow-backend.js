@@ -45,7 +45,9 @@ if (!['127.0.0.1', 'localhost'].includes(location.hostname)) throw new Error('Lo
         const expressions = filter.replace(/^\(|\)$/g, '').split(',');
         rows = rows.filter(row => expressions.some(expression => {
           const [column, op, pattern] = expression.split('.');
-          return op === 'ilike' && String(row[column] || '').toLowerCase().includes(pattern.replaceAll('%', '').toLowerCase());
+          if (op === 'eq') return String(row[column] || '') === pattern;
+          const regex = new RegExp('^' + pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replaceAll('%', '.*') + '$', 'i');
+          return op === 'ilike' && regex.test(String(row[column] || ''));
         }));
         continue;
       }

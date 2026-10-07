@@ -22,6 +22,7 @@
     "test:notifications": "node scripts/test-clinical-notifications.mjs",
     "test:request-refresh": "node scripts/test-request-refresh.mjs",
     "test:clinical-reads": "node scripts/test-clinical-read-safety.mjs",
+    "test:patient-registry": "node scripts/test-patient-registry-search.mjs",
     "test:page-lifecycle": "node scripts/test-page-read-lifecycle.mjs",
     "test:triage-ui": "node scripts/test-triage-actions-ui.mjs",
     "test:triage-crud": "node scripts/test-triage-clinical-crud.mjs",

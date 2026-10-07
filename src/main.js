@@ -6896,10 +6896,22 @@ window.applyPatientRegistryFilters = function (query, request) {
     }, builder);
   };
 
-  query = applyTokenFilter(query, request?.search?.value, [
-    'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
-    'Phone_Number', 'Name_Org', 'Insurance_Company'
-  ]);
+  const code = window.normalizePatientCode(request?.search?.value);
+  const fullCode = code.match(/^(LXH\d{4})-?(\d{6})$/);
+  if (fullCode) {
+    // HN searches must not scan names, phones and organizations with %term%.
+    const variants = [`${fullCode[1]}-${fullCode[2]}`, `${fullCode[1]}${fullCode[2]}`];
+    query = query.or(['Patient_ID', 'Old_Patient_ID'].flatMap(column =>
+      variants.map(value => `${column}.eq.${value}`)).join(','));
+  } else if (/^LXH\d{0,4}(?:-\d{0,5})?$/.test(code)) {
+    // Preserve prefix searches, including historical HNs stored as Old ID.
+    query = query.or(`Patient_ID.ilike.${code}%,Old_Patient_ID.ilike.${code}%`);
+  } else {
+    query = applyTokenFilter(query, request?.search?.value, [
+      'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
+      'Phone_Number', 'Name_Org', 'Insurance_Company'
+    ]);
+  }
   query = applyTokenFilter(query, request?.columns?.[3]?.search?.value, ['Old_Patient_ID']);
   query = applyTokenFilter(query, request?.columns?.[4]?.search?.value, ['First_Name', 'Last_Name']);
   query = applyTokenFilter(query, request?.columns?.[7]?.search?.value, ['Phone_Number']);
@@ -6942,6 +6954,11 @@ window.initPatientTable = function () {
   ];
   const displayText = value => escapeHisHtml(String(value ?? '').trim() || '-');
   const jsArg = value => encodeURIComponent(String(value ?? '')).replace(/'/g, '%27');
+  let registrySequence = 0;
+  let registryAbort = null;
+  let registryOwner = null;
+  let registryGeneration = null;
+  let lastRegistryPage = null;
 
   const patientTable = $('#patientTable').DataTable({
     responsive: true,
@@ -6952,24 +6969,47 @@ window.initPatientTable = function () {
     lengthMenu: [[10, 25, 50], [10, 25, 50]],
     order: [[2, 'desc']],
     ajax: async function (request, callback) {
+      const sequence = ++registrySequence;
+      registryAbort?.abort();
+      const controller = new AbortController();
+      registryAbort = controller;
+      const session = currentUser;
+      const generation = window.clinicalReadGeneration;
+      const isCurrent = () => sequence === registrySequence && session === currentUser
+        && generation === window.clinicalReadGeneration;
+      if (registryOwner !== session || registryGeneration !== generation) {
+        window.__patientRegistryTotalCount = null;
+        lastRegistryPage = null;
+        registryOwner = session;
+        registryGeneration = generation;
+      }
       const pageSize = Math.min(Math.max(Number(request.length) || 10, 10), 50);
       const rangeStart = Math.max(Number(request.start) || 0, 0);
       const orderIndex = Number(request?.order?.[0]?.column ?? 2);
       const orderColumn = sortColumns[orderIndex] || 'Patient_ID';
       const ascending = request?.order?.[0]?.dir === 'asc';
       const hasFilters = window.patientRegistryHasFilters(request);
+      const pageKey = JSON.stringify([
+        String(request.search?.value || ''), request.columns?.map(column => String(column.search?.value || '')),
+        orderColumn, ascending, rangeStart, pageSize,
+        $('#patientDateFrom').val(), $('#patientDateTo').val()
+      ]);
 
       try {
+        const needsCount = hasFilters || window.__patientRegistryTotalCount === null;
         let pageQuery = supabaseClient.from(dbTable('Patients'))
-          .select(selectFields, { count: 'exact' });
+          .select(selectFields, needsCount ? { count: 'exact' } : {})
+          .abortSignal(controller.signal);
         pageQuery = window.applyPatientRegistryFilters(pageQuery, request)
           .order(orderColumn, { ascending, nullsFirst: false })
           .range(rangeStart, rangeStart + pageSize - 1);
 
         const totalQuery = window.__patientRegistryTotalCount === null && hasFilters
           ? supabaseClient.from(dbTable('Patients')).select('Patient_ID', { head: true, count: 'exact' })
+            .abortSignal(controller.signal)
           : Promise.resolve(null);
         const [pageResult, totalResult] = await Promise.all([pageQuery, totalQuery]);
+        if (!isCurrent()) return;
         if (pageResult.error) throw pageResult.error;
         if (totalResult?.error) console.warn('Patient total count could not be loaded:', totalResult.error);
 
@@ -6980,9 +7020,10 @@ window.initPatientTable = function () {
         } catch (visitCountError) {
           console.warn('Patient visit counts could not be loaded:', visitCountError);
         }
+        if (!isCurrent()) return;
         rows.forEach(row => { row.__visitCount = Number(visitCounts[row.Patient_ID] || 0); });
 
-        const filteredCount = Number(pageResult.count || 0);
+        const filteredCount = needsCount ? Number(pageResult.count || 0) : window.__patientRegistryTotalCount;
         if (!hasFilters) window.__patientRegistryTotalCount = filteredCount;
         else if (totalResult && !totalResult.error) window.__patientRegistryTotalCount = Number(totalResult.count || 0);
         const totalCount = window.__patientRegistryTotalCount ?? filteredCount;
@@ -6990,20 +7031,26 @@ window.initPatientTable = function () {
           .removeClass('alert alert-danger py-2 small patient-fast-load-note')
           .empty()
           .hide();
-        callback({
+        const response = {
           draw: Number(request.draw) || 0,
           recordsTotal: totalCount,
           recordsFiltered: filteredCount,
           data: rows
-        });
+        };
+        lastRegistryPage = { key: pageKey, response };
+        callback(response);
       } catch (err) {
+        if (!isCurrent()) return;
         console.error('Error loading patients:', err);
         $('#patientLoadAllNotice')
           .removeClass('patient-fast-load-note')
           .addClass('alert alert-danger py-2 small')
           .html(`<i class="fas fa-exclamation-circle me-1"></i>${window.t('patients.loadError')}: ${escapeHisHtml(err?.message || 'Unknown error')}`)
           .show();
-        callback({ draw: Number(request.draw) || 0, recordsTotal: 0, recordsFiltered: 0, data: [] });
+        // Retain a successful page only when every search/date/page still matches.
+        const previous = lastRegistryPage?.key === pageKey ? lastRegistryPage.response : null;
+        callback(previous ? { ...previous, draw: Number(request.draw) || 0 }
+          : { draw: Number(request.draw) || 0, recordsTotal: 0, recordsFiltered: 0, data: [] });
       }
     },
     columns: [
