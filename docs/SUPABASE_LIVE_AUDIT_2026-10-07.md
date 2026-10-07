@@ -58,3 +58,11 @@ No patient save/delete/triage operation, role policy or database schema is chang
 - All 12 real-browser DataTables assertions passed. Evidence: `PATIENT_REGISTRY_TEST_2026-10-07.txt` and `PATIENT_REGISTRY_TEST_2026-10-07.png`. The mock backend blocks unexpected external API requests; no patient writes were issued. The staged change is ready for commit/push to `codex/reduce-api-requests-20261006` and the existing draft PR #1, with no main merge. Production is unchanged. This is not a claim that every live timeout, schema/Storage error or real patient workflow is resolved.
 
 Unrelated user edits in `scripts/test-triage-clinical-crud.mjs` and the activity-log migrations are excluded from this change. UXI and LIS sibling checkouts were only read; their releases are controlled separately.
+
+## Published review result
+
+Implementation commit `822d5f63ce2a2dd6750adfd655e34a329df9f286` was successfully pushed to `origin/codex/reduce-api-requests-20261006`; the remote SHA was verified. [PR #1](https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/1) remains open, draft and unmerged. Its Cloudflare Pages check completed successfully. Remote main remained `9a3b39eed3db3312096ca1310e240b4c1357f1db`.
+
+Public production-version navigation encountered a connection reset; the preview alias metadata request could not resolve its hostname from this host. Consequently the currently served production/preview build metadata was not independently verified. A successful Cloudflare check alone does not certify authenticated clinical behavior. No live patient search was replayed to measure latency. Production release remains pending authenticated UAT and schema/query-cost verification for the remaining issues.
+
+![Twelve passing synthetic registry browser checks](PATIENT_REGISTRY_TEST_2026-10-07.png)
