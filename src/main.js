@@ -3955,6 +3955,7 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  window.teardownManpowerReads?.();
   window.resetClinicalReadDisplays?.();
   window.resetClinicalAlertRefresh?.();
   window.teardownPublicQueueView?.();
@@ -3979,6 +3980,7 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  window.teardownManpowerReads?.();
   window.resetClinicalReadDisplays?.();
   window.resetClinicalAlertRefresh?.();
   window.teardownPublicQueueView?.();
@@ -4420,7 +4422,7 @@ window.VIEW_CACHE_TTL_MS = 60_000;
 window.VIEW_LIVE = new Set([
   'dashboard', 'report', 'triage', 'opd',
   'opd_observation', 'opd_observation_list',
-  'ipd_ward_bed', 'ipd_chart', 'public-queue', 'backup'
+  'ipd_ward_bed', 'ipd_chart', 'public-queue', 'backup', 'manpower'
 ]);
 window.shouldLoadView = function (view, options = {}) {
   if (options && options.force) return true;
@@ -4482,6 +4484,7 @@ window.loadView = function (v, options = {}) {
     return;
   }
   v = routeTarget.view;
+  if (v !== 'manpower') window.teardownManpowerReads?.();
   document.body.classList.toggle('opd-test-workspace-active', v === 'opd_test');
   const _runLoad = (fn) => {
     if (window.shouldLoadView(v, options)) {
@@ -4951,6 +4954,31 @@ window.clinicalReadGeneration = 0;
 window.clinicalLoadedRanges = {};
 window.resetClinicalReadDisplays = function () {
   window.clinicalReadGeneration++;
+  window.viewLoadCache = {};
+  if (window.ipdWardBedState) Object.assign(window.ipdWardBedState, {
+    wards: [], rooms: [], beds: [], movements: [], admissions: [], medicationOrders: [], medicationAdministrations: [], specimenTasks: [], patientsById: {}, filteredBeds: [], filteredAdmissions: []
+  });
+  window.patientDetailReadSequence = (window.patientDetailReadSequence || 0) + 1;
+  Swal.close();
+  const closingSession = currentUser;
+  $('.modal').each(function () {
+    const modal = bootstrap.Modal.getInstance(this);
+    modal?.hide();
+    if (modal) {
+      // Backdrop animation can delay _showElement until after logout cleanup.
+      this.addEventListener('shown.bs.modal', () => {
+        if (!currentUser || currentUser === closingSession) modal.hide();
+      }, { once: true });
+    }
+    // Hide immediately even when Bootstrap is still completing a show animation.
+    $(this).removeClass('show').css('display', 'none').attr('aria-hidden', 'true').removeAttr('aria-modal');
+  });
+  $('.modal-backdrop').remove();
+  $('body').removeClass('modal-open').css({ overflow: '', paddingRight: '' });
+  $('#patientProfileModal [id^="view_p_"]').not('img, #view_p_photo_placeholder').text('—');
+  $('#view_p_photo').attr('src', '').hide();
+  $('#btn_edit_from_view').off('click');
+  window.resetIpdClinicalReadDisplay?.();
   window.clinicalLoadedRanges = {};
   for (const render of [window.renderDashboardCharts, window.renderReportPage, window.renderVisitHistoryPage]) {
     try { render([]); } catch (error) { console.warn('Clinical display reset failed:', error); }
@@ -6722,17 +6750,21 @@ window.refreshPatientOrgDropdown = async function () {
 // PATIENT VIEW & DATA
 // ==========================================
 window.viewPatientDetail = async function (id) {
-  console.log("viewPatientDetail called for ID:", id);
+  const session = currentUser;
+  if (!session) return;
+  const generation = window.clinicalReadGeneration;
+  const sequence = window.patientDetailReadSequence = (window.patientDetailReadSequence || 0) + 1;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && sequence === window.patientDetailReadSequence;
   try {
     Swal.fire({ title: 'ກຳລັງດຶງຂໍ້ມູນ...', didOpen: () => Swal.showLoading() });
     const { data, error } = await supabaseClient.from(dbTable('Patients')).select('*').eq('Patient_ID', id).single();
+    if (!isCurrent()) return;
     Swal.close();
     if (error || !data) {
       console.error("Fetch error:", error);
       return Swal.fire('Error', 'ບໍ່ພົບຂໍ້ມູນຄົນເຈັບ', 'error');
     }
 
-    console.log("Patient data fetched:", data);
 
     const fullname = `${data.Title || ''} ${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
     $('#view_p_name').text(fullname);
@@ -6768,7 +6800,6 @@ window.viewPatientDetail = async function (id) {
     $('#view_p_emer_contact').text(`${data.Emergency_Contact || ''} (${data.Emergency_Relation || ''})`);
 
     if (data.Photo_URL) {
-      console.log("Setting photo URL:", data.Photo_URL);
       $('#view_p_photo').attr('src', data.Photo_URL).show();
       $('#view_p_photo_placeholder').hide();
     } else {
@@ -6786,9 +6817,9 @@ window.viewPatientDetail = async function (id) {
       window.editPatient(id);
     });
 
-    console.log("Showing modal...");
     $('#patientProfileModal').modal('show');
   } catch (err) {
+    if (!isCurrent()) return;
     console.error("viewPatientDetail error:", err);
     Swal.fire('Error', 'ເກີດຂໍ້ຜິດພາດ: ' + err.message, 'error');
   }
@@ -19107,8 +19138,12 @@ window.ipdDeleteClinical = async function (tableName, idColumn, id) {
 };
 
 window.fetchIpdClinicalData = async function (admissionId) {
+  const session = currentUser;
+  const generation = window.clinicalReadGeneration;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && String(window.ipdCurrentChartAdmissionId) === String(admissionId);
   if (!window.ipdWardBedState.admissions.length) {
     await window.fetchIpdWardBedData();
+    if (!isCurrent()) return null;
     window.prepareIpdUnfilteredState();
   }
   const admission = window.ipdWardBedState.admissions.find(a => String(a.Admission_ID) === String(admissionId));
@@ -19147,12 +19182,13 @@ window.fetchIpdClinicalData = async function (admissionId) {
     window.ipdLoadProviders()
   ]);
 
-  if (visitsRes.error) console.warn('IPD linked visits/LIS load error:', visitsRes.error);
+  if (!isCurrent()) return null;
+  if (visitsRes.error) throw visitsRes.error;
 
   window.ipdClinicalState = {
     admissionId,
     admission,
-    visits: visitsRes.error ? [] : (visitsRes.data || []),
+    visits: visitsRes.data || [],
     doctorNotes,
     nursingNotes,
     vitals,
@@ -19176,16 +19212,42 @@ window.fetchIpdClinicalData = async function (admissionId) {
   return window.ipdClinicalState;
 };
 
+const readIpdClinicalData = createConcurrentRead(window.fetchIpdClinicalData, () => currentUser);
+window.fetchIpdClinicalData = admissionId => readIpdClinicalData(`${window.clinicalReadGeneration}|${admissionId}`, admissionId);
+
+window.resetIpdClinicalReadDisplay = function () {
+  window.ipdClinicalState = { admissionId: null, admission: null, visits: [], doctorNotes: [], nursingNotes: [], vitals: [], medicationOrders: [], medicationAdministrations: [], specimenTasks: [], radiology: [], procedures: [], billing: [], dischargeSummary: null, rounds: [], providers: [], movements: [], timelineFilter: 'all', timelineLimit: 200 };
+  window.ipdCurrentChartAdmissionId = null;
+  window.ipdActiveVisitId = null;
+  window.ipdCurrentChartReadOnly = true;
+  window.clearInterval(window.ipdCareTaskClock);
+  window.ipdCareTaskClock = null;
+  chartInstances.ipdVitalsTrendChart?.destroy();
+  chartInstances.ipdVitalsTrendChart = null;
+  $('#ipdChartSummaryPanel, #ipdClinicalSnapshot, #ipdCareTaskAlerts, #ipdPatientTimeline, #ipdMedicationAdministrationsList, #ipdSpecimenTasksList, #ipdVitalsList, #ipdDoctorNotesList, #ipdNursingNotesList, #ipdMedicationOrdersList, #ipdVisitsList, #ipdLabResultsList, #ipdRadiologyList, #ipdProceduresList, #ipdChartSummaryContent, #ipdDischargeSummaryView').empty();
+  $('#ipdChartSubtitle').text('—');
+  $('#ipdCareTaskDueCount').text('—');
+  $('#ipdChartReadOnlyBanner').remove();
+};
+
 window.loadIpdClinicalChart = async function (admissionId) {
   if (!admissionId) return;
+  if (String(window.ipdClinicalState.admissionId || '') !== String(admissionId)) window.resetIpdClinicalReadDisplay();
+  const session = currentUser;
+  const generation = window.clinicalReadGeneration;
   window.ipdCurrentChartAdmissionId = admissionId;
+  const isCurrent = () => session === currentUser && generation === window.clinicalReadGeneration && String(window.ipdCurrentChartAdmissionId) === String(admissionId);
   $('#ipdChartSummaryPanel').html(window.getHospitalDataLoaderHtml({ message: window.t('ipd.loadingData'), compact: true }));
   try {
-    await window.fetchIpdClinicalData(admissionId);
+    const data = await window.fetchIpdClinicalData(admissionId);
+    if (!data || !isCurrent()) return;
     window.renderIpdChartPage(admissionId);
   } catch (err) {
+    if (!isCurrent()) return;
     console.error('IPD chart load error:', err);
-    $('#ipdChartSummaryPanel').html(`<div class="alert alert-danger mb-0">${window.ipdEscape(err.message || err)}</div>`);
+    const retained = String(window.ipdClinicalState.admissionId || '') === String(admissionId)
+      ? ' — ຂໍ້ມູນດ້ານລຸ່ມແມ່ນຈາກການໂຫຼດສຳເລັດຄັ້ງກ່ອນ; ກະລຸນາລອງໂຫຼດອີກຄັ້ງ' : '';
+    $('#ipdChartSummaryPanel').html(`<div class="alert alert-danger mb-0">${window.ipdEscape(err.message || err)}${retained}</div>`);
   }
 };
 

@@ -1,3 +1,5 @@
+import { createConcurrentRead } from './clinicalReads.js';
+
 const STAFF_STORAGE_KEY = 'his_local_staff_profiles_v1';
 export const MANPOWER_STORAGE_KEY = 'his_local_manpower_assignments_v1';
 export const MANPOWER_HISTORY_STORAGE_KEY = 'his_local_manpower_history_v1';
@@ -139,6 +141,22 @@ function createId() {
 export function installManpowerDashboard({ escapeHtml = value => String(value ?? ''), staffBackend = null, backend = null, getCurrentUser = null, canManage = null } = {}) {
   const state = { date: today(), shift: 'morning', staff: [], assignments: [], history: [], overviews: overviewsForDate(today()), mode: 'local', initialized: false, unsubscribe: null, refreshTimer: null, overviewSaveTimers: new Map(), overviewSaveVersions: new Map(), pendingOverviewValues: new Map() };
   window.manpowerDashboardState = state;
+  let readGeneration = 0;
+  let active = false;
+  const session = () => typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+  const readAssignments = createConcurrentRead(date => backend.loadAssignments(date), session);
+  const readOverviews = createConcurrentRead(date => backend.loadOverviews(date), session);
+  const readScope = () => ({ generation: readGeneration, user: session(), date: state.date });
+  const isCurrentRead = scope => active && scope.generation === readGeneration && scope.user === session() && scope.date === state.date;
+  window.teardownManpowerReads = function () {
+    active = false;
+    readGeneration++;
+    window.clearTimeout(state.refreshTimer);
+    state.refreshTimer = null;
+    state.unsubscribe?.();
+    state.unsubscribe = null;
+    // Overview save timers are independent writes and must finish when leaving the page.
+  };
 
   const isLocalMode = () => state.mode === 'local';
   const mayManage = () => isLocalMode() || (typeof canManage === 'function' && canManage());
@@ -160,10 +178,6 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
 
   const loadStaff = async () => {
     if (window.isLocalManpowerPreview?.()) return readLocalStaff();
-    const sharedState = window.staffManagementState;
-    if (sharedState?.initialized && sharedState.mode === 'supabase' && Array.isArray(sharedState.records)) {
-      return sharedState.records.filter(item => item?.id && item?.fullName && item?.status !== 'inactive');
-    }
     if (staffBackend?.load) {
       const records = await staffBackend.load();
       return Array.isArray(records) ? records.filter(item => item?.id && item?.fullName && item?.status !== 'inactive') : [];
@@ -215,8 +229,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   const loadProductionOverviews = async () => {
     if (isLocalMode() || !backend?.loadOverviews) return;
     const loadedDate = state.date;
-    const records = await backend.loadOverviews(loadedDate);
-    if (state.date !== loadedDate) return;
+    const scope = readScope();
+    const records = await readOverviews(`${readGeneration}|${loadedDate}`, loadedDate);
+    if (!isCurrentRead(scope)) return;
     const loadedOverviews = { morning: '', evening: '', night: '' };
     records.forEach(item => {
       if (Object.hasOwn(loadedOverviews, item.shift)) loadedOverviews[item.shift] = item.overview;
@@ -230,19 +245,26 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
 
   const loadProductionAssignments = async ({ includeOverviews = false } = {}) => {
     if (isLocalMode() || !backend?.loadAssignments) return;
+    const scope = readScope();
+    let assignments;
     if (includeOverviews) {
-      const [assignments] = await Promise.all([backend.loadAssignments(state.date), loadProductionOverviews()]);
-      state.assignments = assignments;
-    } else state.assignments = await backend.loadAssignments(state.date);
+      [assignments] = await Promise.all([readAssignments(`${readGeneration}|${scope.date}`, scope.date), loadProductionOverviews()]);
+    } else assignments = await readAssignments(`${readGeneration}|${scope.date}`, scope.date);
+    if (!isCurrentRead(scope)) return;
+    state.assignments = assignments;
     window.renderManpowerDashboard();
   };
 
   const scheduleRealtimeRefresh = scope => {
+    if (!active || !session() || document.hidden) return;
     window.clearTimeout(state.refreshTimer);
     state.refreshTimer = window.setTimeout(async () => {
+      if (!active || !session() || document.hidden) return;
+      const requestScope = readScope();
       try {
         if (scope === 'overviews') await loadProductionOverviews();
-        else await loadProductionAssignments();
+        else await loadProductionAssignments({ includeOverviews: scope === 'all' });
+        if (!isCurrentRead(requestScope)) return;
         window.renderManpowerDashboard();
         if (scope === 'history' && document.getElementById('manpowerHistoryModal')?.classList.contains('show')) {
           await window.loadManpowerHistory?.();
@@ -252,6 +274,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
       }
     }, 180);
   };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleRealtimeRefresh('all');
+  });
 
   const assignmentsForShift = shift => state.assignments.filter(item => item.date === state.date && item.shift === shift);
   const selectedAssignments = () => assignmentsForShift(state.shift);
@@ -331,6 +356,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   }
 
   window.initManpowerDashboard = async function () {
+    window.teardownManpowerReads();
+    active = true;
+    const scope = readScope();
     const container = document.getElementById('manpowerDepartmentList');
     const badge = document.getElementById('manpowerDataBadge');
     state.initialized = false;
@@ -339,7 +367,9 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
     try {
       const isLocal = Boolean(window.isLocalManpowerPreview?.());
       state.mode = isLocal || !backend ? 'local' : 'supabase';
-      state.staff = await loadStaff();
+      const staff = await loadStaff();
+      if (!isCurrentRead(scope)) return;
+      state.staff = staff;
       if (isLocalMode()) {
         state.assignments = readJson(MANPOWER_STORAGE_KEY);
         if (!Array.isArray(state.assignments)) state.assignments = [];
@@ -360,10 +390,14 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
             console.warn('Local manpower migration deferred:', migrationError);
           }
         }
-        const [assignments] = await Promise.all([backend.loadAssignments(state.date), loadProductionOverviews()]);
+        if (!isCurrentRead(scope)) return;
+        const [assignments] = await Promise.all([readAssignments(`${readGeneration}|${scope.date}`, scope.date), loadProductionOverviews()]);
+        if (!isCurrentRead(scope)) return;
         state.assignments = assignments;
         state.history = [];
-        if (!state.unsubscribe && backend?.subscribe) state.unsubscribe = backend.subscribe(scope => scheduleRealtimeRefresh(scope));
+        if (!state.unsubscribe && backend?.subscribe) state.unsubscribe = backend.subscribe(change => {
+          if (scope.generation === readGeneration && scope.user === session()) scheduleRealtimeRefresh(change);
+        });
       }
       state.initialized = true;
       if (badge && isLocal) {
@@ -376,6 +410,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
         : '<i class="fas fa-shield-alt"></i> Audit Supabase ຖືກບັນທຶກອັດຕະໂນມັດ ແລະແກ້ໄຂບໍ່ໄດ້';
       window.renderManpowerDashboard();
     } catch (error) {
+      if (!isCurrentRead(scope)) return;
       state.staff = [];
       state.initialized = true;
       if (badge) {
@@ -479,6 +514,7 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   window.setManpowerDate = async function (date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(clean(date))) return;
     state.date = date;
+    if (!state.initialized) return window.initManpowerDashboard();
     if (isLocalMode()) {
       state.overviews = overviewsForDate(state.date);
       window.renderManpowerDashboard();
@@ -491,25 +527,11 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   window.changeManpowerDate = async function (days) {
     const date = new Date(`${state.date}T12:00:00`);
     date.setDate(date.getDate() + Number(days || 0));
-    state.date = localDate(date);
-    if (isLocalMode()) {
-      state.overviews = overviewsForDate(state.date);
-      window.renderManpowerDashboard();
-    }
-    else {
-      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດຕາຕະລາງປະຈຳການບໍ່ສຳເລັດ', error.message); }
-    }
+    return window.setManpowerDate(localDate(date));
   };
 
   window.goToManpowerToday = async function () {
-    state.date = today();
-    if (isLocalMode()) {
-      state.overviews = overviewsForDate(state.date);
-      window.renderManpowerDashboard();
-    }
-    else {
-      try { await loadProductionAssignments({ includeOverviews: true }); } catch (error) { await notify('ໂຫຼດຕາຕະລາງປະຈຳການບໍ່ສຳເລັດ', error.message); }
-    }
+    return window.setManpowerDate(today());
   };
 
   window.openManpowerHistory = async function () {
@@ -536,17 +558,21 @@ export function installManpowerDashboard({ escapeHtml = value => String(value ??
   };
 
   window.loadManpowerHistory = async function () {
+    const scope = readScope();
     if (!isLocalMode() && backend?.loadHistory) {
       const body = document.getElementById('manpowerHistoryRows');
       if (body) body.innerHTML = '<tr><td colspan="7" class="manpower-history-empty"><span class="spinner-border spinner-border-sm" role="status"></span><strong>ກຳລັງໂຫຼດປະຫວັດ...</strong></td></tr>';
       try {
-        state.history = await backend.loadHistory({
+        const history = await backend.loadHistory({
           date: document.getElementById('manpowerHistoryDate')?.value,
           shift: document.getElementById('manpowerHistoryShift')?.value,
           type: document.getElementById('manpowerHistoryType')?.value,
           action: document.getElementById('manpowerHistoryAction')?.value
         });
+        if (!isCurrentRead(scope)) return;
+        state.history = history;
       } catch (error) {
+        if (!isCurrentRead(scope)) return;
         if (body) body.innerHTML = `<tr><td colspan="7" class="manpower-history-empty text-danger"><i class="fas fa-exclamation-triangle"></i><strong>ໂຫຼດປະຫວັດບໍ່ສຳເລັດ</strong><small>${escapeHtml(error.message)}</small></td></tr>`;
         return;
       }
