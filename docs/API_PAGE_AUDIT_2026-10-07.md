@@ -80,3 +80,15 @@ Excluded/preserved the three pre-existing user changes: `scripts/test-triage-cli
 Reproduce: run all `test:*` scripts in package.json and `npm run build`; generate loopback browser fixtures with `node scripts/generate-workflow-fixture.mjs --pages` and without `--pages`; run the local Vite server on 127.0.0.1:5174, then click the test button at `/scripts/fixtures/his-page-audit.html` and `/scripts/fixtures/his-workflow.html` sequentially. Do not reload the fixture's history URL (`/dashboard`, etc.) as a standalone app page; return to the explicit fixture URL. Close fixture tabs/stop the server before editing sources or exporting the staged checkout.
 
 Release branch: `codex/reduce-api-requests-20261006`; existing draft HIS PR: https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/1. Commit/push outcome is recorded after the authorized attempt. No merge/deploy or production patient mutation is part of these tests.
+
+## Commit and push outcome
+
+Implementation commit **`25429b7df3c7df6d494b3a5325deb9a9696b35e9`** (`Guard page refreshes and patient detail session boundaries`) includes 13 scoped files. Nine source/test/config files matched the passing staged export after normalizing line endings; only MD release notes changed after verification.
+
+**Push succeeded** on 2026-10-07: `bd47671..25429b7` to `origin/codex/reduce-api-requests-20261006`. Verified independently with `git ls-remote` and GitHub's PR API; PR #1 is open, draft, unmerged, and points to this implementation commit. The earlier GitHub email-verification rejection no longer blocked this attempt. Remote main was `9a3b39eed3db3312096ca1310e240b4c1357f1db` at verification. No merge or manual production release was performed.
+
+This push also publishes the previously local patient-lookup/complete report-history fixes and audit documentation. The draft PR title/body was updated around the final tested scope. Production/staging integration, sanitized timeout SQL/caller attribution and actual production deployed-version/quota checks remain outside the local mock evidence; all 547 aggregate errors are not claimed resolved or attributed.
+
+GitHub's **Cloudflare Pages** check for implementation commit `25429b7` completed with **success**, automatically deploying a **branch preview** at https://9ebda27f.his-lxh-system.pages.dev (branch alias https://codex-reduce-api-requests-20.his-lxh-system.pages.dev). Anonymous browser smoke test loaded the real preview login screen and recorded no console warnings/errors. Screenshot: `API_BRANCH_PREVIEW_2026-10-07.png`. No real credentials or patient records were entered; this verifies preview startup, not authenticated integration.
+
+Browser inventory exposed no authenticated Supabase dashboard tab, and no Supabase log connector was available. Consequently the unresolved timeout SQL/callers could not be obtained in this session. The isolated staged export was removed after passing verification; local fixture tabs and dev server were closed.
