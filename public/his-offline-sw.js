@@ -47,7 +47,6 @@ self.addEventListener('install', event => {
       .filter(value => value.startsWith('/') || staticCdnHosts.has(new URL(value, self.location.origin).hostname));
     const assets = new Set([
       ...offlinePartials,
-      '/version.json',
       '/luckxay-logo.jpg',
       ...discoveredAssets
     ]);
@@ -84,6 +83,8 @@ async function networkFirst(request, cache, fallbackUrl) {
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
+  // A release manifest must never come from an old shell cache.
+  if (new URL(request.url).pathname === '/version.json') return;
 
   const url = new URL(request.url);
   const isNavigation = request.mode === 'navigate';

@@ -3308,7 +3308,6 @@ window.formatOpdPrintPatientId = function (patientId) {
 
 $(document).ready(async function () {
   startBuildVersionRefresh({
-    forceReload: true,
     beforeReload: () => window.clearAuthSession?.()
   });
   // Load all HTML partials first, then init the app
@@ -7687,14 +7686,6 @@ window.executeTriageSave = async function (fd) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຫ້ອງກວດ', 'warning');
     return;
   }
-
-  console.log('=== TRIAGE SAVE DEBUG ===');
-  console.log('Visit ID:', fd.visitId);
-  console.log('Patient ID:', fd.patientId);
-  console.log('Clinical Department:', fd.v_clinical_department);
-  console.log('Examination Room:', fd.v_department);
-  console.log('BP:', fd.v_bp);
-  console.log('Symptoms:', fd.v_symptoms);
 
   const parsedBp = window.ipdParseBloodPressure(fd.v_bp);
   const bmiValue = window.ipdCalculateBmiValue(fd.v_weight, fd.v_height);
