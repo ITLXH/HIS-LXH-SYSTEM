@@ -28,7 +28,8 @@
     "test:manpower": "node scripts/test-manpower-dashboard.mjs",
     "test:printer-settings": "node scripts/test-printer-settings.mjs",
     "preview": "vite preview",
-    "pages:dev": "wrangler pages dev dist --compatibility-date=2024-01-01"
+    "pages:dev": "wrangler pages dev dist --compatibility-date=2024-01-01",
+    "test:organization-preload": "node scripts/test-organization-preload.mjs"
   },
   "devDependencies": {
     "vite": "^6.0.0",
