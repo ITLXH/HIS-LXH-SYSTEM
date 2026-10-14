@@ -121,7 +121,7 @@ const prefixedName = buildOpdOrderPrintDocument({
 });
 assert.doesNotMatch(prefixedName, /ທ້າວ ທ້າວ/);
 
-assert.match(mainSource, /\['ultrasound', 'xray', 'medication'\]\.includes\(type\)/);
+assert.match(mainSource, /\['lab', 'ultrasound', 'xray', 'medication'\]\.includes\(type\)/);
 assert.match(mainSource, /opdTestPrintOrderBatch\('\$\{type\}'/);
 assert.match(mainSource, /opdTestPrintOrderBatch\('medication'/);
 assert.match(mainSource, /buildOpdOrderPrintDocument/);

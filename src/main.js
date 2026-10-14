@@ -4,6 +4,8 @@ import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
 
 import { OPD_LAB_ORDER_FORM } from './opdLabOrderForm.js';
+import { installInvestigationTemplates, buildInvestigationPreviewDocument } from './investigationTemplates.js';
+import { savePatientOrderHistory, appendOrderHistory } from './patientOrderHistory.js';
 import { buildOpdOrderPrintDocument, normalizeMedicationPrintItem } from './opdOrderPrint.js';
 import {
   buildOpdQueueOrderSummary,
@@ -2664,10 +2666,27 @@ window.isOpdTestLabOrderFormMode = function () {
     || Boolean(document.querySelector('#view-opd_test:not([style*="display: none"])'));
 };
 
+installInvestigationTemplates({
+  canEdit: () => typeof window.can === 'function' && window.can('settings', 'edit'),
+  onChange: () => {
+    window.emrLabOrderFormReferences = window.getInvestigationCatalog().map((row, index) => ({
+      ...row, index, category: row.type === 'ultrasound' ? 'Ultrasound' : row.type === 'xray' ? 'Xray' : 'Out Lab',
+      categoryKey: row.type === 'ultrasound' ? 'ultrasound' : row.type === 'xray' ? 'xray' : 'out_lab',
+      normalizedName: window.normalizeEMRLabFormMatchText(row.name)
+    }));
+    window.emrLabOrderFormReferenceCache.clear();
+    labsMasterList = window.mergeEMRLabsWithOrderForm(labsMasterList.filter(item => !item.isFormVirtual));
+    window.renderEMRLabPicker?.();
+  }
+});
+
 window.opdTestInvestigationTypeForItem = function (item) {
   const source = item && typeof item === 'object' ? item : { name: String(item || '') };
+  const explicitType = source.investigationType || source.orderType || source.type;
+  if (['lab', 'ultrasound', 'xray'].includes(explicitType)) return explicitType;
   const hasFormReference = Object.prototype.hasOwnProperty.call(source, 'formReference');
   const formReference = hasFormReference ? source.formReference : window.getEMRLabOrderFormReference?.(source.name);
+  if (['lab', 'ultrasound', 'xray'].includes(formReference?.type)) return formReference.type;
   const formNumber = Number.parseInt(formReference?.number, 10);
   if (Number.isFinite(formNumber) && formNumber >= 253 && formNumber <= 279) return 'xray';
   const inferredCategory = hasFormReference && !formReference && !source.hasCategoryOverride ? '' : source.category;
@@ -2727,6 +2746,9 @@ window.opdTestSetInvestigationPickerMode = function (type) {
   if (panelTitle) panelTitle.textContent = meta.panelTitle;
   if (panelSubtitle) panelSubtitle.textContent = meta.subtitle;
   if (search) search.placeholder = `ຄົ້ນຫາ ${meta.label}...`;
+  window.investigationPickerPage = 1;
+  const saveButton=document.getElementById('emrLabConfirmButton');
+  if(saveButton)saveButton.innerHTML='<i class="fas fa-save me-1"></i>ບັນທຶກລາຍການກວດ';
   [titleIcon, panelIcon].forEach(icon => {
     if (!icon) return;
     icon.className = `${icon === titleIcon ? 'fas me-2' : 'fas'} ${meta.icon}`;
@@ -2742,8 +2764,11 @@ window.normalizeEMRLabFormMatchText = function (value) {
     .replace(/[^a-z0-9\u0e80-\u0eff]+/g, '');
 };
 
-window.emrLabOrderFormReferences = OPD_LAB_ORDER_FORM.map(reference => ({
+window.emrLabOrderFormReferences = window.getInvestigationCatalog().map((reference, index) => ({
   ...reference,
+  index,
+  category: reference.type === 'ultrasound' ? 'Ultrasound' : reference.type === 'xray' ? 'Xray' : 'Out Lab',
+  categoryKey: reference.type === 'ultrasound' ? 'ultrasound' : reference.type === 'xray' ? 'xray' : 'out_lab',
   normalizedName: window.normalizeEMRLabFormMatchText(reference.name)
 }));
 window.emrLabOrderFormReferenceCache = new Map();
@@ -2994,6 +3019,8 @@ window.filterEMRLabPicker = function (query) {
   currentEMRLabSearchQuery = String(query || '').trim().toLowerCase();
   window.renderEMRLabPicker();
 };
+window.clearInvestigationSelection=function(){currentEMRLabPickerSelection=[];window.renderEMRLabPicker();};
+window.selectInvestigationPage=function(page){window.investigationPickerPage=page;window.renderEMRLabPicker();};
 
 window.renderEMRLabOrderFormPages = function (groups) {
   const pages = Array.from({ length: 3 }, (_, pageIndex) => ({
@@ -3075,6 +3102,7 @@ window.renderEMRLabPicker = function () {
 
   const useOrderForm = window.isOpdTestLabOrderFormMode();
   host.classList.toggle('is-order-form-layout', useOrderForm);
+  document.getElementById('emrLabModal')?.classList.toggle('it-wide-picker', useOrderForm);
 
   const searchInput = document.getElementById('emrLabSearchInput');
   if (searchInput && searchInput.value.toLowerCase() !== currentEMRLabSearchQuery) {
@@ -3083,6 +3111,16 @@ window.renderEMRLabPicker = function () {
 
   if (!labsMasterList.length) {
     host.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດລາຍການກວດ...', compact: true });
+    window.updateEMRLabPickerSummary();
+    return;
+  }
+
+  if (useOrderForm && window.renderInvestigationPicker) {
+    const pageScrolls = new Map([...host.querySelectorAll('[data-picker-page]')].map(page => [page.dataset.pickerPage,page.scrollTop]));
+    const catalog = labsMasterList.map((item, index) => ({ ...item, index, type: window.opdTestInvestigationTypeForItem(item) }));
+    host.innerHTML = window.renderInvestigationPicker(catalog, currentEMRLabPickerSelection,
+      window.opdTestInvestigationPickerType, currentEMRLabSearchQuery);
+    host.querySelectorAll('[data-picker-page]').forEach(page => { page.scrollTop = pageScrolls.get(page.dataset.pickerPage) || 0; });
     window.updateEMRLabPickerSummary();
     return;
   }
@@ -6631,20 +6669,16 @@ window.applyDoctorUserSelects = function () {
 
 window.refreshPatientOrgDropdown = async function () {
   try {
-    const { data, error } = await supabaseClient
-      .from(dbTable('Organizations')).select('*').limit(9999);
-    if (error) {
-      console.warn('refreshPatientOrgDropdown Supabase error:', error);
-      return;
-    }
-    console.log('refreshPatientOrgDropdown: loaded', data?.length, 'organizations');
+    // A large limit still hits PostgREST's response cap. Read every page in
+    // unique ID order so customer codes beyond the first page remain searchable.
+    const data = await window.fetchSupabaseRows('Organizations', { orderBy: 'Org_ID' });
     let orgOptions = '<option value=""></option>';
     (data || []).forEach(org => {
-      const isActive = !org.Status || org.Status === 'Active';
+      const isActive = !org.Status || String(org.Status).trim().toLowerCase() === 'active';
       if (isActive && org.Org_ID) {
         let cusId = org.Cus_ID_Ex || org.Org_Code;
         let cusName = org.Name || org.Org_Name || '';
-        orgOptions += `<option value="${org.Org_ID}">${cusId} - ${cusName}</option>`;
+        orgOptions += `<option value="${escapeHisHtml(org.Org_ID)}">${escapeHisHtml(cusId || '')} - ${escapeHisHtml(cusName)} - ${escapeHisHtml(org.Org_Name || '')}</option>`;
       }
     });
     if (typeof jQuery !== 'undefined' && $('#p_org_id').length) {
@@ -7716,10 +7750,7 @@ window.addLabToEMRList = async function () {
   currentEMRLabs = selectedNames.map(name => {
     const masterItem = labsMasterList.find(item => String(item?.name || '').trim() === name);
     const formReference = masterItem?.formReference || window.getEMRLabOrderFormReference?.(name);
-    const activePickerType = String(window.opdTestInvestigationPickerType || '').toLowerCase();
-    const investigationType = ['lab', 'ultrasound', 'xray'].includes(activePickerType)
-      ? activePickerType
-      : window.opdTestInvestigationTypeForItem(masterItem || { name, formReference });
+    const investigationType = window.opdTestInvestigationTypeForItem(masterItem || { name, formReference });
     const typeMeta = window.opdTestInvestigationTypeMeta(investigationType);
     return {
       name,
@@ -13390,6 +13421,7 @@ window.masterCategoryMeta = window.masterCategoryGroups.reduce((acc, group) => {
 window.activeMasterGroupKey = window.activeMasterGroupKey || window.masterCategoryGroups[0].key;
 
 window.renderMasterCategoryUI = function () {
+  window.renderInvestigationTemplateEditor?.();
   const groupHost = document.getElementById('masterGroupTabs');
   const categoryHost = document.getElementById('masterCategoryButtons');
   const categorySelect = document.getElementById('masterCategory');
@@ -15674,7 +15706,7 @@ window.showPatientTimeline = async function (patientId) {
           <div class="timeline-section-title"><i class="fas ${icon} me-1"></i>${title} <span class="badge rounded-pill">${items.length}</span></div>
           ${items.map(item => {
             const urls = [item?.resultPdfUrl, item?.result_pdf_url, item?.pdfUrl, item?.fileUrl, item?.result_url].filter(Boolean);
-            return `<div class="timeline-order-row"><span>${esc(itemName(item))}</span><span>${urls.map((url, index) => fileLink(url, index ? `File ${index + 1}` : 'ເບິ່ງຜົນ', tone)).join('')}</span></div>`;
+            return `<div class="timeline-order-row"><span>${esc(itemName(item))}<small class="d-block text-muted">${esc(item.orderedAt ? new Date(item.orderedAt).toLocaleString('en-GB') : '')}${item.orderedByName ? ` · ${esc(item.orderedByName)}` : ''}</small></span><span>${urls.map((url, index) => fileLink(url, index ? `File ${index + 1}` : 'ເບິ່ງຜົນ', tone)).join('')}</span></div>`;
           }).join('')}
         </div>`;
       };
@@ -22848,6 +22880,7 @@ window.opdTestUpdateVisitRow = async function (visitId, patientId, update, optio
     .eq('Visit_ID', visitId)
     .eq('Patient_ID', patientId);
   if (expectedRevision != null) query = query.eq('EMR_Revision', expectedRevision);
+  if ('expectedOrders' in options) query=options.expectedOrders==null?query.is('Lab_Orders_JSON',null):query.eq('Lab_Orders_JSON',options.expectedOrders);
   query = query.select(expectedRevision != null
     ? 'Visit_ID,Patient_ID,Status,EMR_Revision'
     : 'Visit_ID,Patient_ID,Status');
@@ -22897,12 +22930,22 @@ window.opdTestRecordEncounterRevision = async function (persistence) {
 
 window.opdTestPersistVisit = async function () {
   const context = window.opdTestPersistenceContext();
+  if(!window.can('opd','edit'))throw Error('Not authorized to save this encounter');
   if (!context.visitId || !context.patientId || context.patientId === '—') {
     const error = new Error('ບໍ່ພົບ Visit ID ຫຼື Patient ID. ກະລຸນາກັບໄປເລືອກຄົນເຈັບຈາກຄິວ OPD ອີກຄັ້ງ.');
     error.code = 'OPD_VISIT_CONTEXT_MISSING';
     throw error;
   }
 
+  let expectedOrders;
+  if(!window.opdTestUsesMockPersistence()){
+    const saved=await supabaseClient.from(dbTable('Visits')).select('Lab_Orders_JSON').eq('Visit_ID',context.visitId).eq('Patient_ID',context.patientId).maybeSingle();
+    if(saved.error)throw saved.error;
+    if(!saved.data)throw Error('Visit not found or access denied');
+    expectedOrders=saved.data.Lab_Orders_JSON;
+    const existing=expectedOrders?JSON.parse(expectedOrders):[];
+    context.orders=appendOrderHistory(existing,(context.orders || []).map((row,index)=>window.opdTestNormalizeLabOrder(row,index)));
+  }
   const persistence = buildOpdTestVisitPersistence(context);
   let persistenceMode = 'enhanced';
   if (window.opdTestUsesMockPersistence()) {
@@ -22913,12 +22956,12 @@ window.opdTestPersistVisit = async function () {
         persistence.visitId,
         persistence.patientId,
         persistence.enhancedUpdate,
-        { expectedRevision: persistence.revision - 1 }
+        { expectedRevision: persistence.revision - 1, expectedOrders }
       );
     } catch (error) {
       if (!window.opdTestIsMissingPersistenceColumnError(error)) throw error;
       persistenceMode = 'legacy';
-      await window.opdTestUpdateVisitRow(persistence.visitId, persistence.patientId, persistence.coreUpdate);
+      await window.opdTestUpdateVisitRow(persistence.visitId, persistence.patientId, persistence.coreUpdate,{expectedOrders});
     }
   }
 
@@ -24136,7 +24179,7 @@ window.opdTestPrintOrderBatch = function (requestedType, index) {
 
   const normalizedInvestigationType = window.opdTestInvestigationTypeMeta?.(requestedType)?.type;
   const type = requestedType === 'medication' ? 'medication' : normalizedInvestigationType;
-  if (!['ultrasound', 'xray', 'medication'].includes(type)) {
+  if (!['lab', 'ultrasound', 'xray', 'medication'].includes(type)) {
     window.opdTestSimpleAlert('ບໍ່ຮອງຮັບການພິມ', 'ປະເພດ Order ນີ້ຍັງບໍ່ມີແບບຟອມພິມ.', 'warning');
     return;
   }
@@ -24158,6 +24201,7 @@ window.opdTestPrintOrderBatch = function (requestedType, index) {
     if (type !== 'medication') {
       return {
         name: item.name || '',
+        formName: labsMasterList.find(lab => lab.name === item.name)?.formReference?.name || item.name || '',
         instructions: item.instructions || item.note || '',
         priority: item.priority || item.priorityValue || ''
       };
@@ -24171,6 +24215,19 @@ window.opdTestPrintOrderBatch = function (requestedType, index) {
     return;
   }
   popup.document.open();
+  if (type !== 'medication') {
+    const template = window.getInvestigationTemplateForType(type);
+    if (!template) { popup.close(); window.opdTestSimpleAlert('ບໍ່ພົບແບບໃບສັ່ງ', 'ກະລຸນາຕັ້ງຄ່າແບບໃບສັ່ງກວດ', 'warning'); return; }
+    popup.document.write(buildInvestigationPreviewDocument({ type, template, items, orderNo, orderedAt,
+      patient: { id: visit.patientId || document.getElementById('opdTestPatientId')?.textContent?.trim() || '',
+        title: visit.title || visit.patientTitle || visit.Title || '',
+        name: visit.patientName || document.getElementById('opdTestPatientName')?.textContent?.trim() || '',
+        phone: visit.phone || visit.phoneNumber || '' },
+      encounter: { diagnosis, doctor, history: visit.chiefComplaint || visit.symptoms || '' }
+    }));
+    popup.document.close();
+    return;
+  }
   popup.document.write(buildOpdOrderPrintDocument({
     type,
     hospital: {
@@ -24625,6 +24682,7 @@ window.opdTestSyncExternalResults = async function (requestedType, options = {})
 };
 
 window.opdTestCanRemoveLabOrder = function (item) {
+  if(item?.historySaved)return false;
   const type = window.opdTestInvestigationTypeForItem(item);
   const fallbackStatus = type === 'lab' ? 'pending-lis' : 'pending-ris';
   const status = String(type === 'lab' ? (item?.lisStatus || item?.status || fallbackStatus) : (item?.risStatus || item?.status || fallbackStatus)).toLowerCase();
@@ -24726,7 +24784,7 @@ window.opdTestRenderLegacyOrders = function () {
             </div>
             <div class="opdt-order-row-actions">
               <button type="button" class="btn btn-outline-primary emr-order-delete" data-emr-action onclick="window.opdTestViewInvestigationBatch(${firstIndex}); return false;" title="View ລາຍການໃນຊຸດ" aria-label="View ລາຍການສັ່ງກວດທີ່ ${displaySequence}"><i class="fas fa-eye"></i></button>
-              ${['ultrasound', 'xray'].includes(type) ? `<button type="button" class="btn btn-outline-primary emr-order-delete" onclick="window.opdTestPrintOrderBatch('${type}', ${firstIndex}); return false;" title="Print ໃບສັ່ງກວດ ${type === 'xray' ? 'X-Ray' : 'Ultrasound'}" aria-label="Print ໃບສັ່ງກວດ ${type === 'xray' ? 'X-Ray' : 'Ultrasound'} ທີ່ ${displaySequence}"><i class="fas fa-print"></i></button>` : ''}
+              ${['lab', 'ultrasound', 'xray'].includes(type) ? `<button type="button" class="btn btn-outline-primary emr-order-delete" onclick="window.opdTestPrintOrderBatch('${type}', ${firstIndex}); return false;" title="Preview / Print ໃບສັ່ງກວດ ${type}" aria-label="Preview / Print ໃບສັ່ງກວດ ${type} ທີ່ ${displaySequence}"><i class="fas fa-print"></i></button>` : ''}
               <button type="button" class="btn btn-outline-secondary emr-order-delete" data-emr-action onclick="window.opdTestEditInvestigationBatch(${firstIndex}); return false;" title="Edit ເວລາຂອງຊຸດ"><i class="fas fa-pen"></i></button>
               <button type="button" class="btn btn-outline-danger emr-order-delete" data-emr-action onclick="window.opdTestDeleteInvestigationBatch(${firstIndex}); return false;" title="Delete ຊຸດຄຳສັ່ງ"><i class="fas fa-times"></i></button>
             </div>
@@ -24888,6 +24946,7 @@ window.opdTestBuildLocalLabFallback = function () {
 };
 
 window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {}) {
+  if (!window.can('opd','edit')) return;
   if (window.opdTestState.locked) return;
   const state = window.opdTestState;
   const pickerMeta = window.opdTestSetInvestigationPickerMode(requestedType);
@@ -24908,7 +24967,9 @@ window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {
     if (title) title.textContent = `ແກ້ໄຂລາຍການສັ່ງກວດທີ່ ${editBatch.sequence}`;
   }
   window.emrLabPickerConfirmed = false;
-  $('#emrLabModal').off('hidden.bs.modal.opdtest').one('hidden.bs.modal.opdtest', function () {
+  const requestVisit=window.opdTestSelectedVisit,requestUser=currentUser;
+  let savedBatchTime=null,savedBatchId='',savedBatchSignature='';
+  $('#emrLabModal').off('hidden.bs.modal.opdtest').on('hidden.bs.modal.opdtest', async function () {
     if (!window.emrLabPickerConfirmed) {
       currentEMRLabs = [];
       window.opdTestEditingInvestigationBatch = null;
@@ -24919,9 +24980,11 @@ window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {
     const priorityValue = window.opdTestEditingInvestigationBatch?.priorityValue
       || document.getElementById('opdTestInlineLabPriority')?.value
       || 'Routine';
-    const orderedDate = new Date();
+    const signature=JSON.stringify(currentEMRLabs.map(item=>[item.name,item.instructions || '']));
+    if(signature!==savedBatchSignature){savedBatchTime=null;savedBatchId='';savedBatchSignature=signature;}
+    const orderedDate = savedBatchTime || (savedBatchTime=new Date());
     const orderedAt = orderedDate.toISOString();
-    const orderBatchId = `HIS-BATCH-${pickerMeta.type}-${orderedDate.getTime()}`;
+    const orderBatchId = savedBatchId || (savedBatchId=`HIS-BATCH-${pickerMeta.type}-${crypto.randomUUID()}`);
     const newOrders = currentEMRLabs.map((item, index) => {
       const name = item.name || String(item);
       return window.opdTestNormalizeLabOrder({
@@ -24931,6 +24994,12 @@ window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {
         at: orderedDate.toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }),
         orderedAt,
         orderBatchId,
+        localOrderId: `${orderBatchId}-${index+1}`,
+        orderNo: `${orderBatchId}-${index+1}`,
+        orderedBy: requestUser?.id || '',
+        orderedByName: requestUser?.name || '',
+        historySaved: true,
+        historyOnly: true,
         scheduledAt: orderedAt,
         investigationType: item.investigationType || pickerMeta.type,
         orderType: item.orderType || pickerMeta.type,
@@ -24941,16 +25010,34 @@ window.opdTestOpenLabPicker = async function (requestedType = 'lab', options = {
     });
     if (newOrders.length) {
       if (editBatch) {
+        window.opdTestSimpleAlert('ຮັກສາປະຫວັດເກົ່າ','ການແກ້ລາຍການເກົ່າຍັງບໍ່ຢູ່ໃນຂອບເຂດນີ້; ກະລຸນາສັ່ງເພີ່ມເປັນຊຸດໃໝ່.','info');
+        return;
+      }
+      try {
+        if(window.opdTestOrderHistorySaving)return;
+        window.opdTestOrderHistorySaving=true;
+        const history=await savePatientOrderHistory({client:supabaseClient,table:dbTable('Visits'),
+          visitId:requestVisit?.visitId || requestVisit?.rowIdx,patientId:requestVisit?.patientId,orders:newOrders,
+          canSave:window.can('opd','edit'),isCurrent:()=>requestVisit===window.opdTestSelectedVisit && requestUser===currentUser});
+        if(requestVisit!==window.opdTestSelectedVisit || requestUser!==currentUser)return;
+        state.orders=appendOrderHistory(history,state.orders.map((row,index)=>window.opdTestNormalizeLabOrder(row,index)));
+        requestVisit.labOrdersStr=JSON.stringify(history);
+      } catch(error) {
+        window.emrLabPickerConfirmed=false;
+        window.opdTestSimpleAlert('ບັນທຶກບໍ່ສຳເລັດ',error.message || 'ກະລຸນາລອງໃໝ່','error');
+        if(requestVisit===window.opdTestSelectedVisit && requestUser===currentUser)$('#emrLabModal').modal('show');
+        return;
+      } finally {window.opdTestOrderHistorySaving=false;}
+      if (editBatch) {
         state.orders = state.orders.filter((item, index) => !(
           window.opdTestInvestigationTypeForItem(item) === editBatch.type
           && window.opdTestOrderBatchKey(item, index) === editBatch.key
         ));
       }
-      state.orders.push(...newOrders);
       state.results = [];
       window.opdTestMarkDirty();
       window.opdTestRefreshSimple();
-      window.opdTestShowOrdersSavedAlert(newOrders, { edited: Boolean(editBatch) });
+      window.opdTestShowOrdersSavedAlert(newOrders, { edited: false });
     } else {
       window.opdTestRenderLegacyOrders();
     }

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:investigation-templates": "node scripts/test-investigation-templates.mjs",
     "dev": "vite",
     "build": "vite build",
     "test:opd": "node scripts/test-opd-persistence.mjs",

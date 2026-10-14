@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="lo">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Luckxay Hospital - ໂຮງໝໍ ຫຼັກໄຊ</title>
+  <link rel="icon" type="image/jpeg" href="/luckxay-logo.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Lao:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/3.2.0/css/adminlte.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables.net-bs5/1.13.4/dataTables.bootstrap5.min.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+
+  <!-- Keep connection feedback available even when third-party scripts fail to load. -->
+  <style>
+    #his-network-banner[hidden] { display: none !important; }
+    #his-network-banner {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 100001;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      max-width: min(360px, calc(100vw - 24px));
+      min-height: 40px;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 999px;
+      color: #fff;
+      background: #a52834;
+      text-align: left;
+      font: 600 13px/1.35 Inter, "Noto Sans Lao", "Phetsarath OT", sans-serif;
+      box-shadow: 0 4px 14px rgba(32, 15, 18, .28);
+      cursor: pointer;
+    }
+    #his-network-banner.his-network-button--in-nav {
+      position: relative;
+      right: auto;
+      bottom: auto;
+      z-index: auto;
+      flex: 0 1 auto;
+      max-width: min(300px, 28vw);
+      min-height: 34px;
+      padding: 6px 11px;
+      margin: 0 4px;
+      font-size: 12px;
+    }
+    #his-network-banner[data-state="restoring"] { background: #9a6700; }
+    .his-network-button__icon { position: relative; flex: 0 0 auto; font-size: 15px; }
+    .his-network-button__icon [data-state-icon="restoring"] { display: none; }
+    #his-network-banner[data-state="offline"] .his-network-button__icon::after {
+      content: "";
+      position: absolute;
+      left: -2px;
+      top: 7px;
+      width: 19px;
+      height: 2px;
+      border-radius: 2px;
+      background: #fff;
+      transform: rotate(-42deg);
+      box-shadow: 0 0 0 1px #a52834;
+    }
+    #his-network-banner[data-state="restoring"] .his-network-button__icon [data-state-icon="offline"] { display: none; }
+    #his-network-banner[data-state="restoring"] .his-network-button__icon [data-state-icon="restoring"] {
+      display: inline-block;
+      animation: his-network-spin 1.2s linear infinite;
+    }
+    .his-network-button__message { min-width: 0; overflow-wrap: anywhere; }
+    #his-network-banner[data-state="offline"] .his-network-button__message {
+      animation: his-network-blink 1.1s steps(2, start) infinite;
+    }
+    @keyframes his-network-blink { to { visibility: hidden; } }
+    @keyframes his-network-spin { to { transform: rotate(360deg); } }
+    @media (max-width: 768px) {
+      #his-network-banner.his-network-button--in-nav { max-width: 150px; padding: 6px 8px; gap: 6px; }
+      .his-network-button__message { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #his-network-banner[data-state="offline"] .his-network-button__message,
+      #his-network-banner[data-state="restoring"] .his-network-button__icon [data-state-icon="restoring"] { animation: none; }
+    }
+  </style>
+  <script>
+    (() => {
+      let state = 'online';
+      const render = () => {
+        const banner = document.getElementById('his-network-banner');
+        if (!banner) return;
+        banner.dataset.state = state;
+        banner.hidden = state === 'online';
+        const message = document.getElementById('his-network-message');
+        const fullMessage = state === 'offline'
+          ? 'ທ່ານກຳລັງ Offline — ລໍຖ້າ Internet ກັບມາ. ການບັນທຶກ/ເຊື່ອມຖານຂໍ້ມູນອາດບໍ່ສຳເລັດ; ກວດລາຍການກ່ອນລອງຊ້ຳ.'
+          : 'ອິນເຕີເນັດກັບມາແລ້ວ — ກຳລັງກວດການເຊື່ອມຕໍ່ລະບົບ...';
+        if (message) {
+          message.textContent = state === 'offline'
+            ? 'Offline — ລໍຖ້າ Internet'
+            : 'ກຳລັງກວດ Internet...';
+        }
+        banner.title = `${fullMessage} ກົດເພື່ອກວດກາການເຊື່ອມຕໍ່ຊ້ຳ.`;
+        banner.setAttribute('aria-label', banner.title);
+      };
+      window.renderHisNetworkStatus = render;
+      window.setHisNetworkStatus = (nextState) => {
+        if (!['online', 'offline', 'restoring'].includes(nextState)) return;
+        const previousState = state;
+        state = nextState;
+        window.hisNetworkState = nextState;
+        render();
+        if (previousState !== nextState) {
+          window.dispatchEvent(new CustomEvent('his-network-status', { detail: { state: nextState } }));
+        }
+      };
+      window.addEventListener('offline', () => window.setHisNetworkStatus('offline'));
+      window.addEventListener('online', () => window.setHisNetworkStatus('restoring'));
+      window.addEventListener('error', (event) => {
+        const resource = event.target;
+        const url = resource?.src || resource?.href || '';
+        if (url.startsWith('https://')) window.setHisNetworkStatus('offline');
+      }, true);
+      document.addEventListener('DOMContentLoaded', () => {
+        const previousState = state;
+        if (!navigator.onLine) state = 'offline';
+        window.hisNetworkState = state;
+        render();
+        if (previousState !== state) {
+          window.dispatchEvent(new CustomEvent('his-network-status', { detail: { state } }));
+        }
+      });
+    })();
+  </script>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables.net/1.13.4/jquery.dataTables.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables.net-bs5/1.13.4/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- html2canvas + jsPDF exposed globally for OPD card programmatic PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Supabase JS client (must load before main.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="/src/staffManagement.css">
+  <link rel="stylesheet" href="/src/manpowerDashboard.css">
+  <link rel="stylesheet" href="/src/printerSettings.css">
+</head>
+
+<body class="hold-transition auth-checking">
+  <button id="his-network-banner" type="button" role="status" aria-live="assertive" aria-atomic="true" hidden>
+    <span class="his-network-button__icon" aria-hidden="true">
+      <i class="fas fa-wifi" data-state-icon="offline"></i>
+      <i class="fas fa-sync-alt" data-state-icon="restoring"></i>
+    </span>
+    <span class="his-network-button__message" id="his-network-message"></span>
+  </button>
+  <div id="loading">
+    <div class="his-data-loader his-system-loader" role="status" aria-live="polite">
+      <span class="his-data-loader__logo-shell" aria-hidden="true">
+        <img class="his-data-loader__logo" src="/luckxay-logo.jpg" alt="">
+      </span>
+      <span class="his-data-loader__copy">
+        <strong>ກຳລັງໂຫລດຂໍ້ມູນ</strong>
+      </span>
+    </div>
+  </div>
+
+  <!-- ===== LOGIN SECTION ===== -->
+  <div class="login-page" id="login-section">
+    <div class="login-box">
+      <div class="card card-outline card-primary">
+        <div class="card-body p-4">
+          <div class="text-center login-logo mb-4">
+            <img src="/luckxay-logo.jpg" alt="Luckxay Hospital"
+              class="login-logo-image mb-3">
+            <h3 class="login-brand-title fw-bold m-0">ໂຮງໝໍ ຫຼັກໄຊ</h3>
+            <p class="login-brand-subtitle text-muted mt-2 mb-0">Luckxay Hospital</p>
+          </div>
+          <div id="loginForm">
+            <div class="mb-3">
+              <label class="form-label text-muted" style="font-size:11.5px;font-weight:600;letter-spacing:0.3px;">ອີເມວ (Email)</label>
+              <div class="input-group">
+                <div class="input-group-text"><i class="fas fa-envelope text-muted" style="font-size:12px;"></i></div>
+                <input type="email" class="form-control" id="loginEmail" placeholder="your@email.com" required style="border-left:none;">
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label text-muted" style="font-size:11.5px;font-weight:600;letter-spacing:0.3px;">ລະຫັດຜ່ານ (Password)</label>
+              <div class="input-group">
+                <div class="input-group-text"><i class="fas fa-lock text-muted" style="font-size:12px;"></i></div>
+                <input type="password" class="form-control" id="loginPass" placeholder="••••••••" required
+                  onkeypress="if(event.key === 'Enter') window.doLogin();" style="border-left:none;">
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="window.doLogin()"
+              style="font-size:14px;letter-spacing:0.3px;">
+              <i class="fas fa-sign-in-alt me-2"></i> ເຂົ້າສູ່ລະບົບ
+            </button>
+            <p class="login-brand-footer text-center text-muted mt-3 mb-0">Luckxay Hospital Information System V3 2026</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== APP SHELL ===== -->
+  <div class="wrapper" id="app-content" style="display:none;">
+    <!-- Navbar injected here -->
+    <div id="partial-navbar"></div>
+
+    <!-- Content views injected here -->
+    <div class="his-content-wrapper" id="partial-views"></div>
+  </div>
+
+  <!-- Modals injected here -->
+  <div id="partial-modals"></div>
+
+  <!-- Print areas injected here -->
+  <div id="partial-prints"></div>
+
+  <!-- Global clinical notifications must remain visible regardless of the active view. -->
+  <div id="opdToastContainer" class="opd-toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="/scripts/fixtures/workflow-backend.js"></script><script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/lisArchiveDashboard.js"></script>
+</body>
+
+</html>

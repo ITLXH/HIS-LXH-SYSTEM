@@ -242,6 +242,7 @@
                   </div>
                 </div>
                 <span class="emr-lis-summary-count" id="emrLabPickerSelectedCount">0</span>
+                <button type="button" class="btn btn-sm btn-outline-danger" title="ລ້າງລາຍການ" aria-label="ລ້າງລາຍການ" onclick="window.clearInvestigationSelection()"><i class="fas fa-trash"></i></button>
               </div>
               <div class="emr-lis-summary-body" id="emrLabSelectedSummary">
                 <div class="emr-order-empty">
@@ -256,7 +257,7 @@
       </div>
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ຍົກເລີກ</button>
-        <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="window.addLabToEMRList()"><i class="fas fa-check me-1"></i>ຢືນຍັນເລືອກ</button>
+        <button id="emrLabConfirmButton" type="button" class="btn btn-primary btn-sm fw-bold" onclick="window.addLabToEMRList()"><i class="fas fa-check me-1"></i>ຢືນຍັນເລືອກ</button>
       </div>
     </div>
   </div>
