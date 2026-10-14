@@ -124,9 +124,19 @@ label.it-row{cursor:pointer;border-radius:2px}label.it-row:hover{background:#007
 #emrLabModal.it-wide-picker .emr-lis-summary-body{max-height:65dvh;overflow:auto}
 #emrLabModal.it-wide-picker .modal-body{padding:6px!important}
 #emrLabModal.it-wide-picker .emr-lis-shell{padding:6px}
-#labCheckboxContainer{--it-picker-content-height:calc(100dvh - 260px)}
-.it-pagination{display:flex;justify-content:flex-end;gap:6px;padding:4px}.it-pagination button{font-size:12px}
-#emrLabModal.it-wide-picker .emr-lis-test-container{max-height:none;overflow:visible;min-height:0}
+#emrLabModal.it-wide-picker .emr-lis-layout>section.emr-lis-panel{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:42px minmax(0,1fr)}
+#emrLabModal.it-wide-picker .emr-lis-panel-header{min-width:0;gap:6px;padding:4px 8px}
+#emrLabModal.it-wide-picker .emr-lis-layout>section .emr-lis-panel-header{border-bottom:0}
+#emrLabModal.it-wide-picker .emr-lis-layout>section .emr-lis-panel-title i,#emrLabModal.it-wide-picker .emr-lis-refresh{display:none}
+#emrLabModal.it-wide-picker .emr-lis-search-row{padding:4px 8px 4px 0;min-width:0}
+#emrLabModal.it-wide-picker #labCheckboxContainer{grid-column:1/-1;display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;max-height:none;overflow:hidden;padding:0 8px 4px;background:white;scrollbar-gutter:auto}
+.it-picker-viewport{min-height:0;min-width:0;container-type:size;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.it-picker-viewport .it-picker-crop{--it-picker-content-height:100cqh;flex-shrink:0}
+.it-pagination{display:flex;justify-content:flex-end;gap:6px;padding:4px 0;min-height:36px;background:white}.it-pagination button{font-size:12px}
+#emrLabModal.it-wide-picker .emr-lis-summary-body{min-height:0;max-height:none;overflow:auto;font-size:12px}
+#emrLabModal.it-wide-picker .emr-lis-summary-body strong{font-size:12px}
+#emrLabModal.it-wide-picker .emr-lis-summary-count{font-size:12px;min-width:28px;height:28px}
+#emrLabModal.it-wide-picker .it-search-results{max-height:none;min-height:0}
 @media(max-width:850px){.it-picker-pages{grid-template-columns:1fr}.it-picker-page{max-height:65dvh}}
 @media print{.it-selected{background:transparent;outline:0}.it-sheet{break-after:page;break-inside:avoid}.it-sheet:last-child{break-after:auto}}
 `;
@@ -205,7 +215,7 @@ export function installInvestigationTemplates({ onChange = () => {}, canEdit = (
       if (query && !relevant.some(row => row.page === index+1)) return '';
       return renderInvestigationSheet(template,index+1,{interactive:true,catalog,selected,query});
     }).join('');
-    return `<style>${investigationSheetStyles}</style>${pages}<nav class="it-pagination">${template.pages.map((_,i)=>`<button type="button" class="btn btn-sm ${i+1===selectedPage?'btn-primary':'btn-outline-primary'}" onclick="window.selectInvestigationPage(${i+1})">ໜ້າ ${i+1}</button>`).join('')}</nav>${!relevant.length ? '<p class="p-3">ບໍ່ພົບລາຍການກວດ</p>' : ''}`;
+    return `<style>${investigationSheetStyles}</style><div class="it-picker-viewport">${pages}</div><nav class="it-pagination" aria-label="Order form pages">${template.pages.map((_,i)=>`<button type="button" class="btn btn-sm ${i+1===selectedPage?'btn-primary':'btn-outline-primary'}" onclick="window.selectInvestigationPage(${i+1})">ໜ້າ ${i+1}</button>`).join('')}</nav>${!relevant.length ? '<p class="p-3">ບໍ່ພົບລາຍການກວດ</p>' : ''}`;
   };
   const editable = () => { if (!canEdit()) { window.alert('ບໍ່ມີສິດແກ້ໄຂການຕັ້ງຄ່າ'); return false; } return true; };
   const host = () => document.getElementById('investigationTemplateEditor');

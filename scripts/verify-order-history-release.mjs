@@ -15,8 +15,30 @@ try{
   await page.waitForFunction(()=>document.getElementById('app-content').style.display!=='none');
   await page.evaluate(async()=>{window.opdTestSelectedVisit={visitId:'VTEST01',rowIdx:'VTEST01',patientId:'PTEST01',patientName:'Synthetic Patient',labOrdersStr:'[]'};window.loadView('opd_test',{skipOpdTestGuard:true});});
   await page.waitForFunction(()=>document.getElementById('view-opd_test').style.display!=='none');
+  await page.evaluate(()=>window.opdTestOpenLabPicker('lab'));
+  await page.locator('#emrLabModal.show').waitFor();
+  for(const height of [1000,768]){
+    await page.setViewportSize({width:1920,height});
+    for(const number of [2,1]){
+      const button=page.locator('.it-pagination button').nth(number-1);
+      await button.click();
+      await page.waitForTimeout(100);
+      const layout=await page.evaluate(()=>{
+        const nav=document.querySelector('.it-pagination').getBoundingClientRect();
+        const crop=document.querySelector('.it-picker-crop').getBoundingClientRect();
+        const host=document.getElementById('labCheckboxContainer').getBoundingClientRect();
+        return {navBottom:nav.bottom,hostBottom:host.bottom,cropBottom:crop.bottom,navTop:nav.top,page:document.querySelector('[data-template-page]').dataset.templatePage};
+      });
+      assert.equal(layout.page,String(number));
+      assert.ok(layout.navBottom<=height && layout.navBottom<=layout.hostBottom+1,'Page buttons must stay visible');
+      assert.ok(layout.cropBottom<=layout.navTop+1,'Full form must fit above page buttons');
+    }
+  }
+  await page.setViewportSize({width:1920,height:1000});
+  await page.screenshot({path:'tmp/order-forms/picker-layout-fixed.png'});
+
   for(let i=0;i<2;i++){
-    await page.evaluate(()=>window.opdTestOpenLabPicker('lab'));
+    if(i>0) await page.evaluate(()=>window.opdTestOpenLabPicker('lab'));
     await page.locator('#emrLabModal.show').waitFor();
     await page.getByLabel('CBC 24 p',{exact:true}).check();
     await page.locator('#emrLabConfirmButton').click();
@@ -35,3 +57,4 @@ try{
   assert.deepEqual(errors,[]);
   console.log('Actual release UI: login, two CBC save batches, database mock read-back and encounter reopening passed. No LIS/RIS order writes.');
 }catch(error){await page.screenshot({path:'tmp/order-forms/release-ui-failure.png',fullPage:true});console.error(errors);throw error;}finally{await browser.close();}
+
