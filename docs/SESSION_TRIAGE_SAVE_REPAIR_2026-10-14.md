@@ -1,0 +1,8 @@
+# Triage persistence outcome repair
+Objective: retain working legacy Visit save while accurately distinguishing absent vital history, actual save failure and no matching row. Missing vitals table remains a separately gated database repair.
+Before change: missing-table/column errors both ignored for history; Visit success with zero rows was treated as success; transport exceptions could leave loading state; debug logs included patient/vitals.
+Plan: allow only missing relation to continue legacy visit save with warning; reject other history errors; verify returned Visit/Patient identity; catch transport failures and preserve form; remove clinical debug logs. No schema/grants/deletion.
+Tests: execute real save function with injected failures, wrong/empty row, missing history, compatibility fallback and success. All regression/build required.
+
+Validation: actual executeTriageSave function passed injected missing table, missing column, permission/validation errors, transport exceptions, empty/wrong Visit/Patient rows, normal and RR/O2 compatibility cases. All existing named HIS test:* scripts, prior HN test and build passed. Initial new harness syntax error corrected before validation. No production network/database writes performed. Large-bundle warning remains.
+Limits: history insert and Visit update are still two non-atomic operations; a successful history write followed by Visit failure may leave a partial record. UI reports an unconfirmed outcome and asks staff to inspect Visit before retry. This repair does not create the missing history table or promise transactional retries. Schema repair and live clinical acceptance remain pending. No rows or permissions changed. Review branch only; do not promote main without clinical acceptance.

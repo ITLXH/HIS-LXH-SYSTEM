@@ -7589,14 +7589,12 @@ window.executeTriageSave = async function (fd) {
     return;
   }
 
-  console.log('=== TRIAGE SAVE DEBUG ===');
-  console.log('Visit ID:', fd.visitId);
-  console.log('Patient ID:', fd.patientId);
-  console.log('Clinical Department:', fd.v_clinical_department);
-  console.log('Examination Room:', fd.v_department);
-  console.log('BP:', fd.v_bp);
-  console.log('Symptoms:', fd.v_symptoms);
 
+  if (!String(fd.visitId || '').trim()) {
+    Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ບໍ່ມີ Visit ID; ຍັງບໍ່ໄດ້ບັນທຶກ', 'error');
+    return;
+  }
+  try {
   const parsedBp = window.ipdParseBloodPressure(fd.v_bp);
   const bmiValue = window.ipdCalculateBmiValue(fd.v_weight, fd.v_height);
   const recordedAt = window.combineLocalDateTimeIso(fd.v_date, fd.v_time);
@@ -7622,11 +7620,15 @@ window.executeTriageSave = async function (fd) {
     Updated_At: recordedAt
   };
   const vitalRes = await supabaseClient.from(dbTable('OPD_Vital_Signs')).insert([opdVitalPayload]);
-  if (vitalRes.error && !window.ipdNeedsMigration?.(vitalRes.error)) {
-    Swal.fire('ຜິດພາດ!', vitalRes.error.message, 'error');
+  const historyUnavailable = Boolean(vitalRes.error && (
+    ['42P01', 'PGRST205'].includes(vitalRes.error.code) ||
+    (vitalRes.status === 404 && /OPD_Vital_Signs/.test(vitalRes.error.message || ''))
+  ));
+  if (vitalRes.error && !historyUnavailable) {
+    Swal.fire('ຜິດພາດ!', vitalRes.error.message || 'ບັນທຶກ vitals ບໍ່ສຳເລັດ', 'error');
     return;
   }
-  if (vitalRes.error) console.warn('OPD vital signs table is not available yet. Apply IPD clinical migration.', vitalRes.error);
+  if (historyUnavailable) console.warn('OPD history unavailable; saving latest measurements to Visit only.');
 
   const doctorName = String(fd.v_doctor || '').trim();
   const visitUpdatePayload = {
@@ -7656,12 +7658,11 @@ window.executeTriageSave = async function (fd) {
   // If Patient_ID is provided, add it to the filter for extra safety
   if (fd.patientId) {
     query = query.eq('Patient_ID', fd.patientId);
-    console.log('Using Patient_ID filter for safety');
   }
 
   let { data, error } = await query.select();
   if (error && window.ipdNeedsMigration?.(error)) {
-    console.warn('Visits RR/O2 columns are not available in schema cache. Retrying basic visit update.', error);
+    console.warn('Visit schema compatibility fallback used.');
     let fallbackQuery = supabaseClient.from(dbTable('Visits')).update(visitUpdateFallback).eq('Visit_ID', fd.visitId);
     if (fd.patientId) fallbackQuery = fallbackQuery.eq('Patient_ID', fd.patientId);
     const fallbackResult = await fallbackQuery.select();
@@ -7669,10 +7670,11 @@ window.executeTriageSave = async function (fd) {
     error = fallbackResult.error;
   }
 
-  console.log('Update result - Data:', data);
-  console.log('Update result - Error:', error);
-  console.log('========================');
 
+  if (!error && (!Array.isArray(data) || data.length !== 1 || String(data[0].Visit_ID) !== String(fd.visitId) || (fd.patientId && String(data[0].Patient_ID) !== String(fd.patientId)))) {
+    Swal.fire('ຍັງບໍ່ຢືນຢັນການບັນທຶກ', 'ບໍ່ພົບ Visit/ຄົນເຈັບທີ່ກົງກັນ. ກວດສອບກ່ອນລອງອີກຄັ້ງ.', 'error');
+    return;
+  }
   if (error) {
     Swal.fire('ຜິດພາດ!', error.message, 'error');
   } else {
@@ -7701,9 +7703,16 @@ window.executeTriageSave = async function (fd) {
 
     $('#triageModal').modal('hide');
     window.logAction('Save', 'Triage saved - Visit ' + fd.visitId, 'Triage');
-    Swal.fire('ສຳເລັດ!', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ', 'success');
+    if (historyUnavailable) {
+      Swal.fire('ບັນທຶກ Visit ແລ້ວ', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ; ປະຫວັດ vitals ແຍກຍັງບໍ່ຖືກບັນທຶກ. ໃຫ້ IT ກວດສອບຕາຕະລາງປະຫວັດ.', 'warning');
+    } else {
+      Swal.fire('ສຳເລັດ!', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ', 'success');
+    }
     window.loadTriageQueue();
     window.loadQueue();
+  }
+  } catch {
+    Swal.fire('ຍັງບໍ່ຢືນຢັນການບັນທຶກ', 'ການເຊື່ອມຕໍ່ຂັດຂ້ອງ. ກວດສອບ Visit ກ່ອນລອງອີກຄັ້ງ; ຂໍ້ມູນໃນຟອມຍັງຢູ່.', 'error');
   }
 };
 
