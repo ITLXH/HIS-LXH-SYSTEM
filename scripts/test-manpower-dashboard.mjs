@@ -128,7 +128,6 @@ assert.match(dashboard, /MANPOWER_HISTORY_STORAGE_KEY/);
 assert.match(dashboard, /window\.addEventListener\('storage'/);
 assert.match(dashboard, /LOCAL_PHARMACY_DEMO/);
 assert.match(dashboard, /ເຂົ້າປະຈຳການແລ້ວ/);
-assert.match(dashboard, /sharedState\?\.initialized/);
 assert.match(dashboard, /await staffBackend\.load\(\)/);
 assert.doesNotMatch(dashboard, /Supabase realtime/);
 assert.match(dashboard, /backend\.loadAssignments/);

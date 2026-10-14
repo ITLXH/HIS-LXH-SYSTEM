@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Archive dashboard local regression fixture</title>
+<style>body{font:16px system-ui;max-width:1000px;margin:30px auto}button{padding:10px;margin:5px}#results{white-space:pre-wrap}#fixture .backup-actions-grid,#fixture .backup-summary-grid{display:none}</style>
+<h1>Archive dashboard — mocked API browser test</h1>
+<p>All archive/auth API responses are local mocks. No production calls or writes.</p>
+<button id="run">Run browser checks</button><pre id="results">Ready</pre><div id="fixture"></div>
+<script type="module">
+let requests = 0;
+let status = 'success';
+let fail = false;
+let postRequests = 0;
+window.authenticatedFetch = async (_url, options = {}) => {
+  requests++;
+  await new Promise(resolve => setTimeout(resolve, 100));
+  if (options.method === 'POST') { postRequests++; status = 'in_progress'; }
+  return new Response(JSON.stringify(fail ? { error: 'Mock service unavailable' } : {
+    status, percent: status === 'success' ? 100 : 42,
+    progress: { stage: status === 'success' ? 'completed' : 'copying_and_verifying', eligible_object_count: 10, processed_object_count: 4 },
+  }), { status: fail ? 503 : 200, headers: { 'Content-Type': 'application/json' } });
+};
+window.Swal = { fire: async () => ({ isConfirmed: true }) };
+document.querySelector('#fixture').innerHTML = await (await fetch('/partials/views/backup.html')).text();
+await import('/src/lisArchiveDashboard.js');
+const view = document.getElementById('view-backup');
+const settle = () => new Promise(resolve => setTimeout(resolve, 250));
+document.querySelector('#run').onclick = async () => {
+  const results = document.querySelector('#results');
+  const lines = [];
+  const check = (condition, label) => { if (!condition) throw new Error(label); lines.push(`PASS ${label}`); results.textContent = lines.join('\n'); };
+  document.querySelector('#run').disabled = true;
+  try {
+    await settle();
+    check(requests === 0, 'hidden Backup makes zero API calls');
+    view.style.display = 'block';
+    await settle();
+    check(requests === 1, 'opening Backup fetches status once');
+    check(document.getElementById('lisArchivePercent').textContent === '100%', 'completed status renders');
+    const before = requests;
+    await Promise.all(Array.from({ length: 20 }, () => window.refreshLisArchiveStatus()));
+    check(requests === before + 1, '20 concurrent refresh calls share one request');
+    view.style.display = 'none';
+    await settle();
+    const hidden = requests;
+    await window.refreshLisArchiveStatus();
+    check(requests === hidden, 'manual refresh while hidden makes no API call');
+    view.style.display = 'block';
+    await settle();
+    check(requests === hidden + 1, 'returning to Backup refreshes current status');
+    document.getElementById('btnLisArchiveNow').click();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    check(postRequests === 1, 'manual start sends one mocked dispatch');
+    check(document.getElementById('lisArchivePercent').textContent === '42%', 'active progress renders');
+    check(document.getElementById('btnLisArchiveNow').disabled, 'active archive prevents a second dispatch');
+    fail = true;
+    await window.refreshLisArchiveStatus();
+    check(document.getElementById('lisArchiveStage').textContent.includes('Mock service unavailable'), 'API error is visible');
+    view.style.display = 'none';
+    await settle();
+    results.textContent += '\nBrowser fixture complete: all 10 checks passed.';
+  } catch (error) { results.textContent += `\nFAIL ${error.message}`; }
+};
+</script></html>

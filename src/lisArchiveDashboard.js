@@ -5,6 +5,20 @@ const POLL_MS = 10000;
 let initializedPanel = null;
 let pollTimer = null;
 let requestPending = false;
+let refreshPending = null;
+let panelVisible = false;
+let nextPollMs = POLL_MS;
+
+function isPanelVisible() {
+  const panel = el('lisArchivePanel');
+  return Boolean(panel && !document.hidden && panel.getClientRects().length);
+}
+
+function scheduleRefresh() {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+  if (isPanelVisible()) pollTimer = setTimeout(refresh, nextPollMs);
+}
 
 function el(id) {
   return document.getElementById(id);
@@ -122,11 +136,25 @@ async function apiFetch(url, options) {
   return data;
 }
 
-async function refresh() {
-  if (!el('lisArchivePanel')) return;
+function refresh() {
+  if (refreshPending) return refreshPending;
+  if (!isPanelVisible()) return Promise.resolve();
+  clearTimeout(pollTimer);
+  refreshPending = performRefresh().finally(() => {
+    refreshPending = null;
+    scheduleRefresh();
+  });
+  return refreshPending;
+}
+
+async function performRefresh() {
   try {
-    render(await apiFetch('/api/backup/lis-archive-status'));
+    const data = await apiFetch('/api/backup/lis-archive-status');
+    nextPollMs = ACTIVE_STATUSES.has(data.status) ? POLL_MS : 60000;
+    if (el('lisArchivePanel')) render(data);
   } catch (error) {
+    nextPollMs = Math.min(Math.max(nextPollMs * 2, 30000), 300000);
+    if (!el('lisArchiveStage')) return;
     if (error.status === 404) {
       el('lisArchiveStage').textContent = 'API ຈະໃຊ້ໄດ້ຫຼັງ deploy ໄປ Cloudflare Pages';
     } else {
@@ -162,7 +190,7 @@ async function startArchive() {
       text: 'ສາມາດປິດໜ້ານີ້ໄດ້; server ຈະເຮັດຕໍ່ ແລະສະຖານະຈະກັບຄືນມາເມື່ອເປີດໃໝ່.',
       confirmButtonText: 'ຕົກລົງ',
     });
-    setTimeout(refresh, 3000);
+    nextPollMs = POLL_MS;
   } catch (error) {
     if (error.status === 409 && error.data) {
       await refresh();
@@ -178,16 +206,25 @@ async function startArchive() {
 
 function initialize() {
   const panel = el('lisArchivePanel');
-  if (!panel || panel === initializedPanel) return;
-  initializedPanel = panel;
-  el('btnLisArchiveNow')?.addEventListener('click', startArchive);
-  setSundayHint();
-  refresh();
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(refresh, POLL_MS);
+  if (panel && panel !== initializedPanel) {
+    initializedPanel = panel;
+    el('btnLisArchiveNow')?.addEventListener('click', startArchive);
+    setSundayHint();
+  }
+  const visible = isPanelVisible();
+  if (visible === panelVisible) return;
+  panelVisible = visible;
+  if (visible) void refresh();
+  else {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
 }
 
-new MutationObserver(initialize).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver(initialize).observe(document.documentElement, {
+  childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'],
+});
+document.addEventListener('visibilitychange', initialize);
 initialize();
 
 window.refreshLisArchiveStatus = refresh;

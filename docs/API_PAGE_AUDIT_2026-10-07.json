@@ -1,0 +1,496 @@
+{
+  "results": [
+    {
+      "route": "dashboard",
+      "view": "dashboard",
+      "status": "PASS",
+      "requestCount": 5,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Appointments",
+        "GET /rest/v1/HIS_One_Visits",
+        "GET /rest/v1/HIS_One_Patients"
+      ]
+    },
+    {
+      "route": "report",
+      "view": "report",
+      "status": "PASS",
+      "requestCount": 4,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Visits",
+        "HEAD /rest/v1/opd_observations"
+      ]
+    },
+    {
+      "route": "visit_history",
+      "view": "visit_history",
+      "status": "PASS",
+      "requestCount": 3,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Visits"
+      ]
+    },
+    {
+      "route": "triage",
+      "view": "triage",
+      "status": "PASS",
+      "requestCount": 5,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Visits",
+        "GET /rest/v1/HIS_One_OPD_Vital_Signs",
+        "GET /rest/v1/HIS_One_Patients"
+      ]
+    },
+    {
+      "route": "vaccines",
+      "view": "vaccines",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Patient_Vaccines"
+      ]
+    },
+    {
+      "route": "appointments",
+      "view": "appointments",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Appointments"
+      ]
+    },
+    {
+      "route": "opd_queue",
+      "view": "opd",
+      "status": "PASS",
+      "requestCount": 4,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Visits",
+        "GET /rest/v1/HIS_One_OPD_Vital_Signs",
+        "GET /rest/v1/HIS_One_Patients"
+      ]
+    },
+    {
+      "route": "opd_consultation",
+      "view": "opd_test",
+      "status": "PASS",
+      "requestCount": 8,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Visits",
+        "GET /rest/v1/HIS_One_OPD_Vital_Signs",
+        "GET /rest/v1/HIS_One_Patients",
+        "POST /api/data"
+      ]
+    },
+    {
+      "route": "opd_test",
+      "view": "opd_test",
+      "status": "PASS",
+      "requestCount": 6,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Visits",
+        "GET /rest/v1/HIS_One_OPD_Vital_Signs",
+        "GET /rest/v1/HIS_One_Patients",
+        "POST /api/data"
+      ]
+    },
+    {
+      "route": "opd_observation",
+      "view": "opd_observation",
+      "status": "PASS",
+      "requestCount": 13,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks",
+        "GET /rest/v1/opd_observations",
+        "HEAD /rest/v1/HIS_One_Visits"
+      ]
+    },
+    {
+      "route": "opd_observation_list",
+      "view": "opd_observation_list",
+      "status": "PASS",
+      "requestCount": 13,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks",
+        "GET /rest/v1/opd_observations",
+        "HEAD /rest/v1/HIS_One_Visits"
+      ]
+    },
+    {
+      "route": "patients",
+      "view": "patients",
+      "status": "PASS",
+      "requestCount": 2,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Visits"
+      ]
+    },
+    {
+      "route": "offline_sticker",
+      "view": "offline_sticker",
+      "status": "PASS",
+      "requestCount": 0,
+      "endpoints": []
+    },
+    {
+      "route": "ipd_dashboard",
+      "view": "ipd_ward_bed",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "ipd_admission",
+      "view": "ipd_ward_bed",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "ipd_ward_bed",
+      "view": "ipd_ward_bed",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "ipd_inpatient_list",
+      "view": "ipd_inpatient_list",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "ipd_discharge",
+      "view": "ipd_inpatient_list",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "ipd_config",
+      "view": "ipd_config",
+      "status": "PASS",
+      "requestCount": 9,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks"
+      ]
+    },
+    {
+      "route": "staff",
+      "view": "staff",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Staff_Profiles"
+      ]
+    },
+    {
+      "route": "manpower",
+      "view": "manpower",
+      "status": "PASS",
+      "requestCount": 3,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Staff_Profiles",
+        "GET /rest/v1/HIS_One_Manpower_Assignments",
+        "GET /rest/v1/HIS_One_Manpower_Shift_Overviews"
+      ]
+    },
+    {
+      "route": "printer_settings",
+      "view": "printer_settings",
+      "status": "PASS",
+      "requestCount": 0,
+      "endpoints": []
+    },
+    {
+      "route": "settings",
+      "view": "settings",
+      "status": "PASS",
+      "requestCount": 0,
+      "endpoints": []
+    },
+    {
+      "route": "orgs",
+      "view": "orgs",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Organizations"
+      ]
+    },
+    {
+      "route": "users",
+      "view": "users",
+      "status": "PASS",
+      "requestCount": 2,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Users"
+      ]
+    },
+    {
+      "route": "services",
+      "view": "services",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Service_Lists"
+      ]
+    },
+    {
+      "route": "locations",
+      "view": "locations",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Locations"
+      ]
+    },
+    {
+      "route": "drugs",
+      "view": "drugs",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Drugs_Master"
+      ]
+    },
+    {
+      "route": "labs",
+      "view": "labs",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Labs_Master"
+      ]
+    },
+    {
+      "route": "vaccine_master",
+      "view": "vaccine_master",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Vaccines_Master"
+      ]
+    },
+    {
+      "route": "activity_log",
+      "view": "activity_log",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_activity_logs"
+      ]
+    },
+    {
+      "route": "backup",
+      "view": "backup",
+      "status": "PASS",
+      "requestCount": 4,
+      "endpoints": [
+        "GET /api/backup/status",
+        "GET /api/backup/list",
+        "GET /api/backup/lis-archive-status",
+        "POST /api/data"
+      ]
+    },
+    {
+      "route": "public-queue",
+      "view": "public-queue",
+      "status": "PASS",
+      "requestCount": 1,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Visits"
+      ]
+    },
+    {
+      "route": "ipd_chart",
+      "view": "ipd_chart",
+      "status": "PASS",
+      "requestCount": 22,
+      "endpoints": [
+        "GET /rest/v1/HIS_One_Wards",
+        "GET /rest/v1/HIS_One_Rooms",
+        "GET /rest/v1/HIS_One_Beds",
+        "GET /rest/v1/HIS_One_Admissions",
+        "GET /rest/v1/HIS_One_Patients",
+        "GET /rest/v1/HIS_One_Bed_Movements",
+        "GET /rest/v1/HIS_One_IPD_Medication_Orders",
+        "GET /rest/v1/HIS_One_IPD_Medication_Administrations",
+        "GET /rest/v1/HIS_One_IPD_Specimen_Tasks",
+        "GET /rest/v1/HIS_One_IPD_Doctor_Notes",
+        "GET /rest/v1/HIS_One_IPD_Nursing_Notes",
+        "GET /rest/v1/HIS_One_IPD_Vital_Signs",
+        "GET /rest/v1/HIS_One_IPD_Radiology_Orders",
+        "GET /rest/v1/HIS_One_IPD_Procedures",
+        "GET /rest/v1/HIS_One_IPD_Billing_Items",
+        "GET /rest/v1/HIS_One_IPD_Discharge_Summaries",
+        "GET /rest/v1/HIS_One_IPD_Visits",
+        "GET /rest/v1/HIS_One_Users",
+        "GET /rest/v1/HIS_One_Visits"
+      ]
+    }
+  ],
+  "assertions": [
+    "dashboard visible",
+    "dashboard: ",
+    "report visible",
+    "report: ",
+    "visit_history visible",
+    "visit_history: ",
+    "triage visible",
+    "triage: ",
+    "vaccines visible",
+    "vaccines: ",
+    "appointments visible",
+    "appointments: ",
+    "opd_queue visible",
+    "opd_queue: ",
+    "opd_consultation visible",
+    "opd_consultation: ",
+    "opd_test visible",
+    "opd_test: ",
+    "opd_observation visible",
+    "opd_observation: ",
+    "opd_observation_list visible",
+    "opd_observation_list: ",
+    "patients visible",
+    "patients: ",
+    "offline_sticker visible",
+    "offline_sticker: ",
+    "ipd_dashboard visible",
+    "ipd_dashboard: ",
+    "ipd_admission visible",
+    "ipd_admission: ",
+    "ipd_ward_bed visible",
+    "ipd_ward_bed: ",
+    "ipd_inpatient_list visible",
+    "ipd_inpatient_list: ",
+    "ipd_discharge visible",
+    "ipd_discharge: ",
+    "ipd_config visible",
+    "ipd_config: ",
+    "staff visible",
+    "staff: ",
+    "manpower visible",
+    "manpower: ",
+    "printer_settings visible",
+    "printer_settings: ",
+    "settings visible",
+    "settings: ",
+    "orgs visible",
+    "orgs: ",
+    "users visible",
+    "users: ",
+    "services visible",
+    "services: ",
+    "locations visible",
+    "locations: ",
+    "drugs visible",
+    "drugs: ",
+    "labs visible",
+    "labs: ",
+    "vaccine_master visible",
+    "vaccine_master: ",
+    "activity_log visible",
+    "activity_log: ",
+    "backup visible",
+    "backup: ",
+    "public-queue visible",
+    "public-queue: ",
+    "ipd_chart visible",
+    "ipd_chart: ",
+    "all 30 configured views visited",
+    "IPD correct patient HN",
+    "IPD failure preserves complete same-patient state and warns",
+    "failed other admission clears old patient sections",
+    "manpower channel subscribed",
+    "route exit removes manpower channel",
+    "obsolete manpower events cause no hidden-page reads",
+    "normal cached-time reentry resubscribes manpower",
+    "patient HN and phone preserved after all routes",
+    "logout removes all subscriptions",
+    "logout hides patient modal and clears identity",
+    "patient modal works after re-login despite logout during animation",
+    "no uncaught errors/rejections throughout audit"
+  ],
+  "uncaughtErrors": [],
+  "scope": "Loopback Auth/API/Realtime mocks; no production CRUD or deployment"
+}
