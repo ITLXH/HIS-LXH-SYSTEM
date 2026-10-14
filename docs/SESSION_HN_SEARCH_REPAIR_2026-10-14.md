@@ -1,0 +1,6 @@
+# Narrow canonical HN search
+Before implementation: current global patient filter searches seven columns with OR ILIKE even for canonical HN. Existing timeout samples contain this shape plus exact count. Objective: reduce query scope without data/schema/auth changes.
+Plan: exact canonical full HN uses Patient_ID equality; canonical year/prefix uses Patient_ID prefix ILIKE; ordinary names/phone/organization retain existing seven-column token search. Preserve pagination/count/date/additional filters and error behavior. No indexes or timeout/RLS changes.
+Tests: execute actual registry filter from main.js with synthetic query builder; canonical match, count semantics via fixtures, normal text and combined filters. Build and existing regression scripts required. Production performance/UAT remains unmeasured.
+
+Validation complete: new actual-filter synthetic test passed; all existing named test:* package scripts passed; Vite build passed. Existing large-chunk warning remains. No production profiling/clinical browser acceptance performed. Review-only branch codex/his-patient-hn-search-20261014; shared anon/staging task paused by user. Source commit includes only this query helper, main integration, its test and this Session MD. Production/main promotion is not part of this commit.

@@ -1,3 +1,4 @@
+import {applyPatientRegistryGlobalSearch} from "./patientRegistrySearch.js";
 import JsBarcode from 'jsbarcode';
 import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
@@ -6846,10 +6847,7 @@ window.applyPatientRegistryFilters = function (query, request) {
     }, builder);
   };
 
-  query = applyTokenFilter(query, request?.search?.value, [
-    'Patient_ID', 'Old_Patient_ID', 'First_Name', 'Last_Name',
-    'Phone_Number', 'Name_Org', 'Insurance_Company'
-  ]);
+  query = applyPatientRegistryGlobalSearch(query, request?.search?.value);
   query = applyTokenFilter(query, request?.columns?.[3]?.search?.value, ['Old_Patient_ID']);
   query = applyTokenFilter(query, request?.columns?.[4]?.search?.value, ['First_Name', 'Last_Name']);
   query = applyTokenFilter(query, request?.columns?.[7]?.search?.value, ['Phone_Number']);
