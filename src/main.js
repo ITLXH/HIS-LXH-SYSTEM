@@ -61,6 +61,9 @@ async function fetchWithNetworkStatus(input, init = {}) {
     ? AbortSignal.any([init.signal, timeoutSignal])
     : timeoutSignal;
 
+  const method=String(init.method || input?.method || 'GET').toUpperCase();
+  const mutation=!['GET','HEAD','OPTIONS'].includes(method);
+  if(mutation)window.__hisWritesInFlight=Number(window.__hisWritesInFlight||0)+1;
   try {
     const response = await fetch(input, { ...init, signal });
     window.setHisNetworkStatus?.(response.status >= 500 ? 'offline' : 'online');
@@ -70,6 +73,8 @@ async function fetchWithNetworkStatus(input, init = {}) {
       window.setHisNetworkStatus?.('offline');
     }
     throw error;
+  } finally {
+    if(mutation)window.__hisWritesInFlight=Math.max(0,Number(window.__hisWritesInFlight||0)-1);
   }
 }
 
@@ -3342,7 +3347,6 @@ window.formatOpdPrintPatientId = function (patientId) {
 
 $(document).ready(async function () {
   startBuildVersionRefresh({
-    forceReload: true,
     beforeReload: () => window.clearAuthSession?.()
   });
   // Load all HTML partials first, then init the app

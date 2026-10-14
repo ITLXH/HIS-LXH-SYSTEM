@@ -29,7 +29,8 @@
     "test:printer-settings": "node scripts/test-printer-settings.mjs",
     "preview": "vite preview",
     "pages:dev": "wrangler pages dev dist --compatibility-date=2024-01-01",
-    "test:organization-preload": "node scripts/test-organization-preload.mjs"
+    "test:organization-preload": "node scripts/test-organization-preload.mjs",
+    "test:release-writes": "node scripts/test-release-write-safety.mjs"
   },
   "devDependencies": {
     "vite": "^6.0.0",

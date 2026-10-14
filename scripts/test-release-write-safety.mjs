@@ -1,0 +1,14 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../src/main.js',import.meta.url),'utf8');const begin=source.indexOf('async function fetchWithNetworkStatus('),end=source.indexOf('const supabaseClient =',begin);assert.ok(begin>=0&&end>begin);
+let resolve,reject,calls=0;const pending=()=>new Promise((yes,no)=>{resolve=yes;reject=no;});let response=pending();
+const context={window:{setHisNetworkStatus(){}},navigator:{onLine:true},URL,TypeError,SUPABASE_URL:'https://synthetic.invalid',SUPABASE_REQUEST_TIMEOUT_MS:20000,AbortSignal:{timeout:()=>({aborted:false})},fetch:()=>{calls++;return response;}};
+vm.runInNewContext(source.slice(begin,end)+'\nthis.testFetch=fetchWithNetworkStatus;',context);
+const first=context.testFetch('https://synthetic.invalid/rest/v1/test',{method:'POST'});assert.equal(context.window.__hisWritesInFlight,1);resolve({status:200});await first;assert.equal(context.window.__hisWritesInFlight,0);
+response=pending();const failure=context.testFetch('https://synthetic.invalid/rest/v1/test',{method:'PATCH'});assert.equal(context.window.__hisWritesInFlight,1);reject(new TypeError('synthetic network failure'));await assert.rejects(()=>failure);assert.equal(context.window.__hisWritesInFlight,0);
+response=pending();const read=context.testFetch('https://synthetic.invalid/rest/v1/test');assert.equal(context.window.__hisWritesInFlight,0);resolve({status:200});await read;
+response=pending();const requestWrite=context.testFetch({url:'https://synthetic.invalid/rest/v1/test',method:'DELETE'});assert.equal(context.window.__hisWritesInFlight,1);resolve({status:400});await requestWrite;assert.equal(context.window.__hisWritesInFlight,0);
+context.navigator.onLine=false;const before=calls;await assert.rejects(()=>context.testFetch('https://synthetic.invalid/rest/v1/test',{method:'POST'}));assert.equal(calls,before);assert.equal(context.window.__hisWritesInFlight,0);
+assert.match(fs.readFileSync(new URL('../src/versionRefresh.js',import.meta.url),'utf8'),/isBusy:.*__hisWritesInFlight/);
+console.log('PASS actual network wrapper: pending mutation blocks reload, success/error releases counter, reads are unchanged, Request method honored, offline write makes no request.');
+
+context.navigator.onLine=true;response=pending();const firstResolve=resolve;const concurrentOne=context.testFetch('https://synthetic.invalid/rest/v1/test',{method:'POST'});response=pending();const secondResolve=resolve;const concurrentTwo=context.testFetch('https://synthetic.invalid/rest/v1/test',{method:'PATCH'});assert.equal(context.window.__hisWritesInFlight,2);firstResolve({status:200});await concurrentOne;assert.equal(context.window.__hisWritesInFlight,1,'one completed write must not unblock another pending write');secondResolve({status:200});await concurrentTwo;assert.equal(context.window.__hisWritesInFlight,0);

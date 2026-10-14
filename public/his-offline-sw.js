@@ -47,7 +47,6 @@ self.addEventListener('install', event => {
       .filter(value => value.startsWith('/') || staticCdnHosts.has(new URL(value, self.location.origin).hostname));
     const assets = new Set([
       ...offlinePartials,
-      '/version.json',
       '/luckxay-logo.jpg',
       ...discoveredAssets
     ]);
@@ -86,13 +85,14 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  if (url.pathname === '/version.json') return;
   const isNavigation = request.mode === 'navigate';
   const isCdnAsset = staticCdnHosts.has(url.hostname)
     && ['script', 'style', 'font'].includes(request.destination);
   const isLocalStatic = url.origin === self.location.origin && (
     url.pathname.startsWith('/assets/')
     || url.pathname.startsWith('/partials/')
-    || ['/version.json', '/luckxay-logo.jpg'].includes(url.pathname)
+    || ['/luckxay-logo.jpg'].includes(url.pathname)
   );
   if (!isNavigation && !isCdnAsset && !isLocalStatic) return;
 
