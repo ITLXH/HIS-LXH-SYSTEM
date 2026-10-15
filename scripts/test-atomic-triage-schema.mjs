@@ -1,0 +1,31 @@
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createRequire} from 'node:module';
+const [root,dependencyRoot]=process.argv.slice(2);const {PGlite}=createRequire(path.resolve(dependencyRoot,'package.json'))('@electric-sql/pglite');const db=new PGlite();
+try{
+ await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;
+ create function public.his_one_is_active_user() returns boolean language sql stable as $$select current_setting('test.active',true)='true'$$;
+ create function public.his_one_can_table_write(text,text) returns boolean language sql stable as $$select current_setting('test.edit',true)='true'$$;
+ create table public."HIS_One_Visits"("Visit_ID" text primary key,"Patient_ID" text,"Status" text check("Status"<>'INVALID'),"Temp" numeric,"Symptoms" text);
+ insert into public."HIS_One_Visits" values ('SYN-V','SYN-P','Triage',36,'old');grant select on public."HIS_One_Visits" to authenticated;`);
+ for(const name of ['20261015090000_opd_vitals_scoped_repair.sql','20261015100000_atomic_triage_save.sql'])await db.exec(fs.readFileSync(path.join(root,'supabase/migrations',name),'utf8'));
+ await db.exec("set role authenticated;set test.uid='11111111-1111-4111-8111-111111111111';set test.active='true';set test.edit='true'");
+ const snapshot=async()=>(await db.query('select to_jsonb(v) snapshot from public."HIS_One_Visits" v')).rows[0].snapshot;
+ const expected=await snapshot();
+ const vital={Vital_ID:'SYN-REQUEST',Visit_ID:'SYN-V',Patient_ID:'SYN-P',Temperature:37,Respiration:18,SpO2:98,Recorded_At:'2026-10-15T10:00:00Z',Created_At:'2026-10-15T10:00:00Z',Updated_At:'2026-10-15T10:00:00Z'};
+ const visit={Status:'Waiting OPD',Temp:37,Symptoms:'synthetic',Respiratory_Rate:18,O2_Saturation:98};
+ const call=async(v=vital,p=visit,e=expected)=>(await db.query('select public.his_one_save_triage_atomic($1,$2::jsonb,$3::jsonb,$4::jsonb) response',[v.Vital_ID,JSON.stringify(e),JSON.stringify(v),JSON.stringify(p)])).rows[0].response;
+ await assert.rejects(call(vital,{...visit,Status:'INVALID'}),e=>e.code==='23514');
+ assert.equal((await db.query('select count(*)::int n from public."HIS_One_OPD_Vital_Signs"')).rows[0].n,0);assert.deepEqual(await snapshot(),expected);
+ const result=await call();assert.equal(result.success,true);assert.equal(result.visit.Status,'Waiting OPD');
+ assert.deepEqual(await call(),result,'retry returns receipt without duplicate clinical save');
+ assert.equal((await db.query('select count(*)::int n from public."HIS_One_OPD_Vital_Signs"')).rows[0].n,1);
+ await assert.rejects(call(vital,{...visit,Temp:38}),e=>e.code==='22023');
+ await assert.rejects(call({...vital,Vital_ID:'SYN-STALE'}),e=>e.code==='40001');
+ await assert.rejects(call({...vital,Vital_ID:'SYN-WRONG',Patient_ID:'OTHER'}),e=>e.code==='42501');
+ await assert.rejects(db.exec('select * from public.his_one_triage_save_receipts'),e=>e.code==='42501');
+ await assert.rejects(db.exec("insert into public.his_one_triage_save_receipts values ('FAKE',auth.uid(),'{}','{}',now())"),e=>e.code==='42501');
+ await db.exec("set test.edit='false'");await assert.rejects(call(),e=>e.code==='42501');
+ await db.exec("set test.edit='true';set test.active='false'");await assert.rejects(call(),e=>e.code==='42501');
+ await db.exec("reset role;set role anon");await assert.rejects(call(),e=>e.code==='42501');
+ console.log('PASS atomic PostgreSQL triage: history/Visit rollback, one receipt retry, immutable request payload, stale snapshot, wrong patient, inactive/read-only/anon denial and private receipts. Auth helpers simulated; hosted UAT required.');
+}finally{await db.close();}

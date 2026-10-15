@@ -1,3 +1,5 @@
+import { createAtomicTriageSaver } from './triageAtomicSave.js';
+const persistAtomicTriage = createAtomicTriageSaver();
 import {applyPatientRegistryGlobalSearch} from "./patientRegistrySearch.js";
 import JsBarcode from 'jsbarcode';
 import { createOnlinePresence } from './onlinePresence.js';
@@ -7590,7 +7592,7 @@ window.executeTriageSave = async function (fd) {
   }
 
 
-  if (!String(fd.visitId || '').trim()) {
+  if (!String(fd.visitId || '').trim() || !String(fd.patientId || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ບໍ່ມີ Visit ID; ຍັງບໍ່ໄດ້ບັນທຶກ', 'error');
     return;
   }
@@ -7619,17 +7621,6 @@ window.executeTriageSave = async function (fd) {
     Created_At: recordedAt,
     Updated_At: recordedAt
   };
-  const vitalRes = await supabaseClient.from(dbTable('OPD_Vital_Signs')).insert([opdVitalPayload]);
-  const historyUnavailable = Boolean(vitalRes.error && (
-    ['42P01', 'PGRST205'].includes(vitalRes.error.code) ||
-    (vitalRes.status === 404 && /OPD_Vital_Signs/.test(vitalRes.error.message || ''))
-  ));
-  if (vitalRes.error && !historyUnavailable) {
-    Swal.fire('ຜິດພາດ!', vitalRes.error.message || 'ບັນທຶກ vitals ບໍ່ສຳເລັດ', 'error');
-    return;
-  }
-  if (historyUnavailable) console.warn('OPD history unavailable; saving latest measurements to Visit only.');
-
   const doctorName = String(fd.v_doctor || '').trim();
   const visitUpdatePayload = {
     Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
@@ -7642,41 +7633,12 @@ window.executeTriageSave = async function (fd) {
     Recorded_By: recordedBy,
     Doctor_Name: doctorName || null
   };
-  const visitUpdateFallback = {
-    Status: 'Waiting OPD', Date: recordedAt, BP: fd.v_bp, Temp: fd.v_temp,
-    Weight: fd.v_weight, Height: fd.v_height,
-    BMI: bmiValue, Pulse: fd.v_pulse, SpO2: fd.v_spo2,
-    Department: fd.v_department, Mapped_Specialist: fd.v_clinical_department, Symptoms: fd.v_symptoms,
-    Site: fd.v_site || 'In-site', Visit_Type: fd.v_type || 'OPD',
-    Recorded_By: recordedBy,
-    Doctor_Name: doctorName || null
-  };
-
-  // Use both Visit_ID and Patient_ID to ensure we update the correct record
-  let query = supabaseClient.from(dbTable('Visits')).update(visitUpdatePayload).eq('Visit_ID', fd.visitId);
-
-  // If Patient_ID is provided, add it to the filter for extra safety
-  if (fd.patientId) {
-    query = query.eq('Patient_ID', fd.patientId);
-  }
-
-  let { data, error } = await query.select();
-  if (error && window.ipdNeedsMigration?.(error)) {
-    console.warn('Visit schema compatibility fallback used.');
-    let fallbackQuery = supabaseClient.from(dbTable('Visits')).update(visitUpdateFallback).eq('Visit_ID', fd.visitId);
-    if (fd.patientId) fallbackQuery = fallbackQuery.eq('Patient_ID', fd.patientId);
-    const fallbackResult = await fallbackQuery.select();
-    data = fallbackResult.data;
-    error = fallbackResult.error;
-  }
-
-
-  if (!error && (!Array.isArray(data) || data.length !== 1 || String(data[0].Visit_ID) !== String(fd.visitId) || (fd.patientId && String(data[0].Patient_ID) !== String(fd.patientId)))) {
-    Swal.fire('ຍັງບໍ່ຢືນຢັນການບັນທຶກ', 'ບໍ່ພົບ Visit/ຄົນເຈັບທີ່ກົງກັນ. ກວດສອບກ່ອນລອງອີກຄັ້ງ.', 'error');
-    return;
-  }
+  const result = await persistAtomicTriage({ client: supabaseClient, table: dbTable('Visits'), actor: currentUser?.id,
+    form: fd, vital: opdVitalPayload, visit: visitUpdatePayload });
+  const error = result.error;
   if (error) {
-    Swal.fire('ຜິດພາດ!', error.message, 'error');
+    const message = error.code === '40001' ? 'Visit ຖືກປ່ຽນແລ້ວ; ກວດສອບ ແລະ ເປີດຟອມໃໝ່.' : 'ຍັງບໍ່ຢືນຢັນການບັນທຶກ. ຮັກສາຂໍ້ມູນເດີມໃນຟອມ ແລະ ລອງຄືນຄຳຂໍເດີມ; ຕິດຕໍ່ IT ຖ້າຍັງບໍ່ສຳເລັດ.';
+    Swal.fire('ຍັງບໍ່ຢືນຢັນການບັນທຶກ', message, 'error');
   } else {
     const savedVitals = {
       rawDate: recordedAt,
@@ -7703,11 +7665,7 @@ window.executeTriageSave = async function (fd) {
 
     $('#triageModal').modal('hide');
     window.logAction('Save', 'Triage saved - Visit ' + fd.visitId, 'Triage');
-    if (historyUnavailable) {
-      Swal.fire('ບັນທຶກ Visit ແລ້ວ', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ; ປະຫວັດ vitals ແຍກຍັງບໍ່ຖືກບັນທຶກ. ໃຫ້ IT ກວດສອບຕາຕະລາງປະຫວັດ.', 'warning');
-    } else {
-      Swal.fire('ສຳເລັດ!', 'ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ', 'success');
-    }
+    Swal.fire('ສຳເລັດ!', 'ບັນທຶກ vitals ແລະ ສົ່ງເຂົ້າຫ້ອງກວດແລ້ວ', 'success');
     window.loadTriageQueue();
     window.loadQueue();
   }

@@ -45,10 +45,7 @@ const saveSource = main.slice(
   main.indexOf('window.executeTriageSave = async function'),
   main.indexOf('window.openEMRLabModal = function'),
 );
-assert.match(saveSource, /from\(dbTable\('OPD_Vital_Signs'\)\)\.insert\(\[opdVitalPayload\]\)/);
 assert.match(saveSource, /Department:\s*fd\.v_department,\s*Mapped_Specialist:\s*fd\.v_clinical_department/);
-assert.match(saveSource, /from\(dbTable\('Visits'\)\)\.update\(visitUpdatePayload\)\.eq\('Visit_ID',\s*fd\.visitId\)/);
-assert.match(saveSource, /query\s*=\s*query\.eq\('Patient_ID',\s*fd\.patientId\)/);
 assert.match(saveSource, /ກະລຸນາເລືອກພະແນກບໍລິການ/);
 
 const readSource = main.slice(
@@ -76,3 +73,4 @@ assert.match(deleteSource, /const filters = \{ Visit_ID: visitId \}/);
 assert.match(deleteSource, /if \(patientId\) filters\.Patient_ID = patientId/);
 
 console.log('Triage Clinical Department CRUD wiring checks passed.');
+assert.match(saveSource, /persistAtomicTriage/);

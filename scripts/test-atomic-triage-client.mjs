@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';import {createAtomicTriageSaver} from '../src/triageAtomicSave.js';
+let reads=0,calls=[],fail=true,resolveRpc;
+const args={table:'Visits',actor:'SYN-USER',form:{visitId:'SYN-V',patientId:'SYN-P',temp:'37'},vital:{Vital_ID:'SYN-REQUEST',Visit_ID:'SYN-V',Patient_ID:'SYN-P',Temperature:37},visit:{Temp:37}};
+const client={from(){return {select(){return this},eq(){return this},async maybeSingle(){reads++;return {data:{Visit_ID:'SYN-V',Patient_ID:'SYN-P'}}}}},async rpc(name,payload){assert.equal(name,'his_one_save_triage_atomic');calls.push(structuredClone(payload));if(fail)throw Error('lost response');return {data:{success:true,request_id:payload.p_request_id,visit:{Visit_ID:'SYN-V',Patient_ID:'SYN-P'}}}}};
+const save=createAtomicTriageSaver();assert.equal((await save({...args,client})).error.code,'UNCONFIRMED');
+assert.equal((await save({...args,client,form:{...args.form,temp:'38'}})).error.code,'UNCONFIRMED_DRAFT');assert.equal(calls.length,1);
+fail=false;assert.equal((await save({...args,client,vital:{...args.vital,Vital_ID:'NEW-IGNORED'}})).data.success,true);assert.equal(reads,1);assert.deepEqual(calls[0],calls[1]);
+assert.equal((await save({...args,client})).data.success,true);assert.equal(reads,1);assert.deepEqual(calls[1],calls[2]);
+const busySave=createAtomicTriageSaver();const pending=busySave({...args,client:{...client,rpc:()=>new Promise(resolve=>resolveRpc=resolve)}});await new Promise(resolve=>setImmediate(resolve));assert.equal((await busySave({...args,client})).error.code,'BUSY');resolveRpc({error:{code:'PGRST202'}});await pending;
+assert.equal((await busySave({...args,client})).data.success,true);
+console.log('PASS atomic triage client: lost-response exact replay, changed-draft refusal, duplicate-click suppression, missing RPC recovery; no direct writes/fallback.');
