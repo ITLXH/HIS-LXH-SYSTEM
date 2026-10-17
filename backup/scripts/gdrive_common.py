@@ -71,7 +71,7 @@ def build_drive(scopes=None):
 
 def drive_create(drive, **kwargs):
     kwargs.setdefault("supportsAllDrives", True)
-    return drive.files().create(**kwargs).execute()
+    return drive.files().create(**kwargs).execute(num_retries=3)
 
 
 def drive_get(drive, **kwargs):

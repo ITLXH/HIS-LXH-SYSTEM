@@ -23,6 +23,16 @@ spec.loader.exec_module(offload)
 
 
 class SafeDriveOffloadTests(unittest.TestCase):
+    def test_drive_inventory_query_includes_nested_backups_by_root_metadata(self):
+        drive = Mock()
+        request = drive.files.return_value.list.return_value
+        request.execute.return_value = {"files": []}
+
+        self.assertEqual(offload.list_drive_files(drive, "root-folder"), [])
+        query = drive.files.return_value.list.call_args.kwargs["q"]
+        self.assertIn("'root-folder' in parents", query)
+        self.assertIn("his_backup_root_id", query)
+
     def test_bucket_inventory_is_aggregate_only_and_excludes_backup_bucket(self):
         response = Mock(
             status_code=200,

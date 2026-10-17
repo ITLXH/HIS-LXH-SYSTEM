@@ -2,8 +2,8 @@ name: Supabase DB Backup
 
 on:
   schedule:
-    # Daily at 00:00 UTC (07:00 Asia/Bangkok). No manual action is required.
-    - cron: '0 0 * * *'
+    # Daily at 16:00 UTC (23:00 Asia/Bangkok). No manual action is required.
+    - cron: '0 16 * * *'
   workflow_dispatch:
     inputs:
       reason:
@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: supabase-database-backup
-  cancel-in-progress: false
+  group: his-daily-backup-window
+  queue: max
 
 jobs:
   backup:
@@ -63,7 +63,7 @@ jobs:
           BACKUP_STORAGE_WORKERS: '8'
           # Refuse a green run if the core customer, user or settings tables
           # disappear from PostgREST discovery.
-          BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users
+          BACKUP_REQUIRED_TABLES: HIS_One_Patients,HIS_One_Settings,HIS_One_Users,lis_one_settings,lis_one_users,UXI_One_main_app_state,UXI_One_main_audit,UXI_One_main_imaging_exam_catalog,UXI_One_main_imaging_orders,UXI_One_main_staff
 
       - name: Locate ZIP
         id: zip
@@ -156,6 +156,8 @@ jobs:
 
       - name: Backup summary
         if: always()
+        env:
+          BACKUP_REASON: ${{ github.event.inputs.reason || 'manual' }}
         run: |
           echo "## HIS Database Backup Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -163,9 +165,11 @@ jobs:
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Date | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Trigger | ${{ github.event_name }} |" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -n "${{ github.event.inputs.reason }}" ]]; then
-            echo "| Reason | ${{ github.event.inputs.reason }} |" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          reason="${BACKUP_REASON:0:80}"
+          reason="${reason//$'\n'/ }"
+          reason="${reason//$'\r'/ }"
+          reason="${reason//|/\\|}"
+          printf '| Reason | %s |\n' "$reason" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tables | ${{ steps.outputs.outputs.backup_tables || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Total Rows | ${{ steps.outputs.outputs.backup_rows || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Application Storage Objects | ${{ steps.outputs.outputs.storage_objects || '0' }} |" >> "$GITHUB_STEP_SUMMARY"

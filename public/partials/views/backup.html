@@ -3,12 +3,12 @@
   <div class="backup-page-heading">
     <div>
       <h3 class="fw-bold m-0 text-dark"><i class="fas fa-database text-success me-2"></i>ສຳຮອງຂໍ້ມູນ</h3>
-      <p class="text-muted mb-0 mt-1">Supabase ເປັນ backup ຫຼັກ; Google Drive ເປັນສຳເນົາ database/settings ເພີ່ມເຕີມ</p>
+      <p class="text-muted mb-0 mt-1">Supabase ເປັນ backup ຫຼັກ; Google Drive ເກັບ database/settings + Storage ແບບ incremental</p>
     </div>
     <div class="backup-heading-actions">
       <button id="btnBackupNow" class="btn btn-success fw-bold" onclick="window.runManualBackup()"><i class="fas fa-play-circle me-1"></i>Backup Now</button>
       <button class="btn btn-outline-secondary" onclick="window.showRestoreGuide()"><i class="fas fa-book me-1"></i>Restore Guide</button>
-      <button class="btn btn-outline-secondary" onclick="window.showBackupLogs()"><i class="fas fa-file-alt me-1"></i>View Logs</button>
+      <button class="btn btn-outline-secondary" onclick="window.showBackupLogs()"><i class="fas fa-file-alt me-1"></i>ເບິ່ງ Workflow Log</button>
     </div>
   </div>
 
@@ -19,7 +19,7 @@
       </div>
     </section>
     <div class="alert alert-info backup-schedule-note mb-0">
-      <i class="fas fa-clock"></i><div><strong>Backup ອັດຕະໂນມັດ 07:00</strong><span>Backup Now ໃຊ້ເມື່ອຕ້ອງການສຳເນົາເພີ່ມ</span></div>
+      <i class="fas fa-clock"></i><div><strong>Backup ອັດຕະໂນມັດ 23:00</strong><span>ສຳຮອງໄປ Supabase ກ່ອນ ແລ້ວ copy ໄປ Drive; LIS/UXI ໄຟລ໌ເກົ່າ 14 ມື້ຂຶ້ນໄປຈັດແຟ້ມຕໍ່ຈາກ main backup ຈົບ</span></div>
     </div>
   </div>
 
@@ -27,13 +27,14 @@
     <i class="fas fa-exclamation-triangle me-2"></i><span><strong>ເຕືອນ:</strong> Restore ຈະຂຽນທັບຂໍ້ມູນ HIS ໂດຍ match Primary Key. ຄວນສ້າງ backup ໃໝ່ກ່ອນ.</span>
   </div>
 
-  <section id="lisArchivePanel" class="card lis-archive-card" aria-label="ຍ້າຍ PDF ຜົນກວດໄປ Google Drive">
+  <section id="lisArchivePanel" class="card lis-archive-card" aria-label="ສຳເນົາ LIS/UXI ໄຟລ໌ຜົນກວດໄປ Google Drive">
     <div class="card-body">
       <div class="lis-archive-heading">
         <div>
-          <span class="lis-archive-kicker"><i class="fas fa-shield-alt me-1"></i>SAFE PDF ARCHIVE</span>
-          <h4>ອັບໂຫລດ PDF ໄປ Google Drive</h4>
-          <p>ກວດແລ້ວ copy ສະເພາະໄຟລ໌ເກີນ 14 ມື້; ປຸ່ມນີ້ບໍ່ລຶບໄຟລ໌ຈາກ Supabase.</p>
+          <span class="lis-archive-kicker"><i class="fas fa-shield-alt me-1"></i>SAFE LIS / UXI RESULT ARCHIVE</span>
+          <h4>ສຳເນົາ LIS / UXI ໄປ Google Drive</h4>
+          <p>ກວດແລ້ວ copy ໄຟລ໌ LIS/UXI ທີ່ເກົ່າ 14 ມື້ຂຶ້ນໄປ; ເກັບຕົ້ນສະບັບໃນ Supabase.</p>
+          <a id="lisArchiveRunLink" class="backup-run-log-link d-none" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i>ເບິ່ງ log ຂອງ PDF archive</a>
         </div>
         <button id="btnLisArchiveNow" type="button" class="btn btn-primary lis-archive-start-btn">
           <i class="fas fa-cloud-upload-alt me-1"></i>ເລີ່ມອັບໂຫລດ
@@ -66,59 +67,45 @@
   </section>
 
   <section class="card card-outline card-primary backup-workspace-card mb-0">
-    <div class="card-header backup-tabs-header">
-      <ul class="nav nav-pills backup-source-tabs" id="backupSourceTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="backupTabSupabase" type="button" role="tab" aria-controls="backupPaneSupabase" aria-selected="true" onclick="window.showBackupTab('supabase')"><i class="fas fa-cloud me-1"></i>Supabase Storage <span class="badge bg-success-subtle text-success ms-1">ຫຼັກ</span></button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="backupTabGdrive" type="button" role="tab" aria-controls="backupPaneGdrive" aria-selected="false" onclick="window.showBackupTab('gdrive')"><i class="fab fa-google-drive me-1"></i>Google Drive</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="backupTabHistory" type="button" role="tab" aria-controls="backupPaneHistory" aria-selected="false" onclick="window.showBackupTab('history')"><i class="fas fa-history me-1"></i>Workflow History</button>
-        </li>
-      </ul>
-    </div>
-
-    <div class="card-body p-0 tab-content" id="backupSourceTabContent">
-      <div class="tab-pane fade show active backup-tab-pane" id="backupPaneSupabase" role="tabpanel" aria-labelledby="backupTabSupabase" tabindex="0">
+    <div class="backup-destinations-grid">
+      <section id="backupSupabasePanel" class="backup-destination-panel" aria-label="Backup ໃນ Supabase Storage">
         <div class="backup-pane-toolbar">
-          <div><strong>Supabase Storage</strong><small>database/settings ແລະ application Storage</small></div>
-          <button class="btn btn-sm btn-outline-primary" onclick="window.loadBackupFileList()" title="Refresh"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+          <div><strong><i class="fas fa-cloud text-primary me-1"></i>Supabase Storage <span class="badge bg-success-subtle text-success">ຫຼັກ</span></strong><small>ZIP database/settings ແລະ application Storage</small></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="window.loadBackupFileList()" title="Refresh Supabase list"><i class="fas fa-sync-alt me-1"></i>ອັບເດດ</button>
         </div>
         <div class="backup-scroll-region">
           <table class="table table-hover table-sm mb-0 backup-data-table">
-            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:160px;">ວັນທີ</th><th style="width:90px;">SIZE</th><th class="text-end" style="width:190px;">ການກະທຳ</th></tr></thead>
+            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:140px;">ວັນທີ</th><th style="width:80px;">SIZE</th><th class="text-end" style="width:165px;">ການກະທຳ</th></tr></thead>
             <tbody id="backupFileListBody"><tr class="his-data-loading-row"><td colspan="4" class="his-data-loader-cell"><div class="his-data-loader his-data-loader--compact" role="status" aria-live="polite"><span class="his-data-loader__logo-shell" aria-hidden="true"><img class="his-data-loader__logo" src="/luckxay-logo.jpg" alt=""></span><span class="his-data-loader__copy"><strong>ກຳລັງໂຫລດຂໍ້ມູນ</strong></span></div></td></tr></tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <div class="tab-pane fade backup-tab-pane" id="backupPaneGdrive" role="tabpanel" aria-labelledby="backupTabGdrive" tabindex="0">
+      <section id="backupGdrivePanel" class="backup-destination-panel" aria-label="Backup ໃນ Google Drive">
         <div class="backup-pane-toolbar">
-          <div><strong>Google Drive</strong><small>ສຳເນົາ database/settings ເພີ່ມເຕີມ</small></div>
-          <button class="btn btn-sm btn-outline-primary" onclick="window.loadGdriveBackupList()" title="Refresh"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
+          <div><strong><i class="fab fa-google-drive text-primary me-1"></i>Google Drive <span class="badge bg-primary-subtle text-primary">ສຳເນົາແຍກ</span></strong><small>ZIP ແລະ Storage files ແບບ incremental; archive ເກົ່າອາດເປັນ database-only</small></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="window.loadGdriveBackupList()" title="Refresh Google Drive list"><i class="fas fa-sync-alt me-1"></i>ອັບເດດ</button>
         </div>
         <div class="backup-scroll-region">
           <table class="table table-hover table-sm mb-0 backup-data-table">
-            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:160px;">ວັນທີ</th><th style="width:90px;">SIZE</th><th class="text-end" style="width:190px;">ການກະທຳ</th></tr></thead>
-            <tbody id="backupGdriveListBody"><tr><td colspan="4" class="text-center py-4 text-muted small"><i class="fab fa-google-drive me-1"></i>ເປີດແຖບນີ້ເພື່ອໂຫຼດ</td></tr></tbody>
+            <thead class="bg-light"><tr><th>ໄຟລ໌</th><th style="width:140px;">ວັນທີ</th><th style="width:80px;">SIZE</th><th class="text-end" style="width:165px;">ການກະທຳ</th></tr></thead>
+            <tbody id="backupGdriveListBody"><tr><td colspan="4" class="text-center py-4 text-muted small"><i class="fab fa-google-drive me-1"></i>ກຳລັງໂຫຼດ...</td></tr></tbody>
           </table>
         </div>
-      </div>
-
-      <div class="tab-pane fade backup-tab-pane" id="backupPaneHistory" role="tabpanel" aria-labelledby="backupTabHistory" tabindex="0">
-        <div class="backup-pane-toolbar">
-          <div><strong>ປະຫວັດ Backup</strong><small>GitHub Actions workflow runs 15 ຄັ້ງລ່າສຸດ</small></div>
-          <button class="btn btn-sm btn-outline-primary" onclick="window.renderBackupHistory()"><i class="fas fa-sync-alt me-1"></i>Refresh</button>
-        </div>
-        <div class="backup-scroll-region">
-          <table id="backupHistoryTable" class="table table-hover table-sm mb-0 backup-data-table">
-            <thead class="bg-light"><tr><th style="width:190px;">ວັນທີ/ເວລາ</th><th style="width:120px;">Run #</th><th style="width:140px;">STATUS</th><th style="width:140px;">TRIGGER</th><th style="width:120px;">DURATION</th><th class="text-end">LINK</th></tr></thead>
-            <tbody id="backupHistoryBody"><tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-history me-2"></i>ເປີດແຖບນີ້ເພື່ອໂຫຼດ</td></tr></tbody>
-          </table>
-        </div>
-      </div>
+      </section>
     </div>
+
+    <section id="backupHistoryPanel" class="backup-history-panel" aria-label="ປະຫວັດ backup">
+      <div class="backup-pane-toolbar">
+        <div><strong><i class="fas fa-history text-primary me-1"></i>ປະຫວັດ Backup</strong><small>15 workflow runs ລ່າສຸດ — ເປີດ link ເພື່ອເບິ່ງ logs</small></div>
+        <button class="btn btn-sm btn-outline-primary" onclick="window.renderBackupHistory()"><i class="fas fa-sync-alt me-1"></i>ອັບເດດ</button>
+      </div>
+      <div class="backup-scroll-region backup-history-scroll-region">
+        <table id="backupHistoryTable" class="table table-hover table-sm mb-0 backup-data-table">
+          <thead class="bg-light"><tr><th style="width:190px;">ວັນທີ/ເວລາ</th><th style="width:100px;">Run #</th><th style="width:120px;">STATUS</th><th style="width:120px;">TRIGGER</th><th style="width:100px;">DURATION</th><th class="text-end">LOGS</th></tr></thead>
+          <tbody id="backupHistoryBody"><tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-history me-2"></i>ກຳລັງໂຫຼດ...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
   </section>
 </div>

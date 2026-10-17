@@ -11,8 +11,11 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import sys
 import tempfile
+import time
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlparse
@@ -20,7 +23,12 @@ from urllib.parse import quote, urlencode, urlparse
 import requests
 
 from gdrive_common import build_drive, credentials_configured
-from gdrive_upload import upload_binary, verify_root_folder
+from gdrive_upload import (
+    dated_drive_folder_path,
+    ensure_drive_folder_path,
+    upload_binary,
+    verify_root_folder,
+)
 
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
@@ -49,14 +57,12 @@ def request_with_retry(method, url, attempts=5, **kwargs):
     for attempt in range(attempts):
         try:
             response = requests.request(method, url, **kwargs)
-            if response.status_code not in {429, 500, 502, 503, 504}:
+            if response.status_code not in {408, 425, 429, 500, 502, 503, 504, 520}:
                 return response
             last_error = RuntimeError(f"HTTP {response.status_code}")
         except requests.RequestException as exc:
             last_error = exc
         if attempt + 1 < attempts:
-            import time
-
             time.sleep(min(2**attempt, 15))
     raise RuntimeError(f"Request failed after {attempts} attempts: {last_error}")
 
@@ -188,9 +194,87 @@ def escape_query(value):
     return str(value).replace("\\", "\\\\").replace("'", "\\'")
 
 
+def order_id_from_path(path):
+    parts = str(path or "").split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        return ""
+    order_id = parts[0]
+    return order_id if re.fullmatch(r"[A-Za-z0-9_-]{1,80}", order_id) else ""
+
+
+def fetch_order_patient_metadata(order_ids):
+    order_ids = sorted({str(value) for value in order_ids if value})
+    result = {}
+    for offset in range(0, len(order_ids), 100):
+        batch = order_ids[offset : offset + 100]
+        response = request_with_retry(
+            "get",
+            f"{SUPABASE_URL}/rest/v1/lis_one_test_orders",
+            headers=storage_headers(),
+            params={
+                "select": "order_id,patient_id,patient_name,age",
+                "order_id": f"in.({','.join(batch)})",
+            },
+            timeout=(15, 60),
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"LIS patient metadata lookup failed: HTTP {response.status_code}")
+        rows = response.json()
+        if not isinstance(rows, list):
+            raise RuntimeError("LIS patient metadata lookup returned an invalid response")
+        for row in rows:
+            order_id = str(row.get("order_id") or "")
+            identity = {
+                "patient_id": str(row.get("patient_id") or "").strip(),
+                "patient_name": str(row.get("patient_name") or "").strip(),
+                "age": str(row.get("age") or "").strip(),
+            }
+            if not order_id or not all(identity.values()):
+                continue
+            if order_id in result and result[order_id] != identity:
+                raise RuntimeError("LIS patient identity mapping is ambiguous for an order")
+            result[order_id] = identity
+    return result
+
+
+def _safe_filename_part(value):
+    if value is None:
+        return ""
+    output = []
+    separator_pending = False
+    for character in str(value):
+        category = unicodedata.category(character)
+        if category[0] in {"L", "N", "M"} or character in "._-":
+            output.append(character)
+            separator_pending = False
+        elif not separator_pending:
+            output.append("_")
+            separator_pending = True
+    return "".join(output).strip("._-")[:80]
+
+
+def archive_drive_filename(identity, source_name, content_sha256, source_path_hash=None):
+    patient_id = _safe_filename_part((identity or {}).get("patient_id"))
+    patient_name = _safe_filename_part((identity or {}).get("patient_name"))
+    age = _safe_filename_part((identity or {}).get("age"))
+    if not patient_id or not patient_name or not age:
+        raise RuntimeError("LIS patient identity is missing; source file is retained")
+    if not re.fullmatch(r"[a-fA-F0-9]{64}", str(content_sha256 or "")):
+        raise RuntimeError("LIS content hash is invalid")
+    suffix = Path(str(source_name or "")).suffix.lower()
+    if not suffix or len(suffix) > 10 or not suffix[1:].isalnum():
+        suffix = ".bin"
+    name_hash = str(source_path_hash or content_sha256).lower()
+    if not re.fullmatch(r"[a-f0-9]{64}", name_hash):
+        raise RuntimeError("LIS source path hash is invalid")
+    return f"HN-{patient_id}_{patient_name}_{age}y_{name_hash[:12]}{suffix}"
+
+
 def list_drive_archives(drive):
+    safe_folder = escape_query(DRIVE_FOLDER_ID)
     query = (
-        f"'{escape_query(DRIVE_FOLDER_ID)}' in parents and "
+        f"('{safe_folder}' in parents or appProperties has "
+        f"{{ key='his_archive_root_id' and value='{safe_folder}' }}) and "
         "appProperties has { key='his_archive_type' and value='lis_result' } and "
         "trashed=false"
     )
@@ -251,19 +335,31 @@ def download_object(path, destination):
         f"{SUPABASE_URL}/storage/v1/object/{quote(BUCKET, safe='')}/"
         f"{quote(path, safe='/')}"
     )
-    response = request_with_retry(
-        "get",
-        endpoint,
-        headers=storage_headers("application/octet-stream"),
-        stream=True,
-        timeout=(15, 600),
-    )
-    if response.status_code != 200:
-        raise RuntimeError(f"Storage download failed: HTTP {response.status_code}")
-    with open(destination, "wb") as handle:
-        for chunk in response.iter_content(chunk_size=8 * 1024 * 1024):
-            if chunk:
-                handle.write(chunk)
+    for attempt in range(3):
+        response = request_with_retry(
+            "get",
+            endpoint,
+            attempts=3,
+            headers=storage_headers("application/octet-stream"),
+            stream=True,
+            timeout=(15, 600),
+        )
+        try:
+            if response.status_code != 200:
+                raise RuntimeError(f"Storage download failed: HTTP {response.status_code}")
+            # Reopen in write mode for every attempt so a dropped stream cannot
+            # leave a partial file that later looks like a complete download.
+            with open(destination, "wb") as handle:
+                for chunk in response.iter_content(chunk_size=8 * 1024 * 1024):
+                    if chunk:
+                        handle.write(chunk)
+            return
+        except requests.RequestException:
+            if attempt + 1 >= 3:
+                raise
+            time.sleep(min(2**attempt, 15))
+        finally:
+            response.close()
 
 
 def digest_file(path, algorithm):
@@ -306,7 +402,7 @@ def verify_gateway_sample(item):
             raise RuntimeError("Production gateway sample SHA-256 does not match Supabase")
 
 
-def upload_archive_copy(drive, item):
+def upload_archive_copy(drive, item, patient_identity):
     digest = path_hash(item["path"])
     suffix = Path(item["path"]).suffix.lower()
     if not suffix or len(suffix) > 10 or not suffix[1:].isalnum():
@@ -317,15 +413,23 @@ def upload_archive_copy(drive, item):
         if local_path.stat().st_size != object_size(item):
             raise RuntimeError("Downloaded object size does not match Storage metadata")
         sha256 = digest_file(local_path, "sha256")
+        archive_folder_id = ensure_drive_folder_path(
+            drive,
+            DRIVE_FOLDER_ID,
+            dated_drive_folder_path("LIS Backup", datetime.now(timezone.utc)),
+        )
         uploaded = upload_binary(
             drive,
             local_path,
             {
-                "name": f"lis-result-{digest}{suffix}",
-                "parents": [DRIVE_FOLDER_ID],
+                "name": archive_drive_filename(
+                    patient_identity, item["path"], sha256, digest
+                ),
+                "parents": [archive_folder_id],
                 "mimeType": content_type(item),
                 "appProperties": {
                     "his_archive_type": "lis_result",
+                    "his_archive_root_id": DRIVE_FOLDER_ID,
                     "his_source_bucket": BUCKET,
                     "his_source_path_sha256": digest,
                     "his_source_size": str(object_size(item)),
@@ -457,6 +561,18 @@ def main():
     objects = list_objects()
     cutoff = datetime.now(timezone.utc) - timedelta(days=ARCHIVE_AFTER_DAYS)
     candidates, unknown_age = select_candidates(objects, cutoff)
+    patient_metadata = {}
+    if candidates and MODE in {"copy", "cleanup"}:
+        pending = [
+            item
+            for item in candidates
+            if matching_drive_copy(
+                item, drive_index.get(path_hash(item["path"]), [])
+            ) is None
+        ]
+        patient_metadata = fetch_order_patient_metadata(
+            order_id_from_path(item["path"]) for item in pending
+        )
     total_bytes = sum(object_size(item) for item in objects)
     eligible_bytes = sum(object_size(item) for item in candidates)
     failures = []
@@ -478,7 +594,10 @@ def main():
         try:
             match = matching_drive_copy(item, drive_index.get(digest, []))
             if match is None and MODE in {"copy", "cleanup"}:
-                match = upload_archive_copy(drive, item)
+                order_id = order_id_from_path(item["path"])
+                match = upload_archive_copy(
+                    drive, item, patient_metadata.get(order_id)
+                )
                 drive_index.setdefault(digest, []).append(match)
                 copied_now += 1
                 copied_now_bytes += item_bytes
