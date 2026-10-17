@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Supabase backup via REST API - works from GitHub Actions (no direct DB access needed)."""
 import io
-import json, os, sys, csv, zipfile
+import json, os, sys, csv, zipfile, re
 import hashlib
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -35,6 +35,29 @@ HEADERS = {
 }
 
 
+def load_table_primary_keys():
+    """Read stable cursor columns from the repository's schema snapshot."""
+    schema_path = Path(__file__).resolve().parents[1] / "schema_public.sql"
+    try:
+        schema = schema_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    keys = {}
+    pattern = re.compile(
+        r'ALTER TABLE ONLY "?public"?\."([^"]+)"\s+'
+        r'ADD CONSTRAINT "[^"]+_pkey" PRIMARY KEY\s*\(([^)]+)\);',
+        re.IGNORECASE,
+    )
+    for table, columns in pattern.findall(schema):
+        key_columns = tuple(re.findall(r'"([^"]+)"', columns))
+        if key_columns:
+            keys[table] = key_columns
+    return keys
+
+
+TABLE_PRIMARY_KEYS = load_table_primary_keys()
+
+
 def github_error(message):
     """Expose a safe failure reason in the GitHub Actions run annotation."""
     safe = str(message).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
@@ -43,7 +66,7 @@ def github_error(message):
 
 def request_with_retry(method, url, attempts=5, **kwargs):
     """Retry transient Supabase/CDN failures with bounded exponential backoff."""
-    retry_statuses = {408, 425, 429, 500, 502, 503, 504}
+    retry_statuses = {408, 425, 429, 500, 502, 503, 504, 520}
     last_error = None
     for attempt in range(attempts):
         try:
@@ -71,6 +94,9 @@ KNOWN_TABLES = [
     "HIS_One_LabOrders", "HIS_One_LabResults",
     "HIS_One_Inventory", "HIS_One_Reagents", "HIS_One_Drugs",
     "HIS_One_Sessions", "HIS_One_Notifications",
+    "UXI_One_main_app_state", "UXI_One_main_audit",
+    "UXI_One_main_imaging_exam_catalog", "UXI_One_main_imaging_orders",
+    "UXI_One_main_staff",
 ]
 
 
@@ -268,17 +294,28 @@ def download_backup_manifest(object_path):
         return json.loads(archive.read("manifest.json"))
 
 
+def backup_object_path(now, zip_name):
+    """Return the dated, human-readable location for a HIS recovery point."""
+    return f"HIS Backup/{now.strftime('%d/%m/%Y')}/{zip_name}"
+
+
 def load_latest_storage_index():
     """Load the newest successful backup so unchanged Storage objects can be reused."""
     backups = [
         (path, metadata)
-        for path, metadata in list_backup_bucket_objects("backups")
+        for path, metadata in (
+            list_backup_bucket_objects("HIS Backup")
+            + list_backup_bucket_objects("backups")
+        )
         if path.endswith(".zip")
     ]
     if not backups:
         print("  No previous backup manifest found; all Storage objects require hashing once")
         return {}
-    object_path, _ = max(backups, key=lambda item: item[0])
+    object_path, _ = max(
+        backups,
+        key=lambda item: str((item[1] or {}).get("created_at") or item[0]),
+    )
     manifest = download_backup_manifest(object_path)
     index = _storage_index(manifest)
     print(f"  Previous manifest loaded: {object_path} ({len(index)} Storage objects)")
@@ -457,14 +494,32 @@ def upload_storage_snapshots(storage_backup, now):
                 f"HTTP {existing.status_code} {existing.text[:200]}"
             )
 
-        response = request_with_retry(
-            "post", url, headers=headers, data=raw, timeout=(15, 180)
-        )
-        if response.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Snapshot upload failed for {bucket_id}/{obj['name']}: "
-                f"HTTP {response.status_code} {response.text[:200]}"
+        try:
+            response = request_with_retry(
+                "post", url, headers=headers, data=raw, timeout=(15, 180)
             )
+            if response.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"Snapshot upload failed for {bucket_id}/{obj['name']}: "
+                    f"HTTP {response.status_code} {response.text[:200]}"
+                )
+        except Exception as upload_error:
+            # A gateway can fail after Storage has accepted this immutable blob.
+            # Reconcile by content hash before treating that ambiguous response as loss.
+            try:
+                existing = request_with_retry(
+                    "get", url, headers=headers, timeout=(15, 180)
+                )
+            except Exception:
+                raise upload_error
+            if existing.status_code == 200:
+                if (
+                    len(existing.content) != obj["size_bytes"]
+                    or sha256_bytes(existing.content) != obj["sha256"]
+                ):
+                    raise RuntimeError(f"Existing content blob failed verification: {backup_object}")
+                return obj, backup_object, False
+            raise upload_error
         verification = request_with_retry(
             "get", url, headers=headers, timeout=(15, 180)
         )
@@ -552,36 +607,59 @@ def delete_storage_snapshots(storage_backup):
 def export_table(table):
     """Export a table via REST API with pagination."""
     url = f"{SUPABASE_URL}/rest/v1/{table}"
-    offset = 0
     limit = 1000
     all_rows = []
     expected_total = None
+    primary_keys = TABLE_PRIMARY_KEYS.get(table, ())
+    primary_key = primary_keys[0] if len(primary_keys) == 1 else None
+    last_key = None
+    seen_keys = set()
 
     while True:
+        params = {"select": "*", "limit": str(limit)}
+        if primary_key:
+            params["order"] = f"{primary_key}.asc"
+            if last_key is not None:
+                params[primary_key] = f"gt.{last_key}"
+        else:
+            params["offset"] = str(len(all_rows))
         resp = requests.get(
             url,
-            params={"select": "*", "limit": str(limit), "offset": str(offset)},
+            params=params,
             headers=HEADERS,
             timeout=60,
         )
         if resp.status_code in (200, 206):
             rows = resp.json()
             content_range = resp.headers.get("Content-Range", "")
-            if "/" in content_range:
+            if expected_total is None and "/" in content_range:
                 total_text = content_range.rsplit("/", 1)[-1]
                 if total_text.isdigit():
                     expected_total = int(total_text)
             if not rows:
                 break
+            if primary_key:
+                for row in rows:
+                    value = row.get(primary_key)
+                    marker = json.dumps(value, sort_keys=True, ensure_ascii=False)
+                    if value is None or marker in seen_keys:
+                        raise RuntimeError(f"missing or duplicate {primary_key} while exporting {table}")
+                    seen_keys.add(marker)
+                last_key = rows[-1].get(primary_key)
             all_rows.extend(rows)
-            offset += len(rows)
+            if expected_total is not None and len(all_rows) >= expected_total:
+                break
             if len(rows) < limit:
+                break
+            if not primary_key:
+                if expected_total is None or expected_total > len(all_rows):
+                    raise RuntimeError(f"cannot safely paginate {table} without a single-column primary key")
                 break
         elif resp.status_code == 416:
             break
         else:
             raise RuntimeError(
-                f"HTTP {resp.status_code} on {table} at offset {offset}: {resp.text[:200]}"
+                f"HTTP {resp.status_code} on {table} after {len(all_rows)} rows: {resp.text[:200]}"
             )
 
     if expected_total is not None and len(all_rows) != expected_total:
@@ -736,7 +814,10 @@ def cleanup_supabase_storage():
 
     backup_archives = [
         (name, metadata)
-        for name, metadata in list_backup_bucket_objects("backups")
+        for name, metadata in (
+            list_backup_bucket_objects("HIS Backup")
+            + list_backup_bucket_objects("backups")
+        )
         if name.endswith(".zip")
     ]
     retained_archives = []
@@ -915,7 +996,7 @@ def main():
     sb_url_out = None
     ts_suffix = now.strftime("%Y%m%d_%H%M%S")
     zip_name_ts = f"backup-{today}_{ts_suffix}.zip"
-    object_path = f"backups/{now.strftime('%Y/%m')}/{zip_name_ts}"
+    object_path = backup_object_path(now, zip_name_ts)
     try:
         ensure_supabase_bucket()
         resp = upload_supabase_storage(str(zip_path), object_path)

@@ -59,7 +59,7 @@
   opacity: 1 !important;
 }
 
-/* Backup: one-screen workspace with internally scrolling data tabs ---------- */
+/* Backup: one-page overview using the hospital blue/red palette ------------- */
 #view-backup.backup-compact-view {
   max-width: 100%;
 }
@@ -163,50 +163,52 @@
 
 .backup-workspace-card {
   overflow: hidden;
+  border-color: var(--primary-soft-border);
+  box-shadow: 0 4px 16px rgba(var(--primary-rgb), .06);
 }
 
-#backupSourceTabContent > .backup-tab-pane:not(.active) {
-  display: none !important;
+.backup-destinations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  background: linear-gradient(135deg, var(--primary-soft), #fff 74%);
 }
 
-#backupSourceTabContent > .backup-tab-pane.active {
-  display: block !important;
-}
-
-.backup-tabs-header {
-  padding: 7px 10px;
+.backup-destination-panel,
+.backup-history-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--primary-soft-border);
+  border-radius: var(--card-radius);
   background: #fff;
 }
 
-.backup-source-tabs {
-  gap: 6px;
+.backup-history-panel {
+  margin: 0 10px 10px;
 }
 
-.backup-source-tabs .nav-link {
-  min-height: 34px;
-  padding: 6px 12px;
-  border: 1px solid #d8e1e9;
-  border-radius: 4px;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 600;
+.backup-destination-panel:first-child .backup-pane-toolbar {
+  border-top: 3px solid var(--primary);
 }
 
-.backup-source-tabs .nav-link.active {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
+.backup-destination-panel:last-child .backup-pane-toolbar {
+  border-top: 3px solid var(--primary-dark);
+}
+
+.backup-history-panel .backup-pane-toolbar {
+  border-top: 3px solid var(--accent-red);
 }
 
 .backup-pane-toolbar {
   display: flex;
-  min-height: 48px;
+  min-height: 44px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 7px 12px;
   border-bottom: 1px solid #e1e7ec;
-  background: #f8fafc;
+  background: var(--primary-soft);
 }
 
 .backup-pane-toolbar > div {
@@ -226,13 +228,14 @@
 }
 
 .backup-scroll-region {
-  height: clamp(260px, calc(100vh - 420px), 560px);
+  height: clamp(150px, 22vh, 250px);
   overflow: auto;
   scrollbar-gutter: stable;
 }
 
 .backup-data-table {
-  min-width: 760px;
+  width: 100%;
+  min-width: 540px;
 }
 
 .backup-data-table thead th {
@@ -241,7 +244,7 @@
   z-index: 2;
   padding: 9px 10px;
   border-bottom: 1px solid #d7e0e7;
-  background: #eef2f6 !important;
+  background: #eaf2f9 !important;
   color: #344054;
   font-size: 11.5px;
 }
@@ -253,6 +256,28 @@
 
 .backup-data-table tbody code {
   overflow-wrap: anywhere;
+}
+
+.backup-status-detail {
+  max-width: 600px;
+  margin-top: 4px;
+  color: #475569;
+  font-size: 11.5px;
+}
+
+.backup-run-log-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--primary-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.backup-run-log-link:hover,
+.backup-run-log-link:focus-visible {
+  color: var(--accent-red-dark);
 }
 
 @media (max-width: 900px) {
@@ -269,9 +294,18 @@
     grid-template-columns: 1fr;
   }
 
-  .backup-scroll-region {
-    height: 360px;
-  }
+  .backup-destinations-grid { grid-template-columns: 1fr; }
+  .backup-scroll-region { height: 220px; }
+  .backup-history-scroll-region { height: 180px; }
+  .backup-history-panel { margin: 0 8px 8px; }
+}
+
+@media (max-width: 560px) {
+  .backup-destinations-grid { padding: 7px; gap: 7px; }
+  .backup-history-panel { margin: 0 7px 7px; }
+  .backup-pane-toolbar { align-items: flex-start; }
+  .backup-pane-toolbar .btn { flex: 0 0 auto; }
+  .backup-data-table { min-width: 500px; }
 }
 
 body {

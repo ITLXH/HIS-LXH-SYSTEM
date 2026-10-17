@@ -39,7 +39,11 @@ export async function onRequestGet(ctx) {
     return json({ status: 'error', error: parseErrors.join('; '), files: [] });
   }
 
-  const q = `'${folderId}' in parents and mimeType='application/zip' and trashed=false`;
+  const safeFolderId = String(folderId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q =
+    `('${safeFolderId}' in parents or appProperties has ` +
+    `{ key='his_backup_root_id' and value='${safeFolderId}' }) and ` +
+    `mimeType='application/zip' and trashed=false`;
   const url =
     'https://www.googleapis.com/drive/v3/files' +
     `?q=${encodeURIComponent(q)}` +

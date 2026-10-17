@@ -2,10 +2,11 @@ name: LIS Result File Safe Archive
 
 on:
   schedule:
-    # Daily 02:30 UTC (09:30 Asia/Bangkok). Scheduled runs copy and verify files
+    # Daily 16:30 UTC (23:30 Asia/Bangkok), after the main 23:00 backup window.
+    # Scheduled runs copy and verify files
     # older than the hot window. Cleanup remains disabled until both production
     # fallback verification and automation variables are set.
-    - cron: '30 2 * * *'
+    - cron: '30 16 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -38,8 +39,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: lis-result-file-safe-archive
-  cancel-in-progress: false
+  group: his-daily-backup-window
+  queue: max
 
 jobs:
   archive:
@@ -55,6 +56,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python dependencies
+        id: install-python-dependencies
         run: pip install requests google-api-python-client google-auth
 
       - name: Audit, copy, verify, and safely archive LIS results
@@ -76,6 +78,29 @@ jobs:
           LIS_ARCHIVE_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && vars.LIS_ARCHIVE_AUTOMATION_ENABLED == '1' && vars.LIS_ARCHIVE_RESTORE_VERIFIED == '1' && 'ARCHIVE_VERIFIED_ORDER_RESULTS' || github.event.inputs.confirmation }}
           OUTPUT_DIR: output
         run: python backup/scripts/lis_result_archive.py
+
+      - name: Archive verified UXI imaging results to Google Drive
+        if: always() && !cancelled() && steps.install-python-dependencies.outcome == 'success'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          UXI_RESULT_BUCKET: uxi-results
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_DRIVE_OAUTH_JSON: ${{ secrets.GOOGLE_DRIVE_OAUTH_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          UXI_ARCHIVE_AFTER_DAYS: ${{ vars.UXI_ARCHIVE_AFTER_DAYS || '14' }}
+          UXI_ARCHIVE_MAX_OBJECTS: '0'
+          OUTPUT_DIR: output
+        run: python backup/scripts/uxi_result_archive.py
+
+      - name: Upload sanitized UXI archive report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uxi-result-archive-report-${{ github.run_number }}
+          path: output/uxi-result-archive-report.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload sanitized archive report
         if: always()

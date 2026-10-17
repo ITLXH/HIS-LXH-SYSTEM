@@ -22,6 +22,26 @@ spec.loader.exec_module(backup_rest)
 
 
 class BackupRestTests(unittest.TestCase):
+    def test_uxi_production_tables_are_in_fallback_and_required_coverage(self):
+        expected = {
+            "UXI_One_main_app_state", "UXI_One_main_audit",
+            "UXI_One_main_imaging_exam_catalog", "UXI_One_main_imaging_orders",
+            "UXI_One_main_staff",
+        }
+
+        self.assertTrue(expected.issubset(set(backup_rest.KNOWN_TABLES)))
+        workflow = (ROOT / ".github" / "workflows" / "supabase-backup.yml").read_text(encoding="utf-8")
+        required_line = next(line for line in workflow.splitlines() if "BACKUP_REQUIRED_TABLES:" in line)
+        self.assertTrue(expected.issubset(set(required_line.split(":", 1)[1].strip().split(","))))
+
+    def test_new_backup_archive_path_is_partitioned_by_local_calendar_date(self):
+        created = backup_rest.datetime(2026, 10, 17, 23, 0, 0)
+
+        self.assertEqual(
+            backup_rest.backup_object_path(created, "backup-2026-10-17_20261017_230000.zip"),
+            "HIS Backup/17/10/2026/backup-2026-10-17_20261017_230000.zip",
+        )
+
     def test_transient_502_is_retried(self):
         transient = Mock(status_code=502, text="temporary gateway error")
         success = Mock(status_code=200, text="ok")
@@ -33,6 +53,58 @@ class BackupRestTests(unittest.TestCase):
         self.assertIs(response, success)
         self.assertEqual(request.call_count, 2)
         sleep.assert_called_once_with(1)
+
+    def test_transient_520_is_retried(self):
+        transient = Mock(status_code=520, text="temporary edge error")
+        success = Mock(status_code=200, text="ok")
+        with patch.object(
+            backup_rest.requests, "post", side_effect=[transient, success]
+        ) as request, patch.object(backup_rest.time, "sleep") as sleep:
+            response = backup_rest.request_with_retry("post", "https://example.test/blob")
+
+        self.assertIs(response, success)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_ambiguous_storage_upload_is_reconciled_by_hash_after_retry(self):
+        blob = b"data"
+        storage_backup = {
+            "enabled": True,
+            "total_objects": 1,
+            "total_bytes": len(blob),
+            "buckets": [{
+                "id": "clinical-files",
+                "objects": [{
+                    "name": "patient/result.pdf",
+                    "size_bytes": len(blob),
+                    "sha256": hashlib.sha256(blob).hexdigest(),
+                    "content_type": "application/pdf",
+                }],
+            }],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            file_path = output / "storage" / "clinical-files" / "patient" / "result.pdf"
+            file_path.parent.mkdir(parents=True)
+            file_path.write_bytes(blob)
+            missing = Mock(status_code=404, text="not found")
+            uploaded_but_edge_failed = Mock(status_code=520, text="temporary edge error")
+            retry_duplicate = Mock(status_code=400, text="object already exists")
+            present = Mock(status_code=200, content=blob)
+            with patch.object(backup_rest, "OUTPUT", output), patch.object(
+                backup_rest.requests, "get", side_effect=[missing, present]
+            ) as get, patch.object(
+                backup_rest.requests,
+                "post",
+                side_effect=[uploaded_but_edge_failed, retry_duplicate],
+            ), patch.object(backup_rest.time, "sleep"):
+                result = backup_rest.upload_storage_snapshots(
+                    storage_backup, backup_rest.datetime(2026, 10, 17, 0, 0, 0)
+                )
+
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(result["incremental"]["uploaded_objects"], 0)
+        self.assertEqual(result["incremental"]["reused_objects"], 1)
 
     def test_storage_listing_retries_a_transient_timeout(self):
         success = Mock(status_code=200)
@@ -118,19 +190,39 @@ class BackupRestTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "HTTP 500"):
                 backup_rest.export_table("example_table")
 
+    def test_export_table_uses_stable_primary_key_cursors(self):
+        responses = [
+            Mock(status_code=200, json=Mock(return_value=[{"ID": value} for value in range(1000)]), headers={"Content-Range": "0-999/1001"}),
+            Mock(status_code=200, json=Mock(return_value=[{"ID": 1000}]), headers={"Content-Range": "0-0/1"}),
+        ]
+        with patch.dict(backup_rest.TABLE_PRIMARY_KEYS, {"example_table": ("ID",)}), patch.object(
+            backup_rest.requests, "get", side_effect=responses
+        ) as request:
+            rows = backup_rest.export_table("example_table")
+
+        self.assertEqual([row["ID"] for row in rows], list(range(1001)))
+        self.assertEqual(request.call_args_list[0].kwargs["params"], {
+            "select": "*", "limit": "1000", "order": "ID.asc"
+        })
+        self.assertEqual(request.call_args_list[1].kwargs["params"], {
+            "select": "*", "limit": "1000", "order": "ID.asc", "ID": "gt.999"
+        })
+
     def test_cleanup_walks_nested_backup_folders(self):
         def list_response(url, headers, data, timeout):
             prefix = json.loads(data)["prefix"]
             payloads = {
-                "backups": [{"name": "2020", "id": None}],
-                "backups/2020": [{"name": "01", "id": None}],
-                "backups/2020/01": [
+                "HIS Backup": [{"name": "01", "id": None}],
+                "HIS Backup/01": [{"name": "01", "id": None}],
+                "HIS Backup/01/01": [{"name": "2020", "id": None}],
+                "HIS Backup/01/01/2020": [
                     {
-                        "name": "backup-old.zip",
-                        "id": "object-id",
+                        "name": "backup-new-layout.zip",
+                        "id": "new-object-id",
                         "created_at": "2020-01-01T00:00:00Z",
                     }
                 ],
+                "backups": [],
                 "snapshots": [],
                 "blobs": [],
             }
@@ -141,7 +233,7 @@ class BackupRestTests(unittest.TestCase):
             backup_rest.requests, "delete", deleted
         ):
             self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
-            self.assertIn("backups/2020/01/backup-old.zip", deleted.call_args.args[0])
+            self.assertIn("HIS%20Backup/01/01/2020/backup-new-layout.zip", deleted.call_args.args[0])
 
     def test_required_customer_and_settings_tables_are_enforced(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -268,6 +360,7 @@ class BackupRestTests(unittest.TestCase):
         # this safety test remains valid regardless of the date it is run.
         current = backup_rest.datetime.now().astimezone().isoformat()
         listings = {
+            "HIS Backup": [],
             "backups": [("backups/current.zip", {"created_at": current})],
             "snapshots": [],
             "blobs": [

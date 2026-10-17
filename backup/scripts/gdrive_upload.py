@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -106,6 +107,56 @@ def _escape_query(value):
     return str(value).replace("\\", "\\\\").replace("'", "\\'")
 
 
+def dated_drive_folder_path(root_name, created_at):
+    return [root_name, *created_at.strftime("%d/%m/%Y").split("/")]
+
+
+def ensure_drive_folder(drive, parent_id, name):
+    query = (
+        f"'{_escape_query(parent_id)}' in parents and "
+        f"name='{_escape_query(name)}' and "
+        "mimeType='application/vnd.google-apps.folder' and trashed=false"
+    )
+    response = (
+        drive.files()
+        .list(
+            q=query,
+            fields="files(id,name,mimeType,trashed)",
+            pageSize=10,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        )
+        .execute(num_retries=3)
+    )
+    folders = response.get("files") or []
+    if len(folders) > 1:
+        raise RuntimeError(f"Multiple Google Drive folders named {name!r} exist in the backup path")
+    if folders:
+        folder = folders[0]
+        if folder.get("trashed") or folder.get("mimeType") != "application/vnd.google-apps.folder":
+            raise RuntimeError(f"Google Drive backup path contains an invalid folder: {name}")
+        return folder["id"]
+    folder = drive_create(
+        drive,
+        body={
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        },
+        fields="id,name,mimeType",
+    )
+    if not folder.get("id") or folder.get("mimeType") != "application/vnd.google-apps.folder":
+        raise RuntimeError(f"Google Drive did not create the backup folder {name}")
+    return folder["id"]
+
+
+def ensure_drive_folder_path(drive, root_folder_id, folder_names):
+    parent_id = root_folder_id
+    for name in folder_names:
+        parent_id = ensure_drive_folder(drive, parent_id, name)
+    return parent_id
+
+
 def verify_root_folder(drive, folder_id):
     metadata = drive_get(
         drive,
@@ -122,7 +173,11 @@ def verify_root_folder(drive, folder_id):
 
 
 def list_drive_blobs(drive, folder_id):
-    query = f"'{_escape_query(folder_id)}' in parents and trashed=false"
+    safe_folder = _escape_query(folder_id)
+    query = (
+        f"('{safe_folder}' in parents or appProperties has "
+        f"{{ key='his_backup_root_id' and value='{safe_folder}' }}) and trashed=false"
+    )
     files = []
     page_token = None
     while True:
@@ -272,6 +327,11 @@ def upload_database_backup(zip_path, root_folder_id):
     manifest = load_summary_manifest(zip_path)
     drive = build_drive()
     verify_root_folder(drive, root_folder_id)
+    backup_folder_id = ensure_drive_folder_path(
+        drive,
+        root_folder_id,
+        dated_drive_folder_path("HIS Backup", datetime.now(timezone.utc)),
+    )
     uploaded = None
     drive_name = Path(manifest.get("storage_object") or zip_path.name).name
     try:
@@ -280,11 +340,12 @@ def upload_database_backup(zip_path, root_folder_id):
             zip_path,
             {
                 "name": drive_name,
-                "parents": [root_folder_id],
+                "parents": [backup_folder_id],
                 "mimeType": "application/zip",
                 "appProperties": {
                     "his_backup_type": "manifest",
                     "his_backup_scope": "database_only",
+                    "his_backup_root_id": root_folder_id,
                     "his_tables": str(manifest.get("tables", 0)),
                     "his_rows": str(manifest.get("total_rows", 0)),
                 },
@@ -296,7 +357,7 @@ def upload_database_backup(zip_path, root_folder_id):
             "url": uploaded.get(
                 "webViewLink", f"https://drive.google.com/file/d/{uploaded['id']}/view"
             ),
-            "snapshot_folder_id": "",
+            "snapshot_folder_id": backup_folder_id,
             "sidecars": 0,
             "uploaded_sidecars": 0,
             "uploaded_bytes": 0,
@@ -321,6 +382,18 @@ def upload_complete_bundle(zip_path, root_folder_id):
     drive = build_drive()
     verify_root_folder(drive, root_folder_id)
     existing = list_drive_blobs(drive, root_folder_id)
+    backup_time = datetime.fromisoformat(
+        str(summary.get("date") or archive.get("time") or "").replace("Z", "+00:00")
+    ) if (summary.get("date") or archive.get("time")) else datetime.now(timezone.utc)
+    if backup_time.tzinfo is None:
+        backup_time = backup_time.replace(tzinfo=timezone.utc)
+    backup_root_id = ensure_drive_folder(drive, root_folder_id, "HIS Backup")
+    backup_folder_id = ensure_drive_folder_path(
+        drive,
+        backup_root_id,
+        backup_time.strftime("%d/%m/%Y").split("/"),
+    )
+    blob_folder_id = ensure_drive_folder(drive, backup_root_id, "Storage Objects")
     output_dir = Path(os.environ.get("OUTPUT_DIR", "") or zip_path.parent)
     sidecar_index = {}
     uploaded_count = 0
@@ -360,10 +433,11 @@ def upload_complete_bundle(zip_path, root_folder_id):
                     local_path,
                     {
                         "name": f"blob-{sha}",
-                        "parents": [root_folder_id],
+                        "parents": [blob_folder_id],
                         "mimeType": content_type or "application/octet-stream",
                         "appProperties": {
                             "his_backup_type": "storage_blob",
+                            "his_backup_root_id": root_folder_id,
                             "his_sha256": sha,
                             "his_size_bytes": str(expected_size),
                         },
@@ -409,10 +483,11 @@ def upload_complete_bundle(zip_path, root_folder_id):
             index_path,
             {
                 "name": index_path.name,
-                "parents": [root_folder_id],
+                "parents": [backup_folder_id],
                 "mimeType": "application/json",
                 "appProperties": {
                     "his_backup_type": "storage_index",
+                    "his_backup_root_id": root_folder_id,
                     "his_total_objects": str(len(sidecar_index)),
                     "his_unique_blobs": str(len(unique_objects)),
                 },
@@ -427,11 +502,12 @@ def upload_complete_bundle(zip_path, root_folder_id):
             zip_path,
             {
                 "name": drive_name,
-                "parents": [root_folder_id],
+                "parents": [backup_folder_id],
                 "mimeType": "application/zip",
                 "appProperties": {
                     "his_backup_type": "manifest",
                     "his_backup_scope": "complete_incremental",
+                    "his_backup_root_id": root_folder_id,
                     "his_sidecar_index_id": index_file["id"],
                     "his_sha256": file_digest(zip_path, "sha256"),
                     "his_size_bytes": str(zip_path.stat().st_size),
@@ -456,7 +532,7 @@ def upload_complete_bundle(zip_path, root_folder_id):
         "url": manifest_file.get(
             "webViewLink", f"https://drive.google.com/file/d/{manifest_file['id']}/view"
         ),
-        "snapshot_folder_id": "",
+        "snapshot_folder_id": backup_folder_id,
         "sidecars": len(sidecar_index),
         "uploaded_sidecars": uploaded_count,
         "uploaded_bytes": uploaded_bytes,

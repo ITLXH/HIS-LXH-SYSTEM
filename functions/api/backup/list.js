@@ -40,6 +40,7 @@ export async function collectBackupZipFiles(listPrefix) {
   }
 
   await collectZips('backups', 0);
+  await collectZips('HIS Backup', 0);
   return zips;
 }
 
@@ -65,8 +66,8 @@ export async function onRequestGet(ctx) {
   // Supabase Storage `object/list` is NOT recursive — a given prefix returns
   // only its immediate children (sub-"folders" come back as entries with a
   // null `id`/`metadata`). The backup workflow stores zips under
-  // `backups/YYYY/MM/backup-*.zip` (see backup/scripts/backup_rest.py), so a
-  // flat list of the root finds zero zips. Walk the tree instead.
+  // `HIS Backup/DD/MM/YYYY/backup-*.zip` (and legacy `backups/YYYY/MM`), so
+  // a flat list of the root finds no current zips. Walk only those archive trees.
   async function listPrefix(prefix) {
     const resp = await fetch(
       `${supabaseUrl}/storage/v1/object/list/${encodeURIComponent(bucket)}`,
@@ -92,7 +93,7 @@ export async function onRequestGet(ctx) {
     return Array.isArray(items) ? items : [];
   }
 
-  // Recursively collect .zip files only inside the backup archive tree.
+  // Recursively collect .zip files only inside known archive trees.
   // The bucket also contains content-addressed application Storage blobs under
   // blobs/sha256. Walking from the bucket root used to traverse those blobs and
   // exceed the Cloudflare Worker subrequest limit.

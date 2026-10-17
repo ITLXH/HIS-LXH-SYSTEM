@@ -270,7 +270,10 @@ def parse_archive(raw, path):
 
 def list_drive_files(drive, folder_id):
     safe_folder = str(folder_id).replace("\\", "\\\\").replace("'", "\\'")
-    query = f"'{safe_folder}' in parents and trashed=false"
+    query = (
+        f"('{safe_folder}' in parents or appProperties has "
+        f"{{ key='his_backup_root_id' and value='{safe_folder}' }}) and trashed=false"
+    )
     files = []
     page_token = None
     while True:
@@ -543,7 +546,11 @@ def main():
         drive_files = list_drive_files(drive, DRIVE_FOLDER_ID)
         drive_blobs = list_drive_blobs(drive, DRIVE_FOLDER_ID)
 
-    archives = list_supabase_objects("backups") + list_root_archives()
+    archives = (
+        list_supabase_objects("HIS Backup")
+        + list_supabase_objects("backups")
+        + list_root_archives()
+    )
     archives = [item for item in archives if item["path"].lower().endswith(".zip")]
     sidecars = list_supabase_objects("blobs") + list_supabase_objects("snapshots")
     application_buckets = inventory_application_buckets()

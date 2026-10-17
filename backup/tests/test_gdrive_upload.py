@@ -21,6 +21,31 @@ spec.loader.exec_module(gdrive_upload)
 
 
 class GoogleDriveUploadTests(unittest.TestCase):
+    def test_dated_drive_folder_path_uses_system_and_day_month_year(self):
+        created = gdrive_upload.datetime(2026, 10, 17, 23, 0, 0)
+
+        self.assertEqual(
+            gdrive_upload.dated_drive_folder_path("HIS Backup", created),
+            ["HIS Backup", "17", "10", "2026"],
+        )
+
+    def test_ensure_drive_folder_reuses_existing_child(self):
+        drive = Mock()
+        request = drive.files.return_value.list.return_value
+        request.execute.return_value = {
+            "files": [{
+                "id": "existing-folder",
+                "name": "HIS Backup",
+                "mimeType": "application/vnd.google-apps.folder",
+            }]
+        }
+
+        folder_id = gdrive_upload.ensure_drive_folder(drive, "root-folder", "HIS Backup")
+
+        self.assertEqual(folder_id, "existing-folder")
+        self.assertIn("'root-folder' in parents", drive.files.return_value.list.call_args.kwargs["q"])
+        drive.files.return_value.create.assert_not_called()
+
     def test_legacy_database_upload_is_database_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
@@ -47,6 +72,8 @@ class GoogleDriveUploadTests(unittest.TestCase):
 
             with patch.object(gdrive_upload, "build_drive", return_value=Mock()), patch.object(
                 gdrive_upload, "verify_root_folder"
+            ), patch.object(
+                gdrive_upload, "ensure_drive_folder_path", return_value="dated-folder"
             ), patch.object(gdrive_upload, "upload_binary", return_value=uploaded) as upload:
                 result = gdrive_upload.upload_database_backup(zip_path, "root-folder")
 
@@ -123,6 +150,10 @@ class GoogleDriveUploadTests(unittest.TestCase):
             ), patch.object(
                 gdrive_upload, "list_drive_blobs", return_value=existing
             ), patch.object(
+                gdrive_upload, "ensure_drive_folder", return_value="his-root"
+            ), patch.object(
+                gdrive_upload, "ensure_drive_folder_path", return_value="dated-folder"
+            ), patch.object(
                 gdrive_upload, "upload_binary", side_effect=uploads
             ) as upload:
                 result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
@@ -135,6 +166,8 @@ class GoogleDriveUploadTests(unittest.TestCase):
             self.assertEqual(
                 manifest_metadata["appProperties"]["his_sidecar_index_id"], "index-id"
             )
+            self.assertEqual(manifest_metadata["parents"], ["dated-folder"])
+            self.assertEqual(manifest_metadata["appProperties"]["his_backup_root_id"], "root-folder")
 
     def test_complete_upload_supports_parallel_blob_workers(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -191,13 +224,25 @@ class GoogleDriveUploadTests(unittest.TestCase):
             ), patch.object(gdrive_upload, "verify_root_folder"), patch.object(
                 gdrive_upload, "list_drive_blobs", return_value={}
             ), patch.object(
+                gdrive_upload,
+                "ensure_drive_folder",
+                side_effect=lambda _drive, _parent, name: "blob-folder" if name == "Storage Objects" else "his-root",
+            ), patch.object(
+                gdrive_upload, "ensure_drive_folder_path", return_value="dated-folder"
+            ), patch.object(
                 gdrive_upload, "_materialize_blob", side_effect=materialize
-            ), patch.object(gdrive_upload, "upload_binary", side_effect=upload):
+            ), patch.object(gdrive_upload, "upload_binary", side_effect=upload) as upload_mock:
                 result = gdrive_upload.upload_complete_bundle(zip_path, "root-folder")
 
             self.assertEqual(result["sidecars"], 2)
             self.assertEqual(result["uploaded_sidecars"], 2)
             self.assertEqual(result["uploaded_bytes"], len(b"first") + len(b"second"))
+            blob_uploads = [
+                call for call in upload_mock.call_args_list
+                if call.args[2]["appProperties"]["his_backup_type"] == "storage_blob"
+            ]
+            self.assertEqual({call.args[2]["parents"][0] for call in blob_uploads}, {"blob-folder"})
+            self.assertEqual({call.args[2]["appProperties"]["his_backup_root_id"] for call in blob_uploads}, {"root-folder"})
 
     def test_materialized_supabase_blob_is_hash_verified(self):
         with tempfile.TemporaryDirectory() as tmp:

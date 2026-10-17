@@ -7,6 +7,13 @@
 - Verified object: `backups/2026/07/backup-2026-07-31_20260731_150037.zip`.
 - Full evidence: [`docs/BACKUP_LOCAL_TEST_2026-07-31.md`](../docs/BACKUP_LOCAL_TEST_2026-07-31.md).
 
+## ສະຖານະ Production ລ່າສຸດ (2026-10-17)
+
+- DB backup run `#150` ລົ້ມໃນຂັ້ນ Supabase Storage upload ດ້ວຍ HTTP 520; ບໍ່ມີ ZIP ໃໝ່ຖືກຢືນຢັນໃນ Supabase ແລະຂັ້ນ Google Drive ບໍ່ໄດ້ຮັນ.
+- LIS PDF archive run `#37` copy ແລະກວດຢືນຢັນໄດ້ 1,823 ຈາກ 1,825 ໄຟລ໌; 2 ລາຍການຜິດພາດຈາກການເຊື່ອມຕໍ່ EOF/timeout.
+- ໄດ້ເພີ່ມ retry, ກວດ hash ເພື່ອ reconcile ການ upload ທີ່ຜົນຕອບກຳກວມ, ແລະ retry ການດາວໂຫຼດ/Google API. ການຢືນຢັນຫຼັງແກ້ຍັງລໍຖ້າ deploy ແລະ workflow run ຖັດໄປ; ຍັງບໍ່ຖືວ່າ production ຜ່ານ.
+- ໂຄງສ້າງ `HIS Backup/DD/MM/YYYY` ແລະການຮັນປະຈຳວັນ 23:00/23:30 ຢູ່ໃນ working tree ເທົ່ານັ້ນ; ຈະເລີ່ມໃຊ້ຫຼັງຈາກ commit/push ແລະ workflow run ຢືນຢັນຜ່ານ.
+
 ## ຂອບເຂດ Backup
 
 Production workflow ສຳຮອງ:
@@ -19,6 +26,11 @@ Production workflow ສຳຮອງ:
 
 Archive version 2 ມີ typed JSON, CSV ແລະ `manifest.json`. Storage files ຖືກເກັບເປັນ sidecar snapshots ແຕ່ລະ object ເພື່ອບໍ່ເກີນ Supabase 50 MB Spend-Cap limit. Manifest ບັນທຶກ row count, SHA-256, writable/read-only status, Storage size, object hashes ແລະ sidecar paths ເພື່ອ restore ກັບຄືນອັດຕະໂນມັດ.
 Archive version 3 ເພີ່ມ incremental Storage: ໄຟລ໌ໃໝ່/ປ່ຽນແປງຖືກເກັບໃນ `blobs/sha256/...`; ໄຟລ໌ທີ່ບໍ່ປ່ຽນຈະ reuse blob ເກົ່າ. Manifest ແຕ່ລະມື້ຍັງຄົງອ້າງອີງໄຟລ໌ຄົບທັງໝົດ ຈຶ່ງ restore ກັບໄດ້ເຕັມ snapshot ໂດຍບໍ່ເກັບ 10+ GiB ຊ້ຳ.
+Backup ZIP ໃໝ່ຈະຢູ່ໃນ Supabase `HIS Backup/DD/MM/YYYY/` ແລະ Drive ໃນ `HIS Backup/DD/MM/YYYY/`; Drive Storage blobs ທີ່ deduplicate ຈະຢູ່ພາຍໃຕ້ `HIS Backup/Storage Objects/`. API ຍັງອ່ານ archive ເກົ່າໃນ `backups/` ແລະ ZIP ເກົ່າໃນ Drive root.
+
+LIS files ທີ່ເກົ່າກວ່າ hot window ຈະຖືກ copy ແລະກວດຂະໜາດ/hash ໃນ Drive `LIS Backup/DD/MM/YYYY/`; ຊື່ໄຟລ໌ໃຊ້ HN, ຊື່, ອາຍຸ ແລະລະຫັດສັ້ນເພື່ອບໍ່ຊ້ຳ. ໄຟລ໌ຕົ້ນສະບັບຢູ່ Supabase ຈົນກວ່າມີ cleanup workflow ທີ່ຜ່ານ restore verification; LIS backup schedule ແຍກຈາກ HIS 23:00 ເປັນ 23:30 ເພື່ອຫຼຸດການແຍ່ງ resource.
+
+Production log ພົບ bucket `uxi-results` ໃນ Supabase project ທີ່ HIS backup ໃຊ້; workflow ຈະເອົາ bucket ນີ້ເຂົ້າ whole-system snapshot ເມື່ອ backup run ສຳເລັດ. Run `#150` ລົ້ມກ່ອນອັບໂຫຼດ ZIP ຈຶ່ງຍັງບໍ່ມີ snapshot ທີ່ຢືນຢັນກູ້ຄືນໄດ້ຈາກ run ນັ້ນ. ການຈັດ PDF ແຍກເປັນ `UXI Backup` ແລະ PMC ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ: ຕ້ອງຢືນຢັນ production source, file mapping ແລະ Drive permission ກ່ອນເພີ່ມ folder ທີ່ມີ HN/ຊື່/ອາຍຸ.
 
 Workflow ຈະ fail ຖ້າຂາດ core tables ເຫຼົ່ານີ້:
 
@@ -64,13 +76,13 @@ Dry-run ຈະດາວໂຫຼດ ແລະກວດ backup ທັງໝົດ
 
 Application backup ນີ້ສາມາດ restore ຂໍ້ມູນໃສ່ project ທີ່ມີ database schema ຢູ່ແລ້ວ. Database DDL ເຊັ່ນ functions, triggers, RLS policies, roles ແລະ extensions ບໍ່ສາມາດສ້າງຄືນຜ່ານ service-role REST API. ສຳລັບການສ້າງ Supabase project ໃໝ່ຈາກສູນ ຕ້ອງນຳ schema/migrations ຈາກ repository ໄປ deploy ກ່ອນ ແລ້ວຈຶ່ງ restore archive.
 
-## Google Drive database-only copy
+## Google Drive backup scope
 
-Google Drive intentionally stores only the verified database/settings ZIP, currently about 3.5 MB per scheduled backup. Application Storage files are not uploaded to Drive; the complete copy of those files remains in Supabase Storage.
+The current scheduled workflow calls `upload_complete_bundle`: it stores the database/settings ZIP plus SHA-256-deduplicated application Storage blobs and a sidecar index. These are needed to restore the complete snapshot from Drive without depending on the Supabase backup bucket.
 
-Drive files are marked with `his_backup_scope=database_only`. A Drive restore verifies and restores the database tables but skips application Storage. Use the Supabase backup source when complete recovery must include patient/result files.
+Older Drive files marked `his_backup_scope=database_only` contain no application Storage. The restore script detects that legacy scope and restores only database/settings for those files. Check the archive scope and successful upload run before treating a Drive copy as complete.
 
-Latest production evidence:
+Historical production evidence from July 2026:
 
 - Full Supabase backup run `30682154926`: 54 tables, 51,689 rows and 382/382 Storage objects; success.
 - Google Drive database-only restore dry-run `30682898230`: 54 tables and 51,689 rows verified, 0 Storage objects by design; success.

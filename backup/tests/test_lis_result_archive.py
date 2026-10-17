@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +25,70 @@ spec.loader.exec_module(archive)
 
 
 class LisResultArchiveTests(unittest.TestCase):
+    def test_order_id_is_taken_from_valid_storage_path_prefix(self):
+        self.assertEqual(archive.order_id_from_path("ORD-000012/report.pdf"), "ORD-000012")
+        self.assertEqual(archive.order_id_from_path("bad/path/../report.pdf"), "")
+
+    def test_order_metadata_is_fetched_in_bounded_batches(self):
+        response = Mock(status_code=200)
+        response.json.return_value = [{
+            "order_id": "ORD-1",
+            "patient_id": "LXH2026-000001",
+            "patient_name": "Synthetic Patient",
+            "age": "42",
+        }]
+        with patch.object(archive, "request_with_retry", return_value=response) as request:
+            records = archive.fetch_order_patient_metadata(["ORD-1"])
+
+        self.assertEqual(records["ORD-1"]["patient_id"], "LXH2026-000001")
+        self.assertEqual(request.call_args.kwargs["params"]["order_id"], "in.(ORD-1)")
+
+    def test_archive_filename_uses_safe_hn_name_age_and_content_suffix(self):
+        name = archive.archive_drive_filename(
+            {"patient_id": "LXH2026-002256", "patient_name": "ສົມ ໃຈ/Patient", "age": "42"},
+            "report.pdf",
+            "a" * 64,
+        )
+
+        self.assertEqual(name, "HN-LXH2026-002256_ສົມ_ໃຈ_Patient_42y_aaaaaaaaaaaa.pdf")
+
+    def test_archive_filename_rejects_missing_patient_identity(self):
+        with self.assertRaisesRegex(RuntimeError, "patient identity"):
+            archive.archive_drive_filename({}, "report.pdf", "a" * 64)
+
+    def test_transient_http_520_is_retried(self):
+        transient = Mock(status_code=520)
+        success = Mock(status_code=200)
+        with patch.object(
+            archive.requests, "request", side_effect=[transient, success]
+        ) as request, patch("time.sleep") as sleep:
+            response = archive.request_with_retry("get", "https://example.test/object")
+
+        self.assertIs(response, success)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_download_restarts_when_storage_stream_drops_mid_file(self):
+        first = Mock(status_code=200)
+        second = Mock(status_code=200)
+
+        def interrupted_stream(chunk_size=None):
+            yield b"partial"
+            raise archive.requests.RequestException("connection ended early")
+
+        first.iter_content.side_effect = interrupted_stream
+        second.iter_content.return_value = [b"complete file"]
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "synthetic.pdf"
+            with patch.object(
+                archive, "request_with_retry", side_effect=[first, second]
+            ) as request, patch("time.sleep") as sleep:
+                archive.download_object("synthetic/result.pdf", destination)
+
+            self.assertEqual(destination.read_bytes(), b"complete file")
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
     def test_progress_payload_is_aggregate_and_uses_upsert(self):
         previous_run_id = archive.RUN_ID
         previous_state = archive.PROGRESS_STATE.copy()

@@ -15928,7 +15928,9 @@ window.initBackupView = function () {
     return;
   }
   window.loadLatestBackupStatus();
-  window.showBackupTab('supabase');
+  window.loadBackupFileList();
+  window.loadGdriveBackupList();
+  window.renderBackupHistory();
 };
 
 // ============================================================
@@ -16124,13 +16126,13 @@ async function _pollForNewBackup(knownRunId) {
 window.loadLatestBackupStatus = async function () {
   try {
     const res = await window._backupApiFetch('/api/backup/status');
-    // In local dev, API not reachable — leave the default placeholder
     if (res.unavailable) return;
     const data = res.data || {};
+    const status = String(data.conclusion || data.status || 'none').toLowerCase();
+    const allowed = ['success', 'failure', 'in_progress', 'queued', 'cancelled', 'none', 'error'];
+    const safeStatus = allowed.includes(status) ? status : 'unknown';
 
-    const actualStatus = data.conclusion || data.status;
-
-    if (!actualStatus || actualStatus === 'none' || actualStatus === 'error') {
+    if (safeStatus === 'none') {
       $('#latestBackupInfo').html(
         '<div class="text-center py-4 text-muted">' +
         '<i class="fas fa-database fa-3x mb-2 d-block"></i>' +
@@ -16139,26 +16141,46 @@ window.loadLatestBackupStatus = async function () {
       return;
     }
 
-    const statusIcon = actualStatus === 'success'
+    const escapeText = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+    const statusIcon = safeStatus === 'success'
       ? '<i class="fas fa-check-circle text-success fa-2x me-3"></i>'
-      : actualStatus === 'failure'
+      : safeStatus === 'failure' || safeStatus === 'error'
         ? '<i class="fas fa-times-circle text-danger fa-2x me-3"></i>'
         : '<i class="fas fa-spinner fa-spin text-warning fa-2x me-3"></i>';
-    const badgeColor = actualStatus === 'success' ? 'bg-success' :
-                       actualStatus === 'failure' ? 'bg-danger' : 'bg-warning';
-
-    const timeStr = data.updated_at ? new Date(data.updated_at).toLocaleString('lo-LA') : '-';
+    const badgeColor = safeStatus === 'success' ? 'bg-success' :
+                       safeStatus === 'failure' || safeStatus === 'error' ? 'bg-danger' : 'bg-warning';
+    const runNumber = /^\d+$/.test(String(data.run_number || '')) ? String(data.run_number) : '-';
+    const parsedDate = data.updated_at ? new Date(data.updated_at) : null;
+    const timeStr = parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? parsedDate.toLocaleString('lo-LA')
+      : '-';
+    let runLink = '';
+    try {
+      const parsedUrl = new URL(String(data.html_url || ''));
+      if (parsedUrl.protocol === 'https:' && parsedUrl.hostname === 'github.com' &&
+          /^\/ITLXH\/HIS-LXH-SYSTEM\/actions\/runs\/\d+$/.test(parsedUrl.pathname)) {
+        runLink = '<a class="backup-run-log-link" data-backup-run-link href="' + parsedUrl.href +
+          '" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i>' +
+          'ເບິ່ງ log ຂອງ Backup run #' + runNumber + '</a>';
+      }
+    } catch (_) { /* Ignore invalid or non-GitHub workflow links. */ }
+    const errorDetail = safeStatus === 'failure' || safeStatus === 'error'
+      ? '<div class="backup-status-detail text-danger">' +
+        escapeText(data.error || 'Workflow ລົ້ມເຫຼວ — ເປີດ log ເພື່ອກວດຂັ້ນຕອນ') + '</div>'
+      : '';
 
     $('#latestBackupInfo').html(
       '<div class="p-3">' +
         '<div class="d-flex align-items-center">' +
           statusIcon +
           '<div>' +
-            '<h5 class="mb-0">Backup ລ່າສຸດ: <span class="badge ' + badgeColor + '">' + actualStatus + '</span></h5>' +
-            '<small class="text-muted">' + timeStr +
-            (data.run_number ? ' — Run #' + data.run_number : '') +
-            (data.duration ? ' &middot; ' + data.duration + 's' : '') +
-            '</small>' +
+            '<h5 class="mb-0">Backup run #' + runNumber + ': <span class="badge ' + badgeColor + '">' +
+              escapeText(safeStatus) + '</span></h5>' +
+            '<small class="text-muted">' + escapeText(timeStr) +
+            (data.duration ? ' &middot; ' + escapeText(data.duration) + 's' : '') + '</small>' +
+            errorDetail + runLink +
           '</div>' +
         '</div>' +
       '</div>'
@@ -16462,14 +16484,9 @@ window.loadGdriveBackupList = async function () {
 // Show backup logs
 // ============================================================
 window.showBackupLogs = function () {
-  Swal.fire({
-    icon: 'info',
-    title: 'Backup Logs',
-    html: '<p class="text-start">Backup status ຖືກສະແດງຢູ່ໜ້ານີ້.<br>' +
-          'Workflow ဖຳລັງຮັນ ຫຼື ສຳເລັດ — ກະລຸນາເບິ່ງສະຖານະຢູ່ດ້ານເທິງ.<br>' +
-          'ລະບົບຈະອັບເດດອັດຕະໂນມັດ ທຸກ 10 ວິນາທີ.</p>',
-    confirmButtonText: 'ຕົກລົງ'
-  });
+  const runLink = document.querySelector('[data-backup-run-link]');
+  const target = runLink?.href || 'https://github.com/ITLXH/HIS-LXH-SYSTEM/actions/workflows/supabase-backup.yml';
+  window.open(target, '_blank', 'noopener,noreferrer');
 };
 
 // ============================================================
@@ -16480,17 +16497,13 @@ window.showRestoreGuide = function () {
     icon: 'info',
     title: '<i class="fas fa-book me-2"></i>ວິທີ Restore ຈາກ Backup',
     html: '<div class="text-start" style="font-size:14px;max-height:500px;overflow-y:auto;">' +
-      '<p><strong>ຂັ້ນຕອນ Restore:</strong></p>' +
-      '<ol>' +
-        '<li>ດາວໂຫຼດ backup ZIP ຈາກ Supabase Storage bucket</li>' +
-        '<li>Extract ໄດ້ <code>csv/</code> ໂຟເດີ</li>' +
-        '<li><strong>Restore CSV:</strong> ດາວໂຫຼດແຕ່ລະ CSV ແລ້ວ import ເຂົ້າ Supabase</li>' +
-      '</ol>' +
-      '<p class="text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i><strong>ເຕືອນ:</strong> ກວດສອບ backup ກ່ອນ restore ສະເໝີ.</p>' +
-      '<p class="small text-muted mt-2">ເບິ່ງຄູ່ມືເຕັມ: <code>docs/BACKUP_PRODUCTION.md</code></p>' +
+      '<p>ເລືອກ backup ZIP ຈາກ Supabase Storage ຫຼື Google Drive ແລ້ວໃຊ້ປຸ່ມ <strong>Restore</strong>.</p>' +
+      '<p>ກ່ອນ restore ໃນ production, ສ້າງ pre-restore backup ແລະທົດສອບ backup ນັ້ນໃນ isolated Supabase project.</p>' +
+      '<p class="text-danger mt-2"><i class="fas fa-exclamation-triangle me-1"></i><strong>Restore ຈະຂຽນທັບ rows ທີ່ Primary Key ກົງ.</strong> ກວດ project ແລະວັນທີຂອງ backup ໃຫ້ຖືກກ່ອນຢືນຢັນ.</p>' +
+      '<p class="small text-muted mt-2">Drive archive ອາດມີໄຟລ໌ Storage ທີ່ອ້າງອີງຜ່ານ index; ຢ່າແຍກລຶບ archive ຫຼື index ອອກຈາກກັນ.</p>' +
       '</div>',
     width: 600,
-    confirmButtonText: 'ຕົກລົງ'
+    confirmButtonText: 'ເຂົ້າໃຈແລ້ວ'
   });
 };
 

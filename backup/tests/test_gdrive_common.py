@@ -15,6 +15,16 @@ import gdrive_common
 
 
 class GoogleDriveCredentialsTests(unittest.TestCase):
+    def test_drive_create_retries_transient_api_errors(self):
+        drive = Mock()
+        request = drive.files.return_value.create.return_value
+        request.execute.return_value = {"id": "synthetic-file-id"}
+
+        result = gdrive_common.drive_create(drive, body={"name": "synthetic-backup.zip"})
+
+        self.assertEqual(result["id"], "synthetic-file-id")
+        request.execute.assert_called_once_with(num_retries=3)
+
     def test_valid_oauth_is_preferred(self):
         oauth_credentials = Mock()
         oauth_payload = {"refresh_token": "test", "client_id": "id", "client_secret": "secret"}

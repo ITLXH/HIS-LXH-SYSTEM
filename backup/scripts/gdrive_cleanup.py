@@ -9,9 +9,11 @@ from gdrive_common import build_drive, credentials_configured, drive_delete
 
 
 def list_backup_manifests(drive, folder_id):
+    safe_folder = str(folder_id).replace("\\", "\\\\").replace("'", "\\'")
     query = (
-        f"'{folder_id}' in parents and mimeType='application/zip' "
-        "and trashed=false"
+        f"('{safe_folder}' in parents or appProperties has "
+        f"{{ key='his_backup_root_id' and value='{safe_folder}' }}) and "
+        "mimeType='application/zip' and trashed=false"
     )
     files = []
     page_token = None

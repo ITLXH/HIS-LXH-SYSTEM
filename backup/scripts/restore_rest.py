@@ -66,7 +66,7 @@ def github_error(message):
 
 
 def request_with_retry(method, url, attempts=5, **kwargs):
-    retry_statuses = {408, 425, 429, 500, 502, 503, 504}
+    retry_statuses = {408, 425, 429, 500, 502, 503, 504, 520}
     last_error = None
     for attempt in range(attempts):
         try:
@@ -105,7 +105,7 @@ def _download_drive_media(drive, file_id):
     downloader = MediaIoBaseDownload(buffer, request)
     done = False
     while not done:
-        _, done = downloader.next_chunk()
+        _, done = downloader.next_chunk(num_retries=3)
     return buffer.getvalue()
 
 

@@ -3,6 +3,8 @@ import importlib.util
 import io
 import json
 import os
+import sys
+import types
 import unittest
 import zipfile
 from pathlib import Path
@@ -64,6 +66,43 @@ def make_archive(rows=None, expected_hash=None, storage_payload=None):
 
 
 class RestoreRestTests(unittest.TestCase):
+    def test_transient_http_520_is_retried(self):
+        transient = Mock(status_code=520, text="temporary edge error")
+        success = Mock(status_code=200)
+        with patch.object(
+            restore_rest.requests, "get", side_effect=[transient, success]
+        ) as request, patch.object(restore_rest.time, "sleep") as sleep:
+            response = restore_rest.request_with_retry("get", "https://example.test/archive")
+
+        self.assertIs(response, success)
+        self.assertEqual(request.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_google_drive_media_download_retries_each_chunk(self):
+        calls = []
+        http_module = types.ModuleType("googleapiclient.http")
+
+        class Download:
+            def __init__(self, buffer, request):
+                self.buffer = buffer
+
+            def next_chunk(self, num_retries=0):
+                calls.append(num_retries)
+                self.buffer.write(b"synthetic archive")
+                return None, True
+
+        http_module.MediaIoBaseDownload = Download
+        api_module = types.ModuleType("googleapiclient")
+        api_module.__path__ = []
+        with patch.dict(sys.modules, {
+            "googleapiclient": api_module,
+            "googleapiclient.http": http_module,
+        }):
+            blob = restore_rest._download_drive_media(Mock(), "synthetic-file-id")
+
+        self.assertEqual(blob, b"synthetic archive")
+        self.assertEqual(calls, [3])
+
     def test_validates_typed_rows_settings_and_storage(self):
         archive, manifest, tables, storage = restore_rest.validate_archive(make_archive())
         try:

@@ -39,9 +39,11 @@ export async function onRequestGet({ request, env }) {
   if (!folderId || !candidates.length) return json({ error: 'Archived result-file storage is unavailable' }, 503);
 
   const pathHash = await sha256Hex(`${RESULT_BUCKET}/${objectPath}`);
+  const safeFolderId = escapeDriveQuery(folderId);
+  const rootQuery = "('" + safeFolderId + "' in parents or appProperties has { key='his_archive_root_id' and value='" + safeFolderId + "' })";
   const query = [
-    `'${escapeDriveQuery(folderId)}' in parents`,
-    `appProperties has { key='his_source_path_sha256' and value='${pathHash}' }`,
+    rootQuery,
+    "appProperties has { key='his_source_path_sha256' and value='" + pathHash + "' }",
     "trashed=false",
   ].join(' and ');
   const listUrl =
