@@ -20,7 +20,7 @@ import sys
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -108,7 +108,10 @@ def _escape_query(value):
 
 
 def dated_drive_folder_path(root_name, created_at):
-    return [root_name, *created_at.strftime("%d/%m/%Y").split("/")]
+    if created_at.tzinfo is not None:
+        created_at = created_at.astimezone(timezone(timedelta(hours=7)))
+    month = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")[created_at.month - 1]
+    return [root_name, str(created_at.year), month, created_at.strftime("%d/%m/%Y")]
 
 
 def ensure_drive_folder(drive, parent_id, name):
@@ -391,9 +394,9 @@ def upload_complete_bundle(zip_path, root_folder_id):
     backup_folder_id = ensure_drive_folder_path(
         drive,
         backup_root_id,
-        backup_time.strftime("%d/%m/%Y").split("/"),
+        dated_drive_folder_path("HIS Backup", backup_time)[1:],
     )
-    blob_folder_id = ensure_drive_folder(drive, backup_root_id, "Storage Objects")
+    blob_folder_id = ensure_drive_folder(drive, backup_folder_id, "Storage Objects")
     output_dir = Path(os.environ.get("OUTPUT_DIR", "") or zip_path.parent)
     sidecar_index = {}
     uploaded_count = 0

@@ -1,5 +1,31 @@
 # HIS Backup ແລະ Restore Guide
 
+
+## Backup recovery update — 2026-10-19
+
+- Runs #151/#152 failed safely before ZIP creation because primary-key discovery
+  depended on ignored `backup/schema_public.sql`, absent from GitHub checkouts.
+  `table_primary_keys.json` now packages DDL-derived cursor keys; live OpenAPI PK
+  annotations take precedence for new or changed tables. Count and duplicate-key
+  checks remain enabled; unknown unsafe pagination still fails closed.
+- All Drive writers use system > year > English month > one DD/MM/YYYY folder,
+  e.g. `LIS Backup > 2026 > Oct > 19/10/2026`. Aware timestamps use Bangkok time.
+  HIS ZIP/index and newly uploaded shared Storage blobs use the same dated folder.
+  Existing blobs remain referenced by file ID, independent of their folder path.
+- `organize_drive_backups.py` defaults to audit. Explicit --apply records original
+  parents before moving known backups inside the verified root, merges lookup
+  properties, and verifies unchanged IDs, size and MD5. It never edits file bytes
+  or permissions and leaves unclassified files untouched. Keep its journal local.
+- Retrieval uses Drive file IDs/root lookup tags, so moving files does not change
+  archive links. Restore verification must check both ZIP and sidecar index/blobs;
+  a successful folder move alone does not prove clinical database restoration.
+- UXI copy-only archiving in current main already targets `uxi-results` and reuses
+  this folder helper. PMC production source/schema coverage is not established;
+  an empty PMC Backup folder is not evidence that PMC data has been backed up.
+- Supabase backup retention cleanup now requires both SUPABASE_CLEANUP_ENABLED=1
+  and DRIVE_RESTORE_VERIFIED=1. Both are off by default; repairing a backup does
+  not authorize deleting earlier recovery points before a Drive restore drill.
+
 ## Production verification (2026-07-31)
 
 - Backup run `30641028459`: success — 54 tables, 51,504 rows and 376 application Storage objects.
@@ -26,9 +52,9 @@ Production workflow ສຳຮອງ:
 
 Archive version 2 ມີ typed JSON, CSV ແລະ `manifest.json`. Storage files ຖືກເກັບເປັນ sidecar snapshots ແຕ່ລະ object ເພື່ອບໍ່ເກີນ Supabase 50 MB Spend-Cap limit. Manifest ບັນທຶກ row count, SHA-256, writable/read-only status, Storage size, object hashes ແລະ sidecar paths ເພື່ອ restore ກັບຄືນອັດຕະໂນມັດ.
 Archive version 3 ເພີ່ມ incremental Storage: ໄຟລ໌ໃໝ່/ປ່ຽນແປງຖືກເກັບໃນ `blobs/sha256/...`; ໄຟລ໌ທີ່ບໍ່ປ່ຽນຈະ reuse blob ເກົ່າ. Manifest ແຕ່ລະມື້ຍັງຄົງອ້າງອີງໄຟລ໌ຄົບທັງໝົດ ຈຶ່ງ restore ກັບໄດ້ເຕັມ snapshot ໂດຍບໍ່ເກັບ 10+ GiB ຊ້ຳ.
-Backup ZIP ໃໝ່ຈະຢູ່ໃນ Supabase `HIS Backup/DD/MM/YYYY/` ແລະ Drive ໃນ `HIS Backup/DD/MM/YYYY/`; Drive Storage blobs ທີ່ deduplicate ຈະຢູ່ພາຍໃຕ້ `HIS Backup/Storage Objects/`. API ຍັງອ່ານ archive ເກົ່າໃນ `backups/` ແລະ ZIP ເກົ່າໃນ Drive root.
+Backup ZIP ໃໝ່ຈະຢູ່ໃນ Supabase `HIS Backup/DD/MM/YYYY/` ແລະ Drive ໃນ `HIS Backup/YYYY/Mon/DD/MM/YYYY/`; Drive Storage blobs ທີ່ deduplicate ຈະຢູ່ພາຍໃຕ້ `HIS Backup/YYYY/Mon/DD/MM/YYYY/Storage Objects/`. API ຍັງອ່ານ archive ເກົ່າໃນ `backups/` ແລະ ZIP ເກົ່າໃນ Drive root.
 
-LIS files ທີ່ເກົ່າກວ່າ hot window ຈະຖືກ copy ແລະກວດຂະໜາດ/hash ໃນ Drive `LIS Backup/DD/MM/YYYY/`; ຊື່ໄຟລ໌ໃຊ້ HN, ຊື່, ອາຍຸ ແລະລະຫັດສັ້ນເພື່ອບໍ່ຊ້ຳ. ໄຟລ໌ຕົ້ນສະບັບຢູ່ Supabase ຈົນກວ່າມີ cleanup workflow ທີ່ຜ່ານ restore verification; LIS backup schedule ແຍກຈາກ HIS 23:00 ເປັນ 23:30 ເພື່ອຫຼຸດການແຍ່ງ resource.
+LIS files ທີ່ເກົ່າກວ່າ hot window ຈະຖືກ copy ແລະກວດຂະໜາດ/hash ໃນ Drive `LIS Backup/YYYY/Mon/DD/MM/YYYY/`; ຊື່ໄຟລ໌ໃຊ້ HN, ຊື່, ອາຍຸ ແລະລະຫັດສັ້ນເພື່ອບໍ່ຊ້ຳ. ໄຟລ໌ຕົ້ນສະບັບຢູ່ Supabase ຈົນກວ່າມີ cleanup workflow ທີ່ຜ່ານ restore verification; LIS backup schedule ແຍກຈາກ HIS 23:00 ເປັນ 23:30 ເພື່ອຫຼຸດການແຍ່ງ resource.
 
 Production log ພົບ bucket `uxi-results` ໃນ Supabase project ທີ່ HIS backup ໃຊ້; workflow ຈະເອົາ bucket ນີ້ເຂົ້າ whole-system snapshot ເມື່ອ backup run ສຳເລັດ. Run `#150` ລົ້ມກ່ອນອັບໂຫຼດ ZIP ຈຶ່ງຍັງບໍ່ມີ snapshot ທີ່ຢືນຢັນກູ້ຄືນໄດ້ຈາກ run ນັ້ນ. ການຈັດ PDF ແຍກເປັນ `UXI Backup` ແລະ PMC ຍັງບໍ່ໄດ້ຕັ້ງຄ່າ: ຕ້ອງຢືນຢັນ production source, file mapping ແລະ Drive permission ກ່ອນເພີ່ມ folder ທີ່ມີ HN/ຊື່/ອາຍຸ.
 

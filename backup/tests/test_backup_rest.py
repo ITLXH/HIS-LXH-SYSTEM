@@ -22,6 +22,41 @@ spec.loader.exec_module(backup_rest)
 
 
 class BackupRestTests(unittest.TestCase):
+    def test_cleanup_is_disabled_until_both_explicit_enable_and_restore_proof(self):
+        for enabled, verified in [('0', '0'), ('1', '0'), ('0', '1')]:
+            with self.subTest(enabled=enabled, verified=verified), patch.dict(
+                os.environ, {'SUPABASE_CLEANUP_ENABLED': enabled, 'DRIVE_RESTORE_VERIFIED': verified}
+            ), patch.object(backup_rest, 'list_backup_bucket_objects', return_value=[]) as scan:
+                self.assertEqual(backup_rest.cleanup_supabase_storage(), 0)
+                scan.assert_not_called()
+
+    def test_new_table_pagination_uses_live_primary_key_metadata(self):
+        spec = {"definitions": {"new_table": {"properties": {
+            "id": {"description": "Note: This is a Primary Key.<pk/>"}
+        }}}}
+        pages = [
+            Mock(status_code=200, json=Mock(return_value=[{"id": i} for i in range(1000)]), headers={"Content-Range": "0-999/1001"}),
+            Mock(status_code=200, json=Mock(return_value=[{"id": 1000}]), headers={}),
+        ]
+        with patch.object(backup_rest, "OPENAPI_SPEC", spec), patch.object(
+            backup_rest.requests, "get", side_effect=pages
+        ) as request:
+            rows = backup_rest.export_table("new_table")
+        self.assertEqual(len(rows), 1001)
+        self.assertEqual(request.call_args.kwargs["params"]["id"], "gt.999")
+
+    def test_primary_key_metadata_is_packaged_without_ignored_schema_dump(self):
+        original_read = Path.read_text
+        def without_dump(path, *args, **kwargs):
+            if path.name == "schema_public.sql":
+                raise FileNotFoundError("GitHub checkout has no local dump")
+            return original_read(path, *args, **kwargs)
+        with patch.object(Path, "read_text", without_dump):
+            keys = backup_rest.load_table_primary_keys()
+        self.assertEqual(tuple(keys.get("HIS_One_Patients", ())), ("Patient_ID",))
+        self.assertEqual(tuple(keys.get("HIS_One_Visits", ())), ("Row_ID",))
+        self.assertEqual(tuple(keys.get("HIS_One_Manpower_Assignments", ())), ("ID",))
+
     def test_uxi_production_tables_are_in_fallback_and_required_coverage(self):
         expected = {
             "UXI_One_main_app_state", "UXI_One_main_audit",
@@ -232,7 +267,8 @@ class BackupRestTests(unittest.TestCase):
         with patch.object(backup_rest.requests, "post", side_effect=list_response), patch.object(
             backup_rest.requests, "delete", deleted
         ):
-            self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
+            with patch.dict(os.environ, {"SUPABASE_CLEANUP_ENABLED": "1", "DRIVE_RESTORE_VERIFIED": "1"}):
+                self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
             self.assertIn("HIS%20Backup/01/01/2020/backup-new-layout.zip", deleted.call_args.args[0])
 
     def test_required_customer_and_settings_tables_are_enforced(self):
@@ -389,7 +425,8 @@ class BackupRestTests(unittest.TestCase):
         ), patch.object(
             backup_rest, "download_backup_manifest", return_value=manifest
         ), patch.object(backup_rest.requests, "delete", deleted):
-            self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
+            with patch.dict(os.environ, {"SUPABASE_CLEANUP_ENABLED": "1", "DRIVE_RESTORE_VERIFIED": "1"}):
+                self.assertEqual(backup_rest.cleanup_supabase_storage(), 1)
 
         deleted_url = deleted.call_args.args[0]
         self.assertIn("blobs/sha256/bb/orphan", deleted_url)
