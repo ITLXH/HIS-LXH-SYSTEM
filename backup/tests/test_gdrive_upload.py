@@ -21,12 +21,19 @@ spec.loader.exec_module(gdrive_upload)
 
 
 class GoogleDriveUploadTests(unittest.TestCase):
-    def test_dated_drive_folder_path_uses_system_and_day_month_year(self):
+    def test_dated_drive_folder_path_groups_by_year_month_and_hospital_date(self):
         created = gdrive_upload.datetime(2026, 10, 17, 23, 0, 0)
 
         self.assertEqual(
             gdrive_upload.dated_drive_folder_path("HIS Backup", created),
-            ["HIS Backup", "17", "10", "2026"],
+            ["HIS Backup", "2026", "Oct", "17/10/2026"],
+        )
+
+    def test_dated_drive_folder_path_converts_utc_across_year_boundary(self):
+        created = gdrive_upload.datetime(2026, 12, 31, 18, tzinfo=gdrive_upload.timezone.utc)
+        self.assertEqual(
+            gdrive_upload.dated_drive_folder_path("LIS Backup", created),
+            ["LIS Backup", "2027", "Jan", "01/01/2027"],
         )
 
     def test_ensure_drive_folder_reuses_existing_child(self):

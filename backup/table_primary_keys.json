@@ -1,0 +1,137 @@
+{
+  "HIS_One_Admissions": [
+    "Admission_ID"
+  ],
+  "HIS_One_Appointments": [
+    "Appt_ID"
+  ],
+  "HIS_One_Beds": [
+    "Bed_ID"
+  ],
+  "HIS_One_Drugs_Master": [
+    "Drug_ID"
+  ],
+  "HIS_One_IPD_Medications": [
+    "Med_ID"
+  ],
+  "HIS_One_IPD_Visits": [
+    "Visit_ID"
+  ],
+  "HIS_One_IPD_Vital_Signs": [
+    "Vital_ID"
+  ],
+  "HIS_One_Labs_Master": [
+    "Lab_ID"
+  ],
+  "HIS_One_Locations": [
+    "ID"
+  ],
+  "HIS_One_Manpower_Assignments": [
+    "ID"
+  ],
+  "HIS_One_Manpower_History": [
+    "ID"
+  ],
+  "HIS_One_MasterData": [
+    "ID"
+  ],
+  "HIS_One_Nursing_Notes": [
+    "Note_ID"
+  ],
+  "HIS_One_Organizations": [
+    "Org_ID"
+  ],
+  "HIS_One_Patient_Vaccines": [
+    "Record_ID"
+  ],
+  "HIS_One_Patients": [
+    "Patient_ID"
+  ],
+  "HIS_One_Progress_Notes": [
+    "Note_ID"
+  ],
+  "HIS_One_Rooms": [
+    "Room_ID"
+  ],
+  "HIS_One_Service_Lists": [
+    "ID"
+  ],
+  "HIS_One_Settings": [
+    "Key"
+  ],
+  "HIS_One_Users": [
+    "ID"
+  ],
+  "HIS_One_Vaccines_Master": [
+    "Vac_ID"
+  ],
+  "HIS_One_Visits": [
+    "Row_ID"
+  ],
+  "HIS_One_Wards": [
+    "Ward_ID"
+  ],
+  "HIS_One_activity_logs": [
+    "id"
+  ],
+  "UXI_One_main_imaging_exam_catalog": [
+    "code"
+  ],
+  "UXI_One_main_imaging_orders": [
+    "id"
+  ],
+  "lis_one_audit_log": [
+    "id"
+  ],
+  "lis_one_inventory_lots": [
+    "id"
+  ],
+  "lis_one_maintenance_log": [
+    "id"
+  ],
+  "lis_one_order_result_files": [
+    "id"
+  ],
+  "lis_one_patients": [
+    "id"
+  ],
+  "lis_one_permissions": [
+    "id"
+  ],
+  "lis_one_sessions": [
+    "id"
+  ],
+  "lis_one_settings": [
+    "id"
+  ],
+  "lis_one_stock_master": [
+    "id"
+  ],
+  "lis_one_stock_transactions": [
+    "id"
+  ],
+  "lis_one_test_master": [
+    "id"
+  ],
+  "lis_one_test_orders": [
+    "id"
+  ],
+  "lis_one_test_package_items": [
+    "id"
+  ],
+  "lis_one_test_packages": [
+    "id"
+  ],
+  "lis_one_test_parameters": [
+    "id"
+  ],
+  "lis_one_test_reagent_mapping": [
+    "id"
+  ],
+  "lis_one_test_results": [
+    "id"
+  ],
+  "lis_one_users": [
+    "id"
+  ]
+}

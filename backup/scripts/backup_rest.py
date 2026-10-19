@@ -36,23 +36,12 @@ HEADERS = {
 
 
 def load_table_primary_keys():
-    """Read stable cursor columns from the repository's schema snapshot."""
-    schema_path = Path(__file__).resolve().parents[1] / "schema_public.sql"
-    try:
-        schema = schema_path.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    keys = {}
-    pattern = re.compile(
-        r'ALTER TABLE ONLY "?public"?\."([^"]+)"\s+'
-        r'ADD CONSTRAINT "[^"]+_pkey" PRIMARY KEY\s*\(([^)]+)\);',
-        re.IGNORECASE,
-    )
-    for table, columns in pattern.findall(schema):
-        key_columns = tuple(re.findall(r'"([^"]+)"', columns))
-        if key_columns:
-            keys[table] = key_columns
-    return keys
+    """Read packaged DDL metadata; local schema dumps are absent in Actions."""
+    metadata_path = Path(__file__).resolve().parents[1] / "table_primary_keys.json"
+    return {
+        table: tuple(columns)
+        for table, columns in json.loads(metadata_path.read_text(encoding="utf-8")).items()
+    }
 
 
 TABLE_PRIMARY_KEYS = load_table_primary_keys()
@@ -610,7 +599,11 @@ def export_table(table):
     limit = 1000
     all_rows = []
     expected_total = None
-    primary_keys = TABLE_PRIMARY_KEYS.get(table, ())
+    definitions = OPENAPI_SPEC.get("definitions", OPENAPI_SPEC.get("components", {}).get("schemas", {}))
+    properties = definitions.get(table, {}).get("properties", {})
+    live_keys = tuple(name for name, metadata in properties.items()
+                      if "<pk/>" in str(metadata.get("description", "")))
+    primary_keys = live_keys or TABLE_PRIMARY_KEYS.get(table, ())
     primary_key = primary_keys[0] if len(primary_keys) == 1 else None
     last_key = None
     seen_keys = set()

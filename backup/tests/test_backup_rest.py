@@ -22,6 +22,33 @@ spec.loader.exec_module(backup_rest)
 
 
 class BackupRestTests(unittest.TestCase):
+    def test_new_table_pagination_uses_live_primary_key_metadata(self):
+        spec = {"definitions": {"new_table": {"properties": {
+            "id": {"description": "Note: This is a Primary Key.<pk/>"}
+        }}}}
+        pages = [
+            Mock(status_code=200, json=Mock(return_value=[{"id": i} for i in range(1000)]), headers={"Content-Range": "0-999/1001"}),
+            Mock(status_code=200, json=Mock(return_value=[{"id": 1000}]), headers={}),
+        ]
+        with patch.object(backup_rest, "OPENAPI_SPEC", spec), patch.object(
+            backup_rest.requests, "get", side_effect=pages
+        ) as request:
+            rows = backup_rest.export_table("new_table")
+        self.assertEqual(len(rows), 1001)
+        self.assertEqual(request.call_args.kwargs["params"]["id"], "gt.999")
+
+    def test_primary_key_metadata_is_packaged_without_ignored_schema_dump(self):
+        original_read = Path.read_text
+        def without_dump(path, *args, **kwargs):
+            if path.name == "schema_public.sql":
+                raise FileNotFoundError("GitHub checkout has no local dump")
+            return original_read(path, *args, **kwargs)
+        with patch.object(Path, "read_text", without_dump):
+            keys = backup_rest.load_table_primary_keys()
+        self.assertEqual(tuple(keys.get("HIS_One_Patients", ())), ("Patient_ID",))
+        self.assertEqual(tuple(keys.get("HIS_One_Visits", ())), ("Row_ID",))
+        self.assertEqual(tuple(keys.get("HIS_One_Manpower_Assignments", ())), ("ID",))
+
     def test_uxi_production_tables_are_in_fallback_and_required_coverage(self):
         expected = {
             "UXI_One_main_app_state", "UXI_One_main_audit",
