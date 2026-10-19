@@ -780,6 +780,10 @@ def ensure_supabase_bucket():
 
 def cleanup_supabase_storage():
     """Apply retention without deleting blobs referenced by a retained manifest."""
+    if (os.environ.get("SUPABASE_CLEANUP_ENABLED", "0") != "1"
+            or os.environ.get("DRIVE_RESTORE_VERIFIED", "0") != "1"):
+        print("  Supabase cleanup disabled until explicitly enabled after a verified Drive restore")
+        return 0
     cutoff = datetime.now().astimezone() - timedelta(days=RETENTION_DAYS)
 
     def created_at(metadata):

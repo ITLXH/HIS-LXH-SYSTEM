@@ -22,6 +22,9 @@
 - UXI copy-only archiving in current main already targets `uxi-results` and reuses
   this folder helper. PMC production source/schema coverage is not established;
   an empty PMC Backup folder is not evidence that PMC data has been backed up.
+- Supabase backup retention cleanup now requires both SUPABASE_CLEANUP_ENABLED=1
+  and DRIVE_RESTORE_VERIFIED=1. Both are off by default; repairing a backup does
+  not authorize deleting earlier recovery points before a Drive restore drill.
 
 ## Production verification (2026-07-31)
 

@@ -59,6 +59,8 @@ jobs:
           SUPABASE_STORAGE_BUCKET: ${{ secrets.SUPABASE_STORAGE_BUCKET || 'his-backups' }}
           OUTPUT_DIR: output
           SUPABASE_RETENTION_DAYS: ${{ env.SUPABASE_RETENTION_DAYS }}
+          SUPABASE_CLEANUP_ENABLED: ${{ vars.SUPABASE_CLEANUP_ENABLED || '0' }}
+          DRIVE_RESTORE_VERIFIED: ${{ vars.DRIVE_RESTORE_VERIFIED || '0' }}
           BACKUP_INCLUDE_STORAGE: '1'
           BACKUP_STORAGE_WORKERS: '8'
           # Refuse a green run if the core customer, user or settings tables

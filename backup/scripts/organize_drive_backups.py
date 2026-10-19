@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from gdrive_common import build_drive
-from gdrive_upload import dated_drive_folder_path, ensure_drive_folder_path, verify_root_folder
+from gdrive_upload import dated_drive_folder_path, ensure_drive_folder, verify_root_folder
 
 SYSTEMS = {'HIS Backup', 'LIS Backup', 'UXI Backup', 'PMC Backup'}
 FOLDER = 'application/vnd.google-apps.folder'
@@ -110,8 +110,12 @@ def main():
         return
     journal = Path(args.journal)
     journal.parent.mkdir(parents=True, exist_ok=True)
-    folders = {tuple(target): ensure_drive_folder_path(drive, args.root_folder, target)
-               for target in sorted({tuple(target) for _, _, target in moves})}
+    folders = {(): args.root_folder}
+    for target in sorted({tuple(target) for _, _, target in moves}):
+        for depth in range(1, len(target) + 1):
+            prefix = target[:depth]
+            if prefix not in folders:
+                folders[prefix] = ensure_drive_folder(drive, folders[prefix[:-1]], prefix[-1])
     context = threading.local()
     def execute(entry):
         item, parent, target = entry
@@ -119,7 +123,7 @@ def main():
             context.drive = build_drive()
         return move_file(context.drive, item, parent, folders[tuple(target)], args.root_folder, target[0])
     failures = 0
-    with journal.open('a', encoding='utf-8') as log, ThreadPoolExecutor(max_workers=4) as pool:
+    with journal.open('a', encoding='utf-8') as log, ThreadPoolExecutor(max_workers=16) as pool:
         futures = {}
         for item, parent, target in moves:
             log.write(json.dumps({'file_id': item['id'], 'source_parent': parent,
