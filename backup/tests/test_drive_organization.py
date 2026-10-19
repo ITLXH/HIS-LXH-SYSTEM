@@ -13,11 +13,11 @@ class DriveOrganizationTests(unittest.TestCase):
             ({'name': 'backup-2026-08-08_20260808_011021.zip'}, None,
              ['HIS Backup', '2026', 'Aug', '08/08/2026']),
             ({'name': 'lis-result-abc.pdf', 'createdTime': '2026-10-17T18:57:00Z'}, None,
-             ['LIS Backup', '2026', 'Oct', '18/10/2026']),
+             None),
             ({'name': 'report.pdf', 'createdTime': '2026-10-18T19:00:00Z'}, 'UXI Backup',
-             ['UXI Backup', '2026', 'Oct', '19/10/2026']),
+             None),
             ({'name': 'report.pdf', 'createdTime': '2026-10-18T19:00:00Z'}, 'PMC Backup',
-             ['PMC Backup', '2026', 'Oct', '19/10/2026']),
+             None),
             ({'name': 'unknown.pdf', 'createdTime': '2026-10-17T00:00:00Z'}, None, None),
         ]
         for metadata, system, expected in cases:

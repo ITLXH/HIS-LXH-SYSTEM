@@ -22,6 +22,7 @@ import requests
 from gdrive_common import build_drive, credentials_configured
 from gdrive_upload import (
     dated_drive_folder_path,
+    clinical_archive_date,
     ensure_drive_folder_path,
     upload_binary,
     verify_root_folder,
@@ -172,6 +173,8 @@ def build_patient_metadata_index(order_rows):
         if not cn or not name or age is None:
             continue
         identity = {"patient_id": cn, "patient_name": name, "age": age}
+        if row.get('ordered_at'):
+            identity['clinical_date'] = clinical_archive_date(row['ordered_at'])
         for result in row.get("result_files") or []:
             if not isinstance(result, dict):
                 continue
@@ -208,7 +211,7 @@ def fetch_order_patient_metadata(order_ids):
             endpoint,
             headers=storage_headers(),
             params={
-                "select": "id,cn,patient,result_files",
+                "select": "id,cn,patient,result_files,ordered_at",
                 "id": "in.(" + ",".join(batch) + ")",
                 "limit": str(len(batch)),
             },
@@ -379,6 +382,7 @@ def content_type(item):
 
 
 def upload_archive_copy(drive, item, patient_identity):
+    clinical_date = clinical_archive_date((patient_identity or {}).get('clinical_date'))
     digest = path_hash(item["path"])
     suffix = Path(item["path"]).suffix.lower()
     if not suffix or len(suffix) > 10 or not suffix[1:].isalnum():
@@ -392,7 +396,7 @@ def upload_archive_copy(drive, item, patient_identity):
         archive_folder_id = ensure_drive_folder_path(
             drive,
             DRIVE_FOLDER_ID,
-            dated_drive_folder_path("UXI Backup", datetime.now(timezone.utc)),
+            dated_drive_folder_path("UXI Backup", datetime.fromisoformat(clinical_date)),
         )
         uploaded = upload_binary(
             drive,
@@ -403,6 +407,8 @@ def upload_archive_copy(drive, item, patient_identity):
                 "mimeType": content_type(item),
                 "appProperties": {
                     "his_archive_type": "uxi_result",
+                    "his_clinical_date": clinical_date,
+                    "his_clinical_date_source": "ordered_at",
                     "his_archive_root_id": DRIVE_FOLDER_ID,
                     "his_source_bucket": BUCKET,
                     "his_source_path_sha256": digest,

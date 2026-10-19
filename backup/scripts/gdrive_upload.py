@@ -13,6 +13,7 @@ Env: GOOGLE_DRIVE_OAUTH_JSON or GOOGLE_SERVICE_ACCOUNT_JSON
 """
 
 import hashlib
+import re
 import json
 import mimetypes
 import os
@@ -25,6 +26,20 @@ from pathlib import Path
 from urllib.parse import quote
 
 import requests
+
+
+def clinical_archive_date(value):
+    """Use the persisted exam date in Bangkok; never substitute upload time."""
+    try:
+        text = str(value or '')
+        parsed = datetime.fromisoformat(text.replace('Z', '+00:00'))
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}', text):
+            return parsed.date().isoformat()
+        if parsed.tzinfo is None:
+            raise ValueError('Missing timezone')
+        return parsed.astimezone(timezone(timedelta(hours=7))).date().isoformat()
+    except (ValueError, TypeError):
+        raise RuntimeError('Clinical date missing or invalid; retain source file') from None
 
 from gdrive_common import (
     build_drive,

@@ -25,6 +25,7 @@ import requests
 from gdrive_common import build_drive, credentials_configured
 from gdrive_upload import (
     dated_drive_folder_path,
+    clinical_archive_date,
     ensure_drive_folder_path,
     upload_binary,
     verify_root_folder,
@@ -212,7 +213,7 @@ def fetch_order_patient_metadata(order_ids):
             f"{SUPABASE_URL}/rest/v1/lis_one_test_orders",
             headers=storage_headers(),
             params={
-                "select": "order_id,patient_id,patient_name,age",
+                "select": "order_id,patient_id,patient_name,age,order_datetime",
                 "order_id": f"in.({','.join(batch)})",
             },
             timeout=(15, 60),
@@ -231,6 +232,8 @@ def fetch_order_patient_metadata(order_ids):
             }
             if not order_id or not all(identity.values()):
                 continue
+            if row.get('order_datetime'):
+                identity['clinical_date'] = clinical_archive_date(row['order_datetime'])
             if order_id in result and result[order_id] != identity:
                 raise RuntimeError("LIS patient identity mapping is ambiguous for an order")
             result[order_id] = identity
@@ -403,6 +406,7 @@ def verify_gateway_sample(item):
 
 
 def upload_archive_copy(drive, item, patient_identity):
+    clinical_date = clinical_archive_date((patient_identity or {}).get('clinical_date'))
     digest = path_hash(item["path"])
     suffix = Path(item["path"]).suffix.lower()
     if not suffix or len(suffix) > 10 or not suffix[1:].isalnum():
@@ -416,7 +420,7 @@ def upload_archive_copy(drive, item, patient_identity):
         archive_folder_id = ensure_drive_folder_path(
             drive,
             DRIVE_FOLDER_ID,
-            dated_drive_folder_path("LIS Backup", datetime.now(timezone.utc)),
+            dated_drive_folder_path("LIS Backup", datetime.fromisoformat(clinical_date)),
         )
         uploaded = upload_binary(
             drive,
@@ -429,6 +433,8 @@ def upload_archive_copy(drive, item, patient_identity):
                 "mimeType": content_type(item),
                 "appProperties": {
                     "his_archive_type": "lis_result",
+                    "his_clinical_date": clinical_date,
+                    "his_clinical_date_source": "order_datetime",
                     "his_archive_root_id": DRIVE_FOLDER_ID,
                     "his_source_bucket": BUCKET,
                     "his_source_path_sha256": digest,

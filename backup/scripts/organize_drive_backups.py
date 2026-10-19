@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from gdrive_common import build_drive
-from gdrive_upload import dated_drive_folder_path, ensure_drive_folder, verify_root_folder
+from gdrive_upload import clinical_archive_date, dated_drive_folder_path, ensure_drive_folder, verify_root_folder
 
 SYSTEMS = {'HIS Backup', 'LIS Backup', 'UXI Backup', 'PMC Backup'}
 FOLDER = 'application/vnd.google-apps.folder'
@@ -32,6 +32,12 @@ def destination_parts(metadata, system=None):
         system = 'LIS Backup'
     if system not in SYSTEMS:
         return None
+    if system != 'HIS Backup':
+        try:
+            clinical = clinical_archive_date(props.get('his_clinical_date'))
+        except RuntimeError:
+            return None
+        return dated_drive_folder_path(system, datetime.fromisoformat(clinical))
     try:
         created = datetime.fromisoformat(snapshot[1]) if snapshot else datetime.fromisoformat(metadata['createdTime'].replace('Z', '+00:00'))
     except (KeyError, TypeError, ValueError):
