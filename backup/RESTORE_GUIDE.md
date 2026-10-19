@@ -1,6 +1,22 @@
 # HIS Backup ແລະ Restore Guide
 
 
+## Result folder dates — 2026-10-20
+
+LIS folders use persisted `lis_one_test_orders.order_datetime`, matching the date
+printed on the LIS PDF. UXI folders use `UXI_One_main_imaging_orders.ordered_at`,
+matching its exam-date field. Dates are converted to Asia/Bangkok (UTC+7).
+Missing or invalid dates prevent new copies; upload time is never a substitute.
+HIS snapshot ZIPs and deduplicated backup blobs retain their snapshot dates.
+
+For existing result archives, run `backup/scripts/organize_result_dates.py
+--root-folder <root-id>` for an aggregate dry-run. It reads the latest verified
+complete backup into memory, joins persisted result paths to clinical dates,
+and compares path hashes to Drive archive metadata. Unmatched or conflicting
+records remain untouched. `--apply` journals original parents/properties and
+moves metadata only, preserving IDs, size, MD5, access rights and lookup tags.
+No PDFs are downloaded and no clinical content is written by this repair.
+
 ## Backup recovery update — 2026-10-19
 
 - Runs #151/#152 failed safely before ZIP creation because primary-key discovery
