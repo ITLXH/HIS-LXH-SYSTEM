@@ -22,6 +22,46 @@ spec.loader.exec_module(backup_rest)
 
 
 class BackupRestTests(unittest.TestCase):
+    def test_new_blob_existence_uses_metadata_listing_not_missing_object_get(self):
+        response = Mock(status_code=200, json=Mock(return_value=[]))
+        with patch.object(backup_rest, 'request_with_retry', return_value=response) as request:
+            self.assertFalse(backup_rest.backup_blob_exists('blobs/sha256/aa/' + 'a' * 64))
+        self.assertEqual(request.call_args.args[0], 'post')
+        self.assertIn('/object/list/', request.call_args.args[1])
+        payload = json.loads(request.call_args.kwargs['data'])
+        self.assertEqual(payload['prefix'], 'blobs/sha256/aa')
+        self.assertEqual(payload['search'], 'a' * 64)
+
+    def test_blob_metadata_listing_errors_do_not_mean_object_missing(self):
+        for response in [Mock(status_code=403), Mock(status_code=200, json=Mock(return_value={'error': 'unexpected'}))]:
+            with patch.object(backup_rest, 'request_with_retry', return_value=response):
+                with self.assertRaises(RuntimeError):
+                    backup_rest.backup_blob_exists('blobs/sha256/aa/' + 'a' * 64)
+
+    def test_blob_metadata_requires_the_exact_file_key(self):
+        for rows, expected in [([{'name': 'a' * 64, 'id': 'blob-id'}], True),
+                               ([{'name': 'b' * 64, 'id': 'other'}], False),
+                               ([{'name': 'a' * 64, 'id': None}], False)]:
+            response = Mock(status_code=200, json=Mock(return_value=rows))
+            with patch.object(backup_rest, 'request_with_retry', return_value=response):
+                self.assertEqual(backup_rest.backup_blob_exists('blobs/sha256/aa/' + 'a' * 64), expected)
+
+    def test_existing_blob_still_requires_matching_content_hash(self):
+        payload = {'enabled': True, 'total_objects': 1, 'total_bytes': 4,
+            'buckets': [{'id': 'synthetic-files', 'objects': [{'name': 'result.pdf', 'size_bytes': 4,
+                'sha256': hashlib.sha256(b'data').hexdigest(), 'content_type': 'application/pdf'}]}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'storage/synthetic-files/result.pdf'
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b'data')
+            with patch.object(backup_rest, 'OUTPUT', Path(tmp)), \
+                 patch.object(backup_rest, 'backup_blob_exists', return_value=True), \
+                 patch.object(backup_rest.requests, 'get', return_value=Mock(status_code=200, content=b'evil')), \
+                 patch.object(backup_rest.requests, 'post') as upload:
+                with self.assertRaisesRegex(RuntimeError, 'failed verification'):
+                    backup_rest.upload_storage_snapshots(payload, backup_rest.datetime(2026, 10, 20))
+                upload.assert_not_called()
+
     def test_cleanup_is_disabled_until_both_explicit_enable_and_restore_proof(self):
         for enabled, verified in [('0', '0'), ('1', '0'), ('0', '1')]:
             with self.subTest(enabled=enabled, verified=verified), patch.dict(
@@ -127,17 +167,17 @@ class BackupRestTests(unittest.TestCase):
             retry_duplicate = Mock(status_code=400, text="object already exists")
             present = Mock(status_code=200, content=blob)
             with patch.object(backup_rest, "OUTPUT", output), patch.object(
-                backup_rest.requests, "get", side_effect=[missing, present]
+                backup_rest.requests, "get", return_value=present
             ) as get, patch.object(
                 backup_rest.requests,
                 "post",
                 side_effect=[uploaded_but_edge_failed, retry_duplicate],
-            ), patch.object(backup_rest.time, "sleep"):
+            ), patch.object(backup_rest, 'backup_blob_exists', return_value=False), patch.object(backup_rest.time, "sleep"):
                 result = backup_rest.upload_storage_snapshots(
                     storage_backup, backup_rest.datetime(2026, 10, 17, 0, 0, 0)
                 )
 
-        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_count, 1)
         self.assertEqual(result["incremental"]["uploaded_objects"], 0)
         self.assertEqual(result["incremental"]["reused_objects"], 1)
 
@@ -333,7 +373,7 @@ class BackupRestTests(unittest.TestCase):
             file_path = output / "storage" / "order-result-files" / "patient" / "file.pdf"
             file_path.parent.mkdir(parents=True)
             file_path.write_bytes(b"data")
-            uploaded = Mock(status_code=200, text="ok")
+            uploaded = Mock(status_code=200, text="ok", json=Mock(return_value=[]))
             verified = Mock(status_code=200, content=b"data")
             with patch.object(backup_rest, "OUTPUT", output), patch.object(
                 backup_rest.requests, "post", return_value=uploaded

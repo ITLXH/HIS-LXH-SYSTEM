@@ -1,0 +1,90 @@
+[
+  {
+    "cmd": "SELECT",
+    "policyname": "his_staff_presence_read",
+    "qual": "((realtime.topic() = 'his:staff:presence'::text) AND (extension = 'presence'::text) AND (EXISTS ( SELECT 1\n   FROM \"HIS_One_Users\"\n  WHERE ((\"HIS_One_Users\".\"Auth_User_ID\" = auth.uid()) AND (\"HIS_One_Users\".\"Status\" = 'active'::text)))))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "realtime",
+    "tablename": "messages",
+    "with_check": null
+  },
+  {
+    "cmd": "INSERT",
+    "policyname": "his_staff_presence_write",
+    "qual": null,
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "realtime",
+    "tablename": "messages",
+    "with_check": "((realtime.topic() = 'his:staff:presence'::text) AND (extension = 'presence'::text) AND (EXISTS ( SELECT 1\n   FROM \"HIS_One_Users\"\n  WHERE ((\"HIS_One_Users\".\"Auth_User_ID\" = auth.uid()) AND (\"HIS_One_Users\".\"Status\" = 'active'::text)))))"
+  },
+  {
+    "cmd": "UPDATE",
+    "policyname": "his_user_self_session_update",
+    "qual": "(\"Auth_User_ID\" = auth.uid())",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "public",
+    "tablename": "HIS_One_Users",
+    "with_check": "(\"Auth_User_ID\" = auth.uid())"
+  },
+  {
+    "cmd": "SELECT",
+    "policyname": "uxi_staff_read",
+    "qual": "((id = auth.uid()) OR (uxi_staff_role() = 'Admin'::text))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "public",
+    "tablename": "UXI_One_main_staff",
+    "with_check": null
+  },
+  {
+    "cmd": "SELECT",
+    "policyname": "user_profiles_read_v1",
+    "qual": "((user_id = auth.uid()) OR pmc_actor_has_permission_v1('users.read'::text))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "pmc",
+    "tablename": "pmc_user_profiles",
+    "with_check": null
+  },
+  {
+    "cmd": "SELECT",
+    "policyname": "user_roles_read_v1",
+    "qual": "((user_id = auth.uid()) OR pmc_actor_has_permission_v1('users.read'::text))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "pmc",
+    "tablename": "pmc_user_roles",
+    "with_check": null
+  },
+  {
+    "cmd": "SELECT",
+    "policyname": "user_departments_read_v1",
+    "qual": "((user_id = auth.uid()) OR pmc_actor_has_permission_v1('users.read'::text))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "pmc",
+    "tablename": "pmc_user_departments",
+    "with_check": null
+  },
+  {
+    "cmd": "SELECT",
+    "policyname": "user_warehouses_read_v1",
+    "qual": "((user_id = auth.uid()) OR pmc_actor_has_permission_v1('users.read'::text))",
+    "roles": [
+      "authenticated"
+    ],
+    "schemaname": "pmc",
+    "tablename": "pmc_user_warehouses",
+    "with_check": null
+  }
+]

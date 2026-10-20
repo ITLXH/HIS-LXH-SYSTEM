@@ -435,6 +435,23 @@ def backup_storage_buckets(previous_index=None):
     }
 
 
+def backup_blob_exists(object_path):
+    # Listing an absent immutable key is a normal 200/empty response, not a 404 warning.
+    prefix, name = object_path.rsplit('/', 1)
+    response = request_with_retry(
+        'post', f"{SUPABASE_URL}/storage/v1/object/list/{quote(SUPABASE_BUCKET, safe='')}",
+        headers=storage_headers(),
+        data=json.dumps({'prefix': prefix, 'search': name, 'limit': 1, 'offset': 0}),
+        timeout=(15, 60),
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f'Content blob metadata check failed: HTTP {response.status_code}')
+    rows = response.json()
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise RuntimeError('Content blob metadata check returned an invalid response')
+    return any(row.get('name') == name and row.get('id') is not None for row in rows)
+
+
 def upload_storage_snapshots(storage_backup, now):
     """Store changed application files as content-addressed, reusable blobs.
 
@@ -467,21 +484,22 @@ def upload_storage_snapshots(storage_backup, now):
             "x-upsert": "false",
         }
 
-        existing = request_with_retry(
-            "get", url, headers=headers, timeout=(15, 180)
-        )
-        if existing.status_code == 200:
-            if (
-                len(existing.content) != obj["size_bytes"]
-                or sha256_bytes(existing.content) != obj["sha256"]
-            ):
-                raise RuntimeError(f"Existing content blob failed verification: {backup_object}")
-            return obj, backup_object, False
-        if existing.status_code not in (400, 404):
-            raise RuntimeError(
-                f"Content blob check failed for {bucket_id}/{obj['name']}: "
-                f"HTTP {existing.status_code} {existing.text[:200]}"
+        if backup_blob_exists(backup_object):
+            existing = request_with_retry(
+                "get", url, headers=headers, timeout=(15, 180)
             )
+            if existing.status_code == 200:
+                if (
+                    len(existing.content) != obj["size_bytes"]
+                    or sha256_bytes(existing.content) != obj["sha256"]
+                ):
+                    raise RuntimeError(f"Existing content blob failed verification: {backup_object}")
+                return obj, backup_object, False
+            if existing.status_code not in (400, 404):
+                raise RuntimeError(
+                    f"Content blob check failed for {bucket_id}/{obj['name']}: "
+                    f"HTTP {existing.status_code} {existing.text[:200]}"
+                )
 
         try:
             response = request_with_retry(
