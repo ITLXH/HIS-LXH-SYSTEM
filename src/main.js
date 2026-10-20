@@ -7900,6 +7900,11 @@ window.fetchLatestOpdVitalsByVisitIds = async function (visitIds = []) {
   const ids = [...new Set((visitIds || []).filter(Boolean))];
   const vitalByVisitId = {};
   if (ids.length === 0) return vitalByVisitId;
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!sessionData?.session?.access_token) {
+    throw Object.assign(new Error('ກະລຸນາເຂົ້າລະບົບອີກຄັ້ງເພື່ອອ່ານສັນຍານຊີບ'), { code: 'HIS_AUTH_REQUIRED' });
+  }
 
   for (let i = 0; i < ids.length; i += 100) {
     const chunkIds = ids.slice(i, i + 100);
@@ -7910,6 +7915,7 @@ window.fetchLatestOpdVitalsByVisitIds = async function (visitIds = []) {
       .order('Recorded_At', { ascending: false });
 
     if (error) {
+      if (['42501', 'PGRST301', 'PGRST302', 'PGRST303'].includes(error.code)) throw error;
       if (!window.ipdNeedsMigration?.(error)) console.warn('OPD vital signs queue lookup failed:', error);
       return vitalByVisitId;
     }
@@ -16954,6 +16960,11 @@ window.ipdMutate = async function (tableName, method, payload, match, fallbackPa
 
 window.fetchLatestOpdVitalForPatient = async function (patientId) {
   if (!patientId) return null;
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!sessionData?.session?.access_token) {
+    throw Object.assign(new Error('ກະລຸນາເຂົ້າລະບົບອີກຄັ້ງເພື່ອອ່ານສັນຍານຊີບ'), { code: 'HIS_AUTH_REQUIRED' });
+  }
   const { data, error } = await supabaseClient
     .from(dbTable('OPD_Vital_Signs'))
     .select('*')
@@ -16962,6 +16973,7 @@ window.fetchLatestOpdVitalForPatient = async function (patientId) {
     .limit(1);
 
   if (!error && data?.[0]) return data[0];
+  if (error && ['42501', 'PGRST301', 'PGRST302', 'PGRST303'].includes(error.code)) throw error;
   if (error && !window.ipdNeedsMigration(error)) console.warn('OPD vital signs load error:', error);
 
   const fallback = await supabaseClient
