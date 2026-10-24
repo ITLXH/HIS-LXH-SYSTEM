@@ -225,6 +225,7 @@ window.hashPassword = async function (password) {
 };
 
 let currentUser = null;
+const clinicalDesktopNotifications = new Set();
 let offlineStickerOnlyMode = false;
 let authSessionRestoreInFlight = false;
 let offlineAuthRestoreTimer = null;
@@ -3983,12 +3984,14 @@ window.handleServiceSelectionChange = function () {
 };
 
 window.logout = async function () {
+  window.clearClinicalNotificationPresentation();
   onlinePresence.stop();
   window.toggleLoading(true);
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
-  await supabaseClient.auth.signOut();
   window.logAction('Logout', 'ອອກຈາກລະບົບ', 'Auth');
+  currentUser = null;
+  await supabaseClient.auth.signOut();
   currentUser = null;
   window.clearAuthSession();
   window.clearIntendedRoute();
@@ -4003,6 +4006,8 @@ window.logout = async function () {
 };
 
 window.expireAuthSession = async function () {
+  window.clearClinicalNotificationPresentation();
+  currentUser = null;
   onlinePresence.stop();
   if (typeof window.teardownOpdQueueRealtime === 'function') window.teardownOpdQueueRealtime();
   if (typeof window.teardownLisResultNotifications === 'function') window.teardownLisResultNotifications();
@@ -4027,6 +4032,26 @@ window.expireAuthSession = async function () {
 window.toggleLoading = function (s) {
   $('#loading').css('display', s ? 'block' : 'none');
 };
+
+// Supabase can sign out independently (token expiry or another tab). Never
+// leave a cached staff profile or global patient toasts on the login screen.
+supabaseClient.auth.onAuthStateChange((event) => {
+  if (event !== 'SIGNED_OUT') return;
+  currentUser = null;
+  window.clearClinicalNotificationPresentation?.();
+  window.clearAuthSession?.();
+  window.teardownLisResultNotifications?.();
+  window.teardownOpdQueueRealtime?.();
+  window.opdTestStopLisPolling?.();
+  window.resetClinicalAlertRefresh?.();
+  window.resetClinicalReadDisplays?.();
+  window.teardownManpowerReads?.();
+  onlinePresence.stop();
+  document.getElementById('opdToastContainer')?.replaceChildren();
+  $('#app-content').hide();
+  $('#login-section').show();
+  $('body').removeClass('auth-checking');
+});
 
 window.getLocalStr = function (dObj) {
   return dObj.getFullYear() + '-' + String(dObj.getMonth() + 1).padStart(2, '0') + '-' + String(dObj.getDate()).padStart(2, '0');
@@ -4734,6 +4759,7 @@ window.executePrint = function (containerId) {
 };
 
 window.checkAlerts = async function () {
+  if (!window.canShowClinicalNotifications()) return;
   const today = window.getLocalStr ? window.getLocalStr(new Date()) : new Date().toISOString().split('T')[0];
   const todayRange = window.getLocalDayIsoBounds(today);
   const { data: appts } = await supabaseClient
@@ -9910,6 +9936,17 @@ window.getGlobalClinicalToastContainer = function () {
   return container;
 };
 
+window.clearClinicalNotificationPresentation = function () {
+  window.clinicalPresentationEpoch = (window.clinicalPresentationEpoch || 0) + 1;
+  window.privateResultWindows?.forEach(popup => { try { popup.close(); } catch {} });
+  window.privateResultWindows?.clear();
+  window.privateResultUrls?.forEach(url => URL.revokeObjectURL(url));
+  window.privateResultUrls?.clear();
+  clinicalDesktopNotifications.forEach(notice => { try { notice.close(); } catch {} });
+  clinicalDesktopNotifications.clear();
+  document.getElementById('opdToastContainer')?.replaceChildren();
+};
+
 window.getOpdMyRoom = function () {
   try { return localStorage.getItem(OPD_MY_ROOM_KEY) || ''; } catch (e) { return ''; }
 };
@@ -10057,6 +10094,7 @@ window.dismissOpdToast = function (toastId) {
 };
 
 window.showOpdQueueToast = function (patientName, department, visitId) {
+  if (!window.canShowClinicalNotifications()) return;
   const container = window.getGlobalClinicalToastContainer();
   const $c = $(container);
   // De-dup: if a toast for this visit is already on screen, leave it alone.
@@ -10132,6 +10170,7 @@ window.requestOpdNotificationPermission = function () {
 };
 
 window.showOpdDesktopNotification = function (patientName, department) {
+  if (!window.canShowClinicalNotifications()) return;
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const n = new Notification('🔔 ມີຄົນເຈັບໃໝ່ໃນຫ້ອງກວດ', {
@@ -10139,14 +10178,24 @@ window.showOpdDesktopNotification = function (patientName, department) {
       tag: 'opd-new-patient',
       requireInteraction: false
     });
-    setTimeout(() => { try { n.close(); } catch (e) {} }, 8000);
+    clinicalDesktopNotifications.add(n);
+    setTimeout(() => { try { n.close(); } catch (e) {} clinicalDesktopNotifications.delete(n); }, 8000);
   } catch (e) { /* ignore */ }
 };
 
 // ============================================================
 // LIS completed-result notifications — administrators, triage nurses + doctors
 // ============================================================
+window.canShowClinicalNotifications = function () {
+  if (window.isLocalOpdTestPreview?.()) return true;
+  return Boolean(currentUser)
+    && validateHisAuthSessionRecord(window.readAuthSession()).valid
+    && $('#app-content').is(':visible')
+    && !$('#login-section').is(':visible');
+};
+
 window.isLisResultNotificationRecipient = function () {
+  if (!window.canShowClinicalNotifications()) return false;
   const role = String(currentUser?.role || '').trim().toLowerCase();
   if (window.isLocalOpdTestPreview?.()) return true;
   return role === 'admin'
@@ -10234,9 +10283,7 @@ window.normalizeLisResultNotification = function (file, orderOverride) {
   const fileId = String(file?.id || file?.fileId || '').trim();
   const orderId = String(file?.orderId || file?.order_id || order.order_id || '').trim();
   const storagePath = String(file?.storagePath || file?.storage_path || '').trim();
-  const publicUrl = String(file?.publicUrl || file?.public_url || '').trim()
-    || window.opdTestLisPublicFileUrl?.(storagePath)
-    || '';
+  const publicUrl = window.opdTestLisPublicFileUrl?.(storagePath) || '';
   const severitySource = String(
     file?.severity || file?.resultSeverity || file?.result_severity
     || order?.severity || order?.resultSeverity || order?.result_severity
@@ -10319,13 +10366,15 @@ window.acknowledgeLisResultNotification = async function (fileId) {
 };
 
 window.openLisResultNotification = function (fileId) {
+  if (!window.isLisResultNotificationRecipient()) return;
   const key = String(fileId || '');
   const alert = lisActiveResultAlerts.find(item => item.fileId === key);
   if (!alert?.publicUrl) return;
-  window.open(alert.publicUrl, '_blank', 'noopener,noreferrer');
+  return window.openHisResultFile(alert.publicUrl);
 };
 
 window.showLisResultToast = function (alert) {
+  if (!window.isLisResultNotificationRecipient()) return;
   if (!alert?.fileId) return;
   const container = window.getGlobalClinicalToastContainer();
   const safeAttr = String(alert.fileId).replace(/[^A-Za-z0-9_-]/g, '');
@@ -10352,6 +10401,7 @@ window.showLisResultToast = function (alert) {
 };
 
 window.showLisResultDesktopNotification = function (alert) {
+  if (!window.isLisResultNotificationRecipient()) return;
   try {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const readyTime = window.formatLisResultReadyTime(alert.readyAt || alert.uploadedAt);
@@ -10360,12 +10410,13 @@ window.showLisResultDesktopNotification = function (alert) {
       tag: `lis-result-${alert.fileId}`,
       requireInteraction: false
     });
+    clinicalDesktopNotifications.add(notification);
     notification.onclick = () => {
       window.focus();
       window.openLisResultNotification(alert.fileId);
       notification.close();
     };
-    window.setTimeout(() => { try { notification.close(); } catch (error) {} }, 12000);
+    window.setTimeout(() => { try { notification.close(); } catch (error) {} clinicalDesktopNotifications.delete(notification); }, 12000);
   } catch (error) {
     console.warn('LIS desktop notification failed:', error);
   }
@@ -10394,6 +10445,7 @@ window.handleLisResultNotificationFiles = function (files, options = {}) {
 };
 
 window.fetchRecentLisResultFiles = async function (limit = 100) {
+  if (!window.isLisResultNotificationRecipient()) return [];
   const response = await window.opdTestLisRequest('/api/data', {
     table: 'lis_one_order_result_files',
     select: 'id,order_id,file_name,file_type,file_size,storage_path,uploaded_at',
@@ -10404,6 +10456,7 @@ window.fetchRecentLisResultFiles = async function (limit = 100) {
 };
 
 window.enrichLisResultFiles = async function (files) {
+  if (!window.isLisResultNotificationRecipient()) return [];
   const source = Array.isArray(files) ? files : [];
   const orderIds = [...new Set(source
     .map(file => String(file?.order_id || file?.orderId || '').replace(/[^A-Za-z0-9_-]/g, ''))
@@ -10435,6 +10488,7 @@ window.enrichLisResultFiles = async function (files) {
 };
 
 window.seedLisResultNotifications = async function () {
+  if (!window.isLisResultNotificationRecipient()) return;
   lisNotifiedResultFileIds.clear();
   await window.loadLisResultAcknowledgments();
   const files = await window.fetchRecentLisResultFiles(200);
@@ -20203,6 +20257,7 @@ window.renderIpdCareTaskAlerts = function () {
 
 window.ipdCareTaskNotificationKeys = window.ipdCareTaskNotificationKeys || new Set();
 window.showIpdCareTaskDesktopNotification = function (tasks, overdueCount) {
+  if (!window.canShowClinicalNotifications()) return;
   if (window.ipdCurrentChartReadOnly || !Array.isArray(tasks) || !tasks.length) return;
   const taskKey = tasks.map(row => {
     const id = row.Administration_ID || row.Task_ID || '';
@@ -20221,8 +20276,9 @@ window.showIpdCareTaskDesktopNotification = function (tasks, overdueCount) {
     tag: `ipd-care-${admission.Admission_ID || 'task'}`,
     renotify: true
   });
-  notice.onclick = () => { window.focus(); window.openIpdCareTasksTab(); notice.close(); };
-  window.setTimeout(() => { try { notice.close(); } catch (error) {} }, 15000);
+  clinicalDesktopNotifications.add(notice);
+  notice.onclick = () => { if (window.canShowClinicalNotifications()) { window.focus(); window.openIpdCareTasksTab(); } notice.close(); };
+  window.setTimeout(() => { try { notice.close(); } catch (error) {} clinicalDesktopNotifications.delete(notice); }, 15000);
 };
 
 window.openIpdCareTasksTab = function () {
@@ -21030,15 +21086,24 @@ window.opdTestLisRequest = async function (path, payload) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 15000);
   try {
+    const { data, error: sessionError } = await supabaseClient.auth.getSession();
+    const accessToken = data?.session?.access_token;
+    if (sessionError || !currentUser || !accessToken) {
+      throw Object.assign(new Error('Staff login is required for LIS results'), { status: 401 });
+    }
     const response = await fetch(`${window.opdTestLisApiBase()}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(payload || {}),
       signal: controller.signal
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body.success === false) {
-      throw new Error(body.error || `LIS request failed (${response.status})`);
+      const error = new Error(typeof body.error === 'string' ? body.error
+        : body.error?.message || `LIS request failed (${response.status})`);
+      error.status = response.status;
+      error.code = body.error?.code || body.code;
+      throw error;
     }
     return body;
   } finally {
@@ -21056,10 +21121,68 @@ window.opdTestLisPublicFileUrl = function (storagePath) {
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/');
-  // The same-origin gateway redirects hot files to Supabase and streams
-  // verified archived files from Drive when the hot object no longer exists.
   return path ? `/api/lis/result-file?path=${path}` : '';
 };
+
+window.fetchHisResultBlob = async function (url) {
+  const epoch = window.clinicalPresentationEpoch || 0;
+  let resultUrl;
+  try {
+    resultUrl = new URL(url, window.location.href);
+  } catch {
+    throw new Error('Invalid result-file URL.');
+  }
+  if (resultUrl.origin !== window.location.origin || resultUrl.pathname !== '/api/lis/result-file') {
+    throw new Error('Invalid result-file URL.');
+  }
+  const { data, error } = await supabaseClient.auth.getSession();
+  const accessToken = data?.session?.access_token;
+  if (error || !accessToken) throw new Error('ກະລຸນາ login ໃໝ່ກ່ອນເບິ່ງຜົນກວດ.');
+  const response = await fetch(resultUrl.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `ເປີດໄຟລ໌ບໍ່ສຳເລັດ (${response.status})`);
+  }
+  const blob = await response.blob();
+  const latest = await supabaseClient.auth.getSession();
+  if (epoch !== (window.clinicalPresentationEpoch || 0) || latest.error || latest.data?.session?.access_token !== accessToken) {
+    throw new Error('Please login again before viewing results.');
+  }
+  return blob;
+};
+
+window.openHisResultFile = async function (url) {
+  const popup = window.open('about:blank', '_blank');
+  if (!popup) {
+    window.Swal?.fire('ບໍ່ສາມາດເປີດໄຟລ໌', 'ກະລຸນາອະນຸຍາດ popup ເພື່ອເບິ່ງຜົນກວດ.', 'warning');
+    return;
+  }
+  window.privateResultWindows ||= new Set();
+  window.privateResultUrls ||= new Set();
+  window.privateResultWindows.add(popup);
+  try {
+    const objectUrl = URL.createObjectURL(await window.fetchHisResultBlob(url));
+    window.privateResultUrls.add(objectUrl);
+    popup.location.replace(objectUrl);
+    popup.opener = null;
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    popup.close();
+    window.Swal?.fire('ເປີດຜົນກວດບໍ່ສຳເລັດ', error.message || 'ກະລຸນາລອງໃໝ່.', 'error');
+  }
+};
+
+if (!document.__hisResultFileClickHandler) {
+  document.__hisResultFileClickHandler = true;
+  document.addEventListener('click', event => {
+    const link = event.target?.closest?.('a[href]');
+    if (!link) return;
+    const url = new URL(link.href, window.location.href);
+    if (url.origin !== window.location.origin || url.pathname !== '/api/lis/result-file') return;
+    event.preventDefault();
+    window.openHisResultFile(url.toString());
+  });
+}
 
 window.opdTestLisFormatDateTime = function (value) {
   if (!value) return '—';
@@ -21174,14 +21297,23 @@ window.opdTestLisResultSequence = function (index) {
   return sequenceIndex >= 0 ? sequenceIndex + 1 : Number(index) + 1;
 };
 
-window.opdTestOpenLisResult = function (index, displaySequence) {
+window.opdTestOpenLisResult = async function (index, displaySequence) {
   const file = window.opdTestState.lisResults?.[Number(index)];
   if (!file?.publicUrl) {
     window.opdTestSimpleAlert('ບໍ່ພົບໄຟລ໌', 'ກະລຸນາກົດໂຫຼດໃໝ່ ແລ້ວລອງອີກຄັ້ງ.', 'warning');
     return;
   }
+  let objectUrl;
+  try {
+    objectUrl = URL.createObjectURL(await window.fetchHisResultBlob(file.publicUrl));
+  } catch (error) {
+    window.opdTestSimpleAlert('ເປີດຜົນກວດບໍ່ສຳເລັດ', error.message || 'ກະລຸນາລອງໃໝ່.', 'error');
+    return;
+  }
   if (!window.Swal?.fire) {
-    window.open(file.publicUrl, '_blank', 'noopener');
+    const popup = window.open(objectUrl, '_blank', 'noopener');
+    if (!popup) window.opdTestSimpleAlert('ບໍ່ສາມາດເປີດໄຟລ໌', 'ກະລຸນາອະນຸຍາດ popup ເພື່ອເບິ່ງຜົນກວດ.', 'warning');
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     return;
   }
   const resolvedSequence = Number(displaySequence) || window.opdTestLisResultSequence(index);
@@ -21200,18 +21332,20 @@ window.opdTestOpenLisResult = function (index, displaySequence) {
   </div>`).join('');
   window.Swal.fire({
     title: `ຜົນກວດທີ່ ${resolvedSequence}`,
-    html: `<div class="opdt-lis-result-patient">${patientMeta}</div><iframe class="opdt-lis-pdf-frame" src="${window.opdTestHtml(file.publicUrl)}#toolbar=1&navpanes=0" title="${window.opdTestHtml(file.fileName)}"></iframe>`,
+    html: `<div class="opdt-lis-result-patient">${patientMeta}</div><iframe class="opdt-lis-pdf-frame" src="${window.opdTestHtml(objectUrl)}#toolbar=1&navpanes=0" title="${window.opdTestHtml(file.fileName)}"></iframe>`,
     customClass: { popup: 'opdt-lis-pdf-dialog' },
     showDenyButton: true,
     confirmButtonText: '<i class="fas fa-times"></i> ປິດ',
     denyButtonText: '<i class="fas fa-external-link-alt"></i> ເປີດໜ້າໃໝ່',
     focusConfirm: false
   }).then(result => {
-    if (result.isDenied) window.open(file.publicUrl, '_blank', 'noopener');
+    if (result.isDenied) window.openHisResultFile(file.publicUrl);
+    URL.revokeObjectURL(objectUrl);
   });
 };
 
 window.opdTestNotifyNewLisResults = function (files) {
+  if (!window.canShowClinicalNotifications()) return;
   if (!files?.length || !window.Swal?.fire) return;
   if (window.handleLisResultNotificationFiles?.(files, { source: 'opd-test' })) return;
   const newest = files[0];
