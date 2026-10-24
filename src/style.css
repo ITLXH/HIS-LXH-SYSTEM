@@ -3162,12 +3162,28 @@ h6 {
 /* Login */
 .login-page {
   background: #f5f7fa;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: calc(var(--nav-height) * -1);
-  padding-top: 0;
+  /* Login has no app navbar, so its viewport must not be shifted upward. */
+  margin-top: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* jQuery .show() uses inline display:block. Restore flex ONLY while the
+   login screen is shown; never override .hide() or the auth-checking guard. */
+body:not(.auth-checking) #login-section.login-page[style*="display: block"],
+body:not(.auth-checking) #login-section.login-page[style*="display:block"] {
+  display: flex !important;
+}
+
+#login-section .login-box {
+  margin-inline: auto;
 }
 
 .login-box {
