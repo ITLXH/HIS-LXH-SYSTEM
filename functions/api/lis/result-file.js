@@ -12,13 +12,12 @@ export async function onRequestGet({ request, env }) {
   if (auth.response) return auth.response;
   if (!canViewResultFiles(auth.profile)) return json({ error: 'Permission to view result files is required' }, 403);
 
-  const patientId = patientIdFromPath(objectPath);
-  if (!patientId) return json({ error: 'The result-file path is not linked to a patient' }, 400);
-
   const supabaseUrl = String(env.SUPABASE_URL || '').replace(/\/+$/, '');
   const serviceKey = String(env.SUPABASE_SERVICE_ROLE_KEY || '');
   if (!supabaseUrl || !serviceKey) return json({ error: 'Result-file gateway is not configured' }, 503);
 
+  const patientId = await resolveResultPatient(supabaseUrl, serviceKey, objectPath);
+  if (!patientId) return json({ error: 'Result file is not linked to a patient' }, 404);
   const forceDrive = url.searchParams.get('source') === 'drive';
   const patientResponse = await fetch(
     `${supabaseUrl}/rest/v1/HIS_One_Patients?Patient_ID=eq.${encodeURIComponent(patientId)}&select=Patient_ID&limit=1`,
@@ -106,12 +105,26 @@ function canViewResultFiles(profile) {
   return ['opd', 'visit_history', 'patients', 'labs', 'report'].some(page => pages.includes(page));
 }
 
-function patientIdFromPath(path) {
-  const segments = path.split('/');
-  const id = ['patient', 'patients'].includes(String(segments[0] || '').toLowerCase())
-    ? segments[1]
-    : segments[0];
-  return /^[A-Za-z0-9_-]{2,40}$/.test(id || '') ? id : '';
+async function resolveResultPatient(supabaseUrl, serviceKey, objectPath) {
+  const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+  const filesUrl = new URL('/rest/v1/lis_one_order_result_files', supabaseUrl);
+  filesUrl.searchParams.set('storage_path', `eq.${objectPath}`);
+  filesUrl.searchParams.set('select', 'order_id');
+  filesUrl.searchParams.set('limit', '2');
+  const filesResponse = await fetch(filesUrl, { headers });
+  if (!filesResponse.ok) return '';
+  const files = await filesResponse.json();
+  if (!Array.isArray(files) || files.length !== 1 || !files[0].order_id) return '';
+  const ordersUrl = new URL('/rest/v1/lis_one_test_orders', supabaseUrl);
+  ordersUrl.searchParams.set('order_id', `eq.${files[0].order_id}`);
+  ordersUrl.searchParams.set('select', 'patient_id');
+  ordersUrl.searchParams.set('limit', '2');
+  const ordersResponse = await fetch(ordersUrl, { headers });
+  if (!ordersResponse.ok) return '';
+  const orders = await ordersResponse.json();
+  if (!Array.isArray(orders) || !orders.length) return '';
+  const ids = new Set(orders.map(row => String(row.patient_id || '').trim()));
+  return ids.size === 1 ? [...ids][0] : '';
 }
 
 function resultResponse(upstream, objectPath, source) {

@@ -10,3 +10,5 @@ Storage metadata review found order-result-files public. Gateway fixes alone do 
 Existing open/downloaded files cannot be recalled. Existing browser tabs need refresh after release. Rollback must retain authorization guards; do not reopen public clinical access.
 
 Browser verification: LIS login/history suite 49 passed, one CBC navigation timeout; the timed-out case passed on unchanged baseline and then 3/3 consecutive candidate reruns. New Chromium private-file/session/logout test passed. All fixtures synthetic.
+
+Release follow-up: LIS uploads use order folders, not patient folders. The HIS gateway resolves stored file metadata to its order and patient before enforcing caller patient access. Synthetic order-folder allow/deny test and fresh build passed.
