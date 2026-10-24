@@ -9937,6 +9937,7 @@ window.getGlobalClinicalToastContainer = function () {
 };
 
 window.clearClinicalNotificationPresentation = function () {
+  window.Swal?.close?.();
   window.clinicalPresentationEpoch = (window.clinicalPresentationEpoch || 0) + 1;
   window.privateResultWindows?.forEach(popup => { try { popup.close(); } catch {} });
   window.privateResultWindows?.clear();
