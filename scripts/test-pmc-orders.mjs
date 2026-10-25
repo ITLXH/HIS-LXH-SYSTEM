@@ -7,7 +7,7 @@ console.info=(...args)=>telemetry.push(args);
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),options});return Response.json(String(url).includes('/auth/v1/user')?{id:'synthetic'}:String(url).includes('HIS_One_Users')?[{Status:'active',Role:role}]:source);};
 const run=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc/v1/orders?from=2026-10-17&to=2026-10-17',{headers:{Authorization:'Bearer synthetic-user'}})});
 try {
- const response=await run();assert.equal(response.status,200);const body=await response.json();assert.equal(body.rows[0].doctorName,'Synthetic doctor');assert.equal(body.rows[0].status,'INCOMPLETE');assert.equal(body.hasMore,false);
+ const response=await run();assert.equal(response.status,200);const body=await response.json();assert.equal(body.rows[0].doctorName,'Synthetic doctor');assert.equal(body.rows[0].status,'INCOMPLETE');assert.equal(body.hasMore,false);assert.match(body.rows[0].prescriptionFingerprint,/^[a-f0-9]{64}$/);
  const read=calls.find(call=>call.url.includes('HIS_One_Visits'));assert.equal(read.options.headers.Authorization,'Bearer synthetic-user');assert.equal(new URL(read.url).searchParams.get('limit'),'21');
  role='doctor';assert.equal((await run()).status,403);role='admin';
  source=[{...source[0],Prescription_JSON:'[{"status":"dispensed"}]'}];assert.equal((await (await run()).json()).rows[0].status,'ACCEPTED');

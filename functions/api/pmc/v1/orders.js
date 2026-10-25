@@ -32,10 +32,12 @@ export async function onRequestGet({ request, env }) {
       if (lines.some(line=>!line||typeof line!=='object')) continue;
       const statuses=lines.map(line=>String(line.pharmacyStatus||line.status||'').toLowerCase());
       const submissionState=statuses.every(s=>['rejected','cancelled','canceled'].includes(s))?'CANCELLED':statuses.some(s=>['sent_to_pharmacy','accepted','preparing','ready','dispensed'].includes(s))?'SUBMITTED':'DRAFT';
+      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(lines)));
+      const prescriptionFingerprint=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
       const completed=lines.every((line,i)=>statuses[i]==='dispensed'&&line.dispensedAt&&line.dispensedBy);
       const status=completed?'COMPLETED':statuses.every(s=>['rejected','cancelled','canceled'].includes(s))?'FAILED':statuses.every(s=>['accepted','preparing','ready','dispensed'].includes(s))?'ACCEPTED':'INCOMPLETE';
       const doctors=[...new Set(lines.map(line=>String(line.prescribedBy||visit.Doctor_Name||'').trim()).filter(Boolean))].join(', ');
-      rows.push({patientId:visit.Patient_ID,visitId:visit.Visit_ID,patientName:String(visit.Patient_Name||'').slice(0,300),doctorName:doctors.slice(0,300),orderedAt:String(visit.Date||'').slice(0,60),revision:visit.EMR_Revision,lineCount:lines.length,status,submissionState});
+      rows.push({patientId:visit.Patient_ID,visitId:visit.Visit_ID,patientName:String(visit.Patient_Name||'').slice(0,300),doctorName:doctors.slice(0,300),orderedAt:String(visit.Date||'').slice(0,60),revision:visit.EMR_Revision,lineCount:lines.length,status,submissionState,prescriptionFingerprint});
     }
     // Aggregate RLS-visible page counts only; never identities, credentials or prescriptions.
     console.info('HIS_PMC_QUEUE',JSON.stringify({scanned:Math.min(visits.length,20),medicationVisits,unconfirmedMedicationVisits,returned:rows.length,hasMore:visits.length>20}));
