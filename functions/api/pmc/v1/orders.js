@@ -18,10 +18,12 @@ export async function onRequestGet({ request, env }) {
     const response = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/,'')}/rest/v1/HIS_One_Visits?${query}`,{ headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:`Bearer ${auth.accessToken}`} });
     if (!response.ok) return fail([401,403].includes(response.status)?response.status:503,'Clinical queue unavailable');
     const visits = await response.json(); if (!Array.isArray(visits)) return fail(503,'Invalid source');
-    const rows=[];
+    const rows=[];let medicationVisits=0,unconfirmedMedicationVisits=0;
     for (const visit of visits.slice(0,20)) {
       let lines; try { lines=typeof visit.Prescription_JSON==='string'?JSON.parse(visit.Prescription_JSON||'[]'):visit.Prescription_JSON; } catch { continue; }
-      if (!Array.isArray(lines)||!lines.length||lines.length>100||!Number.isSafeInteger(visit.EMR_Revision)||visit.EMR_Revision<1) continue;
+      if (!Array.isArray(lines)||!lines.length||lines.length>100) continue;
+      medicationVisits++;
+      if(!Number.isSafeInteger(visit.EMR_Revision)||visit.EMR_Revision<1){unconfirmedMedicationVisits++;continue;}
       if (!/^[A-Za-z0-9_-]{1,120}$/.test(visit.Patient_ID)||!/^[A-Za-z0-9_-]{1,120}$/.test(visit.Visit_ID)) continue;
       if (lines.some(line=>!line||typeof line!=='object')) continue;
       const statuses=lines.map(line=>String(line.pharmacyStatus||line.status||'').toLowerCase());
@@ -30,6 +32,8 @@ export async function onRequestGet({ request, env }) {
       const doctors=[...new Set(lines.map(line=>String(line.prescribedBy||visit.Doctor_Name||'').trim()).filter(Boolean))].join(', ');
       rows.push({patientId:visit.Patient_ID,visitId:visit.Visit_ID,patientName:String(visit.Patient_Name||'').slice(0,300),doctorName:doctors.slice(0,300),orderedAt:String(visit.Date||'').slice(0,60),revision:visit.EMR_Revision,lineCount:lines.length,status});
     }
+    // Aggregate RLS-visible page counts only; never identities, credentials or prescriptions.
+    console.info('HIS_PMC_QUEUE',JSON.stringify({scanned:Math.min(visits.length,20),medicationVisits,unconfirmedMedicationVisits,returned:rows.length,hasMore:visits.length>20}));
     return jsonResponse({rows,hasMore:visits.length>20});
   } catch { return fail(503,'Clinical queue unavailable'); }
 }
