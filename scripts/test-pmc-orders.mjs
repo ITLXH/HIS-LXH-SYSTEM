@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { onRequestGet } from '../functions/api/pmc/v1/orders.js';
 const env={PMC_PRESCRIPTION_API_ENABLED:'true',SUPABASE_URL:'https://synthetic.supabase.co',SUPABASE_ANON_KEY:'synthetic-public',SUPABASE_SERVICE_ROLE_KEY:'synthetic-server'};
 let role='admin', source=[{Visit_ID:'VISIT-SYN',Patient_ID:'PATIENT-SYN',Patient_Name:'Synthetic patient',Doctor_Name:'Synthetic doctor',Date:'2026-10-17',EMR_Revision:1,Prescription_JSON:'[{"status":"sent_to_pharmacy"}]'}];
-const original=globalThis.fetch; const calls=[];
+const original=globalThis.fetch,originalInfo=console.info; const calls=[],telemetry=[];
+console.info=(...args)=>telemetry.push(args);
 globalThis.fetch=async(url,options)=>{calls.push({url:String(url),options});return Response.json(String(url).includes('/auth/v1/user')?{id:'synthetic'}:String(url).includes('HIS_One_Users')?[{Status:'active',Role:role}]:source);};
 const run=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc/v1/orders?from=2026-10-17&to=2026-10-17',{headers:{Authorization:'Bearer synthetic-user'}})});
 try {
@@ -11,5 +12,8 @@ try {
  role='doctor';assert.equal((await run()).status,403);role='admin';
  source=[{...source[0],Prescription_JSON:'[{"status":"dispensed"}]'}];assert.equal((await (await run()).json()).rows[0].status,'ACCEPTED');
  source=[{...source[0],Prescription_JSON:'[{"status":"rejected"}]'}];assert.equal((await (await run()).json()).rows[0].status,'FAILED');
+ source=[{...source[0],EMR_Revision:0}];assert.equal((await (await run()).json()).rows.length,0);
+ assert.deepEqual(telemetry.at(-1),['HIS_PMC_QUEUE',JSON.stringify({scanned:1,medicationVisits:1,unconfirmedMedicationVisits:1,returned:0,hasMore:false})]);
+ assert(!JSON.stringify(telemetry).includes('PATIENT-SYN'));assert(!JSON.stringify(telemetry).includes('synthetic-user'));
  console.log('HIS queue synthetic checks passed');
-}finally{globalThis.fetch=original;}
+}finally{globalThis.fetch=original;console.info=originalInfo;}
