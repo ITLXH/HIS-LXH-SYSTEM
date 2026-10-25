@@ -15,5 +15,12 @@ try {
  source=[{...source[0],EMR_Revision:0}];assert.equal((await (await run()).json()).rows.length,0);
  assert.deepEqual(telemetry.at(-1),['HIS_PMC_QUEUE',JSON.stringify({scanned:1,medicationVisits:1,unconfirmedMedicationVisits:1,returned:0,hasMore:false})]);
  assert(!JSON.stringify(telemetry).includes('PATIENT-SYN'));assert(!JSON.stringify(telemetry).includes('synthetic-user'));
+ source=[{Visit_ID:'VISIT-SYN',Patient_ID:'PATIENT-SYN',Date:'2026-10-25',EMR_Revision:2,Prescription_JSON:[{name:'Synthetic medicine',status:'sent_to_pharmacy'}]}];
+ const target=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc/v1/orders?patientId=PATIENT-SYN&visitId=VISIT-SYN',{headers:{Authorization:'Bearer synthetic-user'}})});
+ calls.length=0;assert.equal((await (await target()).json()).rows[0].submissionState,'SUBMITTED');
+ const exact=new URL(calls.find(call=>call.url.includes('HIS_One_Visits')).url);assert.equal(exact.searchParams.get('Patient_ID'),'eq.PATIENT-SYN');assert.equal(exact.searchParams.get('Visit_ID'),'eq.VISIT-SYN');assert.equal(exact.searchParams.get('limit'),'2');
+ source=[{...source[0],Prescription_JSON:[{name:'Synthetic medicine',status:'prescribed'}]}];assert.equal((await (await target()).json()).rows[0].submissionState,'DRAFT');
+ source=[{...source[0],Patient_ID:'OTHER-SYN'}];assert.equal((await target()).status,409);
+ role='doctor';assert.equal((await target()).status,403);role='admin';
  console.log('HIS queue synthetic checks passed');
 }finally{globalThis.fetch=original;console.info=originalInfo;}
