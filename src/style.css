@@ -24239,3 +24239,27 @@ body.opd-test-workspace-active #view-opd_test {
 .connected-result-report { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0; }
 .connected-result-files { display: flex; flex-wrap: wrap; gap: 8px; }
 .connected-result-card table { margin: 10px 0 0; font-size: 13px; }
+.clinical-result-toast-container {
+  top: auto;
+  bottom: 20px;
+  right: 20px;
+  max-height: calc(100dvh - 40px);
+  max-width: calc(100vw - 24px);
+  overflow-y: auto;
+  gap: 8px;
+}
+.clinical-result-toast-container .opd-toast {
+  min-width: 0;
+  width: 350px;
+  max-width: calc(100vw - 24px);
+  padding: 12px 14px;
+  gap: 10px;
+  border-radius: 9px;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+}
+.clinical-result-toast-container .opd-toast-icon { width: 30px; height: 30px; min-width: 30px; font-size: 17px; box-shadow: none; }
+.clinical-result-toast-container .opd-toast-title { font-size: 14px; }
+.clinical-result-toast-container .opd-toast-text { font-size: 13px; }
+.clinical-result-toast-container .opd-lis-toast-ready { font-size: 12px; }
+.connected-result-toast[data-source="PMC"] { border-left-color: #21618c; }
+.connected-result-toast[data-source="PMC"]::after { background: #21618c; }

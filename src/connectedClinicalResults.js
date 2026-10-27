@@ -1,6 +1,7 @@
 /** Source records are presentation only; never merge patient history into a visit draft. */
 export function installConnectedResults({window,document,getSession,isSignedIn,fetcher=fetch}) {
   const pending=new Map();
+  const snapshots=new Map();
   let generation=0;
   const ids={xray:'opdTestUxiXrayResults',ultrasound:'opdTestUxiUltrasoundResults',medication:'opdTestPmcResults'};
   const html=value=>window.opdTestHtml(value??'');
@@ -9,7 +10,7 @@ export function installConnectedResults({window,document,getSession,isSignedIn,f
   const key=value=>`${value.patientId}:${value.visitId}:${window.clinicalPresentationEpoch||0}`;
   const set=(type,value)=>{const host=document.getElementById(ids[type]);if(host)host.innerHTML=value;};
   const message=text=>`<p class="connected-result-message">${html(text)}</p>`;
-  window.clearConnectedClinicalResults=()=>{generation++;pending.clear();Object.keys(ids).forEach(type=>set(type,''));};
+  window.clearConnectedClinicalResults=()=>{generation++;pending.clear();snapshots.clear();window.clearConnectedResultToasts?.();Object.keys(ids).forEach(type=>set(type,''));};
 
   function imaging(body) {
     ['xray','ultrasound'].forEach(type=>{
@@ -61,6 +62,18 @@ export function installConnectedResults({window,document,getSession,isSignedIn,f
         if(!current()||latest.error||latest.data?.session?.access_token!==token)return;
         if(body.patientId!==identity.patientId||(kind==='pmc'&&(body.schema!=='pmc-his-results-v1'||body.visitId!==identity.visitId||!Array.isArray(body.rows)||body.rows.length>50))||(kind==='uxi'&&(body.schema!=='his-uxi-results-v1'||!Array.isArray(body.results)||body.results.length>50)))throw Error('ຂໍ້ມູນຜົນບໍ່ກົງ · ກະລຸນາໂຫຼດໃໝ່');
         if(kind==='pmc')pharmacy(body);else imaging(body);
+        const fingerprint=JSON.stringify(kind==='pmc'?body.rows:body.results);
+        const previous=snapshots.get(requestKey);snapshots.set(requestKey,fingerprint);
+        if(previous!==undefined&&previous!==fingerprint&&(kind==='pmc'?body.rows:body.results).length){
+          const oldRows=JSON.parse(previous);
+          const changed=kind==='uxi'?body.results.find(row=>!oldRows.some(old=>old.id===row.id&&JSON.stringify(old)===JSON.stringify(row))):null;
+          const resultType=kind==='pmc'?'medication':changed?.exams?.some(exam=>/ultrasound|sonogra|^US$/i.test(exam.modality||''))?'ultrasound':'xray';
+          window.showConnectedResultToast?.({source:kind==='pmc'?'PMC':'UXI',patientId:identity.patientId,onOpen:()=>{
+            if(!current())return;
+            window.opdTestSelectOrderTab?.(resultType);
+            document.getElementById(ids[resultType])?.scrollIntoView?.({behavior:'smooth',block:'nearest'});
+          }});
+        }
       } catch(error) {
         if(current())types.forEach(name=>set(name,message(error?.name==='TimeoutError'?'ດຶງຜົນຊ້າເກີນໄປ · ລອງໂຫຼດໃໝ່':error.message||'ດຶງຜົນບໍ່ສຳເລັດ')));
       }
