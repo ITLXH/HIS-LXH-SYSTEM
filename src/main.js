@@ -1,5 +1,6 @@
 import JsBarcode from 'jsbarcode';
 import { installConnectedResults } from './connectedClinicalResults.js';
+import { installResultToasts } from './clinicalResultToasts.js';
 import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
@@ -9922,6 +9923,8 @@ const opdNotifiedVisitIds = new Set();
 let opdActiveRoomAlerts = [];
 const OPD_MY_ROOM_KEY = 'his_opd_my_room';
 
+installResultToasts({window,document,canNotify:()=>window.canShowClinicalNotifications?.()===true});
+
 window.getGlobalClinicalToastContainer = function () {
   let container = document.getElementById('opdToastContainer');
   if (!container) {
@@ -9941,6 +9944,7 @@ window.clearClinicalNotificationPresentation = function () {
   window.Swal?.close?.();
   window.clinicalPresentationEpoch = (window.clinicalPresentationEpoch || 0) + 1;
   window.clearConnectedClinicalResults?.();
+  window.clearConnectedResultToasts?.();
   window.privateResultWindows?.forEach(popup => { try { popup.close(); } catch {} });
   window.privateResultWindows?.clear();
   window.privateResultUrls?.forEach(url => URL.revokeObjectURL(url));
@@ -9948,6 +9952,7 @@ window.clearClinicalNotificationPresentation = function () {
   clinicalDesktopNotifications.forEach(notice => { try { notice.close(); } catch {} });
   clinicalDesktopNotifications.clear();
   document.getElementById('opdToastContainer')?.replaceChildren();
+  document.getElementById('clinicalResultToastContainer')?.replaceChildren();
 };
 
 window.getOpdMyRoom = function () {
@@ -10379,7 +10384,7 @@ window.openLisResultNotification = function (fileId) {
 window.showLisResultToast = function (alert) {
   if (!window.isLisResultNotificationRecipient()) return;
   if (!alert?.fileId) return;
-  const container = window.getGlobalClinicalToastContainer();
+  const container = window.getGlobalClinicalResultToastContainer();
   const safeAttr = String(alert.fileId).replace(/[^A-Za-z0-9_-]/g, '');
   if (container.querySelector(`[data-lis-file-id="${safeAttr}"]`)) return;
   const toastId = `lisResultToast_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -10389,7 +10394,7 @@ window.showLisResultToast = function (alert) {
     `<div id="${toastId}" class="opd-toast opd-lis-result-toast is-${alert.severity || 'normal'}" data-lis-file-id="${safeAttr}" onclick="window.openLisResultNotification('${safeAttr}')">
        <div class="opd-toast-icon"><i class="fas fa-file-medical-alt"></i></div>
        <div class="opd-toast-body">
-         <div class="opd-toast-title">HN ${esc(alert.patientId)}</div>
+         <div class="opd-toast-title">LIS · HN ${esc(alert.patientId)}</div>
          <div class="opd-toast-text"><strong>${esc(alert.patientName)}</strong></div>
          <div class="opd-lis-toast-ready"><i class="far fa-clock"></i> ເວລາພ້ອມ ${esc(readyTime)}</div>
        </div>

@@ -20,7 +20,7 @@ const checks = [
   ['Clinical toast container is global in the app shell', /id="opdToastContainer"[^>]*aria-live="polite"/.test(index)],
   ['Hidden OPD view no longer owns the toast container', !opdView.includes('id="opdToastContainer"')],
   ['Cached hidden containers are re-parented to body', /container\.parentElement\s*!==\s*document\.body[\s\S]{0,80}document\.body\.appendChild\(container\)/.test(main)],
-  ['Room and LIS toasts use the shared global container', (main.match(/window\.getGlobalClinicalToastContainer\(\)/g) || []).length >= 2],
+  ['Room and result toasts use their global containers', main.includes('window.getGlobalClinicalToastContainer()') && main.includes('window.getGlobalClinicalResultToastContainer()')],
   ['Administrators receive LIS result notifications', /role\s*===\s*'admin'/.test(main)],
   ['LIS order enrichment uses bounded batches', /index\s*\+=\s*50/.test(main) && /limit:\s*1000/.test(main)],
   ['LIS enrichment fetches all batches concurrently', /Promise\.all\(orderBatches\.map/.test(main)]
