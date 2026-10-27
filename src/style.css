@@ -24232,3 +24232,10 @@ body.opd-test-workspace-active #view-opd_test {
     text-align: left;
   }
 }
+.connected-result-heading { color: #205e89; font-weight: 700; margin: 12px 0 8px; }
+.connected-result-card { min-width: 0; max-width: 100%; overflow-wrap: anywhere; margin-top: 10px; padding: 14px; border: 1px solid #c8d9e8; border-left: 4px solid #21618c; border-radius: 7px; background: #fff; }
+.connected-result-card .table-responsive { overflow-x: auto; max-width: 100%; }
+.connected-result-card small, .connected-result-meta, .connected-result-message { color: #526b82; font-size: 13px; }
+.connected-result-report { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0; }
+.connected-result-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.connected-result-card table { margin: 10px 0 0; font-size: 13px; }

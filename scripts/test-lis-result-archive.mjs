@@ -11,6 +11,7 @@ const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bu
 const pathHash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 const env = {
   SUPABASE_URL: 'https://example.supabase.co',
+  SUPABASE_ANON_KEY: 'public-test',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-test',
   GOOGLE_DRIVE_FOLDER_ID: 'drive-folder-test',
   GOOGLE_DRIVE_OAUTH_JSON: JSON.stringify({
@@ -22,24 +23,40 @@ const env = {
 };
 
 const originalFetch = globalThis.fetch;
+function staffRead(target, options) {
+  if (target.endsWith('/auth/v1/user')) return Response.json({id:'STAFF-SYN'});
+  if (target.includes('/HIS_One_Users?')) return Response.json([{Status:'active',Role:'doctor',Permissions:'opd'}]);
+  if (target.includes('/lis_one_order_result_files?')) return Response.json([{order_id:'ORDER-SYN'}]);
+  if (target.includes('/lis_one_test_orders?')) return Response.json([{patient_id:'HN0001'}]);
+  if (target.includes('/HIS_One_Patients?')) {
+    assert.equal(options.headers.Authorization,'Bearer staff-test');
+    return Response.json([{Patient_ID:'HN0001'}]);
+  }
+  return null;
+}
+const staffHeaders={Authorization:'Bearer staff-test'};
 try {
   globalThis.fetch = async (url, options = {}) => {
     const target = String(url);
-    if (target.includes('/storage/v1/object/order-result-files/') && options.method === 'HEAD') {
-      return new Response(null, { status: 200 });
+    const verified=staffRead(target,options);if(verified)return verified;
+    if (target.includes('/storage/v1/object/order-result-files/') && options.method === 'GET') {
+      return new Response('%PDF-synthetic', { status: 200,headers:{'Content-Type':'application/pdf'} });
     }
     throw new Error(`Unexpected hot-path request: ${target}`);
   };
   const hot = await onRequestGet({
-    request: new Request(`https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}`),
+    request: new Request(`https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}`,{headers:staffHeaders}),
     env,
   });
-  assert.equal(hot.status, 302);
-  assert.match(hot.headers.get('Location') || '', /storage\/v1\/object\/public\/order-result-files/);
+  assert.equal(hot.status, 200);
+  assert.equal(hot.headers.get('Location'),null);
+  assert.equal(hot.headers.get('Cache-Control'),'private, no-store');
+  assert.equal(await hot.text(),'%PDF-synthetic');
 
   globalThis.fetch = async (url, options = {}) => {
     const target = String(url);
-    if (target.includes('/storage/v1/object/order-result-files/') && options.method === 'HEAD') {
+    const verified=staffRead(target,options);if(verified)return verified;
+    if (target.includes('/storage/v1/object/order-result-files/') && options.method === 'GET') {
       return new Response(null, { status: 404 });
     }
     if (target === 'https://oauth2.googleapis.com/token') {
@@ -69,7 +86,7 @@ try {
     throw new Error(`Unexpected archive-path request: ${target}`);
   };
   const archived = await onRequestGet({
-    request: new Request(`https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}`),
+    request: new Request(`https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}`,{headers:staffHeaders}),
     env,
   });
   assert.equal(archived.status, 200);
@@ -79,7 +96,7 @@ try {
   const forced = await onRequestGet({
     request: new Request(
       `https://his.example/api/lis/result-file?path=${encodeURIComponent(objectPath)}&source=drive`,
-      { headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } },
+      { headers: staffHeaders },
     ),
     env,
   });
