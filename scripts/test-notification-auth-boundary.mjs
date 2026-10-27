@@ -14,7 +14,7 @@ const container = { querySelector: () => null, insertAdjacentHTML() { rendered++
 const context = vm.createContext({
   currentUser: null, lisResultGeneration: 1, lisResultNotificationsSeeded: false,
   lisNotifiedResultFileIds: new Set(), lisReadResultFileIds: new Set(), lisActiveResultAlerts: [],
-  lisResultToastDismissTimers: new Map(), LIS_RESULT_TOAST_AUTO_DISMISS_MS: 60000,
+  lisResultToastDismissTimers: new Map(), LIS_RESULT_TOAST_AUTO_DISMISS_MS: 5000,
   clinicalDesktopNotifications: new Set([{ close() { closed++; } }]),
   document: { getElementById: () => ({ replaceChildren() { removed++; } }) },
   validateHisAuthSessionRecord: record => ({ valid: record?.valid === true }),
@@ -24,6 +24,7 @@ const context = vm.createContext({
     Notification: true, isLocalOpdTestPreview: () => false,
     readAuthSession: () => ({ valid: true }),
     getGlobalClinicalToastContainer: () => container,
+    getGlobalClinicalResultToastContainer: () => container,
     formatLisResultReadyTime: () => '00:00',
     setTimeout: () => 1,
     opdTestLisRequest: async () => { requests++; return { data: [] }; },
@@ -57,7 +58,7 @@ assert.match(source, /onAuthStateChange\([\s\S]{0,200}SIGNED_OUT/,
   'SDK sign-out must clear private presentation');
 vm.runInContext('window.clearClinicalNotificationPresentation()', context);
 assert.equal(closed, 1);
-assert.equal(removed, 1);
+assert.equal(removed, 2, 'Logout clears both room and result toast containers');
 assert.equal(context.clinicalDesktopNotifications.size, 0);
 let signOutHandler;
 context.supabaseClient = { auth: { onAuthStateChange(handler) { signOutHandler = handler; } } };
