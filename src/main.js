@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode';
+import { installConnectedResults } from './connectedClinicalResults.js';
 import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
@@ -9939,6 +9940,7 @@ window.getGlobalClinicalToastContainer = function () {
 window.clearClinicalNotificationPresentation = function () {
   window.Swal?.close?.();
   window.clinicalPresentationEpoch = (window.clinicalPresentationEpoch || 0) + 1;
+  window.clearConnectedClinicalResults?.();
   window.privateResultWindows?.forEach(popup => { try { popup.close(); } catch {} });
   window.privateResultWindows?.clear();
   window.privateResultUrls?.forEach(url => URL.revokeObjectURL(url));
@@ -21133,7 +21135,7 @@ window.fetchHisResultBlob = async function (url) {
   } catch {
     throw new Error('Invalid result-file URL.');
   }
-  if (resultUrl.origin !== window.location.origin || resultUrl.pathname !== '/api/lis/result-file') {
+  if (resultUrl.origin !== window.location.origin || !['/api/lis/result-file','/api/uxi/result-file'].includes(resultUrl.pathname)) {
     throw new Error('Invalid result-file URL.');
   }
   const { data, error } = await supabaseClient.auth.getSession();
@@ -21179,7 +21181,7 @@ if (!document.__hisResultFileClickHandler) {
     const link = event.target?.closest?.('a[href]');
     if (!link) return;
     const url = new URL(link.href, window.location.href);
-    if (url.origin !== window.location.origin || url.pathname !== '/api/lis/result-file') return;
+    if (url.origin !== window.location.origin || !['/api/lis/result-file','/api/uxi/result-file'].includes(url.pathname)) return;
     event.preventDefault();
     window.openHisResultFile(url.toString());
   });
@@ -21457,6 +21459,7 @@ window.opdTestFetchLisResults = async function (options = {}) {
 };
 
 window.opdTestStopLisPolling = function () {
+  window.clearConnectedClinicalResults?.();
   const timer = window.opdTestState?.lisPollTimer;
   if (timer) window.clearInterval(timer);
   if (window.opdTestState) window.opdTestState.lisPollTimer = null;
@@ -24788,21 +24791,15 @@ window.opdTestRenderExternalResultStates = function () {
   }).join('');
 };
 
+installConnectedResults({ window, document, getSession: () => supabaseClient.auth.getSession(), isSignedIn: () => Boolean(currentUser) });
+
 window.opdTestSyncExternalResults = async function (requestedType, options = {}) {
   const type = requestedType === 'medication' ? 'medication' : window.opdTestInvestigationTypeMeta(requestedType).type;
   const provider = type === 'medication'
     ? (window.opdTestPharmacyStatusProvider || window.fetchOPDTestPharmacyStatuses)
     : (window.opdTestRisResultProvider || window.fetchOPDTestRisResults);
   if (typeof provider !== 'function') {
-    if (options.silent) return;
-    window.opdTestSimpleAlert(
-      type === 'medication' ? 'ຍັງບໍ່ໄດ້ຕໍ່ຫ້ອງຢາ' : 'ຍັງບໍ່ໄດ້ຕໍ່ RIS',
-      type === 'medication'
-        ? 'ໜ້າຈໍພ້ອມຮັບສະຖານະຈ່າຍຢາແລ້ວ; ຕ້ອງກຳນົດ Pharmacy API/provider ເພື່ອຮັບສະຖານະຈິງ.'
-        : 'ໜ້າຈໍພ້ອມຮັບສະຖານະ, ລາຍງານ ແລະໄຟລ໌ຜົນແລ້ວ; ຕ້ອງກຳນົດ RIS API/provider ເພື່ອຮັບຜົນຈິງ.',
-      'info'
-    );
-    return;
+    return window.opdTestFetchConnectedResults(type);
   }
   try {
     const state = window.opdTestState;

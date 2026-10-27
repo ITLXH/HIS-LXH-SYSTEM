@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:external-results": "node scripts/test-external-clinical-results.mjs && node scripts/test-connected-result-client.mjs",
     "test:investigation-templates": "node scripts/test-investigation-templates.mjs",
     "dev": "vite",
     "build": "vite build",
