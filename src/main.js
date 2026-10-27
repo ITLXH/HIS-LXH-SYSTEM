@@ -1,3 +1,4 @@
+import { installNativePrescriptionSubmit } from './nativePrescriptionSubmit.js';
 import JsBarcode from 'jsbarcode';
 import { installConnectedResults } from './connectedClinicalResults.js';
 import { installResultToasts } from './clinicalResultToasts.js';
@@ -23976,6 +23977,7 @@ window.opdTestMedicationInstructionText = function (medication = {}) {
 };
 
 window.opdTestSetMedicationEditorValues = function (medication = {}) {
+  window.opdTestMedicationPickerSelectedDrug = medication.sourceDrugId ? {id: medication.sourceDrugId, name: medication.name} : null;
   const values = {
     opdTestMedicationName: medication.name,
     opdTestMedicationInstruction: medication.instructions || medication.instr || window.opdTestMedicationInstructionText(medication),
@@ -24041,6 +24043,7 @@ window.opdTestSelectMedicationCatalog = function (index) {
   const template = window.opdTestFindMedicationTemplate(item.name) || {};
   window.opdTestSetMedicationEditorValues({
     name: item.name,
+    sourceDrugId: item.id,
     dose: template.dose || '',
     route: template.route || '',
     frequency: template.frequency || '',
@@ -24136,7 +24139,9 @@ window.opdTestSaveMedicationDraftItem = async function () {
 
   const existing = isUpdate ? window.opdTestMedicationPickerDraft[editingIndex] : {};
   const prescribedAt = existing.prescribedAt || existing.orderedAt || new Date().toISOString();
-  const catalogMatch = window.opdTestMedicationPickerCatalog.some(item => item.name.toLowerCase() === medication.name.toLowerCase());
+  const selectedDrug = window.opdTestMedicationPickerSelectedDrug;
+  medication.sourceDrugId = selectedDrug?.name === medication.name ? selectedDrug.id : '';
+  const catalogMatch = Boolean(medication.sourceDrugId);
   const normalized = window.opdTestNormalizeMedicationOrder({
     ...existing,
     ...medication,
@@ -25536,6 +25541,7 @@ window.opdTestRefreshSimple = function () {
   window.opdTestRenderOrders();
   window.opdTestRenderResults();
   window.opdTestRenderMedications();
+  window.opdNativePrescriptionSubmit?.render();
   window.opdTestRenderSummaryPreview();
   window.opdTestRefreshChecks();
   window.opdTestRenderProgress();
@@ -25646,3 +25652,15 @@ window.opdTestInit = function () {
   window.opdTestStartLisPolling();
 };
 setTimeout(() => window.opdTestInit?.(), 0);
+
+// Native physician submission: independent of canonical dispensing/writeback.
+window.opdNativePrescriptionSubmit = installNativePrescriptionSubmit({
+ getClient: () => supabaseClient,
+ getContext: () => window.opdTestPersistenceContext(),
+ getBatches: () => window.opdTestMedicationBatches(),
+ getState: () => window.opdTestState,
+ isAllowed: () => !window.opdTestState.locked && ['doctor','admin'].includes(String(currentUser?.role || currentUser?.Role || '').toLowerCase()) && window.can('opd','edit'),
+ confirmSend: async text => (await window.Swal.fire({icon:'question',title:'ຢືນຢັນສົ່ງຫ້ອງຢາ',text,showCancelButton:true,confirmButtonText:'ຢືນຢັນ',cancelButtonText:'ກັບໄປກວດ'})).isConfirmed,
+ onSaved: () => { window.opdTestSaveDraft(); window.opdTestRefreshSimple(); }
+});
+window.opdNativePrescriptionSubmit.render();
