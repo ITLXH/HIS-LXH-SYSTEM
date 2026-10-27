@@ -12,6 +12,8 @@ window.opdTestSelectOrderTab=type=>tabs.push(type);
 await Promise.all([window.opdTestFetchConnectedResults('xray'),window.opdTestFetchConnectedResults('ultrasound')]);
 assert.equal(calls,1);assert.match(hosts.get('opdTestUxiXrayResults').innerHTML,/2026-10-05/);assert.match(hosts.get('opdTestUxiXrayResults').innerHTML,/&lt;script>/);assert.doesNotMatch(hosts.get('opdTestUxiXrayResults').innerHTML,/<script>/);assert.match(hosts.get('opdTestUxiXrayResults').innerHTML,/patient-history/);
 assert.equal(notices.length,0);await window.opdTestFetchConnectedResults('xray');assert.equal(notices.length,0);
+assert.match(hosts.get('opdTestUxiXrayResults').innerHTML,/data-result-download/);
+assert.match(hosts.get('opdTestUxiXrayResults').innerHTML,/<details>/);
 payload.results[0].report='Changed synthetic report';await window.opdTestFetchConnectedResults('xray');assert.equal(notices.length,1);assert.equal(notices[0].source,'UXI');
 notices[0].onOpen();assert.equal(tabs.at(-1),'xray');
 fetcher=async()=>Response.json({schema:'pmc-his-results-v1',patientId:'PATIENT-SYN',visitId:'VISIT-SYN',clinicalEnabled:false,rows:[{prescriptionId:'RX-SYN',revision:2,status:'ACTIVE',receivedAt:'2026-10-27',lines:[{lineId:'LINE-SYN',name:'Synthetic tablet',unit:'TAB',ordered:'2',issued:'0.75',returned:'0.25',decision:'READY',reason:null,reviewedAt:null}]}]});

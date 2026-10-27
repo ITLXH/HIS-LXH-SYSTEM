@@ -21188,7 +21188,20 @@ if (!document.__hisResultFileClickHandler) {
     const url = new URL(link.href, window.location.href);
     if (url.origin !== window.location.origin || !['/api/lis/result-file','/api/uxi/result-file'].includes(url.pathname)) return;
     event.preventDefault();
-    window.openHisResultFile(url.toString());
+    if (link.hasAttribute('data-result-download')) {
+      window.fetchHisResultBlob(url.toString()).then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        window.privateResultUrls ||= new Set();
+        window.privateResultUrls.add(objectUrl);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = link.getAttribute('data-result-download').replace(/[\\/\u0000-\u001f]/g, '_');
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => { URL.revokeObjectURL(objectUrl); window.privateResultUrls.delete(objectUrl); }, 60_000);
+      }).catch(error => window.Swal?.fire('ດາວໂຫຼດບໍ່ສຳເລັດ', error.message || 'ກະລຸນາລອງໃໝ່', 'error'));
+    } else window.openHisResultFile(url.toString());
   });
 }
 
