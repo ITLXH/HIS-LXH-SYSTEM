@@ -24,11 +24,13 @@ export function installConnectedResults({window,document,getSession,isSignedIn,f
         <strong>${html((row.exams||[]).map(exam=>exam.name).join(', '))}</strong>
         <div class="connected-result-meta">${html(row.id)} · ${html(row.status)} · ວັນທີກວດ ${date(row.orderedAt)} · ອອກຜົນ ${date(row.reportedAt)}</div>
         <small>ປະຫວັດ HN ນີ້ · ຍັງບໍ່ຜູກກັບ Visit ປັດຈຸບັນ</small>
-        <p class="connected-result-report">${html(row.report)}</p>
-        <div class="connected-result-files">${(row.files||[]).map(file=>{
+        ${row.report?`<details><summary>ຂໍ້ຄວາມລາຍງານ</summary><p class="connected-result-report">${html(row.report)}</p></details>`:''}
+        ${!(row.files||[]).some(file=>file.type==='application/pdf')?message('ຍັງບໍ່ມີ PDF · ກະລຸນາສ້າງ/ອັບໂຫຼດ PDF ໃນ UXI'):''}
+        <div class="connected-result-files">${[...(row.files||[])].sort((a,b)=>Number(b.type==='application/pdf')-Number(a.type==='application/pdf')).map(file=>{
           let url;try{url=new URL(file.url,'https://his.invalid');}catch{return '';}
           if(url.origin!=='https://his.invalid'||url.pathname!=='/api/uxi/result-file'||url.searchParams.get('patientId')!==body.patientId||url.searchParams.get('orderId')!==row.id)return '';
-          return `<a class="btn btn-sm btn-outline-primary" href="${html(url.pathname+url.search)}" target="_blank" rel="noopener"><i class="fas fa-eye" aria-hidden="true"></i> ${html(file.name)}</a>`;
+          const href=html(url.pathname+url.search);
+          return `<div class="border rounded p-2 my-2 d-flex align-items-center gap-2 flex-wrap"><i class="fas ${file.type==='application/pdf'?'fa-file-pdf text-danger':'fa-image'}" aria-hidden="true"></i><span class="me-auto">${html(file.name)}</span><a class="btn btn-sm btn-primary" href="${href}" target="_blank" rel="noopener"><i class="fas fa-eye" aria-hidden="true"></i> ເບິ່ງ</a><a class="btn btn-sm btn-outline-primary" href="${href}" data-result-download="${html(file.name)}"><i class="fas fa-download" aria-hidden="true"></i> ດາວໂຫຼດ</a></div>`;
         }).join('')}</div></article>`).join(''):message('ຍັງບໍ່ມີຜົນ UXI ທີ່ອອກລາຍງານແລ້ວ')}${body.hasMore?message('ສະແດງ 50 ຜົນລ່າສຸດ · ປະຫວັດເຕັມຢູ່ UXI'):''}`);
     });
   }
