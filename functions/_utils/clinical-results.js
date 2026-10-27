@@ -21,7 +21,7 @@ export async function clinicalAccess(request, env, identity) {
   const query = new URLSearchParams({ select: identity.visitId ? 'Visit_ID,Patient_ID' : 'Patient_ID', Patient_ID: `eq.${identity.patientId}`, limit: '2' });
   if (identity.visitId) query.set('Visit_ID', `eq.${identity.visitId}`);
   const response = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/, '')}/rest/v1/${table}?${query}`, {
-    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${auth.accessToken}` }, redirect: 'error', signal: AbortSignal.timeout(10_000),
+    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${auth.accessToken}` }, redirect: 'manual', signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) return { response: fail([401,403].includes(response.status) ? response.status : 503, 'Clinical access could not be verified') };
   const rows = await response.json();
@@ -33,7 +33,7 @@ export async function readUxi(env, patientId, orderId) {
   const query = new URLSearchParams({ select: 'id,cn,status,ordered_at,reported_at,approved_at,report,exams,result_files', cn: `eq.${patientId}`, status: 'in.(Reported,Approved)', order: 'ordered_at.desc,id.asc', limit: orderId ? '2' : '51' });
   if (orderId) query.set('id', `eq.${orderId}`);
   const response = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/, '')}/rest/v1/UXI_One_main_imaging_orders?${query}`, {
-    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }, redirect: 'error', signal: AbortSignal.timeout(10_000),
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }, redirect: 'manual', signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw Error('UXI results unavailable');
   const rows = await response.json();

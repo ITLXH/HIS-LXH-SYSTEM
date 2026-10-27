@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test:external-results": "node scripts/test-external-clinical-results.mjs && node scripts/test-connected-result-client.mjs",
+    "test:external-results-edge": "node scripts/test-external-results-edge.mjs",
     "test:investigation-templates": "node scripts/test-investigation-templates.mjs",
     "dev": "vite",
     "build": "vite build",

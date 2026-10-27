@@ -22,3 +22,21 @@ Actual checks:
 - Paired PMC package passed 510 tests / 95 files, build/typecheck/lint/secret checks. Its additive read RPC/configuration rollout is documented in `PMC_HIS_RESULT_READ_2026-10-27.md` in that repository.
 
 Hosted authenticated viewing of real results remains a separate acceptance check. PMC staging currently has zero canonical prescription revisions and clinical dispensing is disabled; connecting read APIs does not create results or submit browser-only physician drafts. The new PMC read flag/issuer and one additive migration require the scoped PMC hosted approval. No clinical data or stock activation is part of this release.
+
+## Delivery progress
+
+- HIS PR https://github.com/ITLXH/HIS-LXH-SYSTEM/pull/16 merged as `08267bede08b60e684bb60afdcf1c780efa94ac3` after login-layout-build and Cloudflare preview success. Exact reviewed head `63e2ae364fdb3c78c51ecb8b16096f51a92865e4`.
+- PMC PR https://github.com/ITLXH/PMC-LXH/pull/1 merged after explicit user approval as `978f9932850d1e406061a01bdb3dfe9badee368b`. Migration `20261027050000` applied once; 39 migrations, service-only EXECUTE confirmed, clinical flag=false and revisions=0. Approved read settings uploaded. First production deployment `edd95226-98db-4abe-8b17-86d54aba4546` succeeded; anonymous API returned 401.
+- PMC preview `a76894f7-2b60-4f83-83f8-12d209f60c4c` failed with `STAGING_BUILD_CONFIGURATION`: preview lacks the server URL/anon build inputs used by the guarded staging build. Production has those existing settings. Do not copy service credentials to preview or remove the staging isolation guard to silence this failure.
+
+Runtime diagnosis then found invalid-token requests hit `RESULTS_UNAVAILABLE` before authorization. The documented old HIS Pages source origin is unreachable in a bounded synthetic probe, whereas the HIS custom-domain authorization route returns 401. Corrected the existing server-only `HIS_API_ORIGIN` to `https://his.luckxayhospitallaos.com` and requested same-code deployment retry `201bf6c5-ae00-4d6c-b0d7-2844a2810a3c`. No clinical permission/data change. Verify the final callback response before claiming connected acceptance.
+
+Automatic approval review rejected a proposed DPAPI-reader / screenshot-patient authenticated read script before creation/execution. The user was informed and a separate scoped permission question remains pending. No real result payload/file was read by that rejected action. Synthetic/anonymous hosted checks and the service-RPC check with nonexistent synthetic IDs are unaffected; actual staff/patient end-to-end acceptance remains open until authorized.
+
+## Runtime root cause and correction
+
+After origin correction, the safe PMC diagnostic localized the failure to `HIS_ACCESS_REQUEST`. Actual local workerd then reproduced that `new Request(...,{redirect:'error'})` throws TypeError, while `manual` succeeds. Node mocks did not model this platform difference. Changed only the new result routes/utilities to `manual`; every non-2xx redirect is still rejected, so no bearer/service token follows a redirect. Reference: https://developers.cloudflare.com/workers/runtime-apis/request/.
+
+Added actual-workerd regression checks: six HIS list/file/proxy cases (success and redirect rejection), and three PMC callback cases (success, 401, redirect rejection), all with zero external requests. They failed before the correction and passed after. Affected HIS API/client/auth/security checks and a fresh build passed. The source-origin correction alone was not the runtime fix.
+
+The user subsequently explicitly authorized the exact DPAPI integration-reader / screenshot-patient / one file-header / same-visit PMC read acceptance. That bounded acceptance will run after both corrected deployments; patient/file contents and credentials remain excluded from logs and repository artifacts.

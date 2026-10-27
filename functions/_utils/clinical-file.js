@@ -3,7 +3,7 @@ import { getDriveAccessToken, parseDriveCredentials } from './google-drive.js';
 /** Called only after released-result metadata and patient access have been verified. */
 export async function readClinicalFile(request, env, bucket, path, contentType) {
   const headers = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` };
-  const upstream = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/, '')}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`, { headers, redirect: 'error', signal: AbortSignal.timeout(15_000) });
+  const upstream = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/, '')}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
   if (upstream.ok) return fileResponse(upstream, path, contentType);
   if (![400,404].includes(upstream.status)) throw Error('Storage temporarily unavailable');
   const root = String(env.GOOGLE_DRIVE_FOLDER_ID || '');
@@ -17,7 +17,7 @@ export async function readClinicalFile(request, env, bucket, path, contentType) 
   for (const candidate of candidates) {
     try {
       const token = await getDriveAccessToken(candidate.credentials);
-      const options = { headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(15_000) };
+      const options = { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual', signal: AbortSignal.timeout(15_000) };
       const listed = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,appProperties)&pageSize=2&supportsAllDrives=true&includeItemsFromAllDrives=true`, options);
       if (!listed.ok) continue;
       const matches = (await listed.json()).files || [];
