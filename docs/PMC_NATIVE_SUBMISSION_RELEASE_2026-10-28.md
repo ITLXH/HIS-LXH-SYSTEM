@@ -1,0 +1,13 @@
+# Native physician submission release — 2026-10-28
+
+User explicitly approved the 2026-10-27 native submission proposal. This package changes only explicit physician batch submission in HIS; pharmacy dispensing, stock/writeback, nurse workflows and other services remain outside scope.
+
+The existing medicine picker retains the exact selected catalogue ID, including duplicate-name cases. A physician reviews the batch and explicitly confirms send. The versioned SQL RPC requires an active doctor/admin with existing OPD edit permission and source RLS, locks the exact patient/visit revision, validates catalogue/directions/quantity and appends only the submitted batch. Retried identical batches do not write again; conflicting batches/revisions reject. Encounter completion and unrelated clinical fields are preserved. The existing native signal/read path receives the committed prescription.
+
+Prepared against current main 053c545d32df700bffd06464f6ce65e616d5d778, preserving the upstream result-toast/PDF changes. Local fresh lockfile installation and build passed. All 22 ordinary HIS named test scripts, separate actual-workerd transport test and native submission client passed. Additional integration-package tests cover five SQL/DOM batches, real portable PostgreSQL concurrent retries/conflicts/rollback, catalogue ID retention and UI identity/payload races. All fixtures synthetic; zero clinical writes.
+
+Scoped metadata preflight confirmed source RLS, integer EMR_Revision, text Prescription_JSON, native catalogue, authorization helpers and existing signal trigger. Definition/ACL metadata was encrypted with Windows DPAPI and roundtrip-verified locally; no clinical rows exported. Migration 20261027060000 was applied once and recorded atomically. Readback confirmed setting RLS, invoker mode, anon denied, authenticated permitted only through SQL checks, and authenticated users cannot alter the enable setting. Activation remains disabled until this source deployment is verified.
+
+Rollout: deploy reviewed source, verify custom-domain version/anonymous guards/configuration fingerprints, then enable only the new submission setting under the approved scope. Final hosted activation/delivery evidence will be retained in the current handover. Do not interpret local synthetic tests as hospital clinical UAT. A clinician must perform real-order acceptance; no existing patient order was submitted by the agent.
+
+Rollback: disable the new submission setting and restore the prior source deployment if needed; retain submitted prescriptions, revisions/signals and migration history. Existing build chunk-size and inherited dependency audit warnings are unchanged; no dependency updates included.
