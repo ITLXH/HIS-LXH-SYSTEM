@@ -13374,6 +13374,28 @@ small,
   transition: opacity 0.35s linear;
 }
 
+/* Match the clinical toast auto-dismiss timer. */
+.opd-toast {
+  position: relative;
+  overflow: hidden;
+}
+.opd-toast::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 4px;
+  background: var(--primary);
+  transform-origin: left;
+  animation: clinicalToastCountdown 5s linear forwards;
+  pointer-events: none;
+}
+.opd-lis-result-toast::after { background: #16a34a; }
+.opd-lis-result-toast.is-critical::after { background: #dc2626; }
+@keyframes clinicalToastCountdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 .opd-toast-icon {
   width: 42px;
   height: 42px;
