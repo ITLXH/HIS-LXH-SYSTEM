@@ -10,3 +10,9 @@ await assert.rejects(client.send({...request,lines:[{...line,isFreeText:true}]})
 await assert.rejects(createNativeSubmissionClient(async()=>({data:null,error:{message:'ENCOUNTER_CHANGED'}})).send(request),/ENCOUNTER_CHANGED/);
 await assert.rejects(createNativeSubmissionClient(async()=>({data:{revision:1,batchId:'OTHER'},error:null})).send(request),/SEND_UNCERTAIN/);
 console.log('Native submission client synthetic checks passed');
+
+let issue;
+try{await client.send({...request,lines:[line,{...line,prescriptionItemId:'SYN-L2',dose:'1 tablet',duration:'',instructions:''}]});}catch(error){issue=error;}
+assert.equal(issue?.lineNumber,2);
+assert.deepEqual(issue?.fields,['dose','duration','instructions']);
+assert.equal(calls,1);
