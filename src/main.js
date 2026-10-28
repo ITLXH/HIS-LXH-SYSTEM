@@ -1,4 +1,4 @@
-import { installNativePrescriptionSubmit } from './nativePrescriptionSubmit.js';
+import { installNativePrescriptionSubmit, prepareNativeLines, formatNativeLineError } from './nativePrescriptionSubmit.js';
 import JsBarcode from 'jsbarcode';
 import { installConnectedResults } from './connectedClinicalResults.js';
 import { installResultToasts } from './clinicalResultToasts.js';
@@ -23959,7 +23959,7 @@ window.opdTestRenderMedicationPickerCatalog = function (query = '') {
         <span class="opdt-med-catalog-text"><strong>${window.opdTestHtml(item.name)}</strong><small>${window.opdTestHtml(item.desc || (item.source === 'database' ? 'Drug master' : 'Common medication'))}</small></span>
         <i class="fas fa-plus opdt-med-catalog-add"></i>
       </button>`).join('')
-    : `<div class="emr-order-empty"><i class="fas fa-search"></i><strong>ບໍ່ພົບຊື່ຢາ</strong><span>ສາມາດພິມຊື່ຢາເອງໃນຟອມຝັ່ງຂວາ</span></div>`;
+    : `<div class="emr-order-empty"><i class="fas fa-search"></i><strong>ບໍ່ພົບຊື່ຢາ</strong><span>ກວດຄຳຄົ້ນຫາ ຫຼື ຕິດຕໍ່ຜູ້ດູແລລາຍການຢາ</span></div>`;
 };
 
 window.opdTestFilterMedicationCatalog = function (query) {
@@ -24076,7 +24076,7 @@ window.opdTestRenderMedicationPickerDraft = function () {
         </div>
       </div>`;
     }).join('')
-    : `<div class="emr-order-empty"><i class="fas fa-prescription-bottle-medical"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍ ຫຼື ພິມຊື່ຢາເອງ ແລ້ວກົດ “ເພີ່ມຢາ”</span></div>`;
+    : `<div class="emr-order-empty"><i class="fas fa-prescription-bottle-medical"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍ, ກອກລາຍລະອຽດໃຫ້ຄົບ ແລ້ວກົດ “ເພີ່ມຢາ”</span></div>`;
 };
 
 window.opdTestEditMedicationDraftItem = function (index) {
@@ -24118,7 +24118,21 @@ window.opdTestSaveMedicationDraftItem = async function () {
     quantity: document.getElementById('opdTestMedicationQuantity')?.value?.trim() || ''
   };
   if (!medication.name || !medication.instructions) {
-    window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', 'ກະລຸນາລະບຸຊື່ຢາ ແລະ ວິທີໃຊ້. ລາຍລະອຽດອື່ນສາມາດເພີ່ມພາຍຫຼັງໄດ້.', 'warning');
+    await window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', 'ກະລຸນາລະບຸຊື່ຢາ ແລະ ວິທີໃຊ້ໃຫ້ຄົບກ່ອນເພີ່ມຢາ.', 'warning');
+    document.getElementById(medication.name ? 'opdTestMedicationInstruction' : 'opdTestMedicationName')?.focus();
+    return;
+  }
+  const selected = window.opdTestMedicationPickerSelectedDrug;
+  medication.sourceDrugId = selected?.name === medication.name ? selected.id : '';
+  try {
+    prepareNativeLines([{ ...medication, prescriptionItemId: 'DRAFT' }]);
+  } catch (error) {
+    const controls = { sourceDrugId: 'Name', name: 'Name', instructions: 'Instruction', quantity: 'Quantity', dose: 'Dose', route: 'Route', frequency: 'Frequency', duration: 'Duration' };
+    const control = document.getElementById(`opdTestMedication${controls[error.fields?.[0]] || 'Name'}`);
+    const details = control?.closest('details');
+    if (details) details.open = true;
+    await window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', formatNativeLineError(error), 'warning');
+    control?.focus();
     return;
   }
   if (window.opdTestMedicationMatchesAllergy(medication.name)) {
