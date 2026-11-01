@@ -13239,14 +13239,19 @@ window.fetchOrg = async function () {
   }
 };
 
+window._patientDropdownAdditions = {
+  Channel: ["ສື່ໂຄສະນາ / Facebook", "ຕິດຕາມ", "ຜ່ານໂຮງໝໍອື່ນ", "Walk in"],
+  Occupation: ["ເດັກ", "ນັກຮຽນ/ນັກສຶກສາ", "ພະນັກງານ", "ປະຊາຊົນ/ອື່ນໆ", "ນັກທຸລະກິດ"],
+};
+
 window._masterDataFallback = {
   Title: ["ທ່ານ","ນາງ","ນາງສາວ","ດຣ.","ທ່ານ ດຣ.","ນາງ ດຣ.","ພ.ທ.","ຜ.ສ."],
   Gender: ["ຊາຍ","ຍິງ","ອື່ນໆ"],
   BloodType: ["A+","A-","B+","B-","AB+","AB-","O+","O-"],
   Nationality: ["ລາວ","ໄທ","ຈີນ","ຫວຽດນາມ","ກຳປູເຈຍ","ມຽນມາ","ສິງກະໂປ","ມາເລເຊຍ","ຍີ່ປຸ່ນ","ເກົາຫຼີ","ອັງກິດ","ອາເມລິກາ","ຝຣັ່ງ","ອື່ນໆ"],
-  Occupation: ["ພະນັກງານລັດ","ພະນັກງານເອກະຊົນ","ທຸລະກິດສ່ວນຕົວ","ຊາວນາ","ນັກສຶກສາ","ຄ້າຂາຍ","ທ່ອງທ່ຽວ","ຫວ່າງງານ","ອື່ນໆ"],
+  Occupation: ["ພະນັກງານລັດ","ພະນັກງານເອກະຊົນ","ທຸລະກິດສ່ວນຕົວ","ຊາວນາ","ນັກສຶກສາ","ຄ້າຂາຍ","ທ່ອງທ່ຽວ","ຫວ່າງງານ","ອື່ນໆ", ...window._patientDropdownAdditions.Occupation],
   Shift: ["ເຊົ້າ (08:00-16:00)","ແລງ (16:00-24:00)","ດຶກ (00:00-08:00)"],
-  Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ"],
+  Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ", ...window._patientDropdownAdditions.Channel],
   InsCompany: ["ບໍ່ມີ","LSMI","PVI","Axa","Prudential","Allianz","BCEL-AXA","ອື່ນໆ"],
   Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
   ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup","First Aid Training","Home Care"],
@@ -13264,7 +13269,11 @@ window.loadMasterDataGlobalCallback = function (data) {
     const sourceData = masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
     if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
     if (sourceData) {
-      sourceData.forEach(i => {
+      const existingValues = new Set(sourceData.map(i => String(i.value || '').trim().toLowerCase()));
+      const options = [...sourceData, ...(window._patientDropdownAdditions[c] || [])
+        .filter(value => !existingValues.has(value.toLowerCase()))
+        .map(value => ({ value }))];
+      options.forEach(i => {
         const safeValue = window.escapeEmrPickerHtml(i.value);
         o += `<option value="${safeValue}">${safeValue}</option>`;
       });
@@ -13302,9 +13311,9 @@ window.seedMasterDefaults = async function () {
     Gender: ["ຊາຍ", "ຍິງ", "ອື່ນໆ"],
     BloodType: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
     Nationality: ["ລາວ", "ໄທ", "ຈີນ", "ຫວຽດນາມ", "ກຳປູເຈຍ", "ມຽນມາ", "ສິງກະໂປ", "ມາເລເຊຍ", "ຍີ່ປຸ່ນ", "ເກົາຫຼີ", "ອັງກິດ", "ອາເມລິກາ", "ຝຣັ່ງ", "ອື່ນໆ"],
-    Occupation: ["ພະນັກງານລັດ", "ພະນັກງານເອກະຊົນ", "ທຸລະກິດສ່ວນຕົວ", "ຊາວນາ", "ນັກສຶກສາ", "ຄ້າຂາຍ", "ທ່ອງທ່ຽວ", "ຫວ່າງງານ", "ອື່ນໆ"],
+    Occupation: window._masterDataFallback.Occupation,
     Shift: ["ເຊົ້າ (08:00-16:00)", "ແລງ (16:00-24:00)", "ດຶກ (00:00-08:00)"],
-    Channel: ["ໂທລະສັບ", "ສອດ", "Facebook", "Line", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານ ຮພ. ອື່ນ", "ສື່ໂຄສະນາ", "ອື່ນໆ"],
+    Channel: window._masterDataFallback.Channel,
     InsCompany: ["ບໍ່ມີ", "LSMI", "PVI", "Axa", "Prudential", "Allianz", "BCEL-AXA", "ອື່ນໆ"],
     Department: ["OPD ທົ່ວໄປ", "ຫ້ອງສຸກເສີນ", "ຫ້ອງຜ່າຕັດ", "ຫ້ອງເດັກ", "ກວດສະເພາະທາງ", "ທັນຕະກຳ", "ຕາ ຫູ ຄໍ ຈະມູກ"],
     ServiceDepartment: ["Internal Medicine", "Pediatrics", "OB-GYN", "General / ER", "IPD", "Health Checkup", "First Aid Training", "Home Care"],
