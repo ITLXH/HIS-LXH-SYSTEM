@@ -1,4 +1,6 @@
 import { installNativePrescriptionSubmit, prepareNativeLines, formatNativeLineError } from './nativePrescriptionSubmit.js';
+import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
+import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
 import JsBarcode from 'jsbarcode';
 import { installConnectedResults } from './connectedClinicalResults.js';
 import { installResultToasts } from './clinicalResultToasts.js';
@@ -21477,8 +21479,30 @@ window.opdTestFetchLisResults = async function (options = {}) {
   }
 };
 
+window.opdTestPharmacyReceiptNotice = createPmcOrderReceiptNotice({
+  rpc: (...args) => supabaseClient.rpc(...args),
+  render: rows => {
+    const button = document.getElementById('opdTestMedicationOrderButton');
+    if (!button?.parentElement) return;
+    let notice = document.getElementById('opdTestPharmacyReceiptNotice');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'opdTestPharmacyReceiptNotice';
+      notice.className = 'alert alert-success py-2 mt-2';
+      notice.setAttribute('role', 'status');
+      button.parentElement.append(notice);
+    }
+    notice.hidden = rows.length === 0;
+    notice.textContent = rows.length ? `ຫ້ອງຢາ PMC ຮັບຂໍ້ມູນແລ້ວ · ${rows.length} ຄັ້ງ · ${new Date(rows[0].receivedAt).toLocaleString('lo-LA')}` : '';
+  },
+  notify: () => window.Swal?.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 5000 })
+    .fire({ icon: 'success', title: 'PMC ຮັບຂໍ້ມູນ Order ແລ້ວ' })
+});
 window.opdTestStopLisPolling = function () {
   window.clearConnectedClinicalResults?.();
+  window.clearInterval(window.opdTestPharmacyReceiptTimer);
+  window.opdTestPharmacyReceiptTimer = null;
+  window.opdTestPharmacyReceiptNotice?.close();
   const timer = window.opdTestState?.lisPollTimer;
   if (timer) window.clearInterval(timer);
   if (window.opdTestState) window.opdTestState.lisPollTimer = null;
@@ -21489,6 +21513,11 @@ window.opdTestStopLisPolling = function () {
 window.opdTestStartLisPolling = function () {
   window.opdTestStopLisPolling();
   if (!window.opdTestLisPatientId()) return;
+  const { patientId, visitId } = window.opdTestPersistenceContext();
+  if (['doctor', 'admin'].includes(String(currentUser?.role || currentUser?.Role || '').toLowerCase()) && window.can('opd', 'edit') && patientId && visitId) {
+    void window.opdTestPharmacyReceiptNotice.open(patientId, visitId);
+    window.opdTestPharmacyReceiptTimer = window.setInterval(() => void window.opdTestPharmacyReceiptNotice.refresh(), 15000);
+  }
   window.opdTestFetchLisResults();
   ['ultrasound', 'xray', 'medication'].forEach(type => window.opdTestSyncExternalResults?.(type, { silent: true }));
   window.opdTestState.lisPollTimer = window.setInterval(() => {
@@ -23899,6 +23928,14 @@ window.opdTestMedicationPickerEditingIndex = -1;
 window.opdTestEditingMedicationBatch = null;
 
 window.opdTestLoadMedicationPickerCatalog = async function () {
+  window.opdTestMedicationPickerCatalog = [];
+  window.opdTestMedicationPickerSource = 'his';
+  const pmcMedicines = await loadPmcMedicineCatalogue(window.authenticatedFetch);
+  if (pmcMedicines !== null) {
+    window.opdTestMedicationPickerCatalog = pmcMedicines;
+    window.opdTestMedicationPickerSource = 'pmc';
+    return pmcMedicines;
+  }
   if (!drugsMasterList.length) {
     try {
       const rows = await window.fetchSupabaseRows('Drugs_Master', {
@@ -23916,24 +23953,21 @@ window.opdTestLoadMedicationPickerCatalog = async function () {
     }
   }
 
-  const merged = new Map();
-  const addItem = (item, source) => {
+  const masterItems = new Map();
+  for (const item of drugsMasterList) {
     const name = String(item?.name || '').trim();
-    if (!name) return;
-    const key = name.toLowerCase();
-    const previous = merged.get(key) || {};
-    merged.set(key, {
-      ...previous,
+    const id = String(item?.id || '').trim();
+    if (!name || !id) continue;
+    // Only persisted master identities can be submitted while PMC mode is disabled.
+    masterItems.set(id, {
       ...item,
+      id,
       name,
-      id: item.id || previous.id || `opd-med-${merged.size + 1}`,
-      desc: item.desc || previous.desc || '',
-      source: previous.source === 'database' ? previous.source : source
+      desc: item.desc || '',
+      source: 'database'
     });
-  };
-  drugsMasterList.forEach(item => addItem(item, 'database'));
-  Object.values(window.opdTestMedicationTemplates || {}).forEach(item => addItem(item, 'template'));
-  window.opdTestMedicationPickerCatalog = Array.from(merged.values())
+  }
+  window.opdTestMedicationPickerCatalog = Array.from(masterItems.values())
     .sort((a, b) => a.name.localeCompare(b.name));
   return window.opdTestMedicationPickerCatalog;
 };
@@ -23941,22 +23975,18 @@ window.opdTestLoadMedicationPickerCatalog = async function () {
 window.opdTestRenderMedicationPickerCatalog = function (query = '') {
   const target = document.getElementById('opdTestMedicationCatalog');
   const count = document.getElementById('opdTestMedicationCatalogCount');
-  const datalist = document.getElementById('opdTestMedicationNameCatalog');
+  const title = document.getElementById('opdTestMedicationCatalogTitle');
   if (!target) return;
+  if (title) title.textContent = window.opdTestMedicationPickerSource === 'pmc' ? 'PMC ລາຍການຢາ' : 'HIS Drug Catalog';
   const needle = String(query || '').trim().toLowerCase();
   const filtered = window.opdTestMedicationPickerCatalog
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => !needle || `${item.name} ${item.desc || ''}`.toLowerCase().includes(needle));
+    .filter(({ item }) => !needle || `${item.name} ${item.code || ''} ${item.unitCode || ''} ${item.desc || ''}`.toLowerCase().includes(needle));
   if (count) count.textContent = filtered.length;
-  if (datalist) {
-    datalist.innerHTML = window.opdTestMedicationPickerCatalog
-      .map(item => `<option value="${window.opdTestHtml(item.name)}"></option>`)
-      .join('');
-  }
   target.innerHTML = filtered.length
     ? filtered.map(({ item, index }) => `<button type="button" class="opdt-med-catalog-item" onclick="window.opdTestSelectMedicationCatalog(${index})">
         <span class="opdt-med-catalog-icon"><i class="fas fa-capsules"></i></span>
-        <span class="opdt-med-catalog-text"><strong>${window.opdTestHtml(item.name)}</strong><small>${window.opdTestHtml(item.desc || (item.source === 'database' ? 'Drug master' : 'Common medication'))}</small></span>
+        <span class="opdt-med-catalog-text"><strong>${window.opdTestHtml(item.name)}</strong><small>${window.opdTestHtml(item.source === 'pmc' ? [item.code,item.unitCode,item.desc].filter(Boolean).join(' · ') : (item.desc || 'HIS Drug master'))}</small></span>
         <i class="fas fa-plus opdt-med-catalog-add"></i>
       </button>`).join('')
     : `<div class="emr-order-empty"><i class="fas fa-search"></i><strong>ບໍ່ພົບຊື່ຢາ</strong><span>ກວດຄຳຄົ້ນຫາ ຫຼື ຕິດຕໍ່ຜູ້ດູແລລາຍການຢາ</span></div>`;
@@ -23977,7 +24007,7 @@ window.opdTestMedicationInstructionText = function (medication = {}) {
 };
 
 window.opdTestSetMedicationEditorValues = function (medication = {}) {
-  window.opdTestMedicationPickerSelectedDrug = medication.sourceDrugId ? {id: medication.sourceDrugId, name: medication.name} : null;
+  window.opdTestMedicationPickerSelectedDrug = medication.sourceDrugId ? {id: medication.sourceDrugId, name: medication.name, catalogueVersion: medication.catalogueVersion} : null;
   const values = {
     opdTestMedicationName: medication.name,
     opdTestMedicationInstruction: medication.instructions || medication.instr || window.opdTestMedicationInstructionText(medication),
@@ -24004,21 +24034,6 @@ window.opdTestResetMedicationEditor = function () {
   if (cancel) cancel.hidden = true;
 };
 
-window.opdTestApplyMedicationPickerTemplate = function (name) {
-  const normalized = String(name || '').trim().toLowerCase();
-  const item = window.opdTestMedicationPickerCatalog
-    .find(entry => String(entry.name || '').trim().toLowerCase() === normalized);
-  if (!item) return;
-  const template = window.opdTestFindMedicationTemplate(item.name) || item;
-  ['dose', 'route', 'frequency', 'duration', 'quantity'].forEach(field => {
-    const id = `opdTestMedication${field.charAt(0).toUpperCase()}${field.slice(1)}`;
-    const control = document.getElementById(id);
-    if (control && template[field]) control.value = template[field];
-  });
-  const instruction = document.getElementById('opdTestMedicationInstruction');
-  if (instruction && !instruction.value.trim()) instruction.value = window.opdTestMedicationInstructionText(template);
-};
-
 window.opdTestBuildInstructionFromDetails = function () {
   const instruction = document.getElementById('opdTestMedicationInstruction');
   if (!instruction) return;
@@ -24040,15 +24055,10 @@ window.opdTestBuildInstructionFromDetails = function () {
 window.opdTestSelectMedicationCatalog = function (index) {
   const item = window.opdTestMedicationPickerCatalog[index];
   if (!item) return;
-  const template = window.opdTestFindMedicationTemplate(item.name) || {};
   window.opdTestSetMedicationEditorValues({
     name: item.name,
     sourceDrugId: item.id,
-    dose: template.dose || '',
-    route: template.route || '',
-    frequency: template.frequency || '',
-    duration: template.duration || '',
-    quantity: template.quantity || ''
+    catalogueVersion: item.catalogueVersion
   });
   document.getElementById('opdTestMedicationInstruction')?.focus();
 };
@@ -24124,6 +24134,7 @@ window.opdTestSaveMedicationDraftItem = async function () {
   }
   const selected = window.opdTestMedicationPickerSelectedDrug;
   medication.sourceDrugId = selected?.name === medication.name ? selected.id : '';
+  if (selected?.catalogueVersion) medication.catalogueVersion = selected.catalogueVersion;
   try {
     prepareNativeLines([{ ...medication, prescriptionItemId: 'DRAFT' }]);
   } catch (error) {
@@ -24198,7 +24209,12 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   window.opdTestRenderMedicationPickerDraft();
   if (document.activeElement) document.activeElement.blur();
   $('#opdTestMedicationModal').modal('show');
-  await window.opdTestLoadMedicationPickerCatalog();
+  try {
+    await window.opdTestLoadMedicationPickerCatalog();
+  } catch {
+    if (catalog) catalog.textContent = 'ໂຫຼດລາຍການຢາ PMC ບໍ່ສຳເລັດ. ປິດ ແລະ ເປີດເພື່ອລອງໃໝ່.';
+    return;
+  }
   window.opdTestRenderMedicationPickerCatalog();
   document.getElementById('opdTestMedicationSearch')?.focus();
 };
@@ -25670,6 +25686,7 @@ setTimeout(() => window.opdTestInit?.(), 0);
 // Native physician submission: independent of canonical dispensing/writeback.
 window.opdNativePrescriptionSubmit = installNativePrescriptionSubmit({
  getClient: () => supabaseClient,
+ beforeSubmit: () => loadPmcMedicineCatalogue(window.authenticatedFetch),
  getContext: () => window.opdTestPersistenceContext(),
  getBatches: () => window.opdTestMedicationBatches(),
  getState: () => window.opdTestState,

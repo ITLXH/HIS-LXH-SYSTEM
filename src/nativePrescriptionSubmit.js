@@ -11,7 +11,9 @@ export function prepareNativeLines(lines){
    if(line.isFreeText||line.freeText||!id.test(line.sourceDrugId||''))throw Object.assign(Error('CATALOG_REQUIRED'),{lineNumber:index+1,fields:['sourceDrugId']});
    const invalid=fields.filter(k=>k==='sourceDrugId'?false:k==='prescriptionItemId'?!id.test(line[k]||''):!String(line[k]??'').trim()||String(line[k]).length>1000||(['quantity','dose'].includes(k)&&(!positive.test(String(line[k]))||Number(line[k])<=0)));
    if(invalid.length)throw Object.assign(Error('INVALID_LINE'),{lineNumber:index+1,fields:invalid});
-   return Object.fromEntries(fields.map(k=>[k,String(line[k]).trim()]));
+   const prepared=Object.fromEntries(fields.map(k=>[k,String(line[k]).trim()]));
+   if(line.catalogueVersion!==undefined){if(!/^[a-f0-9]{32}$/.test(line.catalogueVersion))throw Error('CATALOGUE_CHANGED');prepared.catalogueVersion=line.catalogueVersion;}
+   return prepared;
   });
   if(new Set(payload.map(l=>l.prescriptionItemId)).size!==payload.length)throw Error('DUPLICATE_LINE');
  return payload;
@@ -21,12 +23,12 @@ export function createNativeSubmissionClient(rpc){
   if(!id.test(patientId||'')||!id.test(visitId||'')||!id.test(batchId||'')||!Number.isInteger(expectedRevision)||expectedRevision<0||!Array.isArray(lines)||!lines.length||lines.length>100)throw Error('INVALID_BATCH');
   const payload=prepareNativeLines(lines);
   const response=await rpc('pmc_submit_native_batch_v1',{p_patient_id:patientId,p_visit_id:visitId,p_expected_revision:expectedRevision,p_batch_id:batchId,p_lines:payload});
-  if(response.error){const message=String(response.error.message||'');throw Error(['SUBMISSION_DISABLED','CATALOG_REQUIRED','FORBIDDEN','ENCOUNTER_CHANGED','SENT_BATCH_CHANGED','SOURCE_DRAFT_REVIEW_REQUIRED','DUPLICATE_LINE','INVALID_LINE'].find(code=>message.includes(code))||'SEND_UNCERTAIN');}
+  if(response.error){const message=String(response.error.message||'');throw Error(['CATALOGUE_CHANGED','CATALOGUE_STALE','SUBMISSION_DISABLED','CATALOG_REQUIRED','FORBIDDEN','ENCOUNTER_CHANGED','SENT_BATCH_CHANGED','SOURCE_DRAFT_REVIEW_REQUIRED','DUPLICATE_LINE','INVALID_LINE'].find(code=>message.includes(code))||'SEND_UNCERTAIN');}
   const result=response.data;if(!result||result.batchId!==batchId||!Number.isInteger(result.revision)||result.revision<1||typeof result.replayed!=='boolean')throw Error('SEND_UNCERTAIN');
   return result;
  }};
 }
-export function installNativePrescriptionSubmit({getClient,getContext,getBatches,getState,isAllowed,confirmSend,onSaved}){
+export function installNativePrescriptionSubmit({getClient,getContext,getBatches,getState,isAllowed,confirmSend,beforeSubmit,onSaved}){
  let busy=false,message='',activeIdentity='';
  const client=createNativeSubmissionClient((...args)=>getClient().rpc(...args));
  const identity=()=>{const c=getContext();return JSON.stringify([c.patientId,c.visitId]);};
@@ -47,6 +49,7 @@ export function installNativePrescriptionSubmit({getClient,getContext,getBatches
   try{
    prepareNativeLines(lines);
    if(!await confirmSend(`HN ${ctx.patientId} · Visit ${ctx.visitId} · ${lines.length} ລາຍການ. ກວດຊື່ຄົນເຈັບ, ແພ້ຢາ, ຈຳນວນ ແລະ ວິທີໃຊ້ກ່ອນສົ່ງ.`))return;
+   await beforeSubmit?.();
    const current=getBatches().find(b=>b.key===batch.key);
    if(identity()!==key||!isAllowed()||JSON.stringify(current?.entries.map(e=>({...e.item})))!==snapshot)throw Error('ENCOUNTER_CHANGED');
    const result=await client.send({patientId:ctx.patientId,visitId:ctx.visitId,expectedRevision:revision,batchId:batch.key,lines});
@@ -58,7 +61,7 @@ export function installNativePrescriptionSubmit({getClient,getContext,getBatches
    message='ບັນທຶກ ແລະ ສົ່ງຫ້ອງຢາແລ້ວ; ການກວດອື່ນຍັງບໍ່ຈົບ.';onSaved?.();
   }catch(error){if(identity()===key){
    const invalidFields=formatNativeLineError(error);const detail=invalidFields?`${invalidFields} ກົດແກ້ໄຂຊຸດຢາກ່ອນສົ່ງ.`:'';
-   message=error.message==='SUBMISSION_DISABLED'?'ຍັງບໍ່ເປີດສົ່ງຢາໃນ server; ຕິດຕໍ່ IT.':error.message==='INVALID_LINE'||error.message==='CATALOG_REQUIRED'?detail||'ກວດລາຍການຢາ, ຈຳນວນ, Dose, Route, Frequency, Duration ແລະ ວິທີໃຊ້ໃຫ້ຄົບ.':'ຍັງຢືນຢັນການສົ່ງບໍ່ໄດ້; ກວດສະຖານະກ່ອນ, ຢ່າສ້າງຊຸດຢາຊ້ຳ.';
+   message=['CATALOGUE_CHANGED','CATALOGUE_STALE','CATALOG_REQUIRED'].includes(error.message)?'ລາຍການຢາ PMC ປ່ຽນ ຫຼື ໝົດອາຍຸ. ເປີດຊຸດຢາ ແລະ ເລືອກຢາໃໝ່ຈາກ PMC ກ່ອນສົ່ງ.':error.message==='CATALOGUE_UNAVAILABLE'?'ກວດລາຍການຢາ PMC ບໍ່ສຳເລັດ. ຍັງບໍ່ໄດ້ສົ່ງ; ລອງໃໝ່.':error.message==='SUBMISSION_DISABLED'?'ຍັງບໍ່ເປີດສົ່ງຢາໃນ server; ຕິດຕໍ່ IT.':error.message==='INVALID_LINE'?detail||'ກວດລາຍການຢາ, ຈຳນວນ, Dose, Route, Frequency, Duration ແລະ ວິທີໃຊ້ໃຫ້ຄົບ.':'ຍັງຢືນຢັນການສົ່ງບໍ່ໄດ້; ກວດສະຖານະກ່ອນ, ຢ່າສ້າງຊຸດຢາຊ້ຳ.';
   }}
   finally{busy=false;render();}
  }
