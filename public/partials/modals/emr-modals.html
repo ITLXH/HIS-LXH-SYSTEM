@@ -279,7 +279,7 @@
                 <div class="emr-lis-panel-title">
                   <i class="fas fa-capsules"></i>
                   <div>
-                    <strong>Drug Catalog</strong>
+                    <strong id="opdTestMedicationCatalogTitle">HIS Drug Catalog</strong>
                     <span>ຄົ້ນຫາ ຫຼື ເລືອກຢາຈາກລາຍການ</span>
                   </div>
                 </div>
@@ -307,14 +307,13 @@
               <div class="opdt-med-editor" id="opdTestMedicationStructuredEditor">
                 <div class="opdt-med-name-field">
                   <label class="form-label required" for="opdTestMedicationName">ຊື່ຢາ / Medication</label>
-                  <input class="form-control" id="opdTestMedicationName" list="opdTestMedicationNameCatalog" placeholder="ຄົ້ນຫາ ແລ້ວເລືອກຢາຈາກຝັ່ງຊ້າຍ" oninput="window.opdTestApplyMedicationPickerTemplate(this.value)">
-                  <datalist id="opdTestMedicationNameCatalog"></datalist>
-                  <small><i class="fas fa-pen"></i> ເລືອກຈາກ Drug Catalog ເພື່ອສົ່ງຫ້ອງຢາ</small>
+                  <input class="form-control" id="opdTestMedicationName" placeholder="ເລືອກຢາຈາກລາຍການຝັ່ງຊ້າຍ" readonly>
+                  <small><i class="fas fa-list"></i> ເລືອກຢາຈາກລາຍການຝັ່ງຊ້າຍ; ຊື່ຢາຈະອ້າງອີງລະຫັດຢາຂອງລະບົບ</small>
                 </div>
                 <div class="opdt-med-instruction-field">
                   <label class="form-label required" for="opdTestMedicationInstruction">ວິທີໃຊ້ / Instructions</label>
                   <input class="form-control" id="opdTestMedicationInstruction" placeholder="ຕົວຢ່າງ: ຄັ້ງລະ 1 ເມັດ, ມື້ລະ 3 ຄັ້ງ, ຫຼັງອາຫານ, 5 ມື້">
-                  <small><i class="fas fa-wand-magic-sparkles"></i> ຖ້າຢາມີ template ລະບົບຈະຕື່ມໃຫ້ອັດຕະໂນມັດ</small>
+                  <small><i class="fas fa-pen"></i> ໝໍຕ້ອງຂຽນ ແລະ ກວດວິທີໃຊ້ຂອງຄົນເຈັບກ່ອນຢືນຢັນ</small>
                 </div>
                 <details class="opdt-med-advanced" open>
                   <summary><i class="fas fa-sliders"></i>ລາຍລະອຽດສັ່ງຢາ <span>ຕ້ອງກອກໃຫ້ຄົບ</span></summary>
