@@ -23,7 +23,12 @@ vm.runInNewContext(source.slice(start, end), context);
 
 context.window.loadMasterDataGlobalCallback({
   Channel: [{ id: 1, value: 'Facebook' }, { id: 3, value: 'Walk in' }, { id: 5, value: 'ຍາດພີ່ນ້ອງແນະນຳ' }],
-  Occupation: [{ id: 2, value: 'ຄ້າຂາຍ' }, { id: 4, value: 'ເດັກ' }],
+  Occupation: [
+    { id: 2, value: 'ຄ້າຂາຍ' },
+    { id: 4, value: 'ເດັກ' },
+    { id: 6, value: 'ນັກສຶກສາ/ນັກຮຽນ' },
+    { id: 7, value: 'ນັກຮຽນ/ນັກສຶກສາ' },
+  ],
 });
 
 const channelOptions = rendered.get('.dyn-Channel');
@@ -31,9 +36,10 @@ const occupationOptions = rendered.get('.dyn-Occupation');
 for (const value of ['ສື່ໂຄສະນາ / Facebook', 'ຕິດຕາມ', 'ຍາດພີ່ນ້ອງແນະນຳ', 'ຜ່ານໂຮງໝໍອື່ນ', 'Walk in']) {
   assert.ok(channelOptions.includes(`<option value="${value}">${value}</option>`), `missing channel ${value}`);
 }
-for (const value of ['ເດັກ', 'ນັກຮຽນ/ນັກສຶກສາ', 'ພະນັກງານ', 'ປະຊາຊົນ/ອື່ນໆ', 'ຄ້າຂາຍ', 'ນັກທຸລະກິດ']) {
+for (const value of ['ເດັກ', 'ນັກສຶກສາ/ນັກຮຽນ', 'ພະນັກງານ', 'ປະຊາຊົນ/ອື່ນໆ', 'ຄ້າຂາຍ', 'ນັກທຸລະກິດ']) {
   assert.ok(occupationOptions.includes(`<option value="${value}">${value}</option>`), `missing occupation ${value}`);
 }
+assert.ok(!occupationOptions.includes('ນັກຮຽນ/ນັກສຶກສາ'), 'retired duplicate occupation must not appear');
 assert.equal((channelOptions.match(/value="Facebook"/g) || []).length, 1);
 assert.equal((channelOptions.match(/value="Walk in"/g) || []).length, 1);
 assert.equal((occupationOptions.match(/value="ຄ້າຂາຍ"/g) || []).length, 1);
