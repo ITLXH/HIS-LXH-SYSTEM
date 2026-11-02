@@ -12,7 +12,8 @@ const patientTableSource = mainSource.slice(
 
 assert.match(patientTableSource, /serverSide:\s*true/);
 assert.match(patientTableSource, /pageLength:\s*10/);
-assert.match(patientTableSource, /range\(rangeStart, rangeStart \+ pageSize - 1\)/);
+assert.match(patientTableSource, /range\(rangeStart, rangeStart \+ pageSize\)/);
+assert.doesNotMatch(patientTableSource, /count:\s*'exact'/);
 assert.match(patientTableSource, /fetchPatientVisitCountMap\(rows\.map\(row => row\.Patient_ID\)\)/);
 assert.match(patientTableSource, /searchDelay:\s*350/);
 assert.doesNotMatch(patientTableSource, /Promise\.all\(pageQueries\)/);
