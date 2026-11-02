@@ -7160,6 +7160,8 @@ window.openNewPatientModal = function () {
   window.refreshPatientOrgDropdown();
 
   $('#patientForm')[0].reset();
+  window.applyPatientLegacyChoice('p_job', '');
+  window.applyPatientLegacyChoice('p_channel', '');
   $('#p_action').val("new");
   $('#p_id').val("");
   $('#disp_p_id').val("ກຳລັງໂຫຼດ...");
@@ -7240,6 +7242,8 @@ window.editPatient = async function (id) {
     let el = document.getElementById('p_' + k) || document.getElementsByName('p_' + k)[0];
     if (el) el.value = v;
   }
+  window.applyPatientLegacyChoice('p_job', d.job);
+  window.applyPatientLegacyChoice('p_channel', d.channel);
   // DOB stored as YYYY-MM-DD; show as DD/MM/YYYY in the text input.
   $('#dobInput').val(window.dobIsoToUi(d.dob));
   // Allergy: split into drug / food / symptoms controls.
@@ -7275,6 +7279,11 @@ window.submitPatientForm = async function (e) {
   Swal.fire({ title: 'ກຳລັງບັນທຶກ...', didOpen: () => Swal.showLoading() });
   const fd = {};
   new FormData($('#patientForm')[0]).forEach((v, k) => fd[k] = v);
+  const isEdit = fd.p_action === 'edit' && fd.p_id;
+  if (isEdit) {
+    fd.p_job = window.patientFormChoiceValue(fd.p_job, document.querySelector('select[name="p_job"]'));
+    fd.p_channel = window.patientFormChoiceValue(fd.p_channel, document.querySelector('select[name="p_channel"]'));
+  }
   if (!String(fd.p_gender || '').trim()) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກເພດ', 'warning');
     return;
@@ -7283,7 +7292,6 @@ window.submitPatientForm = async function (e) {
     Swal.fire('ຂໍ້ມູນບໍ່ຄົບ', 'ກະລຸນາເລືອກຊ່ອງທາງຮູ້ຈັກ', 'warning');
     return;
   }
-  const isEdit = fd.p_action === 'edit' && fd.p_id;
   const age = parseInt(fd.p_age) || 0;
   const ageGroup = age <= 15 ? '0-15' : (age <= 35 ? '16-35' : (age <= 55 ? '36-55' : '56+'));
   // DOB UI is DD/MM/YYYY; convert to YYYY-MM-DD (or null if empty/invalid) before save.
@@ -13239,9 +13247,28 @@ window.fetchOrg = async function () {
   }
 };
 
-window._patientDropdownAdditions = {
-  Channel: ["ສື່ໂຄສະນາ / Facebook", "ຕິດຕາມ", "ຜ່ານໂຮງໝໍອື່ນ", "Walk in"],
-  Occupation: ["ເດັກ", "ພະນັກງານ", "ປະຊາຊົນ/ອື່ນໆ", "ນັກທຸລະກິດ"],
+window._patientDropdownOptions = {
+  Channel: ["ສື່ໂຄສະນາ / facebook", "ຕິດຕາມ", "ຍາດພີ່ນ້ອງແນະນຳ", "ຜ່ານໂຮງໝໍອື່ນ", "walk in"],
+  Occupation: ["ເດັກ", "ນັກຮຽນ/ນັກສຶກສາ", "ພະນັກງານ", "ປະຊາຊົນ/ອື່ນໆ", "ຄ້າຂາຍ", "ນັກທຸລະກິດ"],
+};
+
+window.applyPatientLegacyChoice = function (field, storedValue) {
+  const select = document.querySelector(`select[name="${field}"]`);
+  const note = document.getElementById(`${field}_legacy`);
+  if (!select) return;
+  const value = String(storedValue || '').trim();
+  const current = [...select.options].some(option => option.value === value);
+  const legacy = value && !current ? value : '';
+  select.value = current ? value : '';
+  select.dataset.legacyValue = legacy;
+  if (field === 'p_channel') select.required = !legacy;
+  if (note) {
+    note.textContent = legacy ? `ຄ່າເກົ່າ: ${legacy} — ຈະເກັບໄວ້ຈົນກວ່າເລືອກຄ່າໃໝ່` : '';
+    note.hidden = !legacy;
+  }
+};
+window.patientFormChoiceValue = function (formValue, select) {
+  return String(formValue || '').trim() || select?.dataset?.legacyValue || '';
 };
 
 window._masterDataFallback = {
@@ -13249,9 +13276,9 @@ window._masterDataFallback = {
   Gender: ["ຊາຍ","ຍິງ","ອື່ນໆ"],
   BloodType: ["A+","A-","B+","B-","AB+","AB-","O+","O-"],
   Nationality: ["ລາວ","ໄທ","ຈີນ","ຫວຽດນາມ","ກຳປູເຈຍ","ມຽນມາ","ສິງກະໂປ","ມາເລເຊຍ","ຍີ່ປຸ່ນ","ເກົາຫຼີ","ອັງກິດ","ອາເມລິກາ","ຝຣັ່ງ","ອື່ນໆ"],
-  Occupation: ["ພະນັກງານລັດ","ພະນັກງານເອກະຊົນ","ທຸລະກິດສ່ວນຕົວ","ຊາວນາ","ນັກສຶກສາ","ຄ້າຂາຍ","ທ່ອງທ່ຽວ","ຫວ່າງງານ","ອື່ນໆ", ...window._patientDropdownAdditions.Occupation],
+  Occupation: window._patientDropdownOptions.Occupation,
   Shift: ["ເຊົ້າ (08:00-16:00)","ແລງ (16:00-24:00)","ດຶກ (00:00-08:00)"],
-  Channel: ["ໂທລະສັບ","ສອດ","Facebook","Line","ຍາດພີ່ນ້ອງແນະນຳ","ຜ່ານ ຮພ. ອື່ນ","ສື່ໂຄສະນາ","ອື່ນໆ", ...window._patientDropdownAdditions.Channel],
+  Channel: window._patientDropdownOptions.Channel,
   InsCompany: ["ບໍ່ມີ","LSMI","PVI","Axa","Prudential","Allianz","BCEL-AXA","ອື່ນໆ"],
   Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
   ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup","First Aid Training","Home Care"],
@@ -13266,14 +13293,11 @@ window.loadMasterDataGlobalCallback = function (data) {
   let missingCategories = [];
   ['Department', 'ServiceDepartment', 'Shift', 'Title', 'Gender', 'Nationality', 'Occupation', 'BloodType', 'InsCompany', 'Channel', 'Doctor', 'Nurse', 'Site', 'PatientType_InSite', 'PatientType_Onsite', 'DrugUnit', 'DrugUsage', 'LabCategory', 'EmergencyRelation'].forEach(c => {
     let o = '<option value="">-- ເລືອກ --</option>';
-    const sourceData = masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
-    if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
+    const fixedChoices = window._patientDropdownOptions[c];
+    const sourceData = fixedChoices ? fixedChoices.map(value => ({ value })) : masterDataStore[c] || (window._masterDataFallback[c] ? window._masterDataFallback[c].map(v => ({ value: v })) : null);
+    if (!fixedChoices && !masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
     if (sourceData) {
-      const existingValues = new Set(sourceData.map(i => String(i.value || '').trim().toLowerCase()));
-      const options = [...sourceData.filter(i => c !== 'Occupation' || i.value !== 'ນັກຮຽນ/ນັກສຶກສາ'), ...(window._patientDropdownAdditions[c] || [])
-        .filter(value => !existingValues.has(value.toLowerCase()))
-        .map(value => ({ value }))];
-      options.forEach(i => {
+      sourceData.forEach(i => {
         const safeValue = window.escapeEmrPickerHtml(i.value);
         o += `<option value="${safeValue}">${safeValue}</option>`;
       });
