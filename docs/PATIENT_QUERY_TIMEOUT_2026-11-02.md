@@ -1,0 +1,11 @@
+# Patient registry timeout repair — 2026-11-02
+
+The supplied production PostgreSQL screenshot shows 17 SQLSTATE 57014 statement timeouts between 17:00 and 18:00 Bangkok. The authenticated Gateway dashboard for that fixed window shows 17 failed GET requests to `HIS_One_Patients`. These are correlated layers, not 34 distinct failures. Query shapes include unfiltered registry loads and successive partial global search strings, selecting the registry projection and sorting Patient_ID descending with offset 0/limit 10. No patient search values or raw log payloads are retained here.
+
+Current main e7d736c requests an exact count with each registry page, uses seven-column contains filters even for full HNs, and does not cancel superseded reads. Existing searchDelay on DataTables 1.13 does not provide a trailing-only debounce. The older isolated registry fix was not present on main.
+
+The repair uses one bounded lookahead row to enable Next without an exact aggregate or a parallel total-count query. The UI uses Previous/Next and shows the displayed range, never an invented overall total. It retains complete pagination and existing filters, specializes full HN searches to identifier equality, cancels superseded reads, rejects stale-session responses and retains a successful page only when its full filter/page scope matches. Global typing is debounced, including IME handling. No authorization policies, database settings, indexes or clinical rows are changed.
+
+Validation: executable synthetic registry checks cover HN variants, legacy IDs, Lao names, phone/date filters, lookahead pagination, cancellation, failure preservation, session boundaries, no exact counts, rapid typing and IME composition. All 23 non-runtime package test suites, protected file client check and production build passed. The six-case local workerd test also passed without external requests.
+
+Limits: these checks do not measure production query latency, inspect live query plans/indexes/locks, or establish that every timeout is resolved. Very broad contains searches and deep offset pages may still need a separately measured database optimization. The visible billing grace-period banner is a separate quota warning; its presence does not prove quota exhaustion caused these timeouts. No timeout limits were raised and no anonymous access was enabled.
