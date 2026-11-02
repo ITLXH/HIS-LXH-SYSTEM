@@ -13241,7 +13241,7 @@ window.fetchOrg = async function () {
 
 window._patientDropdownAdditions = {
   Channel: ["ສື່ໂຄສະນາ / Facebook", "ຕິດຕາມ", "ຜ່ານໂຮງໝໍອື່ນ", "Walk in"],
-  Occupation: ["ເດັກ", "ນັກຮຽນ/ນັກສຶກສາ", "ພະນັກງານ", "ປະຊາຊົນ/ອື່ນໆ", "ນັກທຸລະກິດ"],
+  Occupation: ["ເດັກ", "ພະນັກງານ", "ປະຊາຊົນ/ອື່ນໆ", "ນັກທຸລະກິດ"],
 };
 
 window._masterDataFallback = {
@@ -13270,7 +13270,7 @@ window.loadMasterDataGlobalCallback = function (data) {
     if (!masterDataStore[c] && window._masterDataFallback[c]) missingCategories.push(c);
     if (sourceData) {
       const existingValues = new Set(sourceData.map(i => String(i.value || '').trim().toLowerCase()));
-      const options = [...sourceData, ...(window._patientDropdownAdditions[c] || [])
+      const options = [...sourceData.filter(i => c !== 'Occupation' || i.value !== 'ນັກຮຽນ/ນັກສຶກສາ'), ...(window._patientDropdownAdditions[c] || [])
         .filter(value => !existingValues.has(value.toLowerCase()))
         .map(value => ({ value }))];
       options.forEach(i => {
