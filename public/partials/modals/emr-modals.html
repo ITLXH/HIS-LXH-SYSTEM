@@ -300,7 +300,7 @@
                   <i class="fas fa-file-prescription"></i>
                   <div>
                     <strong id="opdTestMedicationEditorTitle">Add Medication</strong>
-                    <span>ເລືອກຢາຈາກລາຍການ ແລະ ກອກລາຍລະອຽດໃຫ້ຄົບ</span>
+                    <span>ເລືອກຢາ → ຂຽນວິທີໃຊ້ → ປ້ອນຈຳນວນ</span>
                   </div>
                 </div>
               </div>
@@ -312,19 +312,22 @@
                 </div>
                 <div class="opdt-med-instruction-field">
                   <label class="form-label required" for="opdTestMedicationInstruction">ວິທີໃຊ້ / Instructions</label>
-                  <input class="form-control" id="opdTestMedicationInstruction" placeholder="ຕົວຢ່າງ: ຄັ້ງລະ 1 ເມັດ, ມື້ລະ 3 ຄັ້ງ, ຫຼັງອາຫານ, 5 ມື້">
-                  <small><i class="fas fa-pen"></i> ໝໍຕ້ອງຂຽນ ແລະ ກວດວິທີໃຊ້ຂອງຄົນເຈັບກ່ອນຢືນຢັນ</small>
+                  <input class="form-control" id="opdTestMedicationInstruction" list="opdTestMedicationDirections" maxlength="1000" autocomplete="off" aria-describedby="opdTestMedicationInstructionHelp" placeholder="ເລືອກວິທີໃຊ້ ຫຼື ພິມເອງ">
+                  <datalist id="opdTestMedicationDirections"></datalist>
+                  <small id="opdTestMedicationInstructionHelp"><i class="fas fa-pen"></i> ເລືອກຈາກລາຍການເດີມ ຫຼື ພິມເອງ; ໝໍຕ້ອງລະບຸວິທີໃຊ້ໃຫ້ຄົບ ແລະ ກວດກ່ອນຢືນຢັນ</small>
                 </div>
-                <details class="opdt-med-advanced" open>
-                  <summary><i class="fas fa-sliders"></i>ລາຍລະອຽດສັ່ງຢາ <span>ຕ້ອງກອກໃຫ້ຄົບ</span></summary>
-                  <div class="opdt-med-fields-grid">
-                    <div><label class="form-label required" for="opdTestMedicationDose">Dose (ຕົວເລກ)</label><input class="form-control" id="opdTestMedicationDose" inputmode="decimal" aria-describedby="opdTestMedicationDoseHelp" placeholder="ກອກຕົວເລກ"><small id="opdTestMedicationDoseHelp">ລະບຸຫົວໜ່ວຍຂອງ Dose ໃນວິທີໃຊ້ໃຫ້ຊັດເຈນ.</small></div>
-                    <div><label class="form-label required" for="opdTestMedicationRoute">Route</label><select class="form-select" id="opdTestMedicationRoute"><option value="">--</option><option value="PO">PO</option><option value="IV">IV</option><option value="IM">IM</option><option value="SC">SC</option><option value="Topical">Topical</option><option value="Inhaled">Inhaled</option></select></div>
-                    <div><label class="form-label required" for="opdTestMedicationFrequency">Frequency</label><select class="form-select" id="opdTestMedicationFrequency"><option value="">--</option><option value="OD">OD</option><option value="BID">BID</option><option value="TID">TID</option><option value="QID">QID</option><option value="PRN">PRN</option><option value="STAT">STAT</option><option value="Once">Once</option></select></div>
-                    <div><label class="form-label required" for="opdTestMedicationDuration">Duration</label><input class="form-control" id="opdTestMedicationDuration" placeholder="5 days / Continuous"></div>
-                    <div><label class="form-label required" for="opdTestMedicationQuantity">Qty</label><input class="form-control" id="opdTestMedicationQuantity" inputmode="numeric" placeholder="15"></div>
+                <div class="row g-3">
+                  <div class="col-sm-6"><label class="form-label" for="opdTestMedicationUnit">ຫົວໜ່ວຍ</label><input class="form-control" id="opdTestMedicationUnit" readonly placeholder="ຈາກລາຍການຢາ"></div>
+                  <div class="col-sm-6"><label class="form-label required" for="opdTestMedicationQuantity">ຈຳນວນ</label><input type="number" min="0.000001" step="any" class="form-control" id="opdTestMedicationQuantity" inputmode="decimal" placeholder="ປ້ອນຈຳນວນ"></div>
+                </div>
+                <details id="opdTestMedicationLegacyDetails" hidden>
+                  <summary>ລາຍລະອຽດຂອງຄຳສັ່ງຢາເດີມ</summary>
+                  <div class="row g-2">
+                    <div class="col-sm-3"><label for="opdTestMedicationDose">Dose</label><input class="form-control" id="opdTestMedicationDose"></div>
+                    <div class="col-sm-3"><label for="opdTestMedicationRoute">Route</label><input class="form-control" id="opdTestMedicationRoute"></div>
+                    <div class="col-sm-3"><label for="opdTestMedicationFrequency">Frequency</label><input class="form-control" id="opdTestMedicationFrequency"></div>
+                    <div class="col-sm-3"><label for="opdTestMedicationDuration">Duration</label><input class="form-control" id="opdTestMedicationDuration"></div>
                   </div>
-                  <button type="button" class="opdt-med-build-instruction" onclick="window.opdTestBuildInstructionFromDetails()"><i class="fas fa-arrow-up"></i>ນຳລາຍລະອຽດໄປສ້າງວິທີໃຊ້</button>
                 </details>
                 <div class="opdt-med-editor-actions">
                   <button type="button" class="btn btn-outline-secondary btn-sm" id="opdTestMedicationCancelEditBtn" onclick="window.opdTestResetMedicationEditor()" hidden><i class="fas fa-times me-1"></i>ຍົກເລີກແກ້ໄຂ</button>

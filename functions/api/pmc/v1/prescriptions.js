@@ -49,12 +49,21 @@ export async function onRequestGet({ request, env }) {
       const lineId = text(source.prescriptionItemId || source.localMedicationId);
       if (lineId && seen.has(lineId)) return fail(409, 'Duplicate prescription line identity');
       if (lineId) seen.add(lineId);
+      const catalogue = {};
+      for (const key of ['sourceDrugId', 'unitCode', 'catalogueVersion']) {
+        if (source[key] == null || (typeof source[key] === 'string' && !source[key].trim())) continue;
+        const value = text(source[key]);
+        if (typeof source[key] !== 'string' || (key === 'catalogueVersion' ? !/^[a-f0-9]{32}$/.test(value)
+          : key === 'sourceDrugId' ? !/^[A-Za-z0-9._:-]{1,120}$/.test(value) : !value || value.length > 160)) return fail(409, 'Invalid catalogue metadata');
+        catalogue[key] = value;
+      }
       const holds = ['ITEM_MAPPING_REQUIRED', 'UNIT_MAPPING_REQUIRED', 'SOURCE_CONFIRMATION_REQUIRED'];
       if (!identifier(lineId)) holds.push('STABLE_LINE_ID_REQUIRED');
       if (!text(source.instructions)) holds.push('PRESCRIBER_INSTRUCTIONS_REQUIRED');
       const quantity = text(source.quantity);
       if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,6})?$/.test(quantity) || Number(quantity) <= 0) holds.push('QUANTITY_REVIEW_REQUIRED');
       lines.push({ lineId: identifier(lineId) ? lineId : null,
+        ...catalogue,
         batchId: text(source.prescriptionBatchId || source.batchId) || null,
         medicineName: text(source.name), instructions: text(source.instructions),
         dose: text(source.dose), route: text(source.route), frequency: text(source.frequency),
