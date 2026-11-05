@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:simple-medication": "node scripts/test-simple-medication.mjs && node scripts/test-native-submission-client.mjs",
+    "test:simple-medication": "node scripts/test-simple-medication.mjs && node scripts/test-medication-directions.mjs && node scripts/test-native-submission-client.mjs",
     "test:patient-registry": "node scripts/test-patient-registry-search.mjs",
     "test:result-toast": "node scripts/test-result-toast.mjs",
     "test:external-results": "node scripts/test-external-clinical-results.mjs && node scripts/test-connected-result-client.mjs",

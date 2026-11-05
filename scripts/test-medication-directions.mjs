@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import {medicationDirectionOptions} from '../src/medicationDirections.js';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const entries=[{value:'  Synthetic directions A  '},{value:'Synthetic directions A'},{value:'Synthetic directions B'},null,{value:''},{value:12},{value:'x'.repeat(1001)}];
+assert.deepEqual(medicationDirectionOptions(entries),['Synthetic directions A','Synthetic directions B']);
+assert.deepEqual(medicationDirectionOptions(undefined),[],'No invented clinical defaults');
+assert.deepEqual(medicationDirectionOptions([{value:'<synthetic>'}]),['<synthetic>'],'Options remain text, not HTML');
+console.log('PASS saved direction choices, deduplication, limits and no automatic prescription');
+
+const source = readFileSync('src/main.js', 'utf8');
+const html = readFileSync('public/partials/modals/emr-modals.html', 'utf8');
+const typed = {value: 'Custom synthetic directions', style: {display: ''}};
+const list = {replaceChildren(...options) {this.options = options;}};
+const masterDataStore = {DrugUsage: entries};
+const window = {};
+const document = {getElementById(id) {return id === 'opdTestMedicationDirections' ? list : typed;}};
+const context = vm.createContext({window, document, masterDataStore, medicationDirectionOptions,
+  Option: function(text, value) {this.text = text; this.value = value;}
+});
+const start = source.indexOf('window.opdTestPopulateMedicationDirections = function');
+assert.ok(start >= 0);
+vm.runInContext(source.slice(start, source.indexOf('\n};', start) + 3), context);
+window.opdTestPopulateMedicationDirections();
+assert.deepEqual(list.options.map(option => option.value), ['Synthetic directions A', 'Synthetic directions B']);
+assert.equal(typed.value, 'Custom synthetic directions', 'Refreshing master choices must not replace patient instructions');
+masterDataStore.DrugUsage = [{value:'<synthetic>'}];
+window.opdTestPopulateMedicationDirections();
+assert.equal(list.options[0].text, '<synthetic>');
+masterDataStore.DrugUsage = [];
+window.opdTestPopulateMedicationDirections();
+assert.equal(list.options.length, 0);
+assert.equal(typed.value, 'Custom synthetic directions');
+assert.match(html, /id="opdTestMedicationInstruction" list="opdTestMedicationDirections"/);
+assert.match(html, /<datalist id="opdTestMedicationDirections"><\/datalist>/);
+assert.match(source, /window\.opdTestOpenMedicationPicker = async function[^]*?window\.opdTestPopulateMedicationDirections\(\)/);
+const keyStart = source.indexOf('window.opdTestKeyHandler = function');
+vm.runInContext(source.slice(keyStart, source.indexOf('\n};', keyStart) + 3), context);
+let prevented = false, added = 0;
+window.opdTestSaveMedicationDraftItem = () => added++;
+window.opdTestKeyHandler({key:'Enter', ctrlKey:false, target:{id:'opdTestMedicationInstruction'}, preventDefault(){prevented = true;}});
+assert.equal(prevented, false, 'Enter must remain available for dropdown selection');
+assert.equal(added, 0, 'Selecting directions must not add a medication');
+window.opdTestKeyHandler({key:'Enter', ctrlKey:false, target:{id:'opdTestMedicationQuantity'}, preventDefault(){prevented = true;}});
+assert.equal(prevented, true);
+assert.equal(added, 1, 'Keep the existing quantity shortcut');
+console.log('PASS actual picker uses master choices, keeps manual instructions and allows dropdown Enter selection');

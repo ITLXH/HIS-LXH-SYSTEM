@@ -1,4 +1,5 @@
 import { installNativePrescriptionSubmit, prepareNativeLines, formatNativeLineError } from './nativePrescriptionSubmit.js';
+import { medicationDirectionOptions } from './medicationDirections.js';
 import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
 import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
 import JsBarcode from 'jsbarcode';
@@ -24081,6 +24082,11 @@ window.opdTestFilterMedicationCatalog = function (query) {
   window.opdTestRenderMedicationPickerCatalog(query);
 };
 
+window.opdTestPopulateMedicationDirections = function () {
+  const list = document.getElementById('opdTestMedicationDirections');
+  if (list) list.replaceChildren(...medicationDirectionOptions(masterDataStore.DrugUsage).map(value => new Option(value, value)));
+};
+
 window.opdTestMedicationInstructionText = function (medication = {}) {
   const parts = [
     medication.dose,
@@ -24277,6 +24283,7 @@ window.opdTestSaveMedicationDraftItem = async function () {
 
 window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   if (window.opdTestState.locked) return;
+  window.opdTestPopulateMedicationDirections();
   const requestedIndex = Number(editIndex);
   const editBatch = Number.isInteger(requestedIndex) && requestedIndex >= 0
     ? window.opdTestMedicationBatchForIndex(requestedIndex)
@@ -25693,11 +25700,6 @@ window.opdTestKeyHandler = function (event) {
     return;
   }
   if (!event.ctrlKey && event.key === 'Enter' && event.target?.id === 'opdTestMedicationQuantity') {
-    event.preventDefault();
-    window.opdTestSaveMedicationDraftItem();
-    return;
-  }
-  if (!event.ctrlKey && event.key === 'Enter' && event.target?.id === 'opdTestMedicationInstruction') {
     event.preventDefault();
     window.opdTestSaveMedicationDraftItem();
     return;

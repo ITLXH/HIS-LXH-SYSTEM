@@ -312,8 +312,9 @@
                 </div>
                 <div class="opdt-med-instruction-field">
                   <label class="form-label required" for="opdTestMedicationInstruction">ວິທີໃຊ້ / Instructions</label>
-                  <input class="form-control" id="opdTestMedicationInstruction" placeholder="ຕົວຢ່າງ: ຄັ້ງລະ 1 ເມັດ, ມື້ລະ 3 ຄັ້ງ, ຫຼັງອາຫານ, 5 ມື້">
-                  <small><i class="fas fa-pen"></i> ໝໍຕ້ອງຂຽນ ແລະ ກວດວິທີໃຊ້ຂອງຄົນເຈັບກ່ອນຢືນຢັນ</small>
+                  <input class="form-control" id="opdTestMedicationInstruction" list="opdTestMedicationDirections" maxlength="1000" autocomplete="off" aria-describedby="opdTestMedicationInstructionHelp" placeholder="ເລືອກວິທີໃຊ້ ຫຼື ພິມເອງ">
+                  <datalist id="opdTestMedicationDirections"></datalist>
+                  <small id="opdTestMedicationInstructionHelp"><i class="fas fa-pen"></i> ເລືອກຈາກລາຍການເດີມ ຫຼື ພິມເອງ; ໝໍຕ້ອງລະບຸວິທີໃຊ້ໃຫ້ຄົບ ແລະ ກວດກ່ອນຢືນຢັນ</small>
                 </div>
                 <div class="row g-3">
                   <div class="col-sm-6"><label class="form-label" for="opdTestMedicationUnit">ຫົວໜ່ວຍ</label><input class="form-control" id="opdTestMedicationUnit" readonly placeholder="ຈາກລາຍການຢາ"></div>
