@@ -23976,10 +23976,8 @@ window.opdTestConfirmMedicationOrder = async function (medication, options = {})
       ${duplicateNote}
       <div class="opdt-confirm-medication-name"><i class="fas fa-pills"></i> ${window.opdTestHtml(medication.name)}</div>
       <dl class="opdt-confirm-medication-grid">
-        <div><dt>Dose</dt><dd>${window.opdTestHtml(medication.dose)}</dd></div>
-        <div><dt>Route</dt><dd>${window.opdTestHtml(medication.route)}</dd></div>
-        <div><dt>Frequency</dt><dd>${window.opdTestHtml(medication.frequency)}</dd></div>
-        <div><dt>Duration</dt><dd>${window.opdTestHtml(medication.duration)}</dd></div>
+        <div><dt>ວິທີໃຊ້</dt><dd>${window.opdTestHtml(medication.instructions)}</dd></div>
+        <div><dt>ຫົວໜ່ວຍ</dt><dd>${window.opdTestHtml(medication.unitCode || "—")}</dd></div>
         <div><dt>Quantity</dt><dd>${window.opdTestHtml(medication.quantity)}</dd></div>
       </dl>
     </div>`,
@@ -24094,9 +24092,12 @@ window.opdTestMedicationInstructionText = function (medication = {}) {
 };
 
 window.opdTestSetMedicationEditorValues = function (medication = {}) {
-  window.opdTestMedicationPickerSelectedDrug = medication.sourceDrugId ? {id: medication.sourceDrugId, name: medication.name, catalogueVersion: medication.catalogueVersion} : null;
+  const legacyDetails = document.getElementById('opdTestMedicationLegacyDetails');
+  if (legacyDetails) legacyDetails.hidden = !['dose','route','frequency','duration'].some(key => String(medication[key] || '').trim());
+  window.opdTestMedicationPickerSelectedDrug = medication.sourceDrugId ? {id: medication.sourceDrugId, name: medication.name, unitCode: medication.unitCode, catalogueVersion: medication.catalogueVersion} : null;
   const values = {
     opdTestMedicationName: medication.name,
+    opdTestMedicationUnit: medication.unitCode,
     opdTestMedicationInstruction: medication.instructions || medication.instr || window.opdTestMedicationInstructionText(medication),
     opdTestMedicationDose: medication.dose,
     opdTestMedicationRoute: medication.route,
@@ -24145,6 +24146,7 @@ window.opdTestSelectMedicationCatalog = function (index) {
   window.opdTestSetMedicationEditorValues({
     name: item.name,
     sourceDrugId: item.id,
+    unitCode: item.unitCode || item.desc || '',
     catalogueVersion: item.catalogueVersion
   });
   document.getElementById('opdTestMedicationInstruction')?.focus();
@@ -24161,7 +24163,7 @@ window.opdTestRenderMedicationPickerDraft = function () {
       const isFreeText = item.isFreeText || Boolean(item.freeText);
       const detail = isFreeText
         ? `<span class="opdt-med-free-text">${window.opdTestHtml(item.freeText || item.name)}</span><small class="opdt-med-text-badge"><i class="fas fa-align-left"></i> Free text ຂອງໝໍ</small>`
-        : `<strong>${window.opdTestHtml(item.name)}</strong><span>${window.opdTestHtml(item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '-')}</span>`;
+        : `<strong>${window.opdTestHtml(item.name)}</strong><span>${window.opdTestHtml(item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '-')}</span><small>${window.opdTestHtml(item.quantity)} ${window.opdTestHtml(item.unitCode || '')}</small>`;
       return `<div class="opdt-med-draft-item${window.opdTestMedicationPickerEditingIndex === index ? ' is-editing' : ''}${isFreeText ? ' is-free-text' : ''}">
         <div class="opdt-med-draft-number">${index + 1}</div>
         <div class="opdt-med-draft-main">
@@ -24221,11 +24223,12 @@ window.opdTestSaveMedicationDraftItem = async function () {
   }
   const selected = window.opdTestMedicationPickerSelectedDrug;
   medication.sourceDrugId = selected?.name === medication.name ? selected.id : '';
+  medication.unitCode = selected?.name === medication.name ? String(selected.unitCode || '').trim() : '';
   if (selected?.catalogueVersion) medication.catalogueVersion = selected.catalogueVersion;
   try {
     prepareNativeLines([{ ...medication, prescriptionItemId: 'DRAFT' }]);
   } catch (error) {
-    const controls = { sourceDrugId: 'Name', name: 'Name', instructions: 'Instruction', quantity: 'Quantity', dose: 'Dose', route: 'Route', frequency: 'Frequency', duration: 'Duration' };
+    const controls = { sourceDrugId: 'Name', unitCode: 'Unit', name: 'Name', instructions: 'Instruction', quantity: 'Quantity', dose: 'Dose', route: 'Route', frequency: 'Frequency', duration: 'Duration' };
     const control = document.getElementById(`opdTestMedication${controls[error.fields?.[0]] || 'Name'}`);
     const details = control?.closest('details');
     if (details) details.open = true;

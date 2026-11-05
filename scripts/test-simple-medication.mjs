@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {prepareNativeLines} from '../src/nativePrescriptionSubmit.js';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const simple={prescriptionItemId:'SYN-L',sourceDrugId:'SYN-D',name:'Synthetic medicine',instructions:'Synthetic directions only',quantity:'0.5',unitCode:'TAB'};
+const [line]=prepareNativeLines([simple]);
+assert.equal(line.instructions,simple.instructions);
+assert.equal(line.unitCode,'TAB');
+for(const field of ['dose','route','frequency','duration'])assert.equal(line[field],'','Do not invent clinical directions');
+assert.throws(()=>prepareNativeLines([{...simple,unitCode:''}]),/INVALID_LINE/);
+for(const quantity of ['0','-1','NaN','1e3'])assert.throws(()=>prepareNativeLines([{...simple,quantity}]),/INVALID_LINE/);
+assert.throws(()=>prepareNativeLines([{...simple,instructions:''}]),/INVALID_LINE/);
+assert.throws(()=>prepareNativeLines([{...simple,dose:'1'}]),/INVALID_LINE/,'partially structured legacy prescriptions must still fail');
+const structured={...simple,dose:'1',route:'TEST',frequency:'TEST',duration:'TEST'};
+assert.equal(prepareNativeLines([structured])[0].dose,'1');
+console.log('PASS instruction-only medication, catalogue unit, positive quantity and legacy validation');
+const source=readFileSync('src/main.js','utf8');
+const nodes=new Map();const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{value:'',focus(){}});return nodes.get(id);}};
+const window={opdTestMedicationPickerCatalog:[{id:'SYN-D',name:'Synthetic',unitCode:'TAB'}]};
+const context=vm.createContext({window,document});
+for(const name of ['opdTestMedicationInstructionText','opdTestSetMedicationEditorValues','opdTestSelectMedicationCatalog']){
+ const start=source.indexOf(`window.${name} = function`),end=source.indexOf('\n};',start)+3;
+ vm.runInContext(source.slice(start,end),context);
+}
+window.opdTestSelectMedicationCatalog(0);
+assert.equal(nodes.get('opdTestMedicationUnit').value,'TAB');
+assert.equal(window.opdTestMedicationPickerSelectedDrug.unitCode,'TAB');
+assert.equal(nodes.get('opdTestMedicationDose').value,'');
+assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,true);
+window.opdTestSetMedicationEditorValues({name:'Legacy',dose:'1',route:'TEST',frequency:'TEST',duration:'TEST'});
+assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,false);
+assert.equal(nodes.get('opdTestMedicationDose').value,'1');
+const html=readFileSync('public/partials/modals/emr-modals.html','utf8');
+assert.match(html,/id="opdTestMedicationUnit" readonly/);
+assert.match(html,/id="opdTestMedicationLegacyDetails" hidden/);
+console.log('PASS actual picker fills unit, leaves clinical dose unset and preserves legacy editing');
