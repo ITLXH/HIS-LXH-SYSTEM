@@ -47,7 +47,7 @@ export async function onRequestPost({ request, env }, fetcher = fetch) {
     const result = await fetcher(new URL('/rest/v1/rpc/pmc_record_order_receipt_v1', db), {
       method: 'POST', headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, 'content-type': 'application/json' },
       body: JSON.stringify({ p_event_id: input.eventId, p_patient_id: input.patientId, p_visit_id: input.visitId, p_revision: input.revision }),
-      redirect: 'error', signal: AbortSignal.timeout(10000)
+      redirect: 'manual', signal: AbortSignal.timeout(10000)
     });
     if (!result.ok) return reply(result.status === 409 ? 409 : 503, { error: 'RECEIPT_UNAVAILABLE' });
     const saved = await result.json();
