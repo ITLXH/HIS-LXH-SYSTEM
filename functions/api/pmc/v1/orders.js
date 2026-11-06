@@ -37,7 +37,9 @@ export async function onRequestGet({ request, env }) {
       const completed=lines.every((line,i)=>statuses[i]==='dispensed'&&line.dispensedAt&&line.dispensedBy);
       const status=completed?'COMPLETED':statuses.every(s=>['rejected','cancelled','canceled'].includes(s))?'FAILED':statuses.every(s=>['accepted','preparing','ready','dispensed'].includes(s))?'ACCEPTED':'INCOMPLETE';
       const doctors=[...new Set(lines.map(line=>String(line.prescribedBy||visit.Doctor_Name||'').trim()).filter(Boolean))].join(', ');
-      rows.push({patientId:visit.Patient_ID,visitId:visit.Visit_ID,patientName:String(visit.Patient_Name||'').slice(0,300),doctorName:doctors.slice(0,300),orderedAt:String(visit.Date||'').slice(0,60),revision:visit.EMR_Revision,lineCount:lines.length,status,submissionState,prescriptionFingerprint});
+      const detailsValid=lines.every(line=>['name','instructions','unitCode'].every(key=>line[key]==null||(typeof line[key]==='string'&&line[key].length<=2000))&&(line.quantity==null||(['string','number'].includes(typeof line.quantity)&&String(line.quantity).length<=2000)));
+      const details=detailsValid?lines.map(line=>({medicineName:String(line.name||'').trim(),instructions:String(line.instructions||'').trim(),unitCode:String(line.unitCode||'').trim(),quantity:String(line.quantity||'').trim()})):undefined;
+      rows.push({patientId:visit.Patient_ID,visitId:visit.Visit_ID,patientName:String(visit.Patient_Name||'').slice(0,300),doctorName:doctors.slice(0,300),orderedAt:String(visit.Date||'').slice(0,60),revision:visit.EMR_Revision,lineCount:lines.length,status,submissionState,prescriptionFingerprint,...(details?{lines:details}:{})});
     }
     // Aggregate RLS-visible page counts only; never identities, credentials or prescriptions.
     console.info('HIS_PMC_QUEUE',JSON.stringify({scanned:Math.min(visits.length,20),medicationVisits,unconfirmedMedicationVisits,returned:rows.length,hasMore:visits.length>20}));
