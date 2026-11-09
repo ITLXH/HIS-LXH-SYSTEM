@@ -3,7 +3,7 @@ import { medicationDirectionOptions } from './medicationDirections.js';
 import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
 import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
 import JsBarcode from 'jsbarcode';
-import { countDashboardIpdAdmissions, applyDashboardDischargeMovements } from './dashboardIpdAdmissions.js';
+import { countDashboardIpdAdmissions } from './dashboardIpdAdmissions.js';
 import { installConnectedResults } from './connectedClinicalResults.js';
 import { installResultToasts } from './clinicalResultToasts.js';
 import { createOnlinePresence } from './onlinePresence.js';
@@ -5057,7 +5057,8 @@ window.fetchDashboardData = async function (rangeType) {
     while (true) {
       const { data: chunk, error } = await supabaseClient
         .from(dbTable('Admissions'))
-        .select('Admission_ID,Admission_Date,Admission_Time,Discharge_Date,Discharge_Time,Status')
+        .select('Admission_ID,Admission_Date,Admission_Time,Status')
+        .gte('Admission_Date', sDate)
         .lte('Admission_Date', eDate)
         .order('Admission_Date', { ascending: true })
         .order('Admission_ID', { ascending: true })
@@ -5067,29 +5068,7 @@ window.fetchDashboardData = async function (rangeType) {
       if (!chunk || chunk.length < 1000) break;
       admissionStart += 1000;
     }
-    const undatedClosedIds = admissions
-      .filter(a => !a.Discharge_Date && ['discharged', 'discharge', 'closed', 'transferred out'].includes(String(a.Status || '').trim().toLowerCase()))
-      .map(a => a.Admission_ID);
-    const dischargeMovements = [];
-    for (let i = 0; i < undatedClosedIds.length; i += 100) {
-      let movementStart = 0;
-      while (true) {
-        const { data: chunk, error } = await supabaseClient
-          .from(dbTable('Bed_Movements'))
-          .select('IPD_Admission_ID,Movement_Datetime')
-          .in('IPD_Admission_ID', undatedClosedIds.slice(i, i + 100))
-          .eq('Movement_Type', 'Cleaning')
-          .order('Movement_Datetime', { ascending: true })
-          .range(movementStart, movementStart + 999);
-        if (error) throw error;
-        dischargeMovements.push(...(chunk || []));
-        if (!chunk || chunk.length < 1000) break;
-        movementStart += 1000;
-      }
-    }
-    applyDashboardDischargeMovements(admissions, dischargeMovements,
-      value => window.getLocalStr(new Date(value)), value => new Date(value).toTimeString().slice(0, 5));
-    const ipdAdmissionCount = countDashboardIpdAdmissions(admissions, sDate, eDate, activeShiftType);
+    const ipdAdmissionCount = countDashboardIpdAdmissions(admissions, sDate, eDate, activeShiftType, window.getDashShiftBucket);
 
     console.log(`Dashboard Data Loaded: ${data.length} records for range ${sDate} to ${eDate} and shift ${activeShiftType}`);
 
