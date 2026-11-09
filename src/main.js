@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode';
+import { countDashboardIpdAdmissions } from './dashboardIpdAdmissions.js';
 import { createOnlinePresence } from './onlinePresence.js';
 import { fitPatientStickerNames } from './patientStickerName.js';
 import { preparePatientStickerPrint, finishPatientStickerPrint } from './patientStickerPrint.js';
@@ -5061,6 +5062,26 @@ window.fetchDashboardData = async function (rangeType) {
       data = data.filter(v => v.Date && window.getDashShiftBucket(v.Date) === activeShiftType);
     }
 
+    // IPD admissions are stored separately from OPD visits.
+    let admissions = [];
+    let admissionStart = 0;
+    while (true) {
+      const { data: chunk, error } = await supabaseClient
+        .from(dbTable('Admissions'))
+        .select('Admission_ID,Admission_Date,Admission_Time')
+        .gte('Admission_Date', sDate)
+        .lte('Admission_Date', eDate)
+        .order('Admission_Date', { ascending: true })
+        .order('Admission_ID', { ascending: true })
+        .range(admissionStart, admissionStart + 999);
+      if (error) throw error;
+      if (!isCurrent()) return;
+      admissions.push(...(chunk || []));
+      if (!chunk || chunk.length < 1000) break;
+      admissionStart += 1000;
+    }
+    const ipdAdmissionCount = countDashboardIpdAdmissions(admissions, activeShiftType, window.getDashShiftBucket);
+
     console.log(`Dashboard Data Loaded: ${data.length} records for range ${sDate} to ${eDate} and shift ${activeShiftType}`);
 
     // 2. Fetch unique Patients involved (Paginated)
@@ -5141,7 +5162,7 @@ window.fetchDashboardData = async function (rangeType) {
     $('#dashReportRangeLabel').text(sDate === eDate ? sDate : `${sDate} - ${eDate}`);
     $('#dashShiftLabel').text(dashShiftLabels[activeShiftType] || dashShiftLabels.all);
     $('#dashRefreshTime').text(`${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} (${sDate} - ${eDate})`);
-    window.renderDashboardCharts(visitsWithDetails);
+    window.renderDashboardCharts(visitsWithDetails, ipdAdmissionCount);
 
   } catch (err) {
     console.error(' Dashboard Error:', err);
@@ -5348,7 +5369,7 @@ window.renderDashboardStaffActivity = function (containerId, labels, data, tone 
   }).join('');
 };
 
-window.renderDashboardCharts = function (visits) {
+window.renderDashboardCharts = function (visits, ipdAdmissionCount = 0) {
   if (!visits) return;
   // Freeze re-renders during PDF export so a stray in-flight fetch can't
   // clobber the charts (and capture them empty) between page captures.
@@ -5526,6 +5547,9 @@ window.renderDashboardCharts = function (visits) {
       if (ch) channel[ch] = (channel[ch] || 0) + 1;
     }
   });
+
+  const ipdLabel = clinicalDepartmentLookup.get('ipd');
+  if (ipdLabel) clinicalDepartments[ipdLabel] = ipdAdmissionCount;
 
   const palette = ['#1B6BB0', '#3a8dc7', '#115892', '#7baede', '#DD1F26', '#f59ea3', '#ff7a15', '#94a3b8', '#0a4775', '#ffbf00'];
   

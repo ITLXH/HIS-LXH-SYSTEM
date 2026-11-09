@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { createPatientLookupAjax, patientLookupTokens } from '../src/patientLookup.js';
 import { readPatientScopedRows, createConcurrentRead } from '../src/clinicalReads.js';
 import { createCoalescedRefresh } from '../src/requestRefresh.js';
+import { countDashboardIpdAdmissions } from '../src/dashboardIpdAdmissions.js';
 
 const source = fs.readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 const block = (start, end) => {
@@ -114,6 +115,7 @@ tables.Patients = Array.from({ length: 105 }, (_, i) => ({ Patient_ID: `P${Strin
 tables.Visits = tables.Patients.map((p, i) => ({ Visit_ID: `NEW${i}`, Patient_ID: p.Patient_ID, Date: `${day}T10:00:00Z`, Status: 'Waiting OPD' }));
 tables.Visits.push(...Array.from({ length: 1001 }, (_, i) => ({ Patient_ID: 'P000', Visit_ID: `OLD${i}`, Date: '2025-01-01T10:00:00Z' })));
 tables.Visits.push({ Patient_ID: 'P104', Visit_ID: 'LASTOLD', Date: '2025-01-01T10:00:00Z' });
+tables.Admissions = [{ Admission_ID: 'IPD1', Admission_Date: day, Admission_Time: '10:00' }];
 requests = [];
 let scoped = await readPatientScopedRows({ client, table: 'Visits', ids: tables.Patients.map(p => p.Patient_ID), select: 'Patient_ID,Visit_ID', orderBy: 'Visit_ID' });
 assert.equal(scoped.length, 1107);
@@ -121,7 +123,7 @@ assert.ok(requests.every(r => r.ids.length <= 100));
 fail = 'Visits:page:1000';
 await assert.rejects(readPatientScopedRows({ client, table: 'Visits', ids: ['P000'], select: 'Patient_ID,Visit_ID', orderBy: 'Visit_ID' }));
 fail = '';
-let renderedDash, renderedReport, renderedHistory;
+let renderedDash, renderedIpd, renderedReport, renderedHistory;
 const elements = new Map();
 const $ = selector => ({ val: () => elements.get(selector),
   text(value) { elements.set(selector, value); return this; }, is: () => true,
@@ -129,19 +131,21 @@ const $ = selector => ({ val: () => elements.get(selector),
 });
 for (const prefix of ['dash', 'rep', 'visit']) for (const end of ['StartDate', 'EndDate']) elements.set(`#${prefix}${end}`, day);
 const w = { clinicalReadGeneration: 0, clinicalLoadedRanges: {}, currentDashShiftType: 'all',
+  getDashShiftBucket: () => 'morning',
   getLocalDateRangeIsoBounds: (s, e) => ({ startIso: `${s}T00:00:00Z`, endIso: `${e}T23:59:59Z` }),
   isSuspiciousDuplicateVisit: () => false, formatAgeFromDob: () => '30',
-  renderDashboardCharts: rows => { renderedDash = rows; }, renderReportPage: rows => { renderedReport = rows; },
+  renderDashboardCharts: (rows, ipd) => { renderedDash = rows; renderedIpd = ipd; }, renderReportPage: rows => { renderedReport = rows; },
   renderVisitHistoryPage: rows => { renderedHistory = rows; }, updateReportObservationStats() {},
 };
 const context = vm.createContext({ window: w, supabaseClient: client, dbTable: name => name, currentUser: {},
-  $, readPatientScopedRows, createCoalescedRefresh, console: { log() {}, warn() {}, error() {} } });
+  $, readPatientScopedRows, createCoalescedRefresh, countDashboardIpdAdmissions, console: { log() {}, warn() {}, error() {} } });
 vm.runInContext(block('window.clinicalReadFailureLabel =', 'window.fetchDashboardData ='), context);
 vm.runInContext(block('window.fetchDashboardData = async', 'window.fetchDashboardData = createCoalescedRefresh'), context);
 vm.runInContext(block('window.buildPatientVisitSummaryData =', 'window.renderReportPage ='), context);
 vm.runInContext(block('window._fetchVisitHistoryData =', '// Insurance/organization pill:'), context);
 await w.fetchDashboardData();
 assert.equal(renderedDash.length, 105);
+assert.equal(renderedIpd, 1, 'dashboard receives admission count separately from OPD visits');
 assert.equal(renderedDash.find(v => v.Patient_ID === 'P104').isNew, false, 'second patient-id batch is included in returning count');
 assert.equal(renderedDash.find(v => v.Patient_ID === 'P001').isNew, true);
 await w._fetchReportData(day, day);
@@ -150,6 +154,10 @@ assert.equal(renderedReport.find(p => p.Patient_ID === 'P000').visitCount, 1002,
 await w._fetchVisitHistoryData(day, day);
 assert.equal(renderedHistory.length, 105);
 const previousDash = renderedDash, previousReport = renderedReport, previousHistory = renderedHistory;
+fail = 'Admissions';
+await w.fetchDashboardData();
+assert.equal(renderedDash, previousDash, 'failed admission read preserves dashboard totals');
+fail = '';
 for (const stage of ['Patients:scoped', 'Visits:scoped', 'Visits:page:1000']) {
   fail = stage;
   await w.fetchDashboardData(); await w._fetchReportData(day, day); await w._fetchVisitHistoryData(day, day);
