@@ -594,6 +594,8 @@ def main():
         eligible_bytes=eligible_bytes,
     )
 
+    # Avoid flooding Storage lifecycle events while retaining a final update.
+    last_progress_publish_at = time.monotonic()
     for index, item in enumerate(candidates, start=1):
         digest = path_hash(item["path"])
         item_bytes = object_size(item)
@@ -612,7 +614,8 @@ def main():
         except Exception as exc:
             failures.append({"path_sha256": digest, "error": str(exc)[:300]})
         processed_bytes += item_bytes
-        if index == len(candidates) or index % 5 == 0:
+        if index == len(candidates) or time.monotonic() - last_progress_publish_at >= 60:
+            last_progress_publish_at = time.monotonic()
             verified_bytes_so_far = sum(object_size(entry) for entry in verified)
             publish_progress(
                 status="in_progress",
