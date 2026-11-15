@@ -21578,18 +21578,6 @@ body.opd-test-workspace-active #view-opd_test {
   box-shadow: none !important;
 }
 
-#view-opd_test #opdTestMedicationModal .modal-header {
-  min-height: 36px;
-  padding: 6px 10px;
-  background: var(--opdt-standard-soft) !important;
-  color: var(--opdt-standard-text) !important;
-}
-
-#view-opd_test #opdTestMedicationModal .modal-header .btn-close,
-#view-opd_test #opdTestMedicationModal .modal-footer [data-bs-dismiss="modal"] {
-  display: none;
-}
-
 #view-opd_test #opdTestMedicationModal .modal-body {
   padding: 8px !important;
   overflow: visible;
