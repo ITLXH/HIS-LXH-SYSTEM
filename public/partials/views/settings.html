@@ -1,25 +1,12 @@
 <div id="view-settings" style="display:none;">
-  <div class="card mb-4">
-    <div class="card-header bg-primary text-white"><h5 class="mb-0"><i class="fas fa-file-medical me-2"></i>ຕັ້ງຄ່າໃບສັ່ງກວດ Lab / Ultrasound / X-Ray</h5></div>
-    <div class="card-body"><div id="investigationTemplateEditor"></div></div>
-  </div>
-  <div class="mb-4">
-    <h3 class="fw-bold m-0 text-dark"><i class="fas fa-list-alt text-success me-2"></i>ຈັດການຂໍ້ມູນ Master</h3>
-    <p class="text-muted mb-0 mt-1" style="font-size:11.5px;">ຈັດການໝວດຂໍ້ມູນພື້ນຖານທີ່ໃຊ້ໃນລະບົບ</p>
-  </div>
-  <div class="card card-outline card-success">
-    <div class="card-header bg-success text-white">
-      <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>ຈັດການຂໍ້ມູນ Master</h5>
-    </div>
+  <div class="settings-page-heading mb-2"><h2>ຂໍ້ມູນ Master</h2></div>
+  <div class="card settings-master-card mb-3">
     <div class="card-body bg-light master-admin-shell">
       <div class="master-topic-tabs" id="masterGroupTabs"></div>
 
-      <div class="master-workspace-grid mt-3">
+      <div class="master-workspace-grid mt-2">
         <aside class="master-sidebar-card">
-          <div class="master-sidebar-head">
-            <span class="master-section-label">ກຸ່ມຍ່ອຍ</span>
-            <h6>ເລືອກຫົວຂໍ້ທີ່ຕ້ອງການຈັດການ</h6>
-          </div>
+          <div class="master-sidebar-head"><h3>ຫົວຂໍ້</h3></div>
           <div class="master-category-list" id="masterCategoryButtons"></div>
 
           <select class="d-none" id="masterCategory" onchange="window.loadMasterList()">
@@ -50,6 +37,9 @@
             <optgroup label="💊 ຢາ">
               <option value="DrugUnit">ຫົວໜ່ວຍຢາ (Drug Unit)</option>
               <option value="DrugUsage">ວິທີກິນ/ໃຊ້ (Drug Usage)</option>
+              <option value="MedicationRoute">ວິທີໃຊ້ (Route)</option>
+              <option value="MedicationFrequency">ຄວາມຖີ່ (Frequency)</option>
+              <option value="MedicationDuration">ໄລຍະ (ມື້)</option>
             </optgroup>
             <optgroup label="⏰ ອື່ນໆ">
               <option value="Shift">ຜຽນປະຈຳການ (Shift)</option>
@@ -60,25 +50,24 @@
         <section class="master-detail-card">
           <div class="master-detail-head">
             <div>
-              <span class="master-section-label">ຫົວຂໍ້ທີ່ເລືອກ</span>
               <h4 id="masterActiveCategoryName">ເລືອກໝວດຂໍ້ມູນ</h4>
-              <p id="masterActiveCategoryDesc">ເລືອກ category ຈາກແຖບດ້ານຊ້າຍເພື່ອເລີ່ມຈັດການຂໍ້ມູນ</p>
+              <p id="masterActiveCategoryDesc">ເລືອກຫົວຂໍ້ເພື່ອຈັດການຂໍ້ມູນ</p>
             </div>
             <div class="master-count-pill"><span id="masterItemCount">0</span> ລາຍການ</div>
           </div>
 
           <div class="master-entry-toolbar">
             <div class="master-entry-inputs">
-              <label class="form-label fw-bold mb-2">ເພີ່ມຂໍ້ມູນໃໝ່</label>
-              <div class="input-group input-group-lg shadow-sm">
-                <input type="text" id="newMasterVal" class="form-control" placeholder="ພິມຂໍ້ມູນໃໝ່ທີ່ຕ້ອງການເພີ່ມ...">
+              <label class="form-label fw-bold mb-1" for="newMasterVal">ເພີ່ມລາຍການ</label>
+              <div class="input-group">
+                <input type="text" id="newMasterVal" class="form-control" placeholder="ຊື່ລາຍການໃໝ່">
                 <button class="btn btn-success fw-bold px-4" onclick="window.addMaster()"><i class="fas fa-plus me-1"></i> ເພີ່ມ</button>
-                <button class="btn btn-outline-secondary fw-bold px-3" onclick="window.resetMasterDefaults()" title="ດຶງຂໍ້ມູນມາດຕະຖານຄືນໃໝ່"><i class="fas fa-sync-alt me-1"></i> Reset</button>
               </div>
             </div>
           </div>
 
-          <ul class="list-group mt-3 shadow-sm master-list-panel" id="masterListUl"></ul>
+          <ul class="list-group mt-2 master-list-panel" id="masterListUl"></ul>
+          <button class="btn btn-link master-reset-link" onclick="window.resetMasterDefaults()" title="ດຶງຂໍ້ມູນມາດຕະຖານຄືນໃໝ່">ຄືນຄ່າມາດຕະຖານ</button>
         </section>
       </div>
     </div>
