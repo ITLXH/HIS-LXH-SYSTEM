@@ -14,7 +14,7 @@ Keep one dated entry for each shipped change. Each entry must name the request, 
 - Changed: `public/partials/navbar.html`, `public/partials/views/settings.html`, `public/partials/views/settings_hub.html`, `public/partials/views/investigation_templates.html`, `src/main.js`, `src/style.css`, focused checks.
 - Verification before release: settings hub, investigation route, navbar scale, auth, security, OPD persistence, simple medication tests, and Vite build passed.
 - Visual status: local browser preview could not connect; production authenticated navigation remains to be checked after deployment.
-- Release commit: pending; update this line once deployed.
+- Candidate commit: `1efb027`; production deployment and visual check pending.
 
 ## Open requests
 
