@@ -21658,6 +21658,36 @@ body.opd-test-workspace-active #view-opd_test {
   min-height: 64px;
   padding: 8px;
 }
+#view-opd_test #opdTestMedicationModal .opdt-med-table-wrap {
+  overflow-x: auto;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table :is(th, td) {
+  padding: 6px 8px;
+  border-bottom: 1px solid #dbe4ec;
+  text-align: left;
+  vertical-align: middle;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table th {
+  color: #42566b;
+  font-weight: 600;
+  background: #f3f6f9;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table td:nth-child(2) {
+  min-width: 140px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-row-actions {
+  white-space: nowrap;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-row-actions .btn {
+  min-width: 36px;
+  min-height: 36px;
+  margin-right: 4px;
+}
 
 #view-opd_test #opdTestMedicationModal .modal-footer {
   min-height: 42px;
