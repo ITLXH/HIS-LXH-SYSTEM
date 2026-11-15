@@ -320,6 +320,10 @@
                   <input type="search" class="form-control" id="opdTestMedicationSearch" placeholder="ຄົ້ນຫາຊື່ຢາ..." oninput="window.opdTestFilterMedicationCatalog(this.value)">
                 </div>
               </div>
+              <nav class="opdt-med-catalog-filters" id="opdTestMedicationCatalogFilters" aria-label="ກັ່ນຕອງລາຍການຢາ">
+                <button type="button" class="is-active" data-med-filter="all" onclick="window.opdTestFilterMedicationCatalogBy('all')"><i class="fas fa-th-large"></i> ທັງໝົດ</button>
+                <button type="button" data-med-filter="selected" onclick="window.opdTestFilterMedicationCatalogBy('selected')"><i class="far fa-heart"></i> ຢາທີ່ເລືອກ</button>
+              </nav>
               <div class="opdt-med-catalog-list" id="opdTestMedicationCatalog" aria-live="polite"></div>
             </section>
 

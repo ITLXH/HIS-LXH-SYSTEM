@@ -21627,6 +21627,29 @@ body.opd-test-workspace-active #view-opd_test {
   min-height: 34px;
   padding: 5px 10px;
 }
+#view-opd_test #opdTestMedicationModal .opdt-med-catalog-panel > .emr-lis-panel-header {
+  display: none;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-catalog-filters {
+  display: flex;
+  gap: 6px;
+  padding: 2px 8px 6px;
+  border-bottom: 1px solid #e3eaf2;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-catalog-filters button {
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #38536d;
+  font-size: 13px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-catalog-filters button.is-active {
+  background: #e5f0fb;
+  color: #165e98;
+  font-weight: 600;
+}
 #view-opd_test #opdTestMedicationModal .opdt-med-catalog-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -21679,6 +21702,35 @@ body.opd-test-workspace-active #view-opd_test {
 }
 #view-opd_test #opdTestMedicationModal .opdt-med-draft-table td:nth-child(2) {
   min-width: 140px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table td small {
+  display: block;
+  color: #61758a;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-draft-table .opdt-med-dose-cell {
+  min-width: 150px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-dose-cell .opdt-med-row-input {
+  width: calc(50% - 3px);
+  display: inline-block;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-dose-cell .opdt-med-row-input + .opdt-med-row-input {
+  margin-left: 6px;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-row-input {
+  width: 100%;
+  min-width: 64px;
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid #cbd9e7;
+  border-radius: 4px;
+  background: #fff;
+  color: #233c55;
+  font: inherit;
+}
+#view-opd_test #opdTestMedicationModal .opdt-med-row-input:focus-visible {
+  outline: 2px solid #1769a6;
+  outline-offset: 1px;
 }
 #view-opd_test #opdTestMedicationModal .opdt-med-row-actions {
   white-space: nowrap;
