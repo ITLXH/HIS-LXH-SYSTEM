@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {prepareNativeLines} from '../src/nativePrescriptionSubmit.js';
+import {createCatalogDraft} from '../src/medicationDraftRows.js';
+import {medicationOptions,durationOptions} from '../src/medicationOrderOptions.js';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const simple={prescriptionItemId:'SYN-L',sourceDrugId:'SYN-D',name:'Synthetic medicine',instructions:'Synthetic directions only',quantity:'0.5',unitCode:'TAB'};
@@ -15,17 +17,22 @@ const structured={...simple,dose:'1',route:'TEST',frequency:'TEST',duration:'TES
 assert.equal(prepareNativeLines([structured])[0].dose,'1');
 console.log('PASS instruction-only medication, catalogue unit, positive quantity and legacy validation');
 const source=readFileSync('src/main.js','utf8');
-const nodes=new Map();const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{value:'',focus(){}});return nodes.get(id);}};
-const window={opdTestMedicationPickerCatalog:[{id:'SYN-D',name:'Synthetic',unitCode:'TAB'}]};
-const context=vm.createContext({window,document});
-for(const name of ['opdTestMedicationInstructionText','opdTestSetMedicationEditorValues','opdTestSelectMedicationCatalog']){
- const start=source.indexOf(`window.${name} = function`),end=source.indexOf('\n};',start)+3;
+const nodes=new Map();const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{value:'',focus(){}});return nodes.get(id);},querySelector(){return null;}};
+const window={opdTestMedicationPickerCatalog:[{id:'SYN-D',name:'Synthetic',unitCode:'TAB',source:'pmc'}],opdTestMedicationPickerDraft:[],opdTestState:{locked:false,submitting:false},opdTestMedicationMatchesAllergy(){return false;},opdTestRenderMedicationPickerDraft(){},opdTestHtml:value=>String(value??'')};
+const context=vm.createContext({window,document,createCatalogDraft,medicationOptions,durationOptions,masterDataStore:{}});
+for(const name of ['opdTestMedicationInstructionText','opdTestSetMedicationEditorValues','opdTestSelectMedicationCatalog','opdTestRenderMedicationPickerDraft']){
+ const start=source.indexOf(`window.${name} = `),end=source.indexOf('\n};',start)+3;
  vm.runInContext(source.slice(start,end),context);
 }
-window.opdTestSelectMedicationCatalog(0);
-assert.equal(nodes.get('opdTestMedicationUnit').value,'TAB');
-assert.equal(window.opdTestMedicationPickerSelectedDrug.unitCode,'TAB');
-assert.equal(nodes.get('opdTestMedicationDose').value,'');
+await window.opdTestSelectMedicationCatalog(0);
+assert.equal(window.opdTestMedicationPickerDraft.length,1);
+assert.equal(window.opdTestMedicationPickerDraft[0].unitCode,'TAB');
+assert.equal(window.opdTestMedicationPickerDraft[0].sourceDrugId,'SYN-D');
+assert.equal(nodes.get('opdTestMedicationStructuredEditor')?.hidden,undefined,'Catalog selection stays inline');
+assert.equal(window.opdTestMedicationPickerDraft[0].dose,'');
+assert.match(nodes.get('opdTestMedicationDraftList').innerHTML,/opdt-med-row-input/);
+assert.match(nodes.get('opdTestMedicationDraftList').innerHTML,/opdTestUpdateMedicationDraftField/);
+window.opdTestSetMedicationEditorValues({});
 assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,true);
 window.opdTestSetMedicationEditorValues({name:'Legacy',dose:'1',route:'TEST',frequency:'TEST',duration:'TEST'});
 assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,false);
@@ -33,4 +40,4 @@ assert.equal(nodes.get('opdTestMedicationDose').value,'1');
 const html=readFileSync('public/partials/views/opd_test.html','utf8');
 assert.match(html,/id="opdTestMedicationUnit" readonly/);
 assert.match(html,/id="opdTestMedicationLegacyDetails" hidden/);
-console.log('PASS actual picker fills unit, leaves clinical dose unset and preserves legacy editing');
+console.log('PASS catalog click adds an inline draft with source identity and keeps the legacy editor available');

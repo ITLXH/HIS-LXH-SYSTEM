@@ -2,6 +2,8 @@ import { installNativePrescriptionSubmit, prepareNativeLines, formatNativeLineEr
 import { medicationDirectionOptions } from './medicationDirections.js';
 import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
 import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
+import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex } from './medicationDraftRows.js';
+import { medicationOptions, durationOptions } from './medicationOrderOptions.js';
 import JsBarcode from 'jsbarcode';
 import { dashboardServiceDepartmentsForVisit } from './dashboardServiceDepartments.js';
 import { installConnectedResults } from './connectedClinicalResults.js';
@@ -24023,6 +24025,7 @@ window.opdTestMedicationPickerCatalog = [];
 window.opdTestMedicationPickerDraft = [];
 window.opdTestMedicationPickerEditingIndex = -1;
 window.opdTestEditingMedicationBatch = null;
+window.opdTestMedicationCatalogFilter = 'all';
 
 window.opdTestLoadMedicationPickerCatalog = async function () {
   window.opdTestMedicationPickerCatalog = [];
@@ -24078,7 +24081,11 @@ window.opdTestRenderMedicationPickerCatalog = function (query = '') {
   const needle = String(query || '').trim().toLowerCase();
   const filtered = window.opdTestMedicationPickerCatalog
     .map((item, index) => ({ item, index }))
-    .filter(({ item }) => !needle || `${item.name} ${item.code || ''} ${item.unitCode || ''} ${item.desc || ''}`.toLowerCase().includes(needle));
+    .filter(({ item }) => (
+      (window.opdTestMedicationCatalogFilter !== 'selected' ||
+        window.opdTestMedicationPickerDraft.some(draft => draft.name?.toLowerCase() === item.name.toLowerCase())) &&
+      (!needle || `${item.name} ${item.code || ''} ${item.unitCode || ''} ${item.desc || ''}`.toLowerCase().includes(needle))
+    ));
   if (count) count.textContent = filtered.length;
   target.innerHTML = filtered.length
     ? filtered.map(({ item, index }) => `<button type="button" class="opdt-med-catalog-item" onclick="window.opdTestSelectMedicationCatalog(${index})">
@@ -24091,6 +24098,14 @@ window.opdTestRenderMedicationPickerCatalog = function (query = '') {
 
 window.opdTestFilterMedicationCatalog = function (query) {
   window.opdTestRenderMedicationPickerCatalog(query);
+};
+
+window.opdTestFilterMedicationCatalogBy = function (filter) {
+  window.opdTestMedicationCatalogFilter = filter === 'selected' ? 'selected' : 'all';
+  document.querySelectorAll('#opdTestMedicationCatalogFilters [data-med-filter]').forEach(button => {
+    button.classList.toggle('is-active', button.dataset.medFilter === window.opdTestMedicationCatalogFilter);
+  });
+  window.opdTestRenderMedicationPickerCatalog(document.getElementById('opdTestMedicationSearch')?.value || '');
 };
 
 window.opdTestPopulateMedicationDirections = function () {
@@ -24165,18 +24180,29 @@ window.opdTestBuildInstructionFromDetails = function () {
   instruction.focus();
 };
 
-window.opdTestSelectMedicationCatalog = function (index) {
+window.opdTestSelectMedicationCatalog = async function (index) {
+  if (window.opdTestState.locked || window.opdTestState.submitting) return;
   const item = window.opdTestMedicationPickerCatalog[index];
   if (!item) return;
-  window.opdTestSetMedicationEditorValues({
-    name: item.name,
-    sourceDrugId: item.id,
-    unitCode: item.unitCode || item.desc || '',
-    catalogueVersion: item.catalogueVersion
-  });
-  const editor = document.getElementById('opdTestMedicationStructuredEditor');
-  if (editor) editor.hidden = false;
-  document.getElementById('opdTestMedicationInstruction')?.focus();
+  if (window.opdTestMedicationMatchesAllergy(item.name)) {
+    const allergy = window.opdTestState.patientAllergy || 'ຢາທີ່ລະບຸ';
+    window.opdTestSimpleAlert('ບໍ່ສາມາດສັ່ງຢານີ້', `ຄົນເຈັບມີປະຫວັດແພ້ ${allergy} ແລະ ${item.name} ອາດຢູ່ໃນກຸ່ມທີ່ກ່ຽວຂ້ອງ.`, 'error');
+    return;
+  }
+  const row = createCatalogDraft(item);
+  const duplicate = window.opdTestMedicationPickerDraft.some(draft => String(draft.name || '').trim().toLowerCase() === row.name.toLowerCase());
+  if (duplicate && !(await window.opdTestConfirmMedicationOrder(row, { isDuplicate: true }))) return;
+  window.opdTestMedicationPickerDraft.push(row);
+  window.opdTestRenderMedicationPickerDraft();
+  if (window.opdTestMedicationCatalogFilter === 'selected') window.opdTestRenderMedicationPickerCatalog(document.getElementById('opdTestMedicationSearch')?.value || '');
+  document.querySelector(`#opdTestMedicationDraftList [data-med-row="${window.opdTestMedicationPickerDraft.length - 1}"] .opdt-med-row-input`)?.focus();
+};
+
+window.opdTestUpdateMedicationDraftField = function (index, field, value) {
+  const row = window.opdTestMedicationPickerDraft[index];
+  if (!row?.needsDetails) return;
+  window.opdTestMedicationPickerDraft[index] = updateCatalogDraft(row, field, value);
+  window.opdTestRenderMedicationPickerDraft();
 };
 
 window.opdTestRenderMedicationPickerDraft = function () {
@@ -24186,20 +24212,31 @@ window.opdTestRenderMedicationPickerDraft = function () {
   const draft = window.opdTestMedicationPickerDraft || [];
   if (count) count.textContent = draft.length;
   target.innerHTML = draft.length
-    ? `<div class="opdt-med-table-wrap"><table class="opdt-med-draft-table"><thead><tr><th>#</th><th>ຊື່ຢາ</th><th>ວິທີໃຊ້</th><th>ຈຳນວນ</th><th>ຈັດການ</th></tr></thead><tbody>${draft.map((item, index) => {
+    ? `<div class="opdt-med-table-wrap"><table class="opdt-med-draft-table"><thead><tr><th>#</th><th>ຊື່ຢາ / ຄວາມແຮງ</th><th>ວິທີໃຊ້</th><th>ຄັ້ງ/ມື້</th><th>ໄລຍະ</th><th>ຈຳນວນ</th><th></th></tr></thead><tbody>${draft.map((item, index) => {
       const safe = window.opdTestHtml;
       const isFreeText = item.isFreeText || Boolean(item.freeText);
-      return `<tr><td>${index + 1}</td><td><strong>${safe(item.name)}</strong></td>
-        <td>${safe(isFreeText ? (item.freeText || item.instructions || '') : (item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '—'))}</td>
-        <td>${safe(item.quantity || item.qty || '—')} ${safe(item.unitCode || '')}</td>
+      const field = (name, label, type = 'text') => `<input class="opdt-med-row-input" type="${type}" ${type === 'number' ? 'min="0.000001" step="any"' : ''} ${name === 'duration' ? 'list="opdMedicationDraftDurationPresets"' : ''} value="${safe(item[name] || '')}" placeholder="${label}" aria-label="${label} ${safe(item.name)}" onchange="window.opdTestUpdateMedicationDraftField(${index}, '${name}', this.value)">`;
+      const choices = (name, type, label) => {
+        const options = medicationOptions(masterDataStore[type === 'route' ? 'MedicationRoute' : 'MedicationFrequency'], type);
+        return `<select class="opdt-med-row-input" aria-label="${label} ${safe(item.name)}" onchange="window.opdTestUpdateMedicationDraftField(${index}, '${name}', this.value)"><option value="">—</option>${options.map(([value, text]) => `<option value="${safe(value)}"${item[name] === value ? ' selected' : ''}>${safe(text)}</option>`).join('')}${item[name] && !options.some(([value]) => value === item[name]) ? `<option value="${safe(item[name])}" selected>${safe(item[name])}</option>` : ''}</select>`;
+      };
+      return `<tr data-med-row="${index}"><td>${index + 1}</td><td><strong>${safe(isFreeText ? 'Free-text Prescription' : item.name)}</strong>${item.unitCode ? `<small>${safe(item.unitCode)}</small>` : ''}</td>
+        <td>${item.needsDetails ? choices('route', 'route', 'ວິທີໃຊ້') : safe(item.route || item.instructions || '—')}</td>
+        <td class="opdt-med-dose-cell">${item.needsDetails ? `${field('dose', 'ປະລິມານ', 'number')}${choices('frequency', 'frequency', 'ຄັ້ງຕໍ່ມື້')}` : safe([item.dose, item.frequency].filter(Boolean).join(' · ') || '—')}</td>
+        <td>${item.needsDetails ? field('duration', 'ຈຳນວນມື້') : safe(item.duration || '—')}</td>
+        <td>${item.needsDetails ? field('quantity', 'ຈຳນວນ', 'number') : safe(item.quantity || item.qty || '—')}</td>
         <td class="opdt-med-row-actions"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.opdTestEditMedicationDraftItem(${index})" aria-label="ແກ້ໄຂ ${safe(item.name)}"><i class="fas fa-pen"></i></button><button type="button" class="btn btn-outline-danger btn-sm" onclick="window.opdTestDeleteMedicationDraftItem(${index})" aria-label="ລຶບ ${safe(item.name)}"><i class="fas fa-trash"></i></button></td></tr>`;
-    }).join('')}</tbody></table></div>`
+    }).join('')}</tbody></table></div><datalist id="opdMedicationDraftDurationPresets">${durationOptions(masterDataStore.MedicationDuration).map(days => `<option value="${days} days"></option>`).join('')}</datalist>`
     : `<div class="emr-order-empty"><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍເພື່ອເພີ່ມລາຍການ</span></div>`;
 };
 
 window.opdTestEditMedicationDraftItem = function (index) {
   const medication = window.opdTestMedicationPickerDraft[index];
   if (!medication) return;
+  if (medication.needsDetails) {
+    document.querySelector(`#opdTestMedicationDraftList [data-med-row="${index}"] .opdt-med-row-input`)?.focus();
+    return;
+  }
   window.opdTestMedicationPickerEditingIndex = index;
   const title = document.getElementById('opdTestMedicationEditorTitle');
   const button = document.getElementById('opdTestMedicationSaveItemBtn');
@@ -24223,6 +24260,7 @@ window.opdTestDeleteMedicationDraftItem = function (index) {
   if (window.opdTestMedicationPickerEditingIndex === index) window.opdTestResetMedicationEditor();
   else if (window.opdTestMedicationPickerEditingIndex > index) window.opdTestMedicationPickerEditingIndex -= 1;
   window.opdTestRenderMedicationPickerDraft();
+  if (window.opdTestMedicationCatalogFilter === 'selected') window.opdTestRenderMedicationPickerCatalog(document.getElementById('opdTestMedicationSearch')?.value || '');
 };
 
 window.opdTestSaveMedicationDraftItem = async function () {
@@ -24329,6 +24367,7 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   const search = document.getElementById('opdTestMedicationSearch');
   const catalog = document.getElementById('opdTestMedicationCatalog');
   if (search) search.value = '';
+  window.opdTestFilterMedicationCatalogBy('all');
   if (catalog) catalog.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດລາຍການຢາ...', compact: true });
   window.opdTestRenderMedicationPickerDraft();
   if (document.activeElement) document.activeElement.blur();
@@ -24348,6 +24387,21 @@ window.opdTestConfirmMedicationPicker = function () {
   if (state.locked) return;
   if (!window.opdTestMedicationPickerDraft.length) {
     window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍການຢາ', 'ກະລຸນາເພີ່ມຢາຢ່າງໜ້ອຍ 1 ລາຍການ.', 'warning');
+    return;
+  }
+  const incompleteIndex = invalidCatalogDraftIndex(window.opdTestMedicationPickerDraft);
+  if (incompleteIndex >= 0) {
+    window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', `ກະລຸນາລະບຸວິທີໃຊ້, ປະລິມານ, ຄັ້ງຕໍ່ມື້, ໄລຍະ ແລະຈຳນວນຂອງຢາລາຍການທີ່ ${incompleteIndex + 1}.`, 'warning');
+    document.querySelector(`#opdTestMedicationDraftList [data-med-row="${incompleteIndex}"] .opdt-med-row-input`)?.focus();
+    return;
+  }
+  try {
+    prepareNativeLines(window.opdTestMedicationPickerDraft.map((item, index) => ({
+      ...item,
+      prescriptionItemId: item.prescriptionItemId || `DRAFT-${index + 1}`
+    })));
+  } catch (error) {
+    window.opdTestSimpleAlert('ຂໍ້ມູນຢາບໍ່ຄົບ', formatNativeLineError(error) || 'ກວດລາຍການຢາກ່ອນບັນທຶກ.', 'warning');
     return;
   }
   const editingBatch = window.opdTestEditingMedicationBatch;
