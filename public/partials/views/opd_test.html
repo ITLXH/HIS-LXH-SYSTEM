@@ -298,7 +298,7 @@
                         <div class="opdt-med-workspace-bar">
                         <div class="opdt-inline-order-header">
                           <div>
-                            <h3 id="opdTestRxHeading"><i class="fas fa-pills"></i>ສັ່ງຢາ / Medication</h3>
+                            <h3 id="opdTestRxHeading"><span id="opdTestMedicationModalTitle"><i class="fas fa-pills"></i>ສັ່ງຢາ / Medication</span></h3>
                             <p>Prescription · Pharmacy</p>
                           </div>
                           <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນລາຍການຢາ">
@@ -313,14 +313,10 @@
                         </div>
                         </div>
                         <div id="opdTestMedicationPickerMount" class="opdt-medication-workspace" aria-label="ລາຍການສັ່ງຢາ">
-<!-- OPD Test Medication Picker Modal -->
+<!-- OPD medication picker, displayed within the consultation tab. -->
 <div class="opdt-med-inline" id="opdTestMedicationModal" aria-labelledby="opdTestMedicationModalTitle">
   <div class="modal-dialog modal-xl">
     <div class="modal-content border-0 shadow">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title fw-bold" id="opdTestMedicationModalTitle"><i class="fas fa-pills me-2"></i>ເລືອກ ແລະ ສັ່ງຢາ / Medication Order</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="ປິດ"></button>
-      </div>
       <div class="modal-body p-3 p-lg-4">
         <div class="opdt-med-picker-shell">
           <div class="opdt-med-picker-layout">
@@ -394,7 +390,6 @@
         </div>
       </div>
       <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ຍົກເລີກ</button>
         <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="window.opdTestConfirmMedicationPicker()"><i class="fas fa-check me-1"></i>ຢືນຢັນລາຍການຢາ</button>
       </div>
     </div>
