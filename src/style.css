@@ -24491,3 +24491,96 @@ body.opd-test-workspace-active #view-opd_test {
 .clinical-result-toast-container .opd-lis-toast-ready { font-size: 12px; }
 .connected-result-toast[data-source="PMC"] { border-left-color: #21618c; }
 .connected-result-toast[data-source="PMC"]::after { background: #21618c; }
+
+:root { --nav-height: 60px; }
+.his-topnav { padding-inline: 20px; gap: 8px; }
+.his-topnav .his-brand-logo { width: 40px; height: 40px; box-shadow: none; }
+.his-topnav .his-nav-items { gap: 4px; }
+.his-topnav .his-nav-link {
+  min-height: 40px;
+  padding: 8px;
+  font-size: 14px !important;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background-color .15s ease, color .15s ease;
+}
+.his-topnav .his-nav-link > i:first-child { width: 16px; font-size: 15px; }
+.his-topnav .his-language-select { min-height: 40px; font-size: 14px !important; font-weight: 500; }
+.his-topnav .his-online-button { min-height: 40px; }
+.his-topnav .his-avatar { width: 32px; height: 32px; }
+.his-topnav .his-hamburger { color: #334155; font-size: 20px; }
+
+@media (max-width: 1500px) {
+  .his-hamburger { display: flex; align-items: center; }
+  .his-nav-items {
+    display: none;
+    position: absolute;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    max-height: calc(100vh - var(--nav-height));
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 16px 16px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .12);
+  }
+  .his-nav-items.open { display: flex; }
+  .his-nav-items .his-dropdown { width: 100%; }
+  .his-nav-items .his-dropdown-menu { position: static; display: none; box-shadow: none; border: 0; }
+  .his-nav-items .his-dropdown.open .his-dropdown-menu { display: block; }
+  .his-nav-items .his-nav-link { width: 100%; }
+}
+
+/* Keep deferred modules available by route while removing them from navigation. */
+.his-topnav .his-nav-deferred { display: none !important; }
+
+.his-settings-page { max-width: 1280px; margin: 0 auto; padding: 16px 20px 24px; }
+.his-settings-page-header { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #d9e3ee; }
+.his-settings-page-header h1 { margin: 0; color: #183753; font-size: 21px !important; font-weight: 650; }
+.his-settings-page-header p { margin: 2px 0 0; color: #607188; font-size: 13px; }
+.his-settings-page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.his-settings-page-group { padding: 12px; border: 1px solid #d9e3ee; border-radius: 4px; background: #fff; }
+.his-settings-page-group h2 { margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid #e3eaf2; color: #294967; font-size: 14px !important; font-weight: 650; }
+.his-settings-page-group a { display: flex; min-height: 36px; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 4px; color: #263d57; font-size: 13px; text-decoration: none; }
+.his-settings-page-group a:hover,
+.his-settings-page-group a:focus-visible { background: #edf4fb; color: #115892; outline: none; }
+.his-settings-page-group a > i:first-child { width: 20px; color: #1b6bb0; text-align: center; }
+.his-settings-page-group a span { flex: 1; }
+.his-settings-page-group a > i:last-child { color: #8a9aac; font-size: 11px; }
+@media (max-width: 760px) {
+  .his-settings-page { padding: 12px; }
+  .his-settings-page-grid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+
+/* Settings workspaces favor scan speed over decorative cards. */
+#view-settings .settings-page-heading,
+#view-investigation_templates .settings-page-heading { margin-bottom: 8px !important; }
+#view-settings .settings-page-heading h2,
+#view-investigation_templates .settings-page-heading h2 { font-size: 19px !important; }
+#view-settings .settings-master-card > .card-body,
+#view-investigation_templates .settings-template-editor-card > .card-body { padding: 12px; }
+#view-settings .master-topic-tab.active { background: #1b6bb0; }
+#view-settings .master-topic-tab.active .topic-icon { background: transparent; }
+#view-settings .master-count-pill { background: #e6f0f9 !important; color: #115892; }
+#view-settings .master-list-panel .list-group-item {
+  min-height: 44px;
+  margin: 0 !important;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e3eaf2 !important;
+  font-size: 13px !important;
+}
+#view-settings .master-list-panel .list-group-item > span { overflow-wrap: anywhere; }
+#view-settings .master-reset-link { margin-top: 8px; padding: 4px 0 !important; color: #496780; text-decoration: none; }
+#view-settings .master-reset-link:hover { text-decoration: underline; }
+#view-investigation_templates .it-editor-grid > div { min-width: 0; }
+@media (max-width: 1200px) {
+  #view-settings .master-topic-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 850px) {
+  #view-settings .master-topic-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #view-settings .master-list-panel { max-height: 50vh; }
+}

@@ -3,7 +3,7 @@ import { medicationDirectionOptions } from './medicationDirections.js';
 import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
 import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
 import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex } from './medicationDraftRows.js';
-import { medicationOptions, durationOptions } from './medicationOrderOptions.js';
+import { defaultMedicationOptions, defaultMedicationDurations, medicationOptions, durationOptions, validMedicationMasterValue } from './medicationOrderOptions.js';
 import JsBarcode from 'jsbarcode';
 import { dashboardServiceDepartmentsForVisit } from './dashboardServiceDepartments.js';
 import { installConnectedResults } from './connectedClinicalResults.js';
@@ -2200,7 +2200,9 @@ window.HIS_NAV_ROUTES = {
   staff: { view: 'staff', navId: 'staff', path: '/staff' },
   manpower: { view: 'manpower', navId: 'manpower', path: '/manpower' },
   printer_settings: { view: 'printer_settings', navId: 'printer_settings', path: '/printer-settings' },
+  settings_hub: { view: 'settings_hub', navId: 'settings_hub', path: '/settings/menu' },
   settings: { view: 'settings', navId: 'settings', path: '/settings' },
+  investigation_templates: { view: 'investigation_templates', navId: 'settings_hub', path: '/settings/investigation-templates' },
   orgs: { view: 'orgs', navId: 'orgs', path: '/orgs' },
   users: { view: 'users', navId: 'users', path: '/users' },
   services: { view: 'services', navId: 'services', path: '/services' },
@@ -2243,6 +2245,8 @@ window.HIS_PATH_ROUTES = {
   '/printer-settings': 'printer_settings',
   '/printer_settings': 'printer_settings',
   '/settings': 'settings',
+  '/settings/menu': 'settings_hub',
+  '/settings/investigation-templates': 'investigation_templates',
   '/orgs': 'orgs',
   '/users': 'users',
   '/services': 'services',
@@ -3219,7 +3223,7 @@ async function loadPartials() {
   const fullViews = [
     'dashboard', 'report', 'visit_history', 'patients', 'offline_sticker', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list',
     'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs',
-    'labs', 'services', 'locations', 'users', 'staff', 'manpower', 'printer_settings', 'orgs', 'settings', 'activity_log', 'backup', 'public-queue'
+    'labs', 'services', 'locations', 'users', 'staff', 'manpower', 'printer_settings', 'orgs', 'settings_hub', 'settings', 'investigation_templates', 'activity_log', 'backup', 'public-queue'
   ];
   const fullModals = [
     'patient-modal',
@@ -3545,10 +3549,18 @@ $(document).ready(async function () {
     $('.his-dropdown').removeClass('open');
   });
 
+  $(document).on('click', '#view-settings_hub [data-settings-view]', function (event) {
+    event.preventDefault();
+    window.loadView(this.dataset.settingsView);
+    if (this.dataset.masterGroup === 'pharmacy') window.selectMasterCategory('MedicationRoute');
+    if (this.dataset.masterCategory) window.selectMasterCategory(this.dataset.masterCategory);
+  });
+
   // Mobile Hamburger
   $(document).on('click', '.his-hamburger', function (e) {
     e.preventDefault();
-    $('#his-nav-items').toggleClass('open');
+    const menu = $('#his-nav-items').toggleClass('open');
+    $(this).attr('aria-expanded', String(menu.hasClass('open')));
   });
 
   // Unified Nav Link Listener (supports both ID-based and Attribute-based navigation)
@@ -4273,11 +4285,14 @@ window.canUserAccessView = function (view, perms) {
   const role = normalizeHisRole(currentUser?.role);
   if (role === 'admin') return true;
   const permissionList = Array.isArray(perms) ? perms : parseHisPagePermissions(perms ?? currentUser?.permissions);
+  if (view === 'settings_hub') return ['services', 'drugs', 'labs', 'vaccine_master', 'ipd_config', 'locations', 'orgs', 'staff', 'users', 'offline_sticker', 'printer_settings', 'settings', 'investigation_templates', 'activity_log', 'backup']
+    .some(item => window.canUserAccessView(item, permissionList));
   const permissionMap = {
     opd_test: 'opd',
     opd_observation_list: 'opd_observation',
     ipd_chart: 'ipd_inpatient_list',
     printer_settings: 'settings',
+    investigation_templates: 'settings',
     offline_sticker: 'patients'
   };
   const permissionKey = permissionMap[view] || view;
@@ -4292,6 +4307,14 @@ window.applyNavigationPermissions = function () {
     const routeKey = String(this.id || '').replace(/^nav-/, '');
     const target = window.resolveHisRouteTarget?.(routeKey) || { view: routeKey };
     $(this).toggle(window.canUserAccessView(target.view, permissions));
+  });
+  $('#view-settings_hub [data-settings-view]').each(function () {
+    $(this).toggle(window.canUserAccessView(this.dataset.settingsView, permissions));
+  });
+  $('#view-settings_hub .his-settings-page-group').each(function () {
+    const hasAllowedChild = $(this).find('[data-settings-view]').toArray()
+      .some(item => item.style.display !== 'none');
+    $(this).toggle(hasAllowedChild);
   });
   $('#his-nav-items > .his-dropdown').each(function () {
     if (isAdmin) {
@@ -4561,6 +4584,7 @@ window.loadView = function (v, options = {}) {
 
   var navEl = $('#nav-' + routeTarget.navId);
   if (!navEl.length) navEl = $('#nav-' + v);
+  if (!navEl.length && ['services', 'drugs', 'labs', 'vaccine_master', 'ipd_config', 'locations', 'orgs', 'staff', 'users', 'offline_sticker', 'printer_settings', 'settings', 'investigation_templates', 'activity_log', 'backup'].includes(v)) navEl = $('#nav-settings_hub');
   if (navEl.length) {
     navEl.addClass('active');
     let parentDropdown = navEl.closest('.his-dropdown');
@@ -4570,7 +4594,7 @@ window.loadView = function (v, options = {}) {
   }
 
   // Switch Views
-  let views = ['dashboard', 'report', 'visit_history', 'patients', 'offline_sticker', 'settings', 'staff', 'manpower', 'printer_settings', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
+  let views = ['dashboard', 'report', 'visit_history', 'patients', 'offline_sticker', 'settings_hub', 'settings', 'investigation_templates', 'staff', 'manpower', 'printer_settings', 'orgs', 'triage', 'opd', 'opd_test', 'opd_observation', 'opd_observation_list', 'users', 'services', 'locations', 'appointments', 'ipd_ward_bed', 'ipd_inpatient_list', 'ipd_chart', 'ipd_config', 'vaccines', 'vaccine_master', 'drugs', 'labs', 'activity_log', 'backup', 'public-queue'];
   views.forEach(n => {
     if (n === v) $('#view-' + n).show();
     else $('#view-' + n).hide();
@@ -4658,6 +4682,7 @@ window.loadView = function (v, options = {}) {
     if (typeof window.renderMasterCategoryUI === 'function') window.renderMasterCategoryUI();
     window.loadMasterList();
   }
+  if (v === 'investigation_templates') window.renderInvestigationTemplateEditor?.();
 
   if (v !== 'offline_sticker' && !offlineStickerOnlyMode && !systemSettings.hospitalName) {
     supabaseClient.from(dbTable('Settings')).select('Key,Value').then(({ data }) => {
@@ -13338,6 +13363,9 @@ window._masterDataFallback = {
   Department: ["OPD ທົ່ວໄປ","ຫ້ອງສຸກເສີນ","ຫ້ອງຜ່າຕັດ","ຫ້ອງເດັກ","ກວດສະເພາະທາງ","ທັນຕະກຳ","ຕາ ຫູ ຄໍ ຈະມູກ"],
   ServiceDepartment: ["Internal Medicine","Pediatrics","OB-GYN","General / ER","IPD","Health Checkup","First Aid Training","Home Care"],
   LabCategory: window.emrLabCategoryConfig.map(item => item.label),
+  MedicationRoute: defaultMedicationOptions.route.map(([code, label]) => `${code}|${label}`),
+  MedicationFrequency: defaultMedicationOptions.frequency.map(([code, label]) => `${code}|${label}`),
+  MedicationDuration: defaultMedicationDurations,
   DrugUnit: ["ເມັດ (Tab)","ແຄັບຊູນ (Cap)","ມິນລິລິດ (ml)","ກຣາມ (g)","ຫຼອດ (Amp)","ຕຸກ (Bottle)","ຊອງ (Sachet)","Dose","ບ່ວງ (Spoon)"],
   DrugUsage: ["ac (ກ່ອນອາຫານ 30 ນາທີ)","pc (ຫຼັງອາຫານ 15-30 ນາທີ)","am (ຕອນເຊົ້າ)","pm (ຕອນແລງ)","hs (ກ່ອນນອນ)","bid (ວັນລະ 2 ຄັ້ງ)","tid (ວັນລະ 3 ຄັ້ງ)","qid (ວັນລະ 4 ຄັ້ງ)","prn (ກິນເວລາເຈັບ)","od (ວັນລະ 1 ຄັ້ງ)","stat (ກິນທັນທີ)"],
   EmergencyRelation: ["ພໍ່","ແມ່","ຜົວ","ເມຍ","ລູກ","ພີ່","ນ້ອງ","ຍາດພີ່ນ້ອງ","ໝູ່","ອື່ນໆ"],
@@ -13434,7 +13462,7 @@ window.seedMasterDefaults = async function () {
 
 window.resetMasterDefaults = async function () {
   const c = $('#masterCategory').val();
-  const seededCategories = ['DrugUsage', 'DrugUnit', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department', 'ServiceDepartment', 'EmergencyRelation'];
+  const seededCategories = ['DrugUsage', 'DrugUnit', 'MedicationRoute', 'MedicationFrequency', 'MedicationDuration', 'Title', 'Gender', 'BloodType', 'Nationality', 'Occupation', 'Shift', 'Channel', 'InsCompany', 'Department', 'ServiceDepartment', 'EmergencyRelation'];
   if (!seededCategories.includes(c)) {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ຟັງຊັນນີ້ໃຊ້ໄດ້ສະເພາະກັບ category ທີ່ມີຂໍ້ມູນມາດຕະຖານ', 'info');
   }
@@ -13450,7 +13478,7 @@ window.resetMasterDefaults = async function () {
 
   if (r.isConfirmed) {
     Swal.fire({ title: 'ກຳລັງ Reset...', didOpen: () => Swal.showLoading() });
-    if (c === 'ServiceDepartment') {
+    if (c === 'ServiceDepartment' || ['MedicationRoute', 'MedicationFrequency', 'MedicationDuration'].includes(c)) {
       const { data: currentRows, error: lookupError } = await supabaseClient
         .from(dbTable('MasterData'))
         .select('Value')
@@ -13459,9 +13487,9 @@ window.resetMasterDefaults = async function () {
         Swal.fire('Error', lookupError.message, 'error');
         return;
       }
-      const existing = new Set((currentRows || []).map(row => String(row.Value || '').trim().toLowerCase()));
-      const missingRows = window._masterDataFallback.ServiceDepartment
-        .filter(value => !existing.has(value.toLowerCase()))
+      const existing = new Set((currentRows || []).map(row => String(row.Value || '').split('|')[0].trim().toLowerCase()));
+      const missingRows = window._masterDataFallback[c]
+        .filter(value => !existing.has(String(value).split('|')[0].trim().toLowerCase()))
         .map(value => ({ Category: c, Value: value }));
       if (missingRows.length) {
         const { error: insertError } = await supabaseClient.from(dbTable('MasterData')).insert(missingRows);
@@ -13551,12 +13579,15 @@ window.masterCategoryGroups = [
   },
   {
     key: 'pharmacy',
-    label: 'ຢາ',
+    label: 'ຈັດການຢາ',
     icon: 'fa-pills',
-    summary: 'ມາດຕະຖານຫົວໜ່ວຍຢາ ແລະ ວິທີໃຊ້',
+    summary: 'ຫົວໜ່ວຍຢາ, ວິທີໃຊ້, ຄວາມຖີ່ ແລະ ໄລຍະ',
     categories: [
-      { key: 'DrugUnit', label: 'ຫົວໜ່ວຍຢາ', description: 'ໜ່ວຍນັບຢາທີ່ໃຊ້ໃນ prescription' },
-      { key: 'DrugUsage', label: 'ວິທີກິນ/ໃຊ້', description: 'ຄຳສັ່ງການໃຊ້ຢາມາດຕະຖານ' }
+      { key: 'DrugUnit', label: 'ຫົວໜ່ວຍຢາ', icon: 'fa-box-open', description: 'ໜ່ວຍນັບຢາທີ່ໃຊ້ໃນ prescription' },
+      { key: 'DrugUsage', label: 'ວິທີກິນ/ໃຊ້', icon: 'fa-clipboard-list', description: 'ຄຳສັ່ງການໃຊ້ຢາມາດຕະຖານ' },
+      { key: 'MedicationRoute', label: 'ວິທີໃຊ້ (Route)', icon: 'fa-route', description: 'ຮູບແບບ CODE|ຊື່ທີ່ສະແດງ, ເຊັ່ນ PO|ກິນ (PO)' },
+      { key: 'MedicationFrequency', label: 'ຄວາມຖີ່', icon: 'fa-clock', description: 'ຮູບແບບ CODE|ຊື່ທີ່ສະແດງ, ເຊັ່ນ BID|ວັນລະ 2 ເທື່ອ' },
+      { key: 'MedicationDuration', label: 'ໄລຍະ (ມື້)', icon: 'fa-calendar-alt', description: 'ຈຳນວນມື້ທີ່ໃຫ້ເລືອກໄດ້; ຍັງພິມເອງໄດ້' }
     ]
   },
   {
@@ -13580,7 +13611,6 @@ window.masterCategoryMeta = window.masterCategoryGroups.reduce((acc, group) => {
 window.activeMasterGroupKey = window.activeMasterGroupKey || window.masterCategoryGroups[0].key;
 
 window.renderMasterCategoryUI = function () {
-  window.renderInvestigationTemplateEditor?.();
   const groupHost = document.getElementById('masterGroupTabs');
   const categoryHost = document.getElementById('masterCategoryButtons');
   const categorySelect = document.getElementById('masterCategory');
@@ -13594,16 +13624,14 @@ window.renderMasterCategoryUI = function () {
 
   groupHost.innerHTML = window.masterCategoryGroups.map(group => `
     <button type="button" class="master-topic-tab ${group.key === activeGroup.key ? 'active' : ''}" onclick="window.selectMasterGroup('${group.key}')">
-      <div class="topic-icon"><i class="fas ${group.icon}"></i></div>
+      <span class="topic-icon"><i class="fas ${group.icon}"></i></span>
       <strong>${group.label}</strong>
-      <span>${group.summary}</span>
     </button>
   `).join('');
 
   categoryHost.innerHTML = activeGroup.categories.map(category => `
-    <button type="button" class="master-category-btn ${category.key === currentCategory ? 'active' : ''}" onclick="window.selectMasterCategory('${category.key}')">
-      <strong>${category.label}</strong>
-      <span>${category.description}</span>
+    <button type="button" class="master-category-btn ${category.icon ? 'has-icon' : ''} ${category.key === currentCategory ? 'active' : ''}" onclick="window.selectMasterCategory('${category.key}')">
+      ${category.icon ? `<i class="fas ${category.icon}" aria-hidden="true"></i>` : ''}<strong>${category.label}</strong>
     </button>
   `).join('');
 
@@ -13653,15 +13681,17 @@ window.loadMasterList = function () {
     return;
   }
   let h = '';
-  const items = masterDataStore[c] || [];
+  const isMedicationOption = ['MedicationRoute', 'MedicationFrequency', 'MedicationDuration'].includes(c);
+  const items = masterDataStore[c]?.length ? masterDataStore[c]
+    : isMedicationOption ? window._masterDataFallback[c].map(value => ({ value })) : [];
   $('#masterItemCount').text(items.length);
   if (items.length > 0) {
     items.forEach(i => {
       h += `<li class="list-group-item d-flex justify-content-between align-items-center border-0 border-bottom mb-1 bg-transparent">
-                    <span class="fw-bold text-dark">${i.value}</span> 
-                    <div class="d-flex gap-2">
-                      <button class="btn btn-sm btn-outline-warning shadow-sm rounded-circle" style="width:30px;height:30px;padding:0;" onclick="window.editMaster(${i.id}, '${i.value.replace(/'/g, "\\'")}')" title="ແກ້ໄຂ"><i class="fas fa-edit"></i></button>
-                      <button class="btn btn-sm btn-outline-danger shadow-sm rounded-circle" style="width:30px;height:30px;padding:0;" onclick="window.delMaster(${i.id})" title="ລຶບ"><i class="fas fa-trash"></i></button>
+                    <span class="fw-bold text-dark">${window.escapeEmrPickerHtml(i.value)}</span>
+                    <div class="d-flex gap-2">${i.id == null ? '<small class="text-muted">ຄ່າພື້ນຖານ</small>' : `
+                      <button class="btn btn-sm btn-outline-warning shadow-sm rounded-circle" style="width:30px;height:30px;padding:0;" onclick="window.editMaster(${Number(i.id)})" title="ແກ້ໄຂ"><i class="fas fa-edit"></i></button>
+                      <button class="btn btn-sm btn-outline-danger shadow-sm rounded-circle" style="width:30px;height:30px;padding:0;" onclick="window.delMaster(${Number(i.id)})" title="ລຶບ"><i class="fas fa-trash"></i></button>`}
                     </div>
                   </li>`;
     });
@@ -13708,9 +13738,16 @@ window.addMaster = async function () {
     return Swal.fire('ແຈ້ງເຕືອນ', 'ກະລຸນາເລືອກໝວດຂໍ້ມູນກ່ອນ', 'info');
   }
   if (!v) return;
+  if (!validMedicationMasterValue(c, v)) {
+    return Swal.fire('ຂໍ້ມູນບໍ່ຖືກຕ້ອງ', c === 'MedicationDuration' ? 'ໃສ່ຈຳນວນມື້ເປັນເລກບວກ' : 'ໃສ່ CODE|ຊື່ທີ່ສະແດງ ເຊັ່ນ PO|ກິນ (PO)', 'warning');
+  }
   $('#newMasterVal').val('');
 
-  let { error } = await supabaseClient.from(dbTable('MasterData')).insert({ Category: c, Value: v });
+  const existing = masterDataStore[c] || [];
+  const values = !existing.length && ['MedicationRoute', 'MedicationFrequency', 'MedicationDuration'].includes(c)
+    ? [...window._masterDataFallback[c].filter(item => item.split('|')[0].toLowerCase() !== v.split('|')[0].trim().toLowerCase()), v]
+    : [v];
+  let { error } = await supabaseClient.from(dbTable('MasterData')).insert(values.map(value => ({ Category: c, Value: value })));
   if (!error) {
     window.loadMasterDataGlobal(); // Reloads and updates UI
   } else {
@@ -13729,6 +13766,7 @@ window.delMaster = async function (id) {
 };
 
 window.editMaster = async function (id, oldVal) {
+  oldVal ??= (masterDataStore[$('#masterCategory').val()] || []).find(item => Number(item.id) === Number(id))?.value || '';
   const { value: newVal } = await Swal.fire({
     title: 'ແກ້ໄຂຂໍ້ມູນ',
     input: 'text',
@@ -13738,6 +13776,7 @@ window.editMaster = async function (id, oldVal) {
     cancelButtonText: 'ຍົກເລີກ',
     inputValidator: (value) => {
       if (!value) return 'ກະລຸນາປ້ອນຂໍ້ມູນ!';
+      if (!validMedicationMasterValue($('#masterCategory').val(), value)) return 'ກະລຸນາໃສ່ CODE|ຊື່ ຫຼື ຈຳນວນມື້ທີ່ຖືກຕ້ອງ';
     }
   });
 
