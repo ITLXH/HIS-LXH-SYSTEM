@@ -53,3 +53,11 @@ Checks completed before release: all three focused scripts passed; `npm run test
 ## Limits of this audit
 
 This document records a source-to-release comparison and the user-provided production screenshot. Authenticated production visual navigation and medication submission require separate verification. No clinical data or database migration was changed in this settings release.
+
+## Status correction after release — 2026-11-15
+
+The table above captures the gap **before** PR #40 and is retained as historical evidence. PR #40 shipped the navbar/settings changes to production at `f545e7f948f0`. The production `version.json`, navbar partial, grouped settings hub, separate investigation template partial, and JavaScript route strings were fetched and verified after deployment. The old `#nav-settings` dropdown is absent from the deployed navbar partial; `#nav-settings_hub` is present.
+
+This release did not certify authenticated visual navigation. The five OPD tabs still need rendered comparison at 1366×768, 1536×864, 1920×1080, and 125% zoom. Local-only tests for OPD visual consistency, medication layout, and the PMC exchange element fail against release source and describe a different iteration. The source contains a native PMC submission path, but no synthetic authenticated HIS-to-PMC receipt has been observed. Keep these items open; do not infer success from shipped files or the SweetAlert message. The login alignment has not been verified in a rendered browser.
+
+See [USER_REQUEST_CHANGELOG.md](USER_REQUEST_CHANGELOG.md) for the continuing release ledger. Each subsequent change should get its own dated entry with files, tests, release SHA, and unverified behavior.
