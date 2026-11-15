@@ -295,26 +295,9 @@
                       </section>
 
                       <section class="opdt-inline-order-section opdt-order-zone opdt-order-tab-panel is-medication" id="opdTestOrderPanelMedication" role="tabpanel" aria-labelledby="opdTestOrderTabMedication" data-opdt-order-zone="medication" data-opdt-order-panel="medication" hidden>
-                        <div class="opdt-med-workspace-bar">
-                        <div class="opdt-inline-order-header">
-                          <div>
-                            <h3 id="opdTestRxHeading"><span id="opdTestMedicationModalTitle"><i class="fas fa-pills"></i>ສັ່ງຢາ / Medication</span></h3>
-                            <p>Prescription · Pharmacy</p>
-                          </div>
-                          <span class="opdt-order-total opdt-order-total-static" title="ຈຳນວນລາຍການຢາ">
-                            <i class="fas fa-list-check"></i><strong data-opdt-rx-total>0</strong>
-                          </span>
-                        </div>
-                        <div class="opdt-rx-order-controls is-simple">
-                          <button type="button" class="btn btn-primary opdt-zone-order-btn" id="opdTestMedicationOrderButton" data-emr-action onclick="window.opdTestOpenMedicationPicker(); return false;">
-                            <i class="fas fa-plus"></i>
-                            <span id="opdTestMedicationOrderButtonLabel">ເລືອກລາຍການຢາ</span>
-                          </button>
-                        </div>
-                        </div>
                         <div id="opdTestMedicationPickerMount" class="opdt-medication-workspace" aria-label="ລາຍການສັ່ງຢາ">
 <!-- OPD medication picker, displayed within the consultation tab. -->
-<div class="opdt-med-inline" id="opdTestMedicationModal" aria-labelledby="opdTestMedicationModalTitle">
+<div class="opdt-med-inline" id="opdTestMedicationModal" aria-label="ສັ່ງຢາ">
   <div class="modal-dialog modal-xl">
     <div class="modal-content border-0 shadow">
       <div class="modal-body p-3 p-lg-4">
@@ -341,16 +324,18 @@
             </section>
 
             <section class="emr-lis-panel opdt-med-order-panel">
-              <div class="emr-lis-panel-header">
+              <div class="emr-lis-panel-header opdt-med-order-heading">
                 <div class="emr-lis-panel-title">
                   <i class="fas fa-file-prescription"></i>
                   <div>
-                    <strong id="opdTestMedicationEditorTitle">Add Medication</strong>
-                    <span>ເລືອກຢາ → ຂຽນວິທີໃຊ້ → ປ້ອນຈຳນວນ</span>
+                    <strong>ລາຍການສັ່ງຢາ <span id="opdTestMedicationDraftCount">0</span></strong>
                   </div>
                 </div>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="opdTestMedicationOrderButton" data-emr-action onclick="window.opdTestOpenMedicationPicker(); return false;"><i class="fas fa-plus me-1"></i><span id="opdTestMedicationOrderButtonLabel">ສັ່ງຢາໃໝ່</span></button>
               </div>
-              <div class="opdt-med-editor" id="opdTestMedicationStructuredEditor">
+              <div class="opdt-med-selected-list" id="opdTestMedicationDraftList" aria-live="polite"></div>
+              <div class="opdt-med-editor" id="opdTestMedicationStructuredEditor" hidden>
+                <div class="opdt-med-editor-title"><strong id="opdTestMedicationEditorTitle">Add Medication</strong><button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.opdTestResetMedicationEditor()" aria-label="ປິດຟອມຢາ"><i class="fas fa-times"></i></button></div>
                 <div class="opdt-med-name-field">
                   <label class="form-label required" for="opdTestMedicationName">ຊື່ຢາ / Medication</label>
                   <input class="form-control" id="opdTestMedicationName" placeholder="ເລືອກຢາຈາກລາຍການຝັ່ງຊ້າຍ" readonly>
@@ -380,11 +365,6 @@
                   <button type="button" class="btn btn-primary btn-sm fw-bold" id="opdTestMedicationSaveItemBtn" onclick="window.opdTestSaveMedicationDraftItem()"><i class="fas fa-plus me-1"></i><span>ເພີ່ມຢາ</span></button>
                 </div>
               </div>
-              <div class="opdt-med-selected-header">
-                <div><i class="fas fa-receipt"></i><strong>Medication Orders</strong><span>ລາຍການທີ່ຈະບັນທຶກ</span></div>
-                <span class="emr-lis-summary-count" id="opdTestMedicationDraftCount">0</span>
-              </div>
-              <div class="opdt-med-selected-list" id="opdTestMedicationDraftList" aria-live="polite"></div>
             </section>
           </div>
         </div>

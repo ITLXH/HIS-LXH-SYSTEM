@@ -24137,6 +24137,14 @@ window.opdTestResetMedicationEditor = function () {
   if (title) title.textContent = 'Add Medication';
   if (button) button.innerHTML = '<i class="fas fa-plus me-1"></i><span>ເພີ່ມຢາ</span>';
   if (cancel) cancel.hidden = true;
+  const editor = document.getElementById('opdTestMedicationStructuredEditor');
+  if (editor) editor.hidden = true;
+};
+
+window.opdTestOpenMedicationEditor = function () {
+  const editor = document.getElementById('opdTestMedicationStructuredEditor');
+  if (editor) editor.hidden = false;
+  document.getElementById('opdTestMedicationInstruction')?.focus();
 };
 
 window.opdTestBuildInstructionFromDetails = function () {
@@ -24166,6 +24174,8 @@ window.opdTestSelectMedicationCatalog = function (index) {
     unitCode: item.unitCode || item.desc || '',
     catalogueVersion: item.catalogueVersion
   });
+  const editor = document.getElementById('opdTestMedicationStructuredEditor');
+  if (editor) editor.hidden = false;
   document.getElementById('opdTestMedicationInstruction')?.focus();
 };
 
@@ -24211,7 +24221,7 @@ window.opdTestEditMedicationDraftItem = function (index) {
   if (title) title.textContent = 'Edit Medication';
   if (button) button.innerHTML = '<i class="fas fa-check me-1"></i><span>ອັບເດດຢາ</span>';
   if (cancel) cancel.hidden = false;
-  document.getElementById(isFreeText ? 'opdTestMedicationInstruction' : 'opdTestMedicationName')?.focus();
+  window.opdTestOpenMedicationEditor();
   window.opdTestRenderMedicationPickerDraft();
 };
 
