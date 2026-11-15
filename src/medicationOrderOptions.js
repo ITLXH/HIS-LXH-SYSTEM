@@ -24,7 +24,7 @@ export function validMedicationMasterValue(category, value) {
 }
 
 export function medicationOptions(rows, type) {
-  if (!Array.isArray(rows)) return defaultMedicationOptions[type] || [];
+  if (!Array.isArray(rows) || rows.length === 0) return defaultMedicationOptions[type] || [];
   const seen = new Set();
   return rows.flatMap(row => {
     const [rawCode, ...labelParts] = String(row.value || '').split('|');
