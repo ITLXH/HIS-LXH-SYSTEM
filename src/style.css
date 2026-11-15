@@ -21524,6 +21524,111 @@ body.opd-test-workspace-active #view-opd_test {
   padding: 6px 12px !important;
 }
 
+/* The OPD medication picker uses the same editor and order actions inline. */
+#view-opd_test .opdt-med-workspace-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#view-opd_test .opdt-med-workspace-bar .opdt-inline-order-header {
+  min-height: 38px;
+  margin: 0;
+}
+
+#view-opd_test .opdt-med-workspace-bar .opdt-rx-order-controls {
+  display: block;
+  margin: 0;
+}
+
+#view-opd_test .opdt-med-workspace-bar .opdt-zone-order-btn {
+  min-width: 150px;
+}
+
+#view-opd_test .opdt-medication-workspace {
+  min-width: 0;
+  margin-top: 8px;
+}
+
+#view-opd_test #opdTestMedicationModal {
+  position: static;
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-dialog {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  transform: none;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-content {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  border: 1px solid var(--opdt-standard-border) !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-header {
+  min-height: 36px;
+  padding: 6px 10px;
+  background: var(--opdt-standard-soft) !important;
+  color: var(--opdt-standard-text) !important;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-header .btn-close,
+#view-opd_test #opdTestMedicationModal .modal-footer [data-bs-dismiss="modal"] {
+  display: none;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-body {
+  padding: 8px !important;
+  overflow: visible;
+  background: #fff;
+}
+
+#view-opd_test #opdTestMedicationModal .opdt-med-picker-shell,
+#view-opd_test #opdTestMedicationModal .opdt-med-picker-layout {
+  height: auto;
+  min-height: 0;
+}
+
+#view-opd_test #opdTestMedicationModal .opdt-med-picker-shell {
+  padding: 0;
+  border: 0;
+  background: #fff;
+}
+
+#view-opd_test #opdTestMedicationModal .opdt-med-catalog-list {
+  flex: 0 1 auto;
+  max-height: 300px;
+}
+
+#view-opd_test #opdTestMedicationModal .opdt-med-selected-list {
+  flex: 0 1 auto;
+  max-height: 190px;
+}
+
+#view-opd_test #opdTestMedicationModal .modal-footer {
+  min-height: 42px;
+  padding: 5px 10px !important;
+}
+
+@media (max-width: 991.98px) {
+  #view-opd_test #opdTestMedicationModal .opdt-med-picker-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 991.98px) {
   #opdTestMedicationModal .modal-body {
     overflow-y: auto;
