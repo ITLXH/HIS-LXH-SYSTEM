@@ -21776,6 +21776,14 @@ window.opdTestSelectOrderTab = function (requestedTab = 'clinical', focus = true
     panel.classList.toggle('active', active);
     panel.hidden = !active;
   });
+  if (tab === 'medication' && window.opdTestEnsureInlineMedicationPicker?.()) {
+    const visit = window.opdTestSelectedVisit;
+    const visitKey = String(visit?.visitId || visit?.rowIdx || visit?.id || 'new');
+    if (root.dataset.opdtMedicationVisit !== visitKey) {
+      root.dataset.opdtMedicationVisit = visitKey;
+      void window.opdTestOpenMedicationPicker();
+    }
+  }
   const workspaceLabels = {
     clinical: { icon: 'fa-notes-medical', title: 'ບັນທຶກການກວດ / Clinical Encounter' },
     lab: { icon: 'fa-vials', title: 'Lab Orders & Results / ຫ້ອງແລັບ' },
@@ -24284,6 +24292,20 @@ window.opdTestSaveMedicationDraftItem = async function () {
   window.opdTestRenderMedicationPickerDraft();
 };
 
+window.opdTestEnsureInlineMedicationPicker = function () {
+  const mount = document.getElementById('opdTestMedicationPickerMount');
+  const picker = document.getElementById('opdTestMedicationModal');
+  if (!mount || !picker) return false;
+  if (picker.parentElement !== mount) {
+    mount.appendChild(picker);
+    picker.classList.remove('modal', 'fade');
+    picker.classList.add('opdt-med-inline');
+    picker.removeAttribute('tabindex');
+    picker.setAttribute('aria-hidden', 'false');
+  }
+  return true;
+};
+
 window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   if (window.opdTestState.locked) return;
   window.opdTestPopulateMedicationDirections();
@@ -24308,7 +24330,7 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   if (catalog) catalog.innerHTML = window.getHospitalDataLoaderHtml({ message: 'ກຳລັງໂຫຼດລາຍການຢາ...', compact: true });
   window.opdTestRenderMedicationPickerDraft();
   if (document.activeElement) document.activeElement.blur();
-  $('#opdTestMedicationModal').modal('show');
+  if (!window.opdTestEnsureInlineMedicationPicker()) $('#opdTestMedicationModal').modal('show');
   try {
     await window.opdTestLoadMedicationPickerCatalog();
   } catch {
@@ -24349,7 +24371,12 @@ window.opdTestConfirmMedicationPicker = function () {
   state.editingMedicationIndex = -1;
   window.opdTestMarkDirty();
   window.opdTestRefreshSimple();
-  $('#opdTestMedicationModal').modal('hide');
+  if (document.getElementById('opdTestMedicationModal')?.classList.contains('modal')) {
+    $('#opdTestMedicationModal').modal('hide');
+  } else {
+    window.opdTestMedicationPickerDraft = [];
+    window.opdTestRenderMedicationPickerDraft();
+  }
   window.opdTestEditingMedicationBatch = null;
   if (editingBatch) {
     window.opdTestSimpleAlert('ແກ້ໄຂສຳເລັດແລ້ວ', 'ລາຍການສັ່ງຢາ ແລະເວລາສັ່ງຖືກອັບເດດແລ້ວ.', 'success');

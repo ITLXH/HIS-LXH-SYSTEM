@@ -9,7 +9,7 @@ assert.deepEqual(medicationDirectionOptions([{value:'<synthetic>'}]),['<syntheti
 console.log('PASS saved direction choices, deduplication, limits and no automatic prescription');
 
 const source = readFileSync('src/main.js', 'utf8');
-const html = readFileSync('public/partials/modals/emr-modals.html', 'utf8');
+const html = readFileSync('public/partials/views/opd_test.html', 'utf8');
 const typed = {value: 'Custom synthetic directions', style: {display: ''}};
 const list = {replaceChildren(...options) {this.options = options;}};
 const masterDataStore = {DrugUsage: entries};

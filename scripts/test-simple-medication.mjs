@@ -30,7 +30,7 @@ assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,true);
 window.opdTestSetMedicationEditorValues({name:'Legacy',dose:'1',route:'TEST',frequency:'TEST',duration:'TEST'});
 assert.equal(nodes.get('opdTestMedicationLegacyDetails').hidden,false);
 assert.equal(nodes.get('opdTestMedicationDose').value,'1');
-const html=readFileSync('public/partials/modals/emr-modals.html','utf8');
+const html=readFileSync('public/partials/views/opd_test.html','utf8');
 assert.match(html,/id="opdTestMedicationUnit" readonly/);
 assert.match(html,/id="opdTestMedicationLegacyDetails" hidden/);
 console.log('PASS actual picker fills unit, leaves clinical dose unset and preserves legacy editing');
