@@ -24186,23 +24186,15 @@ window.opdTestRenderMedicationPickerDraft = function () {
   const draft = window.opdTestMedicationPickerDraft || [];
   if (count) count.textContent = draft.length;
   target.innerHTML = draft.length
-    ? draft.map((item, index) => {
+    ? `<div class="opdt-med-table-wrap"><table class="opdt-med-draft-table"><thead><tr><th>#</th><th>ຊື່ຢາ</th><th>ວິທີໃຊ້</th><th>ຈຳນວນ</th><th>ຈັດການ</th></tr></thead><tbody>${draft.map((item, index) => {
+      const safe = window.opdTestHtml;
       const isFreeText = item.isFreeText || Boolean(item.freeText);
-      const detail = isFreeText
-        ? `<span class="opdt-med-free-text">${window.opdTestHtml(item.freeText || item.name)}</span><small class="opdt-med-text-badge"><i class="fas fa-align-left"></i> Free text ຂອງໝໍ</small>`
-        : `<strong>${window.opdTestHtml(item.name)}</strong><span>${window.opdTestHtml(item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '-')}</span><small>${window.opdTestHtml(item.quantity)} ${window.opdTestHtml(item.unitCode || '')}</small>`;
-      return `<div class="opdt-med-draft-item${window.opdTestMedicationPickerEditingIndex === index ? ' is-editing' : ''}${isFreeText ? ' is-free-text' : ''}">
-        <div class="opdt-med-draft-number">${index + 1}</div>
-        <div class="opdt-med-draft-main">
-          ${detail}
-        </div>
-        <div class="opdt-med-draft-actions">
-          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.opdTestEditMedicationDraftItem(${index})" title="ແກ້ໄຂ"><i class="fas fa-pen"></i></button>
-          <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.opdTestDeleteMedicationDraftItem(${index})" title="ລຶບ"><i class="fas fa-trash"></i></button>
-        </div>
-      </div>`;
-    }).join('')
-    : `<div class="emr-order-empty"><i class="fas fa-prescription-bottle-medical"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍ, ກອກລາຍລະອຽດໃຫ້ຄົບ ແລ້ວກົດ “ເພີ່ມຢາ”</span></div>`;
+      return `<tr><td>${index + 1}</td><td><strong>${safe(item.name)}</strong></td>
+        <td>${safe(isFreeText ? (item.freeText || item.instructions || '') : (item.instructions || item.instr || window.opdTestMedicationInstructionText(item) || '—'))}</td>
+        <td>${safe(item.quantity || item.qty || '—')} ${safe(item.unitCode || '')}</td>
+        <td class="opdt-med-row-actions"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.opdTestEditMedicationDraftItem(${index})" aria-label="ແກ້ໄຂ ${safe(item.name)}"><i class="fas fa-pen"></i></button><button type="button" class="btn btn-outline-danger btn-sm" onclick="window.opdTestDeleteMedicationDraftItem(${index})" aria-label="ລຶບ ${safe(item.name)}"><i class="fas fa-trash"></i></button></td></tr>`;
+    }).join('')}</tbody></table></div>`
+    : `<div class="emr-order-empty"><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ເລືອກຢາຈາກຝັ່ງຊ້າຍເພື່ອເພີ່ມລາຍການ</span></div>`;
 };
 
 window.opdTestEditMedicationDraftItem = function (index) {
