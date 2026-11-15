@@ -18908,8 +18908,8 @@ small,
 
 #view-opd_test .opdt-zone-results-panel {
   min-width: 0;
-  margin-top: auto;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 0;
 }
 
 #view-opd_test .opdt-zone-results-panel.is-ris,
@@ -21726,7 +21726,7 @@ body.opd-test-workspace-active #view-opd_test {
 }
 
 #view-opd_test:not([data-opdt-workspace="clinical"]) .opdt-order-tab-panel.active {
-  min-height: calc(100vh - 390px);
+  min-height: 0;
 }
 
 @media (max-width: 1199.98px) {
@@ -22687,8 +22687,8 @@ body.opd-test-workspace-active #view-opd_test {
 #view-opd_test .emr-his-vital-val { font-size: 14px; font-weight: 650; }
 
 #view-opd_test:not([data-opdt-workspace="clinical"]) .opdt-order-tab-panel.active {
-  min-height: clamp(410px, calc(100vh - 430px), 640px);
-  padding: 14px 16px 12px;
+  min-height: 0;
+  padding: 10px 12px;
   align-content: flex-start;
   border: 1px solid var(--opdt-standard-border);
   border-top: 2px solid var(--opdt-standard-primary);
@@ -22707,8 +22707,8 @@ body.opd-test-workspace-active #view-opd_test {
 }
 
 #view-opd_test .opdt-inline-order-header {
-  min-height: 42px;
-  margin-bottom: 8px;
+  min-height: 34px;
+  margin-bottom: 6px;
   align-items: center;
 }
 
@@ -22802,7 +22802,7 @@ body.opd-test-workspace-active #view-opd_test {
 }
 
 #view-opd_test .opdt-inline-order-list {
-  min-height: 42px;
+  min-height: 0;
   max-height: min(190px, 24vh);
   margin-top: 7px;
 }
@@ -22814,7 +22814,7 @@ body.opd-test-workspace-active #view-opd_test {
 
 #view-opd_test .opdt-zone-results-panel,
 #view-opd_test .opdt-lis-results-panel.opdt-zone-results-panel {
-  margin-top: 10px;
+  margin-top: 8px;
   padding-top: 0;
   overflow: hidden;
   border: 1px solid var(--opdt-standard-border);
@@ -22824,8 +22824,8 @@ body.opd-test-workspace-active #view-opd_test {
 
 #view-opd_test .opdt-zone-results-header,
 #view-opd_test .opdt-order-zone .opdt-lis-results-header {
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 5px 10px;
   align-items: center;
   border-bottom: 1px solid var(--opdt-standard-border);
   background: var(--opdt-standard-soft);
@@ -22877,8 +22877,8 @@ body.opd-test-workspace-active #view-opd_test {
 #view-opd_test .opdt-zone-result-state,
 #view-opd_test .opdt-order-zone .opdt-lis-empty {
   display: grid;
-  min-height: 62px;
-  padding: 10px 12px;
+  min-height: 48px;
+  padding: 7px 10px;
   grid-template-columns: 22px minmax(0, 1fr);
   grid-template-rows: auto auto;
   place-items: initial;
