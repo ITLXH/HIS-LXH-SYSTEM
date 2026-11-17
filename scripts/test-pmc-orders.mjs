@@ -9,7 +9,7 @@ const run=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc
 try {
  const response=await run();assert.equal(response.status,200);const body=await response.json();assert.equal(body.rows[0].doctorName,'Synthetic doctor');assert.equal(body.rows[0].status,'INCOMPLETE');assert.equal(body.hasMore,false);assert.match(body.rows[0].prescriptionFingerprint,/^[a-f0-9]{64}$/);
  assert.deepEqual(body.rows[0].lines,[{medicineName:'Synthetic medicine',instructions:'Take after food',unitCode:'TAB',quantity:'2'},{medicineName:'Synthetic syrup',instructions:'Take at bedtime',unitCode:'ML',quantity:'10'}]);
- const read=calls.find(call=>call.url.includes('HIS_One_Visits'));assert.equal(read.options.headers.Authorization,'Bearer synthetic-user');assert.equal(new URL(read.url).searchParams.get('limit'),'21');assert.equal(new URL(read.url).searchParams.get('Prescription_JSON'),'like.*{*');
+ const read=calls.find(call=>call.url.includes('HIS_One_Visits'));assert.equal(read.options.headers.Authorization,'Bearer synthetic-user');assert.equal(new URL(read.url).searchParams.get('limit'),'21');assert.deepEqual(new URL(read.url).searchParams.getAll('Prescription_JSON'),['not.is.null','neq.[]']);
  role='doctor';assert.equal((await run()).status,403);role='admin';
  source=[{...source[0],Prescription_JSON:'[{"status":"dispensed"}]'}];assert.equal((await (await run()).json()).rows[0].status,'ACCEPTED');
  source=[{...source[0],Prescription_JSON:'[{"status":"rejected"}]'}];assert.equal((await (await run()).json()).rows[0].status,'FAILED');
