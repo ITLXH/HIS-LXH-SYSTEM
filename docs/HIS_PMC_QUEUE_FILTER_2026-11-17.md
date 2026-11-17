@@ -6,12 +6,12 @@ The PMC queue showed an empty page with Next enabled even when its date range co
 
 ## Change
 
-The date-range query now selects prescription text containing an object (`like.*{*`) before applying offset and limit. HIS stores medication lines as JSON objects inside an array, while null, empty arrays, and empty strings contain no object. The exact patient/visit lookup stays unchanged so a previously selected order can still be checked by identity. API response shape, staff authorization, RLS token, clinical status logic, and order workflows are unchanged.
+The date-range query now excludes null and empty-array prescription text before applying offset and limit. The exact patient/visit lookup stays unchanged so a previously selected order can still be checked by identity. API response shape, staff authorization, RLS token, clinical status logic, and order workflows are unchanged.
 
 ## Verification
 
-`scripts/test-pmc-orders.mjs` asserts that the queue query includes the source filter and the identity query does not. It passed with synthetic fixtures. `npm run test:auth`, `npm run test:security`, and `npm run build -- --outDir tmp/his-pmc-queue-filter-check` passed. The orientation document mentions `test:clinical-reads`, but this current checkout has no such npm script.
+`scripts/test-pmc-orders.mjs` asserts that the queue query includes both source filters and the identity query does not. It passed with synthetic fixtures. `npm run test:auth`, `npm run test:security`, and `npm run build -- --outDir tmp/his-pmc-queue-filter-check` passed. The orientation document mentions `test:clinical-reads`, but this current checkout has no such npm script.
 
 ## Remaining limit
 
-Malformed text containing `{` and visits without a confirmed EMR revision can still be skipped after pagination. This change addresses the common empty-data case without altering clinical confirmation rules. It does not make an unsent HIS prescription appear in PMC.
+Malformed or nonempty prescription text and visits without a confirmed EMR revision can still be skipped after pagination. This change addresses the common null/`[]` case without altering clinical confirmation rules. It does not make an unsent HIS prescription appear in PMC.
