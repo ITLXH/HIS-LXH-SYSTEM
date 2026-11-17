@@ -43,3 +43,10 @@ export function invalidCatalogDraftIndex(rows) {
     !/^(?:[1-9]\d*|0\.\d*[1-9]\d*|[1-9]\d*\.\d*[1-9]\d*)$/.test(String(row.quantity || ''))
   ));
 }
+
+export function syncCatalogDraftValues(row, values) {
+  if (!row?.needsDetails) return row;
+  return fields.reduce((current, field) => (
+    Object.hasOwn(values, field) ? updateCatalogDraft(current, field, values[field]) : current
+  ), row);
+}

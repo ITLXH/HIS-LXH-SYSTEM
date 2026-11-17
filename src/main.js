@@ -2,7 +2,7 @@ import { installNativePrescriptionSubmit, prepareNativeLines, formatNativeLineEr
 import { medicationDirectionOptions } from './medicationDirections.js';
 import { createPmcOrderReceiptNotice } from './pmcOrderReceiptNotice.js';
 import { loadPmcMedicineCatalogue } from './pmcMedicineCatalogue.js';
-import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex } from './medicationDraftRows.js';
+import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex, syncCatalogDraftValues } from './medicationDraftRows.js';
 import { defaultMedicationOptions, defaultMedicationDurations, medicationOptions, durationOptions, validMedicationMasterValue } from './medicationOrderOptions.js';
 import JsBarcode from 'jsbarcode';
 import { dashboardServiceDepartmentsForVisit } from './dashboardServiceDepartments.js';
@@ -24424,6 +24424,17 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
 window.opdTestConfirmMedicationPicker = function () {
   const state = window.opdTestState;
   if (state.locked) return;
+  // Include the last value still visible in the row when Confirm is clicked.
+  document.querySelectorAll('#opdTestMedicationDraftTable tbody tr').forEach((tr, index) => {
+    const row = window.opdTestMedicationPickerDraft[index];
+    if (!row?.needsDetails) return;
+    const values = {};
+    for (const field of ['route', 'dose', 'frequency', 'duration', 'quantity']) {
+      const control = tr.querySelector(`[onchange*="'${field}'"]`);
+      if (control) values[field] = control.value;
+    }
+    window.opdTestMedicationPickerDraft[index] = syncCatalogDraftValues(row, values);
+  });
   if (!window.opdTestMedicationPickerDraft.length) {
     window.opdTestSimpleAlert('ຍັງບໍ່ມີລາຍການຢາ', 'ກະລຸນາເພີ່ມຢາຢ່າງໜ້ອຍ 1 ລາຍການ.', 'warning');
     return;

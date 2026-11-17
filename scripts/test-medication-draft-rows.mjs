@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex, calculateQuantity } from '../src/medicationDraftRows.js';
+import { createCatalogDraft, updateCatalogDraft, invalidCatalogDraftIndex, calculateQuantity, syncCatalogDraftValues } from '../src/medicationDraftRows.js';
 import { prepareNativeLines } from '../src/nativePrescriptionSubmit.js';
 
 const catalog = { name: 'Amlodipine 5 mg', id: 'drug-1', source: 'database' };
@@ -20,6 +20,12 @@ assert.equal(invalidCatalogDraftIndex([row]), -1);
 
 const empty = createCatalogDraft({ name: 'Unknown drug', source: 'database' }, {});
 assert.equal(invalidCatalogDraftIndex([empty]), 0);
+const synced = syncCatalogDraftValues(empty, {
+  route: 'PO', dose: '1', frequency: 'Once', duration: '1 day', quantity: '1'
+});
+assert.equal(invalidCatalogDraftIndex([synced]), -1);
+assert.equal(synced.instructions, '1 · PO · Once · 1 day');
+assert.equal(invalidCatalogDraftIndex([syncCatalogDraftValues(empty, { dose: '1' })]), 0);
 const filled = ['dose', 'route', 'frequency', 'duration', 'quantity'].reduce(
   (item, field) => updateCatalogDraft(item, field, field === 'quantity' ? '10' : '1'), empty
 );
