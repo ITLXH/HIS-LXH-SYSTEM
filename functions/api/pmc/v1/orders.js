@@ -17,7 +17,7 @@ export async function onRequestGet({ request, env }) {
     if (!env.SUPABASE_ANON_KEY) return fail(503,'Pharmacy export is not configured');
     const query = new URLSearchParams({ select:'Visit_ID,Patient_ID,Patient_Name,Doctor_Name,Date,EMR_Revision,Prescription_JSON',order:'Date.desc,Visit_ID.asc',limit:targeted?'2':'21' });
     if(targeted){query.set('Patient_ID',`eq.${patientId}`);query.set('Visit_ID',`eq.${visitId}`);}
-    else{const end=new Date(Date.parse(to)+86400000).toISOString().slice(0,10);query.set('offset',String(offset));query.append('Date',`gte.${from}`);query.append('Date',`lt.${end}`);query.append('Prescription_JSON','not.is.null');query.append('Prescription_JSON','neq.[]');}
+    else{const end=new Date(Date.parse(to)+86400000).toISOString().slice(0,10);query.set('offset',String(offset));query.append('Date',`gte.${from}`);query.append('Date',`lt.${end}`);query.set('Prescription_JSON','like.*{*');}
     const response = await fetch(`${String(env.SUPABASE_URL).replace(/\/+$/,'')}/rest/v1/HIS_One_Visits?${query}`,{ headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:`Bearer ${auth.accessToken}`} });
     if (!response.ok) return fail([401,403].includes(response.status)?response.status:503,'Clinical queue unavailable');
     const visits = await response.json(); if (!Array.isArray(visits)) return fail(503,'Invalid source');
