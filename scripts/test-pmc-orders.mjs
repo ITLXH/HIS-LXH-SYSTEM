@@ -9,7 +9,7 @@ const run=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc
 try {
  const response=await run();assert.equal(response.status,200);const body=await response.json();assert.equal(body.rows[0].doctorName,'Synthetic doctor');assert.equal(body.rows[0].status,'INCOMPLETE');assert.equal(body.hasMore,false);assert.match(body.rows[0].prescriptionFingerprint,/^[a-f0-9]{64}$/);
  assert.deepEqual(body.rows[0].lines,[{medicineName:'Synthetic medicine',instructions:'Take after food',unitCode:'TAB',quantity:'2'},{medicineName:'Synthetic syrup',instructions:'Take at bedtime',unitCode:'ML',quantity:'10'}]);
- const read=calls.find(call=>call.url.includes('HIS_One_Visits'));assert.equal(read.options.headers.Authorization,'Bearer synthetic-user');assert.equal(new URL(read.url).searchParams.get('limit'),'21');
+ const read=calls.find(call=>call.url.includes('HIS_One_Visits'));assert.equal(read.options.headers.Authorization,'Bearer synthetic-user');assert.equal(new URL(read.url).searchParams.get('limit'),'21');assert.deepEqual(new URL(read.url).searchParams.getAll('Prescription_JSON'),['not.is.null','neq.[]']);
  role='doctor';assert.equal((await run()).status,403);role='admin';
  source=[{...source[0],Prescription_JSON:'[{"status":"dispensed"}]'}];assert.equal((await (await run()).json()).rows[0].status,'ACCEPTED');
  source=[{...source[0],Prescription_JSON:'[{"status":"rejected"}]'}];assert.equal((await (await run()).json()).rows[0].status,'FAILED');
@@ -23,7 +23,7 @@ try {
  source=[{Visit_ID:'VISIT-SYN',Patient_ID:'PATIENT-SYN',Date:'2026-10-25',EMR_Revision:2,Prescription_JSON:[{name:'Synthetic medicine',status:'sent_to_pharmacy'}]}];
  const target=()=>onRequestGet({env,request:new Request('https://his.example/api/pmc/v1/orders?patientId=PATIENT-SYN&visitId=VISIT-SYN',{headers:{Authorization:'Bearer synthetic-user'}})});
  calls.length=0;assert.equal((await (await target()).json()).rows[0].submissionState,'SUBMITTED');
- const exact=new URL(calls.find(call=>call.url.includes('HIS_One_Visits')).url);assert.equal(exact.searchParams.get('Patient_ID'),'eq.PATIENT-SYN');assert.equal(exact.searchParams.get('Visit_ID'),'eq.VISIT-SYN');assert.equal(exact.searchParams.get('limit'),'2');
+ const exact=new URL(calls.find(call=>call.url.includes('HIS_One_Visits')).url);assert.equal(exact.searchParams.get('Patient_ID'),'eq.PATIENT-SYN');assert.equal(exact.searchParams.get('Visit_ID'),'eq.VISIT-SYN');assert.equal(exact.searchParams.get('limit'),'2');assert.equal(exact.searchParams.has('Prescription_JSON'),false);
  source=[{...source[0],Prescription_JSON:[{name:'Synthetic medicine',status:'prescribed'}]}];assert.equal((await (await target()).json()).rows[0].submissionState,'DRAFT');
  source=[{...source[0],Patient_ID:'OTHER-SYN'}];assert.equal((await target()).status,409);
  role='doctor';assert.equal((await target()).status,403);role='admin';
