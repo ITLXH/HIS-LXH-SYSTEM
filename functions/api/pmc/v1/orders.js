@@ -47,7 +47,7 @@ export async function onRequestGet({ request, env }) {
     const ids = [...new Set(rows.map(row => row.patientId))];
     if (!targeted && ids.length) {
       try {
-        const query = new URLSearchParams({select:'Patient_ID,Title,First_Name,Last_Name,Age,Date_of_Birth,Address,District,Province',Patient_ID:'in.('+ids.join(',')+')',limit:String(ids.length)});
+        const query = new URLSearchParams({select:'Patient_ID,Title,First_Name,Last_Name,Gender,Age,Date_of_Birth,Address,District,Province',Patient_ID:'in.('+ids.join(',')+')',limit:String(ids.length)});
         const result = await fetch(new URL('/rest/v1/HIS_One_Patients?'+query, env.SUPABASE_URL), {
           headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:'Bearer '+auth.accessToken},signal:AbortSignal.timeout(2500)
         });
@@ -58,6 +58,8 @@ export async function onRequestGet({ request, env }) {
           const field = value => typeof value === 'string' ? value.trim() : '';
           const name = [patient.Title,patient.First_Name,patient.Last_Name].map(field).filter(Boolean).join(' ');
           if (name) row.patientName = name.slice(0,300);
+          const gender = field(patient.Gender);
+          if (gender) row.patientGender = gender.slice(0,60);
           const dob = field(patient.Date_of_Birth).slice(0,10);
           const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Vientiane',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
           const age = validDate(dob) && dob <= today
