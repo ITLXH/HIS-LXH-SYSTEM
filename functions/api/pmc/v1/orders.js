@@ -66,6 +66,12 @@ export async function onRequestGet({ request, env }) {
             ? Number(today.slice(0,4))-Number(dob.slice(0,4))-Number(today.slice(5)<dob.slice(5))
             : /^\d{1,3}$/.test(String(patient.Age)) ? Number(patient.Age) : null;
           if (Number.isInteger(age) && age >= 0 && age <= 130) row.patientAge = age;
+          const village = field(patient.Address);
+          const district = field(patient.District);
+          const province = field(patient.Province);
+          if (village) row.patientVillage = village.slice(0,160);
+          if (district) row.patientDistrict = district.slice(0,160);
+          if (province) row.patientProvince = province.slice(0,160);
           const address = [patient.Address,patient.District,patient.Province].map(field).filter(Boolean).join(' · ');
           if (address) row.patientAddress = address.slice(0,500);
         }
