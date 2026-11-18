@@ -24584,3 +24584,14 @@ body.opd-test-workspace-active #view-opd_test {
   #view-settings .master-topic-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #view-settings .master-list-panel { max-height: 50vh; }
 }
+
+/* Keep the medication action visible in the shared footer while orders scroll. */
+#view-opd_test .opdt-emr-footer .opdt-medication-footer-confirm,
+#view-opd_test[data-opdt-workspace="medication"] .opdt-emr-footer .emr-his-footer-meta,
+#view-opd_test[data-opdt-workspace="medication"] .opdt-emr-footer .emr-his-footer-actions > :not(.opdt-medication-footer-confirm) {
+  display: none;
+}
+#view-opd_test[data-opdt-workspace="medication"] .opdt-emr-footer .opdt-medication-footer-confirm {
+  display: inline-flex;
+  align-items: center;
+}
