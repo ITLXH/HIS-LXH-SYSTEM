@@ -21136,9 +21136,11 @@ window.opdTestApplySelectedVisit = function () {
   setText('opdTestVitalWeight', visit.weight ? `${visit.weight} kg` : '—');
   setText('opdTestVitalHeight', visit.height ? `${visit.height} cm` : '—');
   setText('opdTestVitalBmi', bmi || '—');
-  setText('opdTestAllergySafetyText', hasAllergy
-    ? `ແພ້ຢາ ${state.patientAllergy}: ລະບົບຈະເຕືອນກ່ອນເພີ່ມຢາ`
-    : 'ບໍ່ພົບປະຫວັດແພ້ຢາ; ກະລຸນາກວດຢືນຢັນກ່ອນສັ່ງຢາ');
+  const allergyNote = document.getElementById('opdTestAllergySafetyText');
+  if (allergyNote) {
+    allergyNote.parentElement.hidden = !hasAllergy;
+    allergyNote.textContent = hasAllergy ? `ແພ້ຢາ ${state.patientAllergy}: ລະບົບຈະເຕືອນກ່ອນເພີ່ມຢາ` : '';
+  }
 
   const photo = document.getElementById('opdTestPatientPhoto');
   if (photo) {
@@ -25175,7 +25177,6 @@ window.opdTestRenderLegacyOrders = function () {
   const rxTarget = document.getElementById('opdTestRxRows');
   const labCount = document.getElementById('opdTestLabTabCount');
   const rxCount = document.getElementById('opdTestRxTabCount');
-  const medicationOrderButtonLabel = document.getElementById('opdTestMedicationOrderButtonLabel');
   const investigationBatchesByType = {
     lab: window.opdTestInvestigationBatches('lab'),
     ultrasound: window.opdTestInvestigationBatches('ultrasound'),
@@ -25189,9 +25190,6 @@ window.opdTestRenderLegacyOrders = function () {
   if (labCount) labCount.textContent = investigationBatchTotal;
   const medicationBatches = window.opdTestMedicationBatches();
   if (rxCount) rxCount.textContent = medicationBatches.length;
-  if (medicationOrderButtonLabel) {
-    medicationOrderButtonLabel.textContent = 'ເລືອກລາຍການຢາ';
-  }
   document.querySelectorAll('#view-opd_test [data-opdt-lab-total]').forEach(target => { target.textContent = investigationBatchTotal; });
   document.querySelectorAll('#view-opd_test [data-opdt-investigation-total]').forEach(target => {
     target.textContent = investigationCounts[target.dataset.opdtInvestigationTotal] || 0;

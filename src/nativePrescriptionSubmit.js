@@ -36,15 +36,16 @@ export function installNativePrescriptionSubmit({getClient,getContext,getBatches
  const client=createNativeSubmissionClient((...args)=>getClient().rpc(...args));
  const identity=()=>{const c=getContext();return JSON.stringify([c.patientId,c.visitId]);};
  function render(){
-  const anchor=document.getElementById('opdTestMedicationOrderButton');if(!anchor)return;
+  const root=document.getElementById('opdNativePrescriptionSubmit');if(!root)return;
   const currentIdentity=identity();if(activeIdentity!==currentIdentity){activeIdentity=currentIdentity;message='';}
-  let root=document.getElementById('opdNativePrescriptionSubmit');if(!root){root=document.createElement('div');root.id='opdNativePrescriptionSubmit';root.className='mt-2';anchor.parentElement.append(root);}
   root.replaceChildren();
   for(const [i,batch] of getBatches().entries()){
    const sent=batch.entries.every(e=>['sent_to_pharmacy','accepted','preparing','ready','dispensed'].includes(e.item.pharmacyStatus||e.item.status));
-   const button=document.createElement('button');button.type='button';button.className='btn btn-primary btn-sm me-2';button.textContent=sent?`ຊຸດ ${i+1} · ສົ່ງຫ້ອງຢາແລ້ວ`:`ຢືນຢັນສົ່ງຫ້ອງຢາ · ຊຸດ ${i+1}`;button.disabled=busy||sent||!isAllowed();button.addEventListener('click',()=>void send(batch));root.append(button);
+   if(sent)continue;
+   const button=document.createElement('button');button.type='button';button.className='btn btn-primary btn-sm me-2';button.textContent=`ຢືນຢັນສົ່ງຫ້ອງຢາ · ຊຸດ ${i+1}`;button.disabled=busy||!isAllowed();button.addEventListener('click',()=>void send(batch));root.append(button);
   }
   if(message){const status=document.createElement('p');status.setAttribute('role','status');status.textContent=message;root.append(status);}
+  root.hidden=!root.childElementCount;
  }
  async function send(batch){
   if(busy||!isAllowed())return;busy=true;

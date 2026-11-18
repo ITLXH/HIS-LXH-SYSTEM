@@ -335,7 +335,7 @@
                     <strong>ລາຍການສັ່ງຢາ <span id="opdTestMedicationDraftCount">0</span></strong>
                   </div>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" id="opdTestMedicationOrderButton" data-emr-action onclick="window.opdTestOpenMedicationPicker(); return false;"><i class="fas fa-plus me-1"></i><span id="opdTestMedicationOrderButtonLabel">ສັ່ງຢາໃໝ່</span></button>
+                <div id="opdNativePrescriptionSubmit" hidden></div>
               </div>
               <div class="opdt-med-selected-list" id="opdTestMedicationDraftList" aria-live="polite"></div>
               <div class="opdt-med-editor" id="opdTestMedicationStructuredEditor" hidden>
@@ -380,19 +380,11 @@
 </div>
 
 </div>
-                        <div class="opdt-allergy-safety-note">
+                        <div class="opdt-allergy-safety-note" hidden>
                           <i class="fas fa-hand-paper"></i>
                           <span id="opdTestAllergySafetyText">ກວດສອບປະຫວັດແພ້ຢາກ່ອນສັ່ງຢາ</span>
                         </div>
                         <div id="opdTestRxRows" class="emr-order-list opdt-inline-order-list" aria-live="polite"></div>
-                        <section class="opdt-zone-results-panel is-pharmacy" aria-labelledby="opdTestPharmacyStatusHeading">
-                          <div class="opdt-zone-results-header">
-                            <h3 id="opdTestPharmacyStatusHeading"><i class="fas fa-prescription-bottle-medical"></i>Pharmacy Status</h3>
-                            <div class="opdt-zone-results-actions"><span>Rx</span><button type="button" class="btn btn-outline-warning" onclick="window.opdTestSyncExternalResults('medication'); return false;" title="ໂຫຼດສະຖານະຈ່າຍຢາ" aria-label="ໂຫຼດສະຖານະຈ່າຍຢາ"><i class="fas fa-sync-alt"></i></button></div>
-                          </div>
-                          <div class="opdt-zone-result-state" id="opdTestPharmacyResultState"><i class="fas fa-prescription-bottle"></i><strong>ຍັງບໍ່ມີລາຍການຢາ</strong><span>ສະຖານະຈ່າຍຢາຈະສະແດງຢູ່ນີ້</span></div>
-                          <div id="opdTestPmcResults" aria-live="polite"></div>
-                        </section>
                       </section>
                     </div>
                   </div>

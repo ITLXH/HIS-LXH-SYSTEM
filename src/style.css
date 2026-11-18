@@ -24595,3 +24595,12 @@ body.opd-test-workspace-active #view-opd_test {
   display: inline-flex;
   align-items: center;
 }
+
+#view-opd_test .opdt-allergy-safety-note[hidden] { display: none; }
+#view-opd_test[data-opdt-workspace="medication"] .opdt-emr-footer {
+  justify-content: flex-end;
+}
+#view-opd_test[data-opdt-workspace="medication"] .opdt-emr-footer .emr-his-footer-actions {
+  margin-inline-start: auto;
+  justify-content: flex-end;
+}
