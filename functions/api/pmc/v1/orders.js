@@ -43,6 +43,32 @@ export async function onRequestGet({ request, env }) {
     }
     // Aggregate RLS-visible page counts only; never identities, credentials or prescriptions.
     console.info('HIS_PMC_QUEUE',JSON.stringify({scanned:Math.min(visits.length,20),medicationVisits,unconfirmedMedicationVisits,returned:rows.length,hasMore:visits.length>20}));
+    // Resolve only the patients on this authorized queue page, through the same RLS session.
+    const ids = [...new Set(rows.map(row => row.patientId))];
+    if (!targeted && ids.length) {
+      try {
+        const query = new URLSearchParams({select:'Patient_ID,Title,First_Name,Last_Name,Age,Date_of_Birth,Address,District,Province',Patient_ID:'in.('+ids.join(',')+')',limit:String(ids.length)});
+        const result = await fetch(new URL('/rest/v1/HIS_One_Patients?'+query, env.SUPABASE_URL), {
+          headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:'Bearer '+auth.accessToken},signal:AbortSignal.timeout(2500)
+        });
+        const patients = result.ok ? await result.json() : [];
+        if (Array.isArray(patients)) for (const row of rows) {
+          const patient = patients.find(value => value?.Patient_ID === row.patientId);
+          if (!patient) continue;
+          const field = value => typeof value === 'string' ? value.trim() : '';
+          const name = [patient.Title,patient.First_Name,patient.Last_Name].map(field).filter(Boolean).join(' ');
+          if (name) row.patientName = name.slice(0,300);
+          const dob = field(patient.Date_of_Birth).slice(0,10);
+          const today = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Vientiane',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+          const age = validDate(dob) && dob <= today
+            ? Number(today.slice(0,4))-Number(dob.slice(0,4))-Number(today.slice(5)<dob.slice(5))
+            : /^\d{1,3}$/.test(String(patient.Age)) ? Number(patient.Age) : null;
+          if (Number.isInteger(age) && age >= 0 && age <= 130) row.patientAge = age;
+          const address = [patient.Address,patient.District,patient.Province].map(field).filter(Boolean).join(' · ');
+          if (address) row.patientAddress = address.slice(0,500);
+        }
+      } catch { /* Queue stays available if demographic enrichment is unavailable. */ }
+    }
     return jsonResponse({rows,hasMore:visits.length>20});
   } catch { return fail(503,'Clinical queue unavailable'); }
 }
