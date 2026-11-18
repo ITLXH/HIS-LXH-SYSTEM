@@ -40,6 +40,24 @@ export async function onRequestGet({ request, env }) {
     try { medications = typeof row.Prescription_JSON === 'string' ? JSON.parse(row.Prescription_JSON || '[]') : row.Prescription_JSON; }
     catch { return fail(409, 'Invalid stored prescription'); }
     if (!Array.isArray(medications) || medications.length > 100) return fail(409, 'Invalid stored prescription');
+    const legacyIds = [...new Set(medications.filter(line => line && !text(line.unitCode) && !line.catalogueVersion && identifier(line.sourceDrugId)).map(line => line.sourceDrugId))];
+    const legacyUnits = new Map();
+    if (legacyIds.length) {
+      const drugQuery = new URLSearchParams({ select: 'Drug_ID,Description', Drug_ID: 'in.(' + legacyIds.join(',') + ')' });
+      try {
+        const drugs = await fetch(new URL('/rest/v1/HIS_One_Drugs_Master?' + drugQuery, env.SUPABASE_URL), {
+          headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.accessToken },
+          signal: AbortSignal.timeout(3000),
+        });
+        if (drugs.ok) {
+          const data = await drugs.json();
+          if (Array.isArray(data)) for (const item of data) {
+            const unit = text(item.Description);
+            if (legacyIds.includes(item.Drug_ID) && unit && unit.length <= 160) legacyUnits.set(item.Drug_ID, unit);
+          }
+        }
+      } catch { /* A missing catalogue lookup does not hide the prescription. */ }
+    }
     const seen = new Set();
     const lines = [];
     for (const source of medications) {
@@ -57,6 +75,7 @@ export async function onRequestGet({ request, env }) {
           : key === 'sourceDrugId' ? !/^[A-Za-z0-9._:-]{1,120}$/.test(value) : !value || value.length > 160)) return fail(409, 'Invalid catalogue metadata');
         catalogue[key] = value;
       }
+      if (!catalogue.unitCode && legacyUnits.has(source.sourceDrugId)) catalogue.unitCode = legacyUnits.get(source.sourceDrugId);
       const holds = ['ITEM_MAPPING_REQUIRED', 'UNIT_MAPPING_REQUIRED', 'SOURCE_CONFIRMATION_REQUIRED'];
       if (!identifier(lineId)) holds.push('STABLE_LINE_ID_REQUIRED');
       if (!text(source.instructions)) holds.push('PRESCRIBER_INSTRUCTIONS_REQUIRED');

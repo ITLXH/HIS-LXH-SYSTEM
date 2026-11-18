@@ -24105,6 +24105,7 @@ window.opdTestLoadMedicationPickerCatalog = async function () {
       id,
       name,
       desc: item.desc || '',
+      unitCode: String(item.desc || '').trim(),
       source: 'database'
     });
   }
@@ -24592,6 +24593,11 @@ window.opdTestViewMedicationOrder = function (index) {
   });
 };
 
+function medicationDisplayLabel(value, type) {
+  const options = medicationOptions(masterDataStore[type === 'route' ? 'MedicationRoute' : 'MedicationFrequency'], type);
+  return options.find(([code]) => code.toLowerCase() === String(value || '').toLowerCase())?.[1] || value || '—';
+}
+
 window.opdTestViewMedicationBatch = function (index) {
   const batch = window.opdTestMedicationBatchForIndex(index);
   if (!batch?.entries.length || !window.Swal?.fire) return;
@@ -24604,6 +24610,9 @@ window.opdTestViewMedicationBatch = function (index) {
     return `<tr>
       <td><b>${itemIndex + 1}</b></td>
       <td class="opdt-batch-test-name">${window.opdTestHtml(isFreeText ? 'Free-text Prescription' : item.name)}</td>
+      <td>${window.opdTestHtml(item.unitCode || drugsMasterList.find(drug => drug.id === item.sourceDrugId)?.desc || "—")}</td>
+      <td>${window.opdTestHtml(item.route ? medicationDisplayLabel(item.route, "route") : directions)}</td>
+      <td>${window.opdTestHtml(medicationDisplayLabel(item.frequency, "frequency"))}</td>
       <td>${window.opdTestHtml(directions)}</td>
       <td><span class="opdt-occurrence-status ${status.className}">${window.opdTestHtml(status.label)}</span></td>
     </tr>`;
@@ -24616,7 +24625,7 @@ window.opdTestViewMedicationBatch = function (index) {
         <div><span>ຈຳນວນ</span><strong>${batch.entries.length} ລາຍການ</strong></div>
         <div><span>ເວລາສັ່ງ</span><strong>${window.opdTestHtml(window.opdTestFormatExactOrderTime(batch.prescribedAt))}</strong></div>
       </div>
-      <table><thead><tr><th>#</th><th>ຢາ</th><th>ວິທີໃຊ້</th><th>ສະຖານະ</th></tr></thead><tbody>${itemRows}</tbody></table>
+      <table><thead><tr><th>#</th><th>ຢາ</th><th>ຫົວໜ່ວຍ</th><th>ວິທີໃຊ້</th><th>ຄັ້ງ/ມື້</th><th>ລາຍລະອຽດ</th><th>ສະຖານະ</th></tr></thead><tbody>${itemRows}</tbody></table>
     </div>`,
     confirmButtonText: 'ປິດ'
   });
