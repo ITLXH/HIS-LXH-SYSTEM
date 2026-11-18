@@ -24421,9 +24421,11 @@ window.opdTestOpenMedicationPicker = async function (editIndex = -1) {
   document.getElementById('opdTestMedicationSearch')?.focus();
 };
 
-window.opdTestConfirmMedicationPicker = function () {
+window.opdTestConfirmMedicationPicker = async function () {
   const state = window.opdTestState;
   if (state.locked) return;
+  const submission = window.opdNativePrescriptionSubmit;
+  if (!submission?.canSend()) return;
   // Include the last value still visible in the row when Confirm is clicked.
   document.querySelectorAll('#opdTestMedicationDraftTable tbody tr').forEach((tr, index) => {
     const row = window.opdTestMedicationPickerDraft[index];
@@ -24484,9 +24486,7 @@ window.opdTestConfirmMedicationPicker = function () {
     window.opdTestRenderMedicationPickerDraft();
   }
   window.opdTestEditingMedicationBatch = null;
-  if (editingBatch) {
-    window.opdTestSimpleAlert('ແກ້ໄຂສຳເລັດແລ້ວ', 'ລາຍການສັ່ງຢາ ແລະເວລາສັ່ງຖືກອັບເດດແລ້ວ.', 'success');
-  }
+  await submission.sendBatch(prescriptionBatchId);
 };
 
 window.opdTestResetInlineMedication = function () {
@@ -25190,7 +25190,7 @@ window.opdTestRenderLegacyOrders = function () {
   const medicationBatches = window.opdTestMedicationBatches();
   if (rxCount) rxCount.textContent = medicationBatches.length;
   if (medicationOrderButtonLabel) {
-    medicationOrderButtonLabel.textContent = medicationBatches.length ? 'ເພີ່ມ Medication Order' : 'ເລືອກລາຍການຢາ';
+    medicationOrderButtonLabel.textContent = 'ເລືອກລາຍການຢາ';
   }
   document.querySelectorAll('#view-opd_test [data-opdt-lab-total]').forEach(target => { target.textContent = investigationBatchTotal; });
   document.querySelectorAll('#view-opd_test [data-opdt-investigation-total]').forEach(target => {
@@ -25919,7 +25919,7 @@ window.opdNativePrescriptionSubmit = installNativePrescriptionSubmit({
  getBatches: () => window.opdTestMedicationBatches(),
  getState: () => window.opdTestState,
  isAllowed: () => !window.opdTestState.locked && ['doctor','admin'].includes(String(currentUser?.role || currentUser?.Role || '').toLowerCase()) && window.can('opd','edit'),
- confirmSend: async text => (await window.Swal.fire({icon:'question',title:'ຢືນຢັນສົ່ງຫ້ອງຢາ',text,showCancelButton:true,confirmButtonText:'ຢືນຢັນ',cancelButtonText:'ກັບໄປກວດ'})).isConfirmed,
+ confirmSend: async text => (await window.Swal.fire({icon:'question',title:'ສົ່ງລາຍການຢາໄປ PMC',text,showCancelButton:true,confirmButtonText:'ສົ່ງໄປ PMC',cancelButtonText:'ກັບໄປກວດ'})).isConfirmed,
  onSaved: () => { window.opdTestSaveDraft(); window.opdTestRefreshSimple(); }
 });
 window.opdNativePrescriptionSubmit.render();

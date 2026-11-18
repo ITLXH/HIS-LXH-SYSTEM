@@ -68,5 +68,13 @@ export function installNativePrescriptionSubmit({getClient,getContext,getBatches
   }}
   finally{busy=false;render();}
  }
- return{render};
+ return {
+  render,
+  canSend:()=>!busy&&isAllowed(),
+  async sendBatch(key){
+   const batch=getBatches().find(candidate=>candidate.key===key);
+   if(batch)await send(batch);
+  }
+ };
+
 }
