@@ -11,6 +11,7 @@ globalThis.fetch=async(input,init)=>{
  assert.equal(url.searchParams.get('Patient_ID'),'eq.LXH-TEST');
  assert.equal(init.headers.Authorization,'Bearer demo');
  assert.equal(init.headers.apikey,'anon');
+ assert.equal(init.redirect,'manual');
  return Response.json(rows);
 };
 async function lookup(hn='LXH-TEST',token='demo'){return onRequestPost({request:request(hn,token),env});}

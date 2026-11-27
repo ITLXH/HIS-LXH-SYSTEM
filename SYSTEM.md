@@ -685,3 +685,4 @@ User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exac
 - Production builds publish `version.json`; active screens check it every minute and reload when a new deployment is available. Reload waits while a modal, focused input, or edited form is active so unsaved clinical work is protected.
 - Automated checks cover authentication, security, OPD flows, backup automation, registration/backup UI, loading UI, clinical notifications, Triage actions/CRUD wiring, build-version refresh, and the production build.
 PMC sticker printing reads exact HN via POST /api/pmc/v1/sticker-patient. The pharmacy role and existing patient RLS session restrict access; responses are no-store.
+Sticker patient reads use Workers-supported manual redirect handling and reject non-success responses.

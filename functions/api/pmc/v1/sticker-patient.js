@@ -10,7 +10,7 @@ export async function onRequestPost({ request, env }) {
     if (typeof hn !== 'string' || !/^LXH[A-Z0-9-]{1,60}$/.test(hn)) return jsonResponse({error:'INVALID_HN'},400);
     const query = new URLSearchParams({Patient_ID:'eq.'+hn,select:'Patient_ID,Title,First_Name,Last_Name,Gender,Date_of_Birth,Age',limit:'2'});
     const response = await fetch(new URL('/rest/v1/HIS_One_Patients?'+query,env.SUPABASE_URL),{
-      headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:'Bearer '+auth.accessToken},redirect:'error',signal:AbortSignal.timeout(8000)
+      headers:{apikey:env.SUPABASE_ANON_KEY,Authorization:'Bearer '+auth.accessToken},redirect:'manual',signal:AbortSignal.timeout(8000)
     });
     if (!response.ok) return jsonResponse({error:'SOURCE_UNAVAILABLE'},503);
     const rows = await response.json();
