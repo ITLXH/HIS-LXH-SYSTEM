@@ -686,3 +686,5 @@ User said "ແກ້ກັບຄືນ" after the restore: keep the sticker exac
 - Automated checks cover authentication, security, OPD flows, backup automation, registration/backup UI, loading UI, clinical notifications, Triage actions/CRUD wiring, build-version refresh, and the production build.
 PMC sticker printing reads exact HN via POST /api/pmc/v1/sticker-patient. The pharmacy role and existing patient RLS session restrict access; responses are no-store.
 Sticker patient reads use Workers-supported manual redirect handling and reject non-success responses.
+
+PMC sticker search accepts an authenticated HN prefix and returns up to six matching HNs and names under the existing pharmacy access policy.

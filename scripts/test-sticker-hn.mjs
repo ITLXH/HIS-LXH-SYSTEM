@@ -8,7 +8,10 @@ globalThis.fetch=async(input,init)=>{
  const url=new URL(input);
  if(url.pathname==='/auth/v1/user')return Response.json({id:'test'});
  if(url.pathname.endsWith('/HIS_One_Users'))return Response.json([{Status:'active',Role:role}]);
- assert.equal(url.searchParams.get('Patient_ID'),'eq.LXH-TEST');
+ if (url.searchParams.get('Patient_ID')==='like.LXH202*') {
+   assert.equal(url.searchParams.get('limit'),'6');
+   assert.equal(url.searchParams.get('order'),'Patient_ID.asc');
+ } else assert.equal(url.searchParams.get('Patient_ID'),'eq.LXH-TEST');
  assert.equal(init.headers.Authorization,'Bearer demo');
  assert.equal(init.headers.apikey,'anon');
  assert.equal(init.redirect,'manual');
@@ -25,3 +28,11 @@ assert.equal((await (await lookup()).json()).patient.age,29);
 rows.push(rows[0]);
 assert.equal((await lookup()).status,502);
 console.log('Exact-HN pharmacy access and identity checks passed');
+async function suggest(prefix){
+ return onRequestPost({request:new Request('https://his.invalid/',{method:'POST',headers:{authorization:'Bearer demo'},body:JSON.stringify({prefix})}),env});
+}
+rows=[{Patient_ID:'LXH202-TEST',First_Name:'Synthetic',Last_Name:'Patient'}];
+assert.deepEqual(await (await suggest('LXH202')).json(),{suggestions:[{hn:'LXH202-TEST',fullName:'Synthetic Patient'}]});
+assert.equal((await suggest('LXH20*')).status,400);
+rows=[{Patient_ID:'LXH999-TEST'}];
+assert.equal((await suggest('LXH202')).status,502);
